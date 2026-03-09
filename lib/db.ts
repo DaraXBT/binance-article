@@ -1,22 +1,28 @@
 import prisma from './prisma';
-import { CreateDeckProjectInput, UpdateSlideInput } from './schemas';
+import { CreateDeckProjectInput, UpdateSlideInput, SlideUpdateRequest } from './schemas';
 import { GeneratedDeckResponse } from './gemini';
 import { Slide, DeckProject } from '@prisma/client';
 
 export async function createDeckProject(
   title: string,
-  description?: string
+  content: string,
+  description?: string,
+  illustrationStyle?: string,
+  sessionId?: string
 ): Promise<DeckProject> {
   return prisma.deckProject.create({
     data: {
       title,
+      content,
       description,
+      illustrationStyle: illustrationStyle || 'pixel-art',
+      sessionId: sessionId || '',
     },
   });
 }
 
 export async function getDeckProject(id: string) {
-  return prisma.deckProject.findUnique({
+  const deck = await prisma.deckProject.findUnique({
     where: { id },
     include: {
       slides: {
@@ -26,6 +32,16 @@ export async function getDeckProject(id: string) {
       renderAssets: true,
     },
   });
+
+  if (!deck) return null;
+
+  return {
+    ...deck,
+    slides: deck.slides.map((slide: any) => ({
+      ...slide,
+      bulletPoints: slide.bullets ? JSON.parse(slide.bullets) : [],
+    }))
+  };
 }
 
 export async function updateDeckProject(
@@ -37,7 +53,7 @@ export async function updateDeckProject(
     status: string;
   }>
 ) {
-  return prisma.deckProject.update({
+  const deck = await prisma.deckProject.update({
     where: { id },
     data,
     include: {
@@ -46,10 +62,19 @@ export async function updateDeckProject(
       },
     },
   });
+
+  return {
+    ...deck,
+    slides: deck.slides.map((slide: any) => ({
+      ...slide,
+      bulletPoints: slide.bullets ? JSON.parse(slide.bullets) : [],
+    }))
+  };
 }
 
-export async function listDeckProjects(limit = 10) {
+export async function listDeckProjects(sessionId: string, limit = 10) {
   return prisma.deckProject.findMany({
+    where: { sessionId },
     take: limit,
     orderBy: { createdAt: 'desc' },
     include: {
@@ -71,8 +96,9 @@ export async function createSlidesFromGeneration(
           deckId,
           title: slide.title,
           subtitle: slide.subtitle,
-          bulletPoints: slide.bulletPoints,
+          bullets: JSON.stringify(slide.bulletPoints || []),
           notes: slide.notes,
+          imagePrompt: slide.imagePrompt || null,
           order: slide.order,
         },
       })
@@ -83,13 +109,27 @@ export async function createSlidesFromGeneration(
   await prisma.captionPackage.upsert({
     where: { deckId },
     update: {
-      blog: generated.captions.blog,
-      twitter: generated.captions.twitter,
+      blogTitle: generated.captions.blog?.seoTitle,
+      blogMeta: generated.captions.blog?.metaDescription,
+      blogIntro: generated.captions.blog?.introText,
+      blogSections: generated.captions.blog?.sections ? JSON.stringify(generated.captions.blog.sections) : null,
+      blogTags: generated.captions.blog?.tags ? JSON.stringify(generated.captions.blog.tags) : null,
+      xSingle1: generated.captions.twitter?.singles?.[0],
+      xSingle2: generated.captions.twitter?.singles?.[1],
+      xSingle3: generated.captions.twitter?.singles?.[2],
+      xThread: generated.captions.twitter?.thread,
     },
     create: {
       deckId,
-      blog: generated.captions.blog,
-      twitter: generated.captions.twitter,
+      blogTitle: generated.captions.blog?.seoTitle,
+      blogMeta: generated.captions.blog?.metaDescription,
+      blogIntro: generated.captions.blog?.introText,
+      blogSections: generated.captions.blog?.sections ? JSON.stringify(generated.captions.blog.sections) : null,
+      blogTags: generated.captions.blog?.tags ? JSON.stringify(generated.captions.blog.tags) : null,
+      xSingle1: generated.captions.twitter?.singles?.[0],
+      xSingle2: generated.captions.twitter?.singles?.[1],
+      xSingle3: generated.captions.twitter?.singles?.[2],
+      xThread: generated.captions.twitter?.thread,
     },
   });
 
@@ -105,7 +145,7 @@ export async function updateSlide(
     data: {
       title: update.title,
       subtitle: update.subtitle,
-      bulletPoints: update.bulletPoints,
+      bullets: update.bullets ? JSON.stringify(update.bullets) : undefined,
       notes: update.notes,
     },
   });
@@ -142,7 +182,8 @@ export async function createRenderAsset(
       deckId,
       filename,
       filePath,
-      assetType,
+      format: assetType,
+      mimeType: assetType === 'pdf' ? 'application/pdf' : assetType === 'png' ? 'image/png' : 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     },
   });
 }
@@ -174,5 +215,13 @@ export async function getDeckWithAssets(deckId: string) {
     },
   });
 
-  return deck;
+  if (!deck) return null;
+
+  return {
+    ...deck,
+    slides: deck.slides.map((slide: any) => ({
+      ...slide,
+      bulletPoints: slide.bullets ? JSON.parse(slide.bullets) : [],
+    }))
+  };
 }

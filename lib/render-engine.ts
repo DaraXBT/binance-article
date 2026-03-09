@@ -41,7 +41,7 @@ export async function renderDeck(context: RenderContext): Promise<RenderOutput> 
     .sort((a, b) => a.order - b.order)
     .map(
       (s) =>
-        `Slide ${s.order + 1}: ${s.title}\n${s.bulletPoints.join('\n')}`
+        `Slide ${s.order + 1}: ${s.title}\n${(s.bullets ? JSON.parse(s.bullets) : []).join('\n')}`
     )
     .join('\n\n---\n\n');
 

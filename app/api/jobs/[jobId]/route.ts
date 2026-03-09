@@ -3,10 +3,10 @@ import { getJob } from '@/lib/job-queue';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { jobId: string } }
+  { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
-    const jobId = params.jobId;
+    const jobId = (await params).jobId;
     const job = getJob(jobId);
 
     if (!job) {

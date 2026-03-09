@@ -4,10 +4,10 @@ import { updateSlide, deleteSlide } from '@/lib/db';
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string; slideId: string } }
+  { params }: { params: Promise<{ id: string; slideId: string }> }
 ) {
   try {
-    const { slideId } = params;
+    const { slideId } = await params;
     const body = await request.json();
     const validated = UpdateSlideSchema.parse(body);
 
@@ -27,10 +27,10 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; slideId: string } }
+  { params }: { params: Promise<{ id: string; slideId: string }> }
 ) {
   try {
-    const { slideId } = params;
+    const { slideId } = await params;
 
     await deleteSlide(slideId);
 

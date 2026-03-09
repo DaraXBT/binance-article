@@ -74,23 +74,23 @@ export function SlideEditor({
           </Label>
           <Input
             id="subtitle"
-            value={slide.subtitle}
+            value={slide.subtitle || ''}
             onChange={(e) => handleChange('subtitle', e.target.value)}
             disabled={isLoading}
           />
         </div>
 
         <div>
-          <Label htmlFor="bulletPoints" className="mb-2 block">
+          <Label htmlFor="bullets" className="mb-2 block">
             Bullet Points
           </Label>
           <Textarea
-            id="bulletPoints"
-            value={(slide.bulletPoints as string[]).join('\n')}
+            id="bullets"
+            value={(slide.bullets ? JSON.parse(slide.bullets) : []).join('\n')}
             onChange={(e) =>
               handleChange(
-                'bulletPoints',
-                e.target.value.split('\n').filter((line) => line.trim())
+                'bullets',
+                JSON.stringify(e.target.value.split('\n').filter((line) => line.trim()))
               )
             }
             placeholder="Enter each bullet point on a new line"
@@ -108,7 +108,7 @@ export function SlideEditor({
           </Label>
           <Textarea
             id="notes"
-            value={slide.notes}
+            value={slide.notes || ''}
             onChange={(e) => handleChange('notes', e.target.value)}
             placeholder="Add speaker notes for this slide..."
             rows={3}

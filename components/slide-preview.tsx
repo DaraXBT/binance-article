@@ -1,9 +1,10 @@
 'use client';
 
 import { Slide } from '@prisma/client';
+import { ImageIcon } from 'lucide-react';
 
 interface SlidePreviewProps {
-  slide: Slide | null;
+  slide: (Slide & { imageUrl?: string | null }) | null;
   theme?: string;
 }
 
@@ -16,42 +17,61 @@ export function SlidePreview({ slide, theme = 'default' }: SlidePreviewProps) {
     );
   }
 
-  // Calculate aspect ratio for 16:9 presentation
+  const bullets = slide.bullets ? JSON.parse(slide.bullets) : [];
+
   return (
-    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 rounded-lg overflow-hidden">
-      <div
-        className="w-full h-full bg-white shadow-2xl flex flex-col justify-between p-12"
-        style={{
-          aspectRatio: '16 / 9',
-        }}
-      >
-        {/* Slide header */}
-        <div>
-          <h1 className="text-5xl font-bold text-slate-900 mb-4">{slide.title}</h1>
-          {slide.subtitle && (
-            <p className="text-2xl text-slate-600 mb-6">{slide.subtitle}</p>
-          )}
+    <div className="w-full h-full flex flex-col gap-4 overflow-auto">
+      {/* Generated Image */}
+      {slide.imageUrl ? (
+        <div className="w-full rounded-lg overflow-hidden border border-border shadow-md flex-shrink-0">
+          <img
+            src={slide.imageUrl}
+            alt={slide.title}
+            className="w-full h-auto object-contain"
+            style={{ aspectRatio: '16 / 9' }}
+          />
         </div>
-
-        {/* Slide content */}
-        <div className="flex-1 flex flex-col justify-center">
-          {(slide.bulletPoints as string[]).length > 0 && (
-            <ul className="space-y-4">
-              {(slide.bulletPoints as string[]).map((point, idx) => (
-                <li key={idx} className="text-xl text-slate-700 flex items-start gap-3">
-                  <span className="inline-block w-3 h-3 rounded-full bg-blue-600 mt-2 flex-shrink-0" />
-                  <span>{point}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+      ) : (
+        <div
+          className="w-full rounded-lg border border-dashed border-border flex items-center justify-center bg-muted/50 flex-shrink-0"
+          style={{ aspectRatio: '16 / 9' }}
+        >
+          <div className="flex flex-col items-center gap-2 text-muted-foreground">
+            <ImageIcon className="h-8 w-8" />
+            <p className="text-sm">Image not generated yet</p>
+          </div>
         </div>
+      )}
 
-        {/* Slide footer */}
-        <div className="flex items-center justify-between text-sm text-slate-500">
+      {/* Slide content card */}
+      <div className="bg-card border border-border rounded-lg p-6 flex-shrink-0">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
           <span>Slide {slide.order + 1}</span>
-          {theme && <span className="capitalize">{theme} Theme</span>}
+          {theme && <span className="capitalize">• {theme}</span>}
         </div>
+
+        <h2 className="text-xl font-bold mb-2">{slide.title}</h2>
+        {slide.subtitle && (
+          <p className="text-muted-foreground mb-4">{slide.subtitle}</p>
+        )}
+
+        {bullets.length > 0 && (
+          <ul className="space-y-2">
+            {bullets.map((point: string, idx: number) => (
+              <li key={idx} className="text-sm flex items-start gap-2">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
+                <span>{point}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {slide.notes && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <p className="text-xs font-medium text-muted-foreground mb-1">Notes</p>
+            <p className="text-sm text-muted-foreground">{slide.notes}</p>
+          </div>
+        )}
       </div>
     </div>
   );

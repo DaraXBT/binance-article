@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GeneratedDeckSchema } from '@/lib/schemas';
+import { GenerateRequestSchema } from '@/lib/schemas';
 import { generateDeckWithGemini } from '@/lib/gemini';
 import { createSlidesFromGeneration, updateDeckProject } from '@/lib/db';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const deckId = params.id;
+    const deckId = (await params).id;
     const body = await request.json();
-    const validated = GeneratedDeckSchema.parse(body);
+    const validated = GenerateRequestSchema.parse(body);
 
     // Generate content with Gemini
-    const generated = await generateDeckWithGemini(validated);
+    const generated = await generateDeckWithGemini({
+      articleContent: validated.articleContent,
+      slideCount: validated.slideCount,
+      illustrationStyle: validated.illustrationStyle,
+    });
 
     // Save slides and captions to database
     await createSlidesFromGeneration(deckId, generated);

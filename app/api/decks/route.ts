@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createDeckProject, listDeckProjects } from '@/lib/db';
 import { CreateDeckProjectSchema } from '@/lib/schemas';
+import { getSessionId } from '@/lib/session';
 
 export async function POST(request: NextRequest) {
   try {
+    const sessionId = await getSessionId();
     const body = await request.json();
     const validated = CreateDeckProjectSchema.parse(body);
 
-    const deck = await createDeckProject(validated.title, validated.description);
+    const deck = await createDeckProject(
+      validated.title,
+      validated.content,
+      validated.description,
+      validated.illustrationStyle,
+      sessionId
+    );
 
     return NextResponse.json(deck, { status: 201 });
   } catch (error) {
@@ -23,7 +31,8 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
-    const decks = await listDeckProjects(20);
+    const sessionId = await getSessionId();
+    const decks = await listDeckProjects(sessionId, 20);
     return NextResponse.json(decks);
   } catch (error) {
     console.error('[API] Error fetching decks:', error);

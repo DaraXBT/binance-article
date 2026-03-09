@@ -16,12 +16,18 @@ model DeckProject {
   description   String?
   content       String    // Raw content/markdown input
   theme         String    @default("default") // Theme preset name
-  customTheme   Json?     // Custom theme overrides
+  customTheme   String?   // Custom theme overrides (JSON string)
+  illustrationStyle String @default("pixel-art") // "pixel-art" | "fantasy-animation" | "lab-notes"
+  status        String    @default("draft")   // "draft" | "generated" | "rendered"
   slides        Slide[]
+  captions      CaptionPackage?
   renderAssets  RenderAsset[]
   renderJobs    RenderJob[]
+  sessionId     String    @default("")  // Anonymous session ID from cookie
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+
+  @@index([sessionId])
 }
 
 model Slide {
@@ -30,10 +36,11 @@ model Slide {
   deck          DeckProject @relation(fields: [deckId], references: [id], onDelete: Cascade)
   title         String
   subtitle      String?
-  bullets       String[]  // Array of bullet points
+  bullets       String    // Array of bullet points (JSON string)
   notes         String?   // Speaker notes
+  imageUrl      String?   // Path to generated slide image
+  imagePrompt   String?   // Prompt used to generate the image
   order         Int       // For ordering slides
-  captions      CaptionPackage?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -43,8 +50,8 @@ model Slide {
 
 model CaptionPackage {
   id            String    @id @default(cuid())
-  slideId       String    @unique
-  slide         Slide     @relation(fields: [slideId], references: [id], onDelete: Cascade)
+  deckId        String    @unique
+  deck          DeckProject @relation(fields: [deckId], references: [id], onDelete: Cascade)
   
   // Blog package
   blogTitle     String?   // SEO title
@@ -62,7 +69,7 @@ model CaptionPackage {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  @@index([slideId])
+  @@index([deckId])
 }
 
 model RenderAsset {

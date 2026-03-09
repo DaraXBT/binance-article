@@ -5,26 +5,21 @@ import { Button } from '@/components/ui/button';
 import { WizardStepper, WizardStep } from '@/components/wizard-stepper';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { ContentStep } from './steps/content-step';
-import { SettingsStep } from './steps/settings-step';
-import { ThemeStep } from './steps/theme-step';
+import { StyleStep } from './steps/style-step';
 import { GenerateStep } from './steps/generate-step';
 import { useRouter } from 'next/navigation';
 
 const STEPS: WizardStep[] = [
-  { id: 'content', title: 'Content', description: 'Define your topic' },
-  { id: 'settings', title: 'Settings', description: 'Configure deck' },
-  { id: 'theme', title: 'Theme', description: 'Choose style' },
-  { id: 'generate', title: 'Generate', description: 'Create deck' },
+  { id: 'article', title: 'Article', description: 'Paste your content' },
+  { id: 'style', title: 'Style', description: 'Pick look & slides' },
+  { id: 'generate', title: 'Generate', description: 'Auto-create deck' },
 ];
 
 interface WizardFormData {
   title: string;
-  topic: string;
+  articleContent: string;
   slideCount: number;
-  targetAudience: string;
-  style: string;
-  additionalNotes: string;
-  theme: string;
+  illustrationStyle: string;
 }
 
 export default function NewDeckPage() {
@@ -32,16 +27,23 @@ export default function NewDeckPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<WizardFormData>({
     title: '',
-    topic: '',
-    slideCount: 10,
-    targetAudience: '',
-    style: 'professional',
-    additionalNotes: '',
-    theme: 'default',
+    articleContent: '',
+    slideCount: 8,
+    illustrationStyle: 'pixel-art',
   });
 
+  const canProceed = () => {
+    if (currentStep === 0) {
+      return formData.title.trim().length >= 1 && formData.articleContent.trim().length >= 10;
+    }
+    if (currentStep === 1) {
+      return formData.illustrationStyle && formData.slideCount >= 3;
+    }
+    return true;
+  };
+
   const handleNext = () => {
-    if (currentStep < STEPS.length - 1) {
+    if (currentStep < STEPS.length - 1 && canProceed()) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -69,7 +71,7 @@ export default function NewDeckPage() {
         <div className="mb-12">
           <h1 className="text-3xl font-bold mb-2">Create New Deck</h1>
           <p className="text-muted-foreground">
-            Follow these steps to generate your AI-powered presentation
+            Paste your article, pick a style, and we&apos;ll auto-generate everything
           </p>
         </div>
 
@@ -88,41 +90,40 @@ export default function NewDeckPage() {
             <ContentStep formData={formData} onUpdate={updateFormData} />
           )}
           {currentStep === 1 && (
-            <SettingsStep formData={formData} onUpdate={updateFormData} />
+            <StyleStep formData={formData} onUpdate={updateFormData} />
           )}
           {currentStep === 2 && (
-            <ThemeStep formData={formData} onUpdate={updateFormData} />
-          )}
-          {currentStep === 3 && (
             <GenerateStep formData={formData} onDone={() => router.push('/')} />
           )}
         </div>
 
         {/* Navigation */}
-        <div className="flex items-center justify-between gap-4 mt-8">
-          <Button
-            variant="outline"
-            onClick={handlePrevious}
-            disabled={currentStep === 0}
-            className="gap-2"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Previous
-          </Button>
+        {currentStep < 2 && (
+          <div className="flex items-center justify-between gap-4 mt-8">
+            <Button
+              variant="outline"
+              onClick={handlePrevious}
+              disabled={currentStep === 0}
+              className="gap-2"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
 
-          <div className="text-sm text-muted-foreground">
-            Step {currentStep + 1} of {STEPS.length}
+            <div className="text-sm text-muted-foreground">
+              Step {currentStep + 1} of {STEPS.length}
+            </div>
+
+            <Button
+              onClick={handleNext}
+              disabled={!canProceed()}
+              className="gap-2"
+            >
+              {currentStep === 1 ? 'Generate' : 'Next'}
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
-
-          <Button
-            onClick={handleNext}
-            disabled={currentStep === STEPS.length - 1}
-            className="gap-2"
-          >
-            Next
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
+        )}
       </div>
     </div>
   );

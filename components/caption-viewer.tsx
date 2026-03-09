@@ -27,8 +27,17 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  const blog = captions.blog as any;
-  const twitter = captions.twitter as any;
+  const blog = {
+    seoTitle: captions.blogTitle || '',
+    metaDescription: captions.blogMeta || '',
+    introText: captions.blogIntro || '',
+    tags: captions.blogTags ? JSON.parse(captions.blogTags) : [],
+    sections: captions.blogSections ? JSON.parse(captions.blogSections) : []
+  };
+  const twitter = {
+    singles: [captions.xSingle1, captions.xSingle2, captions.xSingle3].filter(Boolean) as string[],
+    thread: captions.xThread || '',
+  };
 
   return (
     <Tabs defaultValue="blog" className="h-full flex flex-col">

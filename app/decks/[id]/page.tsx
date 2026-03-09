@@ -7,7 +7,7 @@ import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
-} from 'react-resizable-panels';
+} from '@/components/ui/resizable';
 import { Button } from '@/components/ui/button';
 import { SlideList } from '@/components/slide-list';
 import { SlideEditor } from '@/components/slide-editor';

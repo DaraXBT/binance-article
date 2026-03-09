@@ -3,17 +3,17 @@ import { readAsset, getMimeType } from '@/lib/file-utils';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string; filename: string } }
+  { params }: { params: Promise<{ id: string; filename: string }> }
 ) {
   try {
-    const { id: deckId, filename } = params;
+    const { id: deckId, filename } = await params;
 
     // Read file safely
     const buffer = readAsset(deckId, filename);
     const mimeType = getMimeType(filename);
 
     // Return file with appropriate headers
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
       headers: {
         'Content-Type': mimeType,
         'Content-Disposition': `attachment; filename="${filename}"`,

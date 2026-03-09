@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { DeckGenerateRequest, SlideContent, CaptionPackage } from './schemas';
+import { DeckGenerateRequest, SlideContent } from './schemas';
 
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
@@ -7,11 +7,34 @@ if (!apiKey) {
 }
 
 const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+export interface GeneratedCaptionPackage {
+  blog: {
+    seoTitle?: string;
+    metaDescription?: string;
+    introText?: string;
+    sections?: string[];
+    tags?: string[];
+  };
+  twitter: {
+    singles?: string[];
+    thread?: string;
+  };
+}
+
+export interface GeneratedSlideWithPrompt {
+  title: string;
+  subtitle?: string;
+  bulletPoints: string[];
+  notes?: string;
+  imagePrompt: string;
+  order: number;
+}
 
 export interface GeneratedDeckResponse {
-  slides: SlideContent[];
-  captions: CaptionPackage;
+  slides: GeneratedSlideWithPrompt[];
+  captions: GeneratedCaptionPackage;
   metadata: {
     totalSlides: number;
     generatedAt: string;
@@ -39,17 +62,29 @@ export async function generateDeckWithGemini(
     throw new Error('No slides generated');
   }
 
-  const slides: SlideContent[] = parsed.slides.map((slide: any, index: number) => ({
-    id: `slide-${index}`,
+  const slides: GeneratedSlideWithPrompt[] = parsed.slides.map((slide: any, index: number) => ({
     title: slide.title || 'Untitled Slide',
     subtitle: slide.subtitle || '',
     bulletPoints: Array.isArray(slide.bulletPoints) ? slide.bulletPoints : [],
     notes: slide.notes || '',
+    imagePrompt: slide.imagePrompt || `Illustration for: ${slide.title}`,
     order: index,
   }));
 
-  // Generate captions
-  const captions = await generateCaptions(slides, request.topic);
+  // Parse captions from the same response
+  const captions: GeneratedCaptionPackage = {
+    blog: {
+      seoTitle: parsed.captions?.blog?.seoTitle || parsed.slides?.[0]?.title || 'Article',
+      metaDescription: parsed.captions?.blog?.metaDescription || '',
+      introText: parsed.captions?.blog?.introText || '',
+      sections: parsed.captions?.blog?.sections || slides.map((s) => s.title),
+      tags: parsed.captions?.blog?.tags || [],
+    },
+    twitter: {
+      singles: parsed.captions?.twitter?.singles || [],
+      thread: parsed.captions?.twitter?.thread || '',
+    },
+  };
 
   return {
     slides,
@@ -62,83 +97,62 @@ export async function generateDeckWithGemini(
 }
 
 function buildGenerationPrompt(request: DeckGenerateRequest): string {
-  return `You are an expert presentation designer. Generate a structured presentation with ${request.slideCount} slides about: "${request.topic}"
+  const styleDescriptions: Record<string, string> = {
+    'pixel-art': 'Binance × Retro 8-Bit: dark crypto-native style with chunky pixel art, isometric scenes, gold (#F0B90B) hero accent on Canvas Black (#0C0E12). Pixel grid alignment, dithering, staircase edges, retro sprites.',
+    'fantasy-animation': 'Binance × Enchanted Storybook: dark isometric with gold-led structure, painterly warmth, magical narrative glow. Lantern light highlights, expressive characters, soft ember accents on Canvas Black.',
+    'lab-notes': 'Binance × Lab Notes: dark isometric with sparse technical annotations and research-note clarity. One hero mechanism, 2-4 compact labels, figure markers, leader lines on Canvas Black.',
+  };
 
-${request.targetAudience ? `Target Audience: ${request.targetAudience}` : ''}
-${request.style ? `Style: ${request.style}` : ''}
-${request.additionalNotes ? `Additional Notes: ${request.additionalNotes}` : ''}
+  const styleGuide = styleDescriptions[request.illustrationStyle] || styleDescriptions['pixel-art'];
 
-Return ONLY valid JSON (no markdown, no code blocks) with this structure:
+  return `You are an expert content creator. Analyze the following article and create a structured presentation deck with exactly ${request.slideCount} slides.
+
+ARTICLE:
+"""
+${request.articleContent}
+"""
+
+ILLUSTRATION STYLE: ${styleGuide}
+
+Return ONLY valid JSON (no markdown, no code blocks) with this exact structure:
 {
   "slides": [
     {
       "title": "Slide Title",
       "subtitle": "Optional subtitle or tagline",
-      "bulletPoints": ["Point 1", "Point 2", "Point 3"],
-      "notes": "Speaker notes or additional context"
+      "bulletPoints": ["Key point 1", "Key point 2", "Key point 3"],
+      "notes": "Speaker notes or blog paragraph for this slide",
+      "imagePrompt": "Detailed image generation prompt for this slide following the illustration style. Should describe a specific visual scene that represents the slide content. Include composition details, key visual elements, and style-specific instructions."
     }
-  ]
+  ],
+  "captions": {
+    "blog": {
+      "seoTitle": "SEO-optimized blog title (60 chars max)",
+      "metaDescription": "Meta description (160 chars max)",
+      "introText": "Engaging 2-3 sentence blog introduction",
+      "sections": ["Full blog paragraph for each section based on the slides"],
+      "tags": ["relevant", "tags", "for", "the", "article"]
+    },
+    "twitter": {
+      "singles": [
+        "Tweet 1 with hook + CTA (280 chars max)",
+        "Tweet 2 alternative angle (280 chars max)",
+        "Tweet 3 question/engagement (280 chars max)"
+      ],
+      "thread": "1/ Thread hook\\n\\n2/ Key insight 1\\n\\n3/ Key insight 2\\n\\n4/ Call to action"
+    }
+  }
 }
 
-Requirements:
-- Each slide should have a clear, concise title
-- Bullet points should be specific and actionable
-- Total ${request.slideCount} slides
-- First slide should be a title/cover slide
-- Last slide should be a conclusion/call-to-action
-- Keep bullet points to 3-5 per slide maximum`;
-}
-
-async function generateCaptions(
-  slides: SlideContent[],
-  topic: string
-): Promise<CaptionPackage> {
-  const captionPrompt = `Given these slide titles from a presentation about "${topic}":
-${slides.map((s, i) => `${i + 1}. ${s.title}`).join('\n')}
-
-Generate captions in this JSON format:
-{
-  "blog": {
-    "seoTitle": "SEO-optimized title (60 chars max)",
-    "metaDescription": "Meta description (160 chars max)",
-    "introText": "Engaging 2-3 sentence introduction",
-    "sections": ["Section 1 content", "Section 2 content"],
-    "tags": ["tag1", "tag2", "tag3"]
-  },
-  "twitter": {
-    "singles": [
-      "Tweet 1",
-      "Tweet 2",
-      "Tweet 3"
-    ],
-    "thread": "Tweet 1\n\n2/ Tweet 2\n\n3/ Tweet 3"
-  }
-}`;
-
-  const result = await model.generateContent(captionPrompt);
-  const responseText = result.response.text();
-
-  const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    // Return default captions if generation fails
-    return {
-      blog: {
-        seoTitle: topic,
-        metaDescription: `Learn about ${topic}`,
-        introText: `This presentation covers key aspects of ${topic}.`,
-        sections: slides.slice(1, -1).map(s => s.title),
-        tags: [topic.toLowerCase()],
-      },
-      twitter: {
-        singles: [
-          `Just finished a great presentation on ${topic}!`,
-          `Key insights from our ${topic} deck.`,
-          `Check out our latest ${topic} content.`,
-        ],
-        thread: `1/ New thread on ${topic}\n\n2/ Here are the key takeaways\n\n3/ What do you think?`,
-      },
-    };
-  }
-
-  return JSON.parse(jsonMatch[0]);
+REQUIREMENTS:
+- Exactly ${request.slideCount} slides
+- First slide = attention-grabbing hook/title slide
+- Last slide = summary with call-to-action
+- Each imagePrompt must be detailed (50-150 words) and follow the ${request.illustrationStyle} visual style
+- imagePrompt should describe a VISUAL SCENE, not just text — think about what objects, characters, and compositions to show
+- Blog sections should be full paragraphs, not just slide bullets
+- Twitter singles should be standalone posts with hooks and CTAs
+- Thread should tell a complete story across 4-6 tweets
+- Keep bullet points to 3-5 per slide maximum
+- Extract real data, metrics, and specific details from the article`;
 }

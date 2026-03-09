@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { DeckCard } from '@/components/deck-card';
-import { Empty } from '@/components/ui/empty';
+import { Empty, EmptyTitle, EmptyDescription, EmptyHeader } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 
 async function fetchDecks() {
@@ -88,11 +88,12 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : (
-            <Empty
-              title="No decks yet"
-              description="Create your first presentation deck with AI. Click the button above to get started."
-              icon="presentation"
-            />
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>No decks yet</EmptyTitle>
+                <EmptyDescription>Create your first presentation deck with AI. Click the button above to get started.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           )}
         </div>
       </div>

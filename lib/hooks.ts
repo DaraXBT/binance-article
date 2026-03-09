@@ -62,7 +62,7 @@ export function useCreateDeck() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: { title: string; description?: string }) => {
+    mutationFn: async (data: { title: string; content: string; description?: string }) => {
       const res = await fetch('/api/decks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -112,6 +112,56 @@ export function useRenderDeck() {
       });
       if (!res.ok) throw new Error('Failed to start render job');
       return res.json();
+    },
+  });
+}
+
+export function useUpdateDeck() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      deckId,
+      ...data
+    }: {
+      deckId: string;
+      title?: string;
+      description?: string;
+      theme?: string;
+      status?: string;
+    }) => {
+      const res = await fetch(`/api/decks/${deckId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('Failed to update deck');
+      return res.json();
+    },
+    onSuccess: (data) => {
+      if (data.id) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.detail(data.id),
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.lists() });
+    },
+  });
+}
+
+export function useDeleteDeck() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (deckId: string) => {
+      const res = await fetch(`/api/decks/${deckId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Failed to delete deck');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.lists() });
     },
   });
 }

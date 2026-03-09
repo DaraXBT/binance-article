@@ -152,6 +152,36 @@ export const THEME_PRESETS = {
   },
 };
 
+// Illustration styles for Binance article automation
+export const ILLUSTRATION_STYLES = [
+  {
+    id: 'pixel-art',
+    name: 'Pixel Art',
+    description: 'Retro 8-bit crypto gaming aesthetic with chunky pixels and isometric scenes',
+    icon: '🎮',
+    colors: ['#0C0E12', '#F0B90B', '#FCD535', '#02C076', '#F6465D'],
+    bestFor: 'GameFi, hackathon posts, developer tutorials, community engagement',
+  },
+  {
+    id: 'fantasy-animation',
+    name: 'Fantasy Animation',
+    description: 'Enchanted storybook narrative with magical glow and painterly warmth',
+    icon: '✨',
+    colors: ['#0C0E12', '#F0B90B', '#FCD535', '#E89A3D', '#F3E7D3'],
+    bestFor: 'Web3 explainers, DeFi onboarding, product storytelling, editorial visuals',
+  },
+  {
+    id: 'lab-notes',
+    name: 'Lab Notes',
+    description: 'Technical annotated research diagrams with sparse note clarity',
+    icon: '🔬',
+    colors: ['#0C0E12', '#F0B90B', '#FCD535', '#B7BDC6', '#707A8A'],
+    bestFor: 'Protocol explainers, DeFi breakdowns, workflow visualizations, research notes',
+  },
+] as const;
+
+export type IllustrationStyleId = typeof ILLUSTRATION_STYLES[number]['id'];
+
 // Export config for job queue
 export const JOB_QUEUE_CONFIG = {
   maxConcurrent: parseInt(process.env.MAX_CONCURRENT_JOBS || "2", 10),

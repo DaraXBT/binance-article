@@ -13,13 +13,13 @@ const ReorderSchema = z.object({
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await request.json();
     const validated = ReorderSchema.parse(body);
 
-    await reorderSlides(params.id, validated.slideOrder);
+    await reorderSlides((await params).id, validated.slideOrder);
 
     return NextResponse.json({ success: true });
   } catch (error) {

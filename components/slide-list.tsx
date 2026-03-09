@@ -2,10 +2,10 @@
 
 import { Slide } from '@prisma/client';
 import { Button } from '@/components/ui/button';
-import { Plus, GripVertical } from 'lucide-react';
+import { Plus, GripVertical, ImageIcon } from 'lucide-react';
 
 interface SlideListProps {
-  slides: Slide[];
+  slides: (Slide & { imageUrl?: string | null })[];
   activeSlideId: string | null;
   onSelectSlide: (slideId: string) => void;
   onAddSlide?: () => void;
@@ -39,24 +39,37 @@ export function SlideList({
             <button
               key={slide.id}
               onClick={() => onSelectSlide(slide.id)}
-              className={`w-full text-left p-3 rounded-lg border transition-all ${
+              className={`w-full text-left rounded-lg border transition-all overflow-hidden ${
                 activeSlideId === slide.id
                   ? 'border-primary bg-primary/10'
                   : 'border-border hover:border-primary/50'
               }`}
             >
-              <div className="flex items-start gap-2">
-                <GripVertical className="h-4 w-4 mt-1 flex-shrink-0 text-muted-foreground" />
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">{slide.title}</p>
-                  {slide.subtitle && (
-                    <p className="text-xs text-muted-foreground truncate">
-                      {slide.subtitle}
+              {/* Image thumbnail */}
+              {slide.imageUrl ? (
+                <div className="w-full h-16 bg-muted overflow-hidden">
+                  <img
+                    src={slide.imageUrl}
+                    alt={slide.title}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="w-full h-10 bg-muted/50 flex items-center justify-center">
+                  <ImageIcon className="h-3.5 w-3.5 text-muted-foreground/50" />
+                </div>
+              )}
+
+              {/* Slide info */}
+              <div className="p-2.5">
+                <div className="flex items-start gap-2">
+                  <GripVertical className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-muted-foreground" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-xs truncate">{slide.title}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      Slide {slide.order + 1}
                     </p>
-                  )}
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Slide {slide.order + 1}
-                  </p>
+                  </div>
                 </div>
               </div>
             </button>

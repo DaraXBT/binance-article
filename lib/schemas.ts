@@ -1,6 +1,25 @@
 import { z } from "zod";
 import { VALIDATION } from "./config";
 
+export const IllustrationStyleSchema = z.enum(['pixel-art', 'fantasy-animation', 'lab-notes']);
+
+export const GenerateRequestSchema = z.object({
+  articleContent: z.string().min(10, 'Article content is required'),
+  slideCount: z.number().int().min(3).max(15).default(8),
+  illustrationStyle: IllustrationStyleSchema.default('pixel-art'),
+});
+
+export type DeckGenerateRequest = z.infer<typeof GenerateRequestSchema>;
+
+export interface SlideContent {
+  id?: string;
+  title: string;
+  subtitle?: string;
+  bulletPoints: string[];
+  notes?: string;
+  order: number;
+}
+
 // Deck Project Schemas
 export const CreateDeckProjectSchema = z.object({
   title: z
@@ -16,6 +35,7 @@ export const CreateDeckProjectSchema = z.object({
     .min(1, "Content is required")
     .max(VALIDATION.CONTENT_MAX_LENGTH, `Content must be less than ${VALIDATION.CONTENT_MAX_LENGTH} characters`),
   theme: z.string().default("default"),
+  illustrationStyle: IllustrationStyleSchema.default('pixel-art'),
 });
 
 export type CreateDeckProjectInput = z.infer<typeof CreateDeckProjectSchema>;
@@ -53,6 +73,7 @@ export type CreateSlideInput = z.infer<typeof CreateSlideSchema>;
 
 export const UpdateSlideSchema = CreateSlideSchema.partial();
 export type UpdateSlideInput = z.infer<typeof UpdateSlideSchema>;
+export type SlideUpdateRequest = UpdateSlideInput;
 
 // Caption Schemas
 export const CaptionPackageSchema = z.object({
@@ -68,6 +89,7 @@ export const CaptionPackageSchema = z.object({
 });
 
 export type CaptionPackageInput = z.infer<typeof CaptionPackageSchema>;
+export type CaptionPackage = CaptionPackageInput;
 
 // Gemini Response Schemas
 export const GeneratedSlideSchema = z.object({
