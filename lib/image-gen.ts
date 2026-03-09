@@ -25,24 +25,31 @@ const STYLE_DESCRIPTIONS: Record<string, string> = {
 - Protocol explainer and technical documentation visual language`,
 };
 
-function getImageModel() {
+function getGenAI() {
   const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('GOOGLE_API_KEY or GEMINI_API_KEY environment variable is not set');
   }
-  const genAI = new GoogleGenerativeAI(apiKey);
-  return genAI.getGenerativeModel({
-    model: 'gemini-3-pro-preview-image-generation',
-  });
+  return new GoogleGenerativeAI(apiKey);
+}
+
+export interface ImageGenerationResult {
+  buffer: Buffer;
+  mimeType: string;
 }
 
 /**
  * Generate an image using Google Gemini's image generation capability.
- * Returns the image as a Buffer.
+ * Returns the image as a Buffer and its MIME type.
  */
-export async function generateImage(prompt: string): Promise<Buffer | null> {
+export async function generateImage(prompt: string): Promise<ImageGenerationResult | null> {
   try {
-    const model = getImageModel();
+    const genAI = getGenAI();
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-3-pro-image-preview',
+    });
+
+    console.log('[ImageGen] Calling Gemini with prompt length:', prompt.length);
 
     const result = await model.generateContent({
       contents: [
@@ -50,13 +57,13 @@ export async function generateImage(prompt: string): Promise<Buffer | null> {
           role: 'user',
           parts: [
             {
-              text: `Generate an illustration image. Do not include any text in the image. Create a high-quality, detailed, visually striking illustration:\n\n${prompt}`,
+              text: `Create an illustration image for the following description. Output ONLY the image, no text:\n\n${prompt}`,
             },
           ],
         },
       ],
       generationConfig: {
-        responseModalities: ['TEXT', 'IMAGE'],
+        responseModalities: ['IMAGE', 'TEXT'],
       } as any,
     });
 
@@ -64,24 +71,44 @@ export async function generateImage(prompt: string): Promise<Buffer | null> {
     const response = result.response;
     const candidates = response.candidates;
 
+    console.log('[ImageGen] Response candidates count:', candidates?.length ?? 0);
+
     if (!candidates || candidates.length === 0) {
       console.warn('[ImageGen] No candidates in response');
+      // Check for prompt feedback (safety blocks)
+      const feedback = (response as any).promptFeedback;
+      if (feedback) {
+        console.warn('[ImageGen] Prompt feedback:', JSON.stringify(feedback));
+      }
       return null;
     }
 
-    for (const part of candidates[0].content.parts) {
-      if ((part as any).inlineData) {
-        const imageData = (part as any).inlineData;
-        const buffer = Buffer.from(imageData.data, 'base64');
-        console.log(`[ImageGen] Image generated: ${buffer.length} bytes`);
-        return buffer;
+    const parts = candidates[0].content?.parts || [];
+    console.log('[ImageGen] Response parts count:', parts.length);
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i] as any;
+      console.log(`[ImageGen] Part ${i} type:`, part.text ? 'text' : part.inlineData ? `inlineData(${part.inlineData.mimeType})` : 'unknown');
+      if (part.inlineData) {
+        const buffer = Buffer.from(part.inlineData.data, 'base64');
+        const mimeType = part.inlineData.mimeType || 'image/jpeg';
+        console.log(`[ImageGen] ✅ Image extracted: ${buffer.length} bytes, type: ${mimeType}`);
+        return { buffer, mimeType };
       }
     }
 
-    console.warn('[ImageGen] No image data in response parts');
+    // Log any text response for debugging
+    const textPart = parts.find((p: any) => p.text);
+    if (textPart) {
+      console.warn('[ImageGen] Got text instead of image:', (textPart as any).text?.slice(0, 200));
+    }
+
+    console.warn('[ImageGen] No image data found in response parts');
     return null;
-  } catch (error) {
-    console.error('[ImageGen] Error generating image:', error);
+  } catch (error: any) {
+    console.error('[ImageGen] Error:', error?.message || error);
+    if (error?.response) {
+      console.error('[ImageGen] Error response:', JSON.stringify(error.response));
+    }
     return null;
   }
 }
@@ -99,11 +126,12 @@ export function getStyleDescription(illustrationStyle: string): string {
  */
 export async function uploadToBlob(
   imageBuffer: Buffer,
-  filename: string
+  filename: string,
+  contentType: string = 'image/jpeg'
 ): Promise<string> {
   const { url } = await put(filename, imageBuffer, {
     access: 'public',
-    contentType: 'image/png',
+    contentType,
   });
 
   return url;

@@ -51,17 +51,18 @@ export async function POST(
         console.log(`[ImageGen] Generating image for slide ${slide.order + 1}...`);
 
         // Generate image via Google Gemini
-        const imageBuffer = await generateImage(fullPrompt);
+        const imageResult = await generateImage(fullPrompt);
 
-        if (!imageBuffer) {
+        if (!imageResult) {
           console.warn(`[ImageGen] No image returned for slide ${slide.order + 1}`);
           results.push({ slideId: slide.id, imageUrl: null, error: 'No image generated' });
           continue;
         }
 
         // Upload to Vercel Blob
-        const filename = `decks/${deckId}/slide-${String(slide.order + 1).padStart(2, '0')}.png`;
-        const imageUrl = await uploadToBlob(imageBuffer, filename);
+        const ext = imageResult.mimeType === 'image/jpeg' ? 'jpg' : 'png';
+        const filename = `decks/${deckId}/slide-${String(slide.order + 1).padStart(2, '0')}.${ext}`;
+        const imageUrl = await uploadToBlob(imageResult.buffer, filename, imageResult.mimeType);
 
         // Update slide with image URL
         await prisma.slide.update({
