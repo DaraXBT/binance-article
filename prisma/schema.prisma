@@ -1,0 +1,103 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model DeckProject {
+  id            String    @id @default(cuid())
+  title         String
+  description   String?
+  content       String    // Raw content/markdown input
+  theme         String    @default("default") // Theme preset name
+  customTheme   Json?     // Custom theme overrides
+  slides        Slide[]
+  renderAssets  RenderAsset[]
+  renderJobs    RenderJob[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Slide {
+  id            String    @id @default(cuid())
+  deckId        String
+  deck          DeckProject @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  title         String
+  subtitle      String?
+  bullets       String[]  // Array of bullet points
+  notes         String?   // Speaker notes
+  order         Int       // For ordering slides
+  captions      CaptionPackage?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([deckId])
+  @@unique([deckId, order])
+}
+
+model CaptionPackage {
+  id            String    @id @default(cuid())
+  slideId       String    @unique
+  slide         Slide     @relation(fields: [slideId], references: [id], onDelete: Cascade)
+  
+  // Blog package
+  blogTitle     String?   // SEO title
+  blogMeta      String?   // Meta description
+  blogIntro     String?   // Intro paragraph
+  blogSections  String?   // JSON array of sections
+  blogTags      String?   // Comma-separated tags
+  
+  // Twitter/X variants
+  xSingle1      String?   // Single tweet 1
+  xSingle2      String?   // Single tweet 2
+  xSingle3      String?   // Single tweet 3
+  xThread       String?   // Full thread (newline-separated tweets)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([slideId])
+}
+
+model RenderAsset {
+  id            String    @id @default(cuid())
+  deckId        String
+  deck          DeckProject @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  filename      String    // e.g., "deck.pdf", "slide-1.png"
+  format        String    // "pdf" | "pptx" | "png"
+  mimeType      String
+  filePath      String    // Local storage path (relative to /public/renders)
+  fileSize      Int?      // Bytes
+  jobId         String?
+  job           RenderJob? @relation(fields: [jobId], references: [id])
+  createdAt     DateTime  @default(now())
+
+  @@index([deckId])
+  @@index([jobId])
+  @@unique([deckId, filename])
+}
+
+model RenderJob {
+  id            String    @id @default(cuid())
+  deckId        String
+  deck          DeckProject @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  status        String    @default("queued") // "queued" | "running" | "completed" | "failed"
+  progress      Int       @default(0)        // 0-100
+  logs          String    @default("")       // Newline-separated log entries
+  error         String?
+  format        String    @default("pdf")    // What to render
+  assets        RenderAsset[]
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([deckId])
+  @@index([status])
+}
