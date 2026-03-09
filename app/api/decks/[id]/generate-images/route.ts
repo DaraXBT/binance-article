@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import {
   generateImage,
-  getStyleReference,
+  getStyleDescription,
   uploadToBlob,
   buildImagePrompt,
 } from '@/lib/image-gen';
+
+// Allow up to 60 seconds for image generation
+export const maxDuration = 60;
 
 export async function POST(
   request: NextRequest,
@@ -30,8 +33,8 @@ export async function POST(
       return NextResponse.json({ error: 'Deck not found' }, { status: 404 });
     }
 
-    // Load style reference
-    const styleContext = await getStyleReference(illustrationStyle);
+    // Get embedded style description (no filesystem needed)
+    const styleDescription = getStyleDescription(illustrationStyle);
 
     // Generate images for each slide
     const results: { slideId: string; imageUrl: string | null; error?: string }[] = [];
@@ -43,7 +46,7 @@ export async function POST(
       }
 
       try {
-        const fullPrompt = buildImagePrompt(styleContext, slide.imagePrompt);
+        const fullPrompt = buildImagePrompt(styleDescription, slide.imagePrompt);
 
         console.log(`[ImageGen] Generating image for slide ${slide.order + 1}...`);
 
@@ -51,6 +54,7 @@ export async function POST(
         const imageBuffer = await generateImage(fullPrompt);
 
         if (!imageBuffer) {
+          console.warn(`[ImageGen] No image returned for slide ${slide.order + 1}`);
           results.push({ slideId: slide.id, imageUrl: null, error: 'No image generated' });
           continue;
         }
@@ -66,7 +70,7 @@ export async function POST(
         });
 
         results.push({ slideId: slide.id, imageUrl });
-        console.log(`[ImageGen] ✅ Slide ${slide.order + 1} uploaded to Blob`);
+        console.log(`[ImageGen] ✅ Slide ${slide.order + 1} uploaded: ${imageUrl}`);
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Unknown error';
         console.error(`[ImageGen] ❌ Slide ${slide.order + 1} failed:`, errorMsg);

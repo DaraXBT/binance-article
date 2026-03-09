@@ -3,6 +3,8 @@ import { GenerateRequestSchema } from '@/lib/schemas';
 import { generateDeckWithGemini } from '@/lib/gemini';
 import { createSlidesFromGeneration, updateDeckProject } from '@/lib/db';
 
+export const maxDuration = 60;
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
