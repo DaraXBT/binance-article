@@ -1,5 +1,6 @@
 'use client';
 
+import { useLanguage } from '@/components/language-provider';
 import { ILLUSTRATION_STYLES } from '@/lib/config';
 import { Check } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
@@ -14,21 +15,23 @@ interface StyleStepProps {
 }
 
 export function StyleStep({ formData, onUpdate }: StyleStepProps) {
+  const { messages } = useLanguage();
+
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-semibold mb-2">Choose Style & Slides</h2>
+        <h2 className="text-2xl font-semibold mb-2">{messages.newDeck.style.title}</h2>
         <p className="text-muted-foreground mb-6">
-          Pick an illustration style and how many slides you want
+          {messages.newDeck.style.subtitle}
         </p>
       </div>
 
-      {/* Style Cards */}
       <div className="space-y-3">
-        <Label className="text-sm font-medium">Illustration Style</Label>
+        <Label className="text-sm font-medium">{messages.newDeck.style.illustrationStyle}</Label>
         <div className="grid gap-4">
           {ILLUSTRATION_STYLES.map((style) => {
             const isSelected = formData.illustrationStyle === style.id;
+            const localizedStyle = messages.newDeck.styleOptions[style.id as keyof typeof messages.newDeck.styleOptions];
             return (
               <button
                 key={style.id}
@@ -40,19 +43,16 @@ export function StyleStep({ formData, onUpdate }: StyleStepProps) {
                 }`}
               >
                 <div className="flex items-start gap-4">
-                  {/* Icon */}
                   <div className="text-3xl flex-shrink-0 mt-0.5">{style.icon}</div>
 
-                  {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-base">{style.name}</h3>
+                      <h3 className="font-semibold text-base">{localizedStyle.name}</h3>
                     </div>
                     <p className="text-sm text-muted-foreground mb-3">
-                      {style.description}
+                      {localizedStyle.description}
                     </p>
 
-                    {/* Color swatches */}
                     <div className="flex items-center gap-2">
                       {style.colors.map((color, i) => (
                         <div
@@ -63,12 +63,11 @@ export function StyleStep({ formData, onUpdate }: StyleStepProps) {
                         />
                       ))}
                       <span className="text-xs text-muted-foreground ml-2">
-                        {style.bestFor.split(',')[0]}
+                        {localizedStyle.bestFor}
                       </span>
                     </div>
                   </div>
 
-                  {/* Selected indicator */}
                   {isSelected && (
                     <div className="absolute top-3 right-3 bg-primary text-primary-foreground rounded-full p-1">
                       <Check className="h-4 w-4" />
@@ -81,23 +80,22 @@ export function StyleStep({ formData, onUpdate }: StyleStepProps) {
         </div>
       </div>
 
-      {/* Slide Count Slider */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium">Number of Slides</Label>
+          <Label className="text-sm font-medium">{messages.newDeck.style.numberOfSlides}</Label>
           <span className="text-2xl font-bold text-primary">{formData.slideCount}</span>
         </div>
         <Slider
           value={[formData.slideCount]}
           onValueChange={([value]) => onUpdate({ slideCount: value })}
-          min={3}
+          min={1}
           max={15}
           step={1}
           className="w-full"
         />
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>3 slides (quick)</span>
-          <span>15 slides (detailed)</span>
+          <span>{messages.newDeck.style.quick}</span>
+          <span>{messages.newDeck.style.detailed}</span>
         </div>
       </div>
     </div>

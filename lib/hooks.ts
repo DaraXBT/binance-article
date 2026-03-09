@@ -1,37 +1,72 @@
 'use client';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { DeckGenerateRequest, SlideUpdateRequest } from './schemas';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-// Query key factory
+import {
+  CreateSlideRequest,
+  DeckGenerateRequest,
+  SlideUpdateRequest,
+} from '@/lib/schemas';
+
+type DeckMutationInput = {
+  deckId: string;
+  title?: string;
+  description?: string;
+  theme?: string;
+  status?: string;
+};
+
+export type WorkspaceBootstrap = {
+  workspaceId: string;
+  accessKeyPrefix: string;
+  recoveryKey: string | null;
+};
+
+export type WorkspaceRecoveryResult = {
+  success: true;
+  workspaceId: string;
+  accessKeyPrefix: string;
+};
+
+async function readApiResponse<T>(res: Response, fallbackMessage: string): Promise<T> {
+  const data = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    throw new Error(data?.error || fallbackMessage);
+  }
+
+  return data as T;
+}
+
 export const queryKeys = {
   all: ['decks'] as const,
   lists: () => [...queryKeys.all, 'list'] as const,
   detail: (id: string) => [...queryKeys.all, 'detail', id] as const,
   jobs: () => [...queryKeys.all, 'jobs'] as const,
   job: (id: string) => [...queryKeys.jobs(), id] as const,
+  workspace: () => ['workspace'] as const,
 };
 
-// Fetch functions
 async function fetchDecks() {
-  const res = await fetch('/api/decks');
-  if (!res.ok) throw new Error('Failed to fetch decks');
-  return res.json();
+  const res = await fetch('/api/articles');
+  return readApiResponse(res, 'Failed to fetch decks');
 }
 
 async function fetchDeck(id: string) {
-  const res = await fetch(`/api/decks/${id}`);
-  if (!res.ok) throw new Error('Failed to fetch deck');
-  return res.json();
+  const res = await fetch(`/api/articles/${id}`);
+  return readApiResponse(res, 'Failed to fetch deck');
 }
 
 async function fetchJob(jobId: string) {
   const res = await fetch(`/api/jobs/${jobId}`);
-  if (!res.ok) throw new Error('Failed to fetch job');
-  return res.json();
+  return readApiResponse(res, 'Failed to fetch job');
 }
 
-// Hooks for queries
+async function fetchWorkspace() {
+  const res = await fetch('/api/workspace');
+  return readApiResponse<WorkspaceBootstrap>(res, 'Failed to fetch workspace');
+}
+
 export function useDecks() {
   return useQuery({
     queryKey: queryKeys.lists(),
@@ -45,6 +80,7 @@ export function useDeck(id: string) {
     queryKey: queryKeys.detail(id),
     queryFn: () => fetchDeck(id),
     staleTime: 10000,
+    enabled: Boolean(id),
   });
 }
 
@@ -52,24 +88,36 @@ export function useJob(jobId: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.job(jobId),
     queryFn: () => fetchJob(jobId),
-    refetchInterval: 1000, // Poll every second
-    enabled,
+    refetchInterval: 1000,
+    enabled: enabled && Boolean(jobId),
   });
 }
 
-// Hooks for mutations
+export function useWorkspace() {
+  return useQuery({
+    queryKey: queryKeys.workspace(),
+    queryFn: fetchWorkspace,
+    staleTime: 30000,
+  });
+}
+
 export function useCreateDeck() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: { title: string; content: string; description?: string }) => {
-      const res = await fetch('/api/decks', {
+    mutationFn: async (data: {
+      title: string;
+      content: string;
+      description?: string;
+      illustrationStyle?: string;
+    }) => {
+      const res = await fetch('/api/articles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error('Failed to create deck');
-      return res.json();
+
+      return readApiResponse(res, 'Failed to create deck');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.lists() });
@@ -85,19 +133,17 @@ export function useGenerateDeck() {
       deckId,
       ...request
     }: DeckGenerateRequest & { deckId: string }) => {
-      const res = await fetch(`/api/decks/${deckId}/generate`, {
+      const res = await fetch(`/api/articles/${deckId}/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
       });
-      if (!res.ok) throw new Error('Failed to generate deck');
-      return res.json();
+
+      return readApiResponse<{ deckId?: string }>(res, 'Failed to generate deck');
     },
-    onSuccess: (data) => {
+    onSuccess: (data: { deckId?: string }) => {
       if (data.deckId) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.detail(data.deckId),
-        });
+        queryClient.invalidateQueries({ queryKey: queryKeys.detail(data.deckId) });
       }
     },
   });
@@ -106,12 +152,12 @@ export function useGenerateDeck() {
 export function useRenderDeck() {
   return useMutation({
     mutationFn: async (deckId: string) => {
-      const res = await fetch(`/api/decks/${deckId}/render`, {
+      const res = await fetch(`/api/articles/${deckId}/render`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
-      if (!res.ok) throw new Error('Failed to start render job');
-      return res.json();
+
+      return readApiResponse(res, 'Failed to start render job');
     },
   });
 }
@@ -120,29 +166,18 @@ export function useUpdateDeck() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      deckId,
-      ...data
-    }: {
-      deckId: string;
-      title?: string;
-      description?: string;
-      theme?: string;
-      status?: string;
-    }) => {
-      const res = await fetch(`/api/decks/${deckId}`, {
+    mutationFn: async ({ deckId, ...data }: DeckMutationInput) => {
+      const res = await fetch(`/api/articles/${deckId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error('Failed to update deck');
-      return res.json();
+
+      return readApiResponse<{ id?: string }>(res, 'Failed to update deck');
     },
-    onSuccess: (data) => {
+    onSuccess: (data: { id?: string }) => {
       if (data.id) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.detail(data.id),
-        });
+        queryClient.invalidateQueries({ queryKey: queryKeys.detail(data.id) });
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.lists() });
     },
@@ -154,13 +189,53 @@ export function useDeleteDeck() {
 
   return useMutation({
     mutationFn: async (deckId: string) => {
-      const res = await fetch(`/api/decks/${deckId}`, {
+      const res = await fetch(`/api/articles/${deckId}`, {
         method: 'DELETE',
       });
-      if (!res.ok) throw new Error('Failed to delete deck');
-      return res.json();
+
+      return readApiResponse(res, 'Failed to delete deck');
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.lists() });
+    },
+  });
+}
+
+export function useRecoverWorkspace() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (accessKey: string) => {
+      const res = await fetch('/api/workspace/recover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessKey }),
+      });
+
+      return readApiResponse<WorkspaceRecoveryResult>(res, 'Failed to recover workspace');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.workspace() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.all });
+    },
+  });
+}
+
+export function useCreateSlide(deckId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: CreateSlideRequest) => {
+      const res = await fetch(`/api/articles/${deckId}/slides`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      return readApiResponse<{ id: string }>(res, 'Failed to create slide');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.detail(deckId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.lists() });
     },
   });
@@ -174,18 +249,16 @@ export function useUpdateSlide(deckId: string) {
       slideId,
       ...update
     }: SlideUpdateRequest & { slideId: string }) => {
-      const res = await fetch(`/api/decks/${deckId}/slides/${slideId}`, {
+      const res = await fetch(`/api/articles/${deckId}/slides/${slideId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(update),
       });
-      if (!res.ok) throw new Error('Failed to update slide');
-      return res.json();
+
+      return readApiResponse(res, 'Failed to update slide');
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.detail(deckId),
-      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.detail(deckId) });
     },
   });
 }
@@ -195,16 +268,15 @@ export function useDeleteSlide(deckId: string) {
 
   return useMutation({
     mutationFn: async (slideId: string) => {
-      const res = await fetch(`/api/decks/${deckId}/slides/${slideId}`, {
+      const res = await fetch(`/api/articles/${deckId}/slides/${slideId}`, {
         method: 'DELETE',
       });
-      if (!res.ok) throw new Error('Failed to delete slide');
-      return res.json();
+
+      return readApiResponse(res, 'Failed to delete slide');
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.detail(deckId),
-      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.detail(deckId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.lists() });
     },
   });
 }
@@ -214,18 +286,16 @@ export function useReorderSlides(deckId: string) {
 
   return useMutation({
     mutationFn: async (slideOrder: Array<{ id: string; order: number }>) => {
-      const res = await fetch(`/api/decks/${deckId}/reorder`, {
+      const res = await fetch(`/api/articles/${deckId}/reorder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slideOrder }),
       });
-      if (!res.ok) throw new Error('Failed to reorder slides');
-      return res.json();
+
+      return readApiResponse(res, 'Failed to reorder slides');
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.detail(deckId),
-      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.detail(deckId) });
     },
   });
 }

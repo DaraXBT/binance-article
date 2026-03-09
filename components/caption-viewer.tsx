@@ -1,10 +1,12 @@
 'use client';
 
-import { CaptionPackage } from '@prisma/client';
+import { useState } from 'react';
+import { Check, Copy } from 'lucide-react';
+
+import { useLanguage } from '@/components/language-provider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Copy, Check } from 'lucide-react';
-import { useState } from 'react';
+import { CaptionPackage } from '@/lib/schemas';
 
 interface CaptionViewerProps {
   captions: CaptionPackage | null;
@@ -12,11 +14,12 @@ interface CaptionViewerProps {
 
 export function CaptionViewer({ captions }: CaptionViewerProps) {
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
+  const { messages } = useLanguage();
 
   if (!captions) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground">
-        <p>No captions available</p>
+        <p>{messages.captions.noCaptions}</p>
       </div>
     );
   }
@@ -32,7 +35,7 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
     metaDescription: captions.blogMeta || '',
     introText: captions.blogIntro || '',
     tags: captions.blogTags ? JSON.parse(captions.blogTags) : [],
-    sections: captions.blogSections ? JSON.parse(captions.blogSections) : []
+    sections: captions.blogSections ? JSON.parse(captions.blogSections) : [],
   };
   const twitter = {
     singles: [captions.xSingle1, captions.xSingle2, captions.xSingle3].filter(Boolean) as string[],
@@ -41,16 +44,16 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
 
   return (
     <Tabs defaultValue="blog" className="h-full flex flex-col">
-      <TabsList className="w-full rounded-none border-b border-border bg-transparent">
-        <TabsTrigger value="blog">Blog</TabsTrigger>
-        <TabsTrigger value="twitter">Twitter/X</TabsTrigger>
+      <TabsList className="w-full  border-b border-border bg-transparent">
+        <TabsTrigger value="blog">{messages.captions.blog}</TabsTrigger>
+        <TabsTrigger value="twitter">{messages.captions.twitter}</TabsTrigger>
       </TabsList>
 
       <TabsContent value="blog" className="flex-1 overflow-y-auto p-4">
         <div className="space-y-6">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h4 className="font-semibold text-sm">SEO Title</h4>
+              <h4 className="font-semibold text-sm">{messages.captions.seoTitle}</h4>
               <Button
                 size="sm"
                 variant="ghost"
@@ -63,15 +66,15 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
                 )}
               </Button>
             </div>
-            <p className="text-sm bg-muted p-3 rounded-lg">{blog.seoTitle}</p>
+            <p className="text-sm bg-muted p-3 ">{blog.seoTitle}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {blog.seoTitle.length}/60 characters
+              {messages.captions.characters(blog.seoTitle.length, 60)}
             </p>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h4 className="font-semibold text-sm">Meta Description</h4>
+              <h4 className="font-semibold text-sm">{messages.captions.metaDescription}</h4>
               <Button
                 size="sm"
                 variant="ghost"
@@ -84,15 +87,15 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
                 )}
               </Button>
             </div>
-            <p className="text-sm bg-muted p-3 rounded-lg">{blog.metaDescription}</p>
+            <p className="text-sm bg-muted p-3 ">{blog.metaDescription}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {blog.metaDescription.length}/160 characters
+              {messages.captions.characters(blog.metaDescription.length, 160)}
             </p>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h4 className="font-semibold text-sm">Intro Text</h4>
+              <h4 className="font-semibold text-sm">{messages.captions.introText}</h4>
               <Button
                 size="sm"
                 variant="ghost"
@@ -105,7 +108,7 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
                 )}
               </Button>
             </div>
-            <p className="text-sm bg-muted p-3 rounded-lg whitespace-pre-wrap">
+            <p className="text-sm bg-muted p-3  whitespace-pre-wrap">
               {blog.introText}
             </p>
           </div>
@@ -113,7 +116,7 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
           {blog.tags && blog.tags.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <h4 className="font-semibold text-sm">Tags</h4>
+                <h4 className="font-semibold text-sm">{messages.captions.tags}</h4>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -128,7 +131,7 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
               </div>
               <div className="flex flex-wrap gap-2">
                 {blog.tags.map((tag: string) => (
-                  <span key={tag} className="inline-block bg-secondary text-secondary-foreground px-3 py-1 rounded-full text-xs">
+                  <span key={tag} className="inline-block bg-secondary text-secondary-foreground px-3 py-1  text-xs">
                     #{tag}
                   </span>
                 ))}
@@ -142,12 +145,14 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
         <div className="space-y-6">
           {twitter.singles && twitter.singles.length > 0 && (
             <div>
-              <h4 className="font-semibold text-sm mb-3">Individual Tweets</h4>
+              <h4 className="font-semibold text-sm mb-3">{messages.captions.individualTweets}</h4>
               <div className="space-y-2">
                 {twitter.singles.map((tweet: string, idx: number) => (
                   <div key={idx} className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs text-muted-foreground">Tweet {idx + 1}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {messages.captions.tweet(idx + 1)}
+                      </p>
                       <Button
                         size="sm"
                         variant="ghost"
@@ -160,7 +165,7 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
                         )}
                       </Button>
                     </div>
-                    <p className="text-sm bg-muted p-3 rounded-lg">{tweet}</p>
+                    <p className="text-sm bg-muted p-3 ">{tweet}</p>
                   </div>
                 ))}
               </div>
@@ -170,7 +175,7 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
           {twitter.thread && (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <h4 className="font-semibold text-sm">Twitter Thread</h4>
+                <h4 className="font-semibold text-sm">{messages.captions.twitterThread}</h4>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -183,7 +188,7 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
                   )}
                 </Button>
               </div>
-              <p className="text-sm bg-muted p-3 rounded-lg whitespace-pre-wrap">
+              <p className="text-sm bg-muted p-3  whitespace-pre-wrap">
                 {twitter.thread}
               </p>
             </div>

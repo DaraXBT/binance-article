@@ -1,120 +1,221 @@
 'use client';
 
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+import { useEffect, useMemo, useState } from 'react';
+import { Save, Trash2 } from 'lucide-react';
+
+import { useLanguage } from '@/components/language-provider';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Slide } from '@prisma/client';
-import { Trash2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { DeckSlide, SlideUpdateRequest } from '@/lib/schemas';
 
 interface SlideEditorProps {
-  slide: Slide | null;
-  onUpdate?: (slide: Slide) => void;
+  slide: DeckSlide | null;
+  onSave?: (update: SlideUpdateRequest) => void;
   onDelete?: () => void;
-  isLoading?: boolean;
+  isSaving?: boolean;
+  isDeleting?: boolean;
+}
+
+type SlideDraft = {
+  title: string;
+  subtitle: string;
+  bulletsText: string;
+  notes: string;
+};
+
+function buildDraft(slide: DeckSlide): SlideDraft {
+  return {
+    title: slide.title,
+    subtitle: slide.subtitle ?? '',
+    bulletsText: slide.bulletPoints.join('\n'),
+    notes: slide.notes ?? '',
+  };
 }
 
 export function SlideEditor({
   slide,
-  onUpdate,
+  onSave,
   onDelete,
-  isLoading = false,
+  isSaving = false,
+  isDeleting = false,
 }: SlideEditorProps) {
-  if (!slide) {
+  const { messages } = useLanguage();
+  const [draft, setDraft] = useState<SlideDraft | null>(null);
+  const initialDraft = useMemo(() => (slide ? buildDraft(slide) : null), [slide]);
+
+  useEffect(() => {
+    setDraft(initialDraft);
+  }, [initialDraft]);
+
+  if (!slide || !draft || !initialDraft) {
     return (
-      <div className="flex items-center justify-center h-full text-muted-foreground">
-        <p>Select a slide to edit</p>
+      <div className="flex h-full items-center justify-center text-muted-foreground">
+        <p>{messages.slideEditor.selectSlide}</p>
       </div>
     );
   }
 
-  const handleChange = (field: string, value: any) => {
-    if (onUpdate) {
-      onUpdate({
-        ...slide,
-        [field]: value,
-      });
+  const isDirty =
+    draft.title !== initialDraft.title ||
+    draft.subtitle !== initialDraft.subtitle ||
+    draft.bulletsText !== initialDraft.bulletsText ||
+    draft.notes !== initialDraft.notes;
+
+  const handleFieldChange = (field: keyof SlideDraft, value: string) => {
+    setDraft((current) => (current ? { ...current, [field]: value } : current));
+  };
+
+  const handleDiscard = () => {
+    setDraft(initialDraft);
+  };
+
+  const handleSave = () => {
+    if (!onSave) {
+      return;
     }
+
+    onSave({
+      title: draft.title.trim(),
+      subtitle: draft.subtitle.trim() || undefined,
+      bullets: draft.bulletsText
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean),
+      notes: draft.notes.trim() || undefined,
+    });
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Edit Slide {slide.order + 1}</h3>
-        {onDelete && (
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={onDelete}
-            disabled={isLoading}
-            className="gap-2"
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete
-          </Button>
-        )}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-semibold">
+            {messages.slideEditor.editSlide(slide.order + 1)}
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {isDirty
+              ? messages.slideEditor.unsavedChanges
+              : messages.slideEditor.allChangesSaved}
+          </p>
+        </div>
+
+        {onDelete ? (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={isSaving || isDeleting}
+                className="gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                {messages.common.delete}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{messages.slideEditor.deleteTitle}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {messages.slideEditor.deleteDescription}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{messages.common.cancel}</AlertDialogCancel>
+                <AlertDialogAction onClick={onDelete}>
+                  {messages.common.delete}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : null}
       </div>
 
       <div className="space-y-4">
         <div>
           <Label htmlFor="title" className="mb-2 block">
-            Slide Title
+            {messages.slideEditor.slideTitle}
           </Label>
           <Input
             id="title"
-            value={slide.title}
-            onChange={(e) => handleChange('title', e.target.value)}
-            disabled={isLoading}
+            value={draft.title}
+            onChange={(event) => handleFieldChange('title', event.target.value)}
+            disabled={isSaving || isDeleting}
           />
         </div>
 
         <div>
           <Label htmlFor="subtitle" className="mb-2 block">
-            Subtitle (Optional)
+            {messages.slideEditor.subtitle}
           </Label>
           <Input
             id="subtitle"
-            value={slide.subtitle || ''}
-            onChange={(e) => handleChange('subtitle', e.target.value)}
-            disabled={isLoading}
+            value={draft.subtitle}
+            onChange={(event) => handleFieldChange('subtitle', event.target.value)}
+            disabled={isSaving || isDeleting}
           />
         </div>
 
         <div>
           <Label htmlFor="bullets" className="mb-2 block">
-            Bullet Points
+            {messages.slideEditor.bulletPoints}
           </Label>
           <Textarea
             id="bullets"
-            value={(slide.bullets ? JSON.parse(slide.bullets) : []).join('\n')}
-            onChange={(e) =>
-              handleChange(
-                'bullets',
-                JSON.stringify(e.target.value.split('\n').filter((line) => line.trim()))
-              )
-            }
-            placeholder="Enter each bullet point on a new line"
-            rows={4}
-            disabled={isLoading}
+            value={draft.bulletsText}
+            onChange={(event) => handleFieldChange('bulletsText', event.target.value)}
+            placeholder={messages.slideEditor.bulletPlaceholder}
+            rows={6}
+            disabled={isSaving || isDeleting}
           />
-          <p className="text-xs text-muted-foreground mt-1">
-            One bullet point per line
+          <p className="mt-1 text-xs text-muted-foreground">
+            {messages.slideEditor.bulletHint}
           </p>
         </div>
 
         <div>
           <Label htmlFor="notes" className="mb-2 block">
-            Speaker Notes
+            {messages.slideEditor.speakerNotes}
           </Label>
           <Textarea
             id="notes"
-            value={slide.notes || ''}
-            onChange={(e) => handleChange('notes', e.target.value)}
-            placeholder="Add speaker notes for this slide..."
-            rows={3}
-            disabled={isLoading}
+            value={draft.notes}
+            onChange={(event) => handleFieldChange('notes', event.target.value)}
+            placeholder={messages.slideEditor.speakerNotesPlaceholder}
+            rows={4}
+            disabled={isSaving || isDeleting}
           />
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
+        <Button
+          onClick={handleSave}
+          disabled={!isDirty || !draft.title.trim() || isSaving || isDeleting}
+          className="gap-2"
+        >
+          <Save className="h-4 w-4" />
+          {isSaving ? messages.slideEditor.saving : messages.slideEditor.save}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={handleDiscard}
+          disabled={!isDirty || isSaving || isDeleting}
+        >
+          {messages.slideEditor.discard}
+        </Button>
       </div>
     </div>
   );

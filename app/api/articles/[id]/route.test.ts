@@ -1,0 +1,81 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const dbMock = {
+  getDeckWithAssets: vi.fn(),
+  updateDeckProject: vi.fn(),
+  deleteDeckProject: vi.fn(),
+};
+
+const workspaceMock = {
+  getCurrentWorkspace: vi.fn(async () => ({
+    workspace: {
+      id: 'workspace-1',
+      accessKeyPrefix: 'dwk_test',
+    },
+  })),
+};
+
+const fileUtilsMock = {
+  deleteDeckAssets: vi.fn(),
+};
+
+vi.mock('@/lib/db', () => dbMock);
+vi.mock('@/lib/workspace', () => workspaceMock);
+vi.mock('@/lib/file-utils', () => fileUtilsMock);
+
+describe('GET/PATCH/DELETE /api/articles/[id]', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 404 when the article is outside the current workspace', async () => {
+    dbMock.getDeckWithAssets.mockResolvedValue(null);
+
+    const { GET } = await import('@/app/api/articles/[id]/route');
+    const response = await GET(
+      new Request('http://localhost/api/articles/deck-1') as never,
+      { params: Promise.resolve({ id: 'deck-1' }) }
+    );
+
+    expect(response.status).toBe(404);
+    expect(dbMock.getDeckWithAssets).toHaveBeenCalledWith('deck-1', 'workspace-1');
+  });
+
+  it('returns 404 on update when the article is not owned by the workspace', async () => {
+    dbMock.updateDeckProject.mockRejectedValue(new Error('Deck not found'));
+
+    const { PATCH } = await import('@/app/api/articles/[id]/route');
+    const response = await PATCH(
+      new Request('http://localhost/api/articles/deck-1', {
+        method: 'PATCH',
+        body: JSON.stringify({ title: 'Updated' }),
+      }) as never,
+      { params: Promise.resolve({ id: 'deck-1' }) }
+    );
+
+    expect(response.status).toBe(404);
+    expect(dbMock.updateDeckProject).toHaveBeenCalledWith(
+      'deck-1',
+      'workspace-1',
+      expect.objectContaining({ title: 'Updated' })
+    );
+  });
+
+  it('deletes the article and its local assets inside the current workspace', async () => {
+    dbMock.deleteDeckProject.mockResolvedValue({ id: 'deck-1' });
+
+    const { DELETE } = await import('@/app/api/articles/[id]/route');
+    const response = await DELETE(
+      new Request('http://localhost/api/articles/deck-1', {
+        method: 'DELETE',
+      }) as never,
+      { params: Promise.resolve({ id: 'deck-1' }) }
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ success: true });
+    expect(dbMock.deleteDeckProject).toHaveBeenCalledWith('deck-1', 'workspace-1');
+    expect(fileUtilsMock.deleteDeckAssets).toHaveBeenCalledWith('deck-1');
+  });
+});

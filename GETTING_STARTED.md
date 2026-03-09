@@ -12,11 +12,15 @@ Welcome to DeckForge! This guide will help you get up and running in minutes.
 
 ### 2. Set Up Environment Variables
 
-The app already has `GEMINI_API_KEY` requested. You'll see a prompt in the settings to add it:
+For local `next dev`, use `.env.local`. If the project is linked to Vercel, pull the env file first:
 
-1. Click the settings button (⚙️) in the top right
-2. Go to "Vars" section
-3. Add your Gemini API key there
+```bash
+vercel env pull .env.local
+```
+
+Required runtime vars:
+- `GEMINI_API_KEY`
+- `BLOB_READ_WRITE_TOKEN`
 
 ### 3. Install & Run
 
@@ -147,7 +151,7 @@ Coming soon! Currently using mouse/trackpad navigation.
 
 - All decks are saved to a local SQLite database
 - For production, upgrade to PostgreSQL (see README.md)
-- Assets are stored in `public/assets/`
+- Runtime-generated slide images are stored in Vercel Blob
 
 ## Troubleshooting
 
@@ -160,6 +164,11 @@ Coming soon! Currently using mouse/trackpad navigation.
 - Refresh the page
 - Check browser console for errors
 - Ensure JavaScript is enabled
+
+### Images not generating
+- Confirm both `GEMINI_API_KEY` and `BLOB_READ_WRITE_TOKEN` are set in `.env.local`
+- If you rely on Vercel-managed envs, run `vercel env pull .env.local` again
+- Open the article page and use `Retry Failed Images` for partial failures
 
 ### Performance Issues
 - Large presentations (100+ slides) may take longer

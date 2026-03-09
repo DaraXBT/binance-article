@@ -42,6 +42,7 @@ DeckForge is a modern web application that uses Google's Gemini AI to automatica
 ### Prerequisites
 - Node.js 18+ and npm/pnpm
 - Google Gemini API key (free tier available)
+- Vercel Blob read/write token for runtime image storage
 
 ### Installation
 
@@ -52,11 +53,15 @@ DeckForge is a modern web application that uses Google's Gemini AI to automatica
 
 2. **Set Up Environment Variables**
    ```bash
-   # Copy the template
-   cp .env.local.example .env.local
-   
-   # Add your Gemini API key
-   echo "GEMINI_API_KEY=your_api_key_here" >> .env.local
+   # Pull Vercel-managed envs if this project is linked
+   vercel env pull .env.local
+
+   # Or create .env.local manually for local dev
+   cat <<'EOF' > .env.local
+   GEMINI_API_KEY=your_api_key_here
+   BLOB_READ_WRITE_TOKEN=your_blob_rw_token_here
+   DATABASE_URL="file:./prisma/dev.db"
+   EOF
    ```
 
 3. **Install Dependencies**
@@ -199,7 +204,10 @@ pnpm add redis
 ```
 
 ### File Storage
-For distributed deployments, use object storage:
+Runtime-generated slide images use Vercel Blob in both local and hosted environments.
+Local `next dev` also needs a valid `BLOB_READ_WRITE_TOKEN`; `.env.vercel.local` is not loaded automatically by Next.js.
+
+For other distributed deployments, replace the blob integration with your preferred object storage:
 
 ```typescript
 // Replace local file-utils.ts with cloud provider
@@ -209,6 +217,7 @@ For distributed deployments, use object storage:
 ### Environment Variables
 ```bash
 GEMINI_API_KEY=your_api_key
+BLOB_READ_WRITE_TOKEN=your_blob_rw_token
 DATABASE_URL=your_database_url
 ```
 
@@ -285,6 +294,10 @@ DeckForge is designed to be extensible. Key areas for enhancement:
 
 ### "GEMINI_API_KEY is not set"
 - Add your key to `.env.local`
+
+### "BLOB_READ_WRITE_TOKEN is not set"
+- Add your Blob token to `.env.local`
+- Or run `vercel env pull .env.local` before `pnpm dev`
 - Restart the dev server
 
 ### Database errors

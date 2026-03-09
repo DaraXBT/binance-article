@@ -1,0 +1,604 @@
+import { formatDistanceToNow } from 'date-fns';
+import { enUS, km as kmLocale } from 'date-fns/locale';
+
+export type Language = 'km' | 'en';
+
+export const LANGUAGE_COOKIE_NAME = 'deckforge_language';
+
+const en = {
+  common: {
+    back: 'Back',
+    backToDashboard: 'Back to Dashboard',
+    retry: 'Retry',
+    cancel: 'Cancel',
+    next: 'Next',
+    previous: 'Previous',
+    generate: 'Generate',
+    newDeck: 'New article',
+    share: 'Share',
+    export: 'Export',
+    delete: 'Delete',
+    add: 'Add',
+  },
+  theme: {
+    ariaLabel: 'Toggle theme',
+    light: 'Light',
+    dark: 'Dark',
+    system: 'System',
+  },
+  language: {
+    ariaLabel: 'Switch language',
+    khmer: 'ខ្មែរ',
+    english: 'EN',
+  },
+  dashboard: {
+    workspaceDashboard: 'Workspace dashboard',
+    searchDecks: 'Search articles',
+    allDecks: 'All articles',
+    couldNotLoadDeckList: 'Could not load your article list.',
+    noMatchingDecks: 'No articles match this search.',
+    noDecksYet: 'No articles yet. Create one to get started.',
+    privateWorkspace: 'Private workspace',
+    workspaceDescription:
+      'This workspace is private by default. Save your access key if you want to open it on another device.',
+    accessKeyPrefixLabel: 'Access key prefix',
+    saveAccessKeyTitle: 'Save this access key',
+    saveAccessKeyDescription:
+      'This is the only time the full recovery key will be shown. Store it somewhere safe before you leave this page.',
+    copyAccessKey: 'Copy access key',
+    accessKeyCopied: 'Access key copied.',
+    copyAccessKeyFailed: 'Could not copy the access key.',
+    useAccessKeyTitle: 'Use an access key',
+    useAccessKeyDescription:
+      'Have a recovery key from another browser or device? Enter it here to attach this browser to that workspace.',
+    accessKeyPlaceholder: 'Paste workspace access key',
+    useAccessKeyAction: 'Use access key',
+    recoveringWorkspace: 'Recovering workspace...',
+    accessKeyRequired: 'Access key is required.',
+    workspaceRecovered: 'Workspace recovered for this browser.',
+    recoverWorkspaceFailed: 'Failed to recover workspace.',
+    headerTitle: 'Dashboard',
+    loadErrorTitle: 'Articles could not be loaded.',
+    loadErrorDescription:
+      'The dashboard shell is available, but your current workspace failed to fetch the article list. Retry the request or create a fresh article directly from the top bar.',
+    continueRecent: 'Continue recent work',
+    emptyTitle: 'Your dashboard is ready for the first article.',
+    emptyDescription:
+      'Create your first article and it will appear in the left sidebar and in the recent section here.',
+    createFirstDeck: 'Create first article',
+    pasteToBegin: 'Paste an article to begin',
+    quickStart: 'Quick Start',
+    startFromText: 'Start from Text',
+    startFromTextDesc: 'Paste your blog or outline to generate.',
+    importFromUrl: 'Import from URL',
+    importFromUrlDesc: 'Turn any webpage into an article.',
+    generateWithAI: 'Generate with AI',
+    generateWithAIDesc: 'Describe your topic and let AI write it.',
+    filterAll: 'all',
+    filterDraft: 'draft',
+    filterGenerating: 'generating',
+    filterGenerated: 'generated',
+    filterRendered: 'rendered',
+    noFilteredDecks: 'No articles match the selected \'{status}\' status or search query.',
+  },
+  newDeck: {
+    title: 'Create New Article',
+    subtitle: 'Paste your article, pick a style, and we’ll auto-generate everything',
+    steps: {
+      article: {
+        title: 'Article',
+        description: 'Paste your content',
+      },
+      style: {
+        title: 'Style',
+        description: 'Pick look & slides',
+      },
+      generate: {
+        title: 'Generate',
+        description: 'Auto-create article',
+      },
+    },
+    stepCounter: (current: number, total: number) => `Step ${current} of ${total}`,
+    content: {
+      title: 'Paste Your Article',
+      subtitle: 'Drop in your full article — we’ll turn it into slides with images',
+      articleTitle: 'Article Title',
+      articleContent: 'Article Content',
+      titlePlaceholder: 'e.g., 24/7 Crypto Infrastructure for Gold Traders',
+      contentPlaceholder: 'Paste your full article here (markdown or plain text)...',
+      markdownHint: 'Supports markdown formatting. Longer articles produce richer slides.',
+      wordCount: (count: number) => `${count} words`,
+    },
+    style: {
+      title: 'Choose Style & Slides',
+      subtitle: 'Pick an illustration style and how many slides you want',
+      illustrationStyle: 'Illustration Style',
+      numberOfSlides: 'Number of Slides',
+      quick: '3 slides (quick)',
+      detailed: '15 slides (detailed)',
+    },
+    styleOptions: {
+      'pixel-art': {
+        name: 'Pixel Art',
+        description:
+          'Retro 8-bit crypto gaming aesthetic with chunky pixels and isometric scenes',
+        bestFor: 'GameFi',
+      },
+      'fantasy-animation': {
+        name: 'Fantasy Animation',
+        description:
+          'Enchanted storybook narrative with magical glow and painterly warmth',
+        bestFor: 'Web3 explainers',
+      },
+      'lab-notes': {
+        name: 'Lab Notes',
+        description:
+          'Technical annotated research diagrams with sparse note clarity',
+        bestFor: 'Protocol explainers',
+      },
+    },
+    generateView: {
+      creatingDeck: 'Creating article',
+      generatingSlideContent: 'Generating slide content',
+      generatingImages: 'Generating images',
+      generatingBlogAndX: 'Generating blog & X posts',
+      deckReady: 'Your Article is Ready!',
+      generatingDeck: 'Generating Your Article',
+      readyDescription: 'Slides, images, and captions are all set. Redirecting...',
+      readyWithWarningsDescription:
+        'The article is ready, but some images still need attention. Redirecting so you can retry them.',
+      workingDescription: 'Sit tight — we’re creating your slides, images, and captions',
+      generationFailed: 'Generation Failed',
+      generationCompletedWithWarnings: 'Generation completed with warnings',
+      quotaWarningTitle: 'Gemini image quota reached',
+      quotaWarningBody: (failed: number) =>
+        `Gemini could not generate images for ${failed} slides because the image quota was reached.`,
+      quotaWarningRetryAfter: (seconds: number) => `Retry available in about ${seconds} seconds.`,
+      quotaWarningModel: (model: string) => `Affected model: ${model}.`,
+      quotaWarningAction:
+        'Retry failed images from the article page. If this keeps happening, check Gemini quota, billing, and configuration.',
+      tryAgain: 'Try Again',
+      progress: 'Progress',
+      successSummary: (count: number) =>
+        `Your article has been created with ${count} slides, custom images, and ready-to-use blog & X post captions!`,
+      partialImageSummary: (generated: number, failed: number) =>
+        `${generated} images generated successfully and ${failed} failed. You can retry the failed slides from the article page.`,
+      failedImageSummary: (failed: number) =>
+        `Image generation failed for ${failed} slides. You can retry them from the article page.`,
+      createDeckError: 'Failed to create article',
+      generateSlidesError: 'Failed to generate slides',
+      unknownError: 'An error occurred',
+    },
+  },
+  deckPage: {
+    failedToLoad: 'Failed to load article',
+    back: 'Back',
+    deleteArticle: 'Delete Article',
+    deleteArticleTitle: 'Delete this article?',
+    deleteArticleDescription:
+      'This permanently deletes the article, its slides, captions, and local render assets.',
+    deleteArticleFailed: 'Failed to delete article',
+    retryFailedImages: 'Retry Failed Images',
+    retryingImages: 'Retrying images...',
+    imageRetryFailed: 'Failed to retry images',
+    imageRetrySuccess: (count: number) => `Regenerated ${count} slide images.`,
+    imagesFailed: (count: number) => `${count} slide images failed to generate.`,
+    imagesPending: (count: number) => `${count} slide images are still pending.`,
+    slideAdded: 'Slide added.',
+    slideAddFailed: 'Failed to add slide',
+    slideSaved: 'Slide saved.',
+    slideSaveFailed: 'Failed to save slide',
+    slideDeleted: 'Slide deleted.',
+    slideDeleteFailed: 'Failed to delete slide',
+    slidesReordered: 'Slides reordered.',
+    slideReorderFailed: 'Failed to reorder slides',
+    tabsSlides: (count: number) => `Slides (${count})`,
+    tabsEditor: 'Editor',
+    tabsPreview: 'Preview',
+  },
+  slideList: {
+    slides: (count: number) => `Slides (${count})`,
+    noSlidesYet: 'No slides yet',
+    slide: (index: number) => `Slide ${index}`,
+    moveUp: 'Move slide up',
+    moveDown: 'Move slide down',
+  },
+  slideEditor: {
+    selectSlide: 'Select a slide to edit',
+    editSlide: (index: number) => `Edit Slide ${index}`,
+    untitledSlide: 'Untitled Slide',
+    slideTitle: 'Slide Title',
+    subtitle: 'Subtitle (Optional)',
+    bulletPoints: 'Bullet Points',
+    bulletPlaceholder: 'Enter each bullet point on a new line',
+    bulletHint: 'One bullet point per line',
+    speakerNotes: 'Speaker Notes',
+    speakerNotesPlaceholder: 'Add speaker notes for this slide...',
+    unsavedChanges: 'Unsaved changes',
+    allChangesSaved: 'All changes saved',
+    save: 'Save',
+    saving: 'Saving...',
+    discard: 'Discard',
+    deleteTitle: 'Delete this slide?',
+    deleteDescription: 'This removes the slide and renumbers the remaining slides.',
+  },
+  slidePreview: {
+    selectSlide: 'Select a slide to preview',
+    imageNotGenerated: 'Image not generated yet',
+    imagePending: 'Image generation is pending',
+    imageFailed: 'Image generation failed',
+    imageFailureReason: 'Last error',
+    slide: (index: number) => `Slide ${index}`,
+    notes: 'Notes',
+  },
+  captions: {
+    noCaptions: 'No captions available',
+    blog: 'Blog',
+    twitter: 'Twitter/X',
+    seoTitle: 'SEO Title',
+    metaDescription: 'Meta Description',
+    introText: 'Intro Text',
+    tags: 'Tags',
+    individualTweets: 'Individual Tweets',
+    tweet: (index: number) => `Tweet ${index}`,
+    twitterThread: 'Twitter Thread',
+    characters: (count: number, max: number) => `${count}/${max} characters`,
+  },
+  settingsStep: {
+    title: 'Configure Your Article',
+    subtitle: 'Provide additional details to customize your presentation',
+    targetAudience: 'Target Audience',
+    targetAudiencePlaceholder: 'e.g., Executives, Students, General Public',
+    targetAudienceHint: 'Who is your primary audience?',
+    presentationStyle: 'Presentation Style',
+    selectStyle: 'Select a style',
+    styleHint: 'Choose a style that matches your topic',
+    additionalNotes: 'Additional Notes (Optional)',
+    additionalNotesPlaceholder:
+      'Any specific requirements, key points, or special instructions...',
+    additionalNotesHint: 'Help us generate content that better fits your needs',
+    styleOptions: {
+      professional: {
+        label: 'Professional',
+        description: 'Corporate/Business',
+      },
+      creative: {
+        label: 'Creative',
+        description: 'Dynamic/Artistic',
+      },
+      educational: {
+        label: 'Educational',
+        description: 'Academic/Learning',
+      },
+      minimal: {
+        label: 'Minimal',
+        description: 'Clean/Simple',
+      },
+      storytelling: {
+        label: 'Storytelling',
+        description: 'Narrative-driven',
+      },
+    },
+  },
+  deckCard: {
+    status: {
+      draft: 'Draft',
+      generated: 'Generated',
+      rendered: 'Rendered',
+    },
+    fallbackDescription:
+      'Article-to-slides project with slides, visuals, and caption-ready output.',
+    slides: 'Slides',
+    updated: 'Updated',
+    created: 'Created',
+    openDeck: 'Open article',
+  },
+};
+
+const km: typeof en = {
+  common: {
+    back: 'ត្រឡប់',
+    backToDashboard: 'ត្រឡប់ទៅផ្ទាំងគ្រប់គ្រង',
+    retry: 'សាកល្បងម្ដងទៀត',
+    cancel: 'បោះបង់',
+    next: 'បន្ទាប់',
+    previous: 'ថយក្រោយ',
+    generate: 'បង្កើត',
+    newDeck: 'អត្ថបទថ្មី',
+    share: 'ចែករំលែក',
+    export: 'នាំចេញ',
+    delete: 'លុប',
+    add: 'បន្ថែម',
+  },
+  theme: {
+    ariaLabel: 'ប្ដូររូបរាង',
+    light: 'ភ្លឺ',
+    dark: 'ងងឹត',
+    system: 'តាមប្រព័ន្ធ',
+  },
+  language: {
+    ariaLabel: 'ប្ដូរភាសា',
+    khmer: 'ខ្មែរ',
+    english: 'EN',
+  },
+  dashboard: {
+    workspaceDashboard: 'ផ្ទាំងការងារ',
+    searchDecks: 'ស្វែងរកអត្ថបទ',
+    allDecks: 'អត្ថបទទាំងអស់',
+    couldNotLoadDeckList: 'មិនអាចផ្ទុកបញ្ជីអត្ថបទរបស់អ្នកបានទេ។',
+    noMatchingDecks: 'រកមិនឃើញអត្ថបទតាមការស្វែងរកនេះទេ។',
+    noDecksYet: 'មិនទាន់មានអត្ថបទទេ។ បង្កើតមួយដើម្បីចាប់ផ្តើម។',
+    privateWorkspace: 'ផ្ទាំងការងារឯកជន',
+    workspaceDescription:
+      'ផ្ទាំងការងារនេះមានភាពឯកជនតាមលំនាំដើម។ រក្សាទុក access key ប្រសិនបើអ្នកចង់បើកវាលើឧបករណ៍ផ្សេង។',
+    accessKeyPrefixLabel: 'បុព្វបទ access key',
+    saveAccessKeyTitle: 'រក្សាទុក access key នេះ',
+    saveAccessKeyDescription:
+      'នេះជាលើកតែមួយគត់ដែល recovery key ពេញលេញនឹងត្រូវបង្ហាញ។ សូមរក្សាទុកវាក្នុងកន្លែងមានសុវត្ថិភាព។',
+    copyAccessKey: 'ចម្លង access key',
+    accessKeyCopied: 'បានចម្លង access key។',
+    copyAccessKeyFailed: 'មិនអាចចម្លង access key បានទេ។',
+    useAccessKeyTitle: 'ប្រើ access key',
+    useAccessKeyDescription:
+      'បើអ្នកមាន recovery key ពី browser ឬឧបករណ៍ផ្សេង សូមបញ្ចូលវានៅទីនេះដើម្បីភ្ជាប់ browser នេះទៅផ្ទាំងការងារនោះ។',
+    accessKeyPlaceholder: 'បិទភ្ជាប់ workspace access key',
+    useAccessKeyAction: 'ប្រើ access key',
+    recoveringWorkspace: 'កំពុងស្ដារផ្ទាំងការងារ...',
+    accessKeyRequired: 'ត្រូវការ access key។',
+    workspaceRecovered: 'បានស្ដារផ្ទាំងការងារសម្រាប់ browser នេះ។',
+    recoverWorkspaceFailed: 'មិនអាចស្ដារផ្ទាំងការងារបានទេ។',
+    headerTitle: 'ផ្ទាំងគ្រប់គ្រង',
+    loadErrorTitle: 'មិនអាចផ្ទុកអត្ថបទបានទេ។',
+    loadErrorDescription:
+      'សែលផ្ទាំងគ្រប់គ្រងដំណើរការធម្មតា ប៉ុន្តែផ្ទាំងការងារបច្ចុប្បន្នមិនអាចទាញយកបញ្ជីអត្ថបទបាន។ សាកល្បងម្ដងទៀត ឬបង្កើតអត្ថបទថ្មីពីខ្សែខាងលើ។',
+    continueRecent: 'បន្តការងារថ្មីៗ',
+    emptyTitle: 'ផ្ទាំងគ្រប់គ្រងរបស់អ្នករួចរាល់សម្រាប់អត្ថបទដំបូង។',
+    emptyDescription:
+      'បង្កើតអត្ថបទដំបូងរបស់អ្នក ហើយវានឹងបង្ហាញក្នុងផ្ទាំងខាងឆ្វេង និងផ្នែកថ្មីៗនៅទីនេះ។',
+    createFirstDeck: 'បង្កើតអត្ថបទដំបូង',
+    pasteToBegin: 'បិទភ្ជាប់អត្ថបទដើម្បីចាប់ផ្ដើម',
+    quickStart: 'ចាប់ផ្តើមរហ័ស',
+    startFromText: 'ចាប់ផ្តើមពីអត្ថបទ',
+    startFromTextDesc: 'បិទភ្ជាប់ប្លក់ ឬចំណុចព្រាងរបស់អ្នកដើម្បីបង្កើត។',
+    importFromUrl: 'នាំចូលពី URL',
+    importFromUrlDesc: 'បម្លែងគេហទំព័រណាមួយទៅជាអត្ថបទ។',
+    generateWithAI: 'បង្កើតជាមួយ AI',
+    generateWithAIDesc: 'រៀបរាប់ពីប្រធានបទរបស់អ្នក ហើយឲ្យ AI សរសេរវា។',
+    filterAll: 'ទាំងអស់',
+    filterDraft: 'ព្រាង',
+    filterGenerating: 'កំពុងបង្កើត',
+    filterGenerated: 'បានបង្កើត',
+    filterRendered: 'បានរេនឌ័រ',
+    noFilteredDecks: 'មិនមានបញ្ជីអត្ថបទត្រូវគ្នានឹងស្ថានភាព ឬការស្វែងរកអត្ថបទនេះទេ។',
+  },
+  newDeck: {
+    title: 'បង្កើតអត្ថបទថ្មី',
+    subtitle: 'បិទភ្ជាប់អត្ថបទ ជ្រើសរើសស្ទាយ៍ ហើយឲ្យយើងបង្កើតគ្រប់យ៉ាងដោយស្វ័យប្រវត្តិ',
+    steps: {
+      article: {
+        title: 'អត្ថបទ',
+        description: 'បិទភ្ជាប់មាតិកា',
+      },
+      style: {
+        title: 'ស្ទាយ៍',
+        description: 'ជ្រើសរើសរូបរាង និងស្លាយ',
+      },
+      generate: {
+        title: 'បង្កើត',
+        description: 'បង្កើតអត្ថបទស្វ័យប្រវត្តិ',
+      },
+    },
+    stepCounter: (current: number, total: number) => `ជំហាន ${current} នៃ ${total}`,
+    content: {
+      title: 'បិទភ្ជាប់អត្ថបទរបស់អ្នក',
+      subtitle: 'ដាក់អត្ថបទពេញរបស់អ្នកចូលមក យើងនឹងបម្លែងវាទៅជាស្លាយជាមួយរូបភាព',
+      articleTitle: 'ចំណងជើងអត្ថបទ',
+      articleContent: 'មាតិកាអត្ថបទ',
+      titlePlaceholder: 'ឧ. 24/7 Crypto Infrastructure for Gold Traders',
+      contentPlaceholder: 'បិទភ្ជាប់អត្ថបទពេញរបស់អ្នកទីនេះ (markdown ឬ plain text)...',
+      markdownHint: 'គាំទ្រ markdown។ អត្ថបទវែងជាងនឹងបង្កើតស្លាយបានសម្បូរបែបជាង។',
+      wordCount: (count: number) => `${count} ពាក្យ`,
+    },
+    style: {
+      title: 'ជ្រើសរើសស្ទាយ៍ និងចំនួនស្លាយ',
+      subtitle: 'ជ្រើសរើសស្ទាយ៍រូបភាព និងចំនួនស្លាយដែលអ្នកចង់បាន',
+      illustrationStyle: 'ស្ទាយ៍រូបភាព',
+      numberOfSlides: 'ចំនួនស្លាយ',
+      quick: '៣ ស្លាយ (រហ័ស)',
+      detailed: '១៥ ស្លាយ (លម្អិត)',
+    },
+    styleOptions: {
+      'pixel-art': {
+        name: 'ភីកសែលអាត',
+        description:
+          'ស្ទាយ៍ហ្គេម 8-bit បែប retro ជាមួយភីកសែលធំៗ និងឈុតឆាក isometric',
+        bestFor: 'GameFi',
+      },
+      'fantasy-animation': {
+        name: 'អានីមេសិនបែបហ្វែនតាស៊ី',
+        description:
+          'ការនិទានរឿងបែបសៀវភៅវេទមន្ត ជាមួយពន្លឺទន់ និងអារម្មណ៍សិល្បៈកក់ក្ដៅ',
+        bestFor: 'ការពន្យល់ Web3',
+      },
+      'lab-notes': {
+        name: 'កំណត់ត្រាមន្ទីរពិសោធន៍',
+        description:
+          'គំនូសតាងបច្ចេកទេសជាមួយការកត់សម្គាល់ស្រាលៗ និងភាពច្បាស់លាស់',
+        bestFor: 'ការពន្យល់ Protocol',
+      },
+    },
+    generateView: {
+      creatingDeck: 'កំពុងបង្កើតអត្ថបទ',
+      generatingSlideContent: 'កំពុងបង្កើតមាតិកាស្លាយ',
+      generatingImages: 'កំពុងបង្កើតរូបភាព',
+      generatingBlogAndX: 'កំពុងបង្កើតអត្ថបទ Blog និង X',
+      deckReady: 'អត្ថបទរបស់អ្នករួចរាល់ហើយ!',
+      generatingDeck: 'កំពុងបង្កើតអត្ថបទរបស់អ្នក',
+      readyDescription: 'ស្លាយ រូបភាព និង captions រួចរាល់ទាំងអស់។ កំពុងបញ្ជូនបន្ត...',
+      readyWithWarningsDescription:
+        'អត្ថបទរួចរាល់ហើយ ប៉ុន្តែរូបភាពខ្លះនៅតែមានបញ្ហា។ កំពុងបញ្ជូនបន្ត ដើម្បីឲ្យអ្នកសាកល្បងម្ដងទៀតបាន។',
+      workingDescription: 'សូមរង់ចាំបន្តិច យើងកំពុងបង្កើតស្លាយ រូបភាព និង captions របស់អ្នក',
+      generationFailed: 'ការបង្កើតបរាជ័យ',
+      generationCompletedWithWarnings: 'ការបង្កើតបានបញ្ចប់ ប៉ុន្តែមានការព្រមាន',
+      quotaWarningTitle: 'បានដល់កម្រិតកូតារូបភាព Gemini',
+      quotaWarningBody: (failed: number) =>
+        `Gemini មិនអាចបង្កើតរូបភាពសម្រាប់ស្លាយ ${failed} បានទេ ព្រោះបានដល់កម្រិតកូតា។`,
+      quotaWarningRetryAfter: (seconds: number) => `អាចសាកល្បងម្ដងទៀតក្នុងប្រហែល ${seconds} វិនាទី។`,
+      quotaWarningModel: (model: string) => `ម៉ូដែលដែលរងផលប៉ះពាល់៖ ${model}។`,
+      quotaWarningAction:
+        'សូមសាកល្បងរូបភាពដែលបរាជ័យម្ដងទៀតពីទំព័រអត្ថបទ។ បើបញ្ហានេះនៅតែបន្ត សូមពិនិត្យ quota, billing និង configuration របស់ Gemini។',
+      tryAgain: 'សាកល្បងម្ដងទៀត',
+      progress: 'វឌ្ឍនភាព',
+      successSummary: (count: number) =>
+        `អត្ថបទរបស់អ្នកត្រូវបានបង្កើតជាមួយស្លាយ ${count} រូបភាពផ្ទាល់ខ្លួន និង blog/X captions ដែលអាចប្រើបានភ្លាមៗ!`,
+      partialImageSummary: (generated: number, failed: number) =>
+        `រូបភាព ${generated} ត្រូវបានបង្កើតដោយជោគជ័យ និង ${failed} បានបរាជ័យ។ អ្នកអាចសាកល្បងស្លាយដែលបរាជ័យឡើងវិញពីទំព័រអត្ថបទ។`,
+      failedImageSummary: (failed: number) =>
+        `ការបង្កើតរូបភាពបានបរាជ័យសម្រាប់ស្លាយ ${failed}។ អ្នកអាចសាកល្បងម្ដងទៀតពីទំព័រអត្ថបទ។`,
+      createDeckError: 'មិនអាចបង្កើតអត្ថបទបានទេ',
+      generateSlidesError: 'មិនអាចបង្កើតស្លាយបានទេ',
+      unknownError: 'មានបញ្ហាមួយបានកើតឡើង',
+    },
+  },
+  deckPage: {
+    failedToLoad: 'មិនអាចផ្ទុកអត្ថបទបានទេ',
+    back: 'ត្រឡប់',
+    deleteArticle: 'លុបអត្ថបទ',
+    deleteArticleTitle: 'លុបអត្ថបទនេះមែនទេ?',
+    deleteArticleDescription:
+      'វានឹងលុបអត្ថបទ ស្លាយ captions និង local render assets ជាអចិន្ត្រៃយ៍។',
+    deleteArticleFailed: 'មិនអាចលុបអត្ថបទបានទេ',
+    retryFailedImages: 'សាកល្បងរូបភាពដែលបរាជ័យម្ដងទៀត',
+    retryingImages: 'កំពុងសាកល្បងរូបភាពម្ដងទៀត...',
+    imageRetryFailed: 'មិនអាចសាកល្បងរូបភាពម្ដងទៀតបានទេ',
+    imageRetrySuccess: (count: number) => `បានបង្កើតរូបភាពស្លាយ ${count} ឡើងវិញ។`,
+    imagesFailed: (count: number) => `រូបភាពស្លាយ ${count} បានបរាជ័យក្នុងការបង្កើត។`,
+    imagesPending: (count: number) => `រូបភាពស្លាយ ${count} នៅកំពុងរង់ចាំ។`,
+    slideAdded: 'បានបន្ថែមស្លាយ។',
+    slideAddFailed: 'មិនអាចបន្ថែមស្លាយបានទេ',
+    slideSaved: 'បានរក្សាទុកស្លាយ។',
+    slideSaveFailed: 'មិនអាចរក្សាទុកស្លាយបានទេ',
+    slideDeleted: 'បានលុបស្លាយ។',
+    slideDeleteFailed: 'មិនអាចលុបស្លាយបានទេ',
+    slidesReordered: 'បានរៀបលំដាប់ស្លាយឡើងវិញ។',
+    slideReorderFailed: 'មិនអាចរៀបលំដាប់ស្លាយបានទេ',
+    tabsSlides: (count: number) => `ស្លាយ (${count})`,
+    tabsEditor: 'កែសម្រួល',
+    tabsPreview: 'មើលជាមុន',
+  },
+  slideList: {
+    slides: (count: number) => `ស្លាយ (${count})`,
+    noSlidesYet: 'មិនទាន់មានស្លាយទេ',
+    slide: (index: number) => `ស្លាយ ${index}`,
+    moveUp: 'ផ្លាស់ទីស្លាយឡើងលើ',
+    moveDown: 'ផ្លាស់ទីស្លាយចុះក្រោម',
+  },
+  slideEditor: {
+    selectSlide: 'ជ្រើសរើសស្លាយដើម្បីកែសម្រួល',
+    editSlide: (index: number) => `កែសម្រួលស្លាយ ${index}`,
+    untitledSlide: 'ស្លាយគ្មានចំណងជើង',
+    slideTitle: 'ចំណងជើងស្លាយ',
+    subtitle: 'ចំណងជើងរង (ជាជម្រើស)',
+    bulletPoints: 'ចំណុចសំខាន់ៗ',
+    bulletPlaceholder: 'បញ្ចូលចំណុចនីមួយៗក្នុងបន្ទាត់ថ្មី',
+    bulletHint: 'មួយចំណុចក្នុងមួយបន្ទាត់',
+    speakerNotes: 'កំណត់ចំណាំអ្នកបង្ហាញ',
+    speakerNotesPlaceholder: 'បន្ថែមកំណត់ចំណាំសម្រាប់ស្លាយនេះ...',
+    unsavedChanges: 'មានការផ្លាស់ប្ដូរមិនទាន់រក្សាទុក',
+    allChangesSaved: 'បានរក្សាទុកការផ្លាស់ប្ដូរទាំងអស់',
+    save: 'រក្សាទុក',
+    saving: 'កំពុងរក្សាទុក...',
+    discard: 'បោះបង់ការផ្លាស់ប្ដូរ',
+    deleteTitle: 'លុបស្លាយនេះមែនទេ?',
+    deleteDescription: 'វានឹងលុបស្លាយនេះ និងរៀបលេខស្លាយដែលនៅសល់ឡើងវិញ។',
+  },
+  slidePreview: {
+    selectSlide: 'ជ្រើសរើសស្លាយដើម្បីមើលជាមុន',
+    imageNotGenerated: 'រូបភាពមិនទាន់ត្រូវបានបង្កើតទេ',
+    imagePending: 'រូបភាពកំពុងរង់ចាំការបង្កើត',
+    imageFailed: 'ការបង្កើតរូបភាពបានបរាជ័យ',
+    imageFailureReason: 'កំហុសចុងក្រោយ',
+    slide: (index: number) => `ស្លាយ ${index}`,
+    notes: 'កំណត់ចំណាំ',
+  },
+  captions: {
+    noCaptions: 'មិនមាន captions ទេ',
+    blog: 'ប្លក់',
+    twitter: 'Twitter/X',
+    seoTitle: 'ចំណងជើង SEO',
+    metaDescription: 'Meta Description',
+    introText: 'អត្ថបទផ្ដើម',
+    tags: 'Tags',
+    individualTweets: 'Tweets ដាច់ដោយឡែក',
+    tweet: (index: number) => `Tweet ${index}`,
+    twitterThread: 'Twitter Thread',
+    characters: (count: number, max: number) => `${count}/${max} តួអក្សរ`,
+  },
+  settingsStep: {
+    title: 'កំណត់រចនាសម្ព័ន្ធអត្ថបទរបស់អ្នក',
+    subtitle: 'ផ្តល់ព័ត៌មានបន្ថែមដើម្បីកែតម្រូវការបង្ហាញរបស់អ្នក',
+    targetAudience: 'អ្នកស្តាប់គោលដៅ',
+    targetAudiencePlaceholder: 'ឧ. អ្នកគ្រប់គ្រង និស្សិត សាធារណជនទូទៅ',
+    targetAudienceHint: 'អ្នកណាជាអ្នកស្តាប់សំខាន់របស់អ្នក?',
+    presentationStyle: 'ស្ទាយ៍ការបង្ហាញ',
+    selectStyle: 'ជ្រើសរើសស្ទាយ៍',
+    styleHint: 'ជ្រើសរើសស្ទាយ៍ដែលសមនឹងប្រធានបទរបស់អ្នក',
+    additionalNotes: 'កំណត់ចំណាំបន្ថែម (ជាជម្រើស)',
+    additionalNotesPlaceholder:
+      'តម្រូវការពិសេស ចំណុចសំខាន់ៗ ឬសេចក្ដីណែនាំបន្ថែម...',
+    additionalNotesHint: 'ជួយឲ្យយើងបង្កើតមាតិកាដែលសមនឹងតម្រូវការរបស់អ្នកកាន់តែប្រសើរ',
+    styleOptions: {
+      professional: {
+        label: 'វិជ្ជាជីវៈ',
+        description: 'សាជីវកម្ម/អាជីវកម្ម',
+      },
+      creative: {
+        label: 'ច្នៃប្រឌិត',
+        description: 'រស់រវើក/សិល្បៈ',
+      },
+      educational: {
+        label: 'អប់រំ',
+        description: 'សិក្សា/ការរៀន',
+      },
+      minimal: {
+        label: 'សាមញ្ញ',
+        description: 'ស្អាត/ស្រួល',
+      },
+      storytelling: {
+        label: 'និទានរឿង',
+        description: 'ផ្អែកលើរឿងរ៉ាវ',
+      },
+    },
+  },
+  deckCard: {
+    status: {
+      draft: 'ព្រាង',
+      generated: 'បានបង្កើត',
+      rendered: 'បានរេនឌ័រ',
+    },
+    fallbackDescription:
+      'គម្រោងបម្លែងអត្ថបទទៅអត្ថបទ ដែលមានស្លាយ រូបភាព និង captions រួចរាល់សម្រាប់ប្រើ។',
+    slides: 'ស្លាយ',
+    updated: 'បានកែប្រែ',
+    created: 'បានបង្កើត',
+    openDeck: 'បើកអត្ថបទ',
+  },
+};
+
+export const translations = {
+  en,
+  km,
+};
+
+export type Messages = typeof en;
+
+export function isLanguage(value: string | undefined | null): value is Language {
+  return value === 'km' || value === 'en';
+}
+
+export function formatRelativeTime(date: Date, language: Language) {
+  return formatDistanceToNow(date, {
+    addSuffix: true,
+    locale: language === 'km' ? kmLocale : enUS,
+  });
+}

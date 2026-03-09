@@ -1,52 +1,100 @@
 'use client';
 
-import { Slide } from '@prisma/client';
-import { ImageIcon } from 'lucide-react';
+import { AlertCircle, ImageIcon, Loader2, Download } from 'lucide-react';
+
+import { useLanguage } from '@/components/language-provider';
+import { Button } from '@/components/ui/button';
+import { buildArticleSlideAssetUrl } from '@/lib/article-assets';
+import { DeckSlide } from '@/lib/schemas';
 
 interface SlidePreviewProps {
-  slide: (Slide & { imageUrl?: string | null }) | null;
+  articleId: string;
+  slide: DeckSlide | null;
   theme?: string;
 }
 
-export function SlidePreview({ slide, theme = 'default' }: SlidePreviewProps) {
+export function SlidePreview({ articleId, slide, theme = 'default' }: SlidePreviewProps) {
+  const { messages } = useLanguage();
+
   if (!slide) {
     return (
-      <div className="h-full flex items-center justify-center bg-muted border border-border rounded-lg">
-        <p className="text-muted-foreground">Select a slide to preview</p>
+      <div className="h-full flex items-center justify-center bg-muted border border-border ">
+        <p className="text-muted-foreground">{messages.slidePreview.selectSlide}</p>
       </div>
     );
   }
 
-  const bullets = slide.bullets ? JSON.parse(slide.bullets) : [];
+  const bullets = slide.bulletPoints;
+  const imageStatus = slide.imageStatus;
+  const imageUrl = slide.imageUrl ? buildArticleSlideAssetUrl(articleId, slide.imageUrl) : null;
+  const downloadUrl = slide.imageUrl
+    ? buildArticleSlideAssetUrl(articleId, slide.imageUrl, { download: true })
+    : null;
+  const imageMessage =
+    imageStatus === 'failed'
+      ? messages.slidePreview.imageFailed
+      : imageStatus === 'pending'
+        ? messages.slidePreview.imagePending
+        : messages.slidePreview.imageNotGenerated;
 
   return (
     <div className="w-full h-full flex flex-col gap-4 overflow-auto">
       {/* Generated Image */}
-      {slide.imageUrl ? (
-        <div className="w-full rounded-lg overflow-hidden border border-border shadow-md flex-shrink-0">
+      {imageUrl ? (
+        <div className="w-full relative overflow-hidden border border-border shadow-md flex-shrink-0 group">
           <img
-            src={slide.imageUrl}
+            src={imageUrl}
             alt={slide.title}
             className="w-full h-auto object-contain"
             style={{ aspectRatio: '16 / 9' }}
           />
+          {/* Download Button Overlay */}
+          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button
+              variant="secondary"
+              size="sm"
+              asChild
+              className="gap-2 bg-background/80 hover:bg-background/95 backdrop-blur-sm shadow-sm"
+            >
+              <a
+                href={downloadUrl ?? undefined}
+                download={`slide-${slide.order + 1}-${slide.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Download className="w-4 h-4" />
+                Download
+              </a>
+            </Button>
+          </div>
         </div>
       ) : (
         <div
-          className="w-full rounded-lg border border-dashed border-border flex items-center justify-center bg-muted/50 flex-shrink-0"
+          className="w-full  border border-dashed border-border flex items-center justify-center bg-muted/50 flex-shrink-0"
           style={{ aspectRatio: '16 / 9' }}
         >
           <div className="flex flex-col items-center gap-2 text-muted-foreground">
-            <ImageIcon className="h-8 w-8" />
-            <p className="text-sm">Image not generated yet</p>
+            {imageStatus === 'failed' ? (
+              <AlertCircle className="h-8 w-8 text-destructive" />
+            ) : imageStatus === 'pending' ? (
+              <Loader2 className="h-8 w-8 animate-spin" />
+            ) : (
+              <ImageIcon className="h-8 w-8" />
+            )}
+            <p className="text-sm">{imageMessage}</p>
+            {imageStatus === 'failed' && slide.imageError ? (
+              <p className="max-w-md text-center text-xs text-destructive/80">
+                {messages.slidePreview.imageFailureReason}: {slide.imageError}
+              </p>
+            ) : null}
           </div>
         </div>
       )}
 
       {/* Slide content card */}
-      <div className="bg-card border border-border rounded-lg p-6 flex-shrink-0">
+      <div className="bg-card border border-border  p-6 flex-shrink-0">
         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
-          <span>Slide {slide.order + 1}</span>
+          <span>{messages.slidePreview.slide(slide.order + 1)}</span>
           {theme && <span className="capitalize">• {theme}</span>}
         </div>
 
@@ -59,7 +107,7 @@ export function SlidePreview({ slide, theme = 'default' }: SlidePreviewProps) {
           <ul className="space-y-2">
             {bullets.map((point: string, idx: number) => (
               <li key={idx} className="text-sm flex items-start gap-2">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
+                <span className="inline-block w-1.5 h-1.5  bg-primary mt-2 flex-shrink-0" />
                 <span>{point}</span>
               </li>
             ))}
@@ -68,7 +116,9 @@ export function SlidePreview({ slide, theme = 'default' }: SlidePreviewProps) {
 
         {slide.notes && (
           <div className="mt-4 pt-4 border-t border-border">
-            <p className="text-xs font-medium text-muted-foreground mb-1">Notes</p>
+            <p className="text-xs font-medium text-muted-foreground mb-1">
+              {messages.slidePreview.notes}
+            </p>
             <p className="text-sm text-muted-foreground">{slide.notes}</p>
           </div>
         )}

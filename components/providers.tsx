@@ -2,6 +2,9 @@
 
 import { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { LanguageProvider } from '@/components/language-provider';
+import { ThemeProvider } from '@/components/theme-provider';
+import { type Language } from '@/lib/i18n';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -12,10 +15,25 @@ const queryClient = new QueryClient({
   },
 });
 
-export function Providers({ children }: { children: ReactNode }) {
+export function Providers({
+  children,
+  initialLanguage = 'km',
+}: {
+  children: ReactNode;
+  initialLanguage?: Language;
+}) {
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="system"
+        enableSystem
+        disableTransitionOnChange
+      >
+        <LanguageProvider initialLanguage={initialLanguage}>
+          {children}
+        </LanguageProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

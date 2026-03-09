@@ -5,11 +5,24 @@ export const IllustrationStyleSchema = z.enum(['pixel-art', 'fantasy-animation',
 
 export const GenerateRequestSchema = z.object({
   articleContent: z.string().min(10, 'Article content is required'),
-  slideCount: z.number().int().min(3).max(15).default(8),
+  slideCount: z.number().int().min(1).max(15).default(1),
   illustrationStyle: IllustrationStyleSchema.default('pixel-art'),
+  mode: z.enum(['text', 'url', 'prompt']).optional().default('text'),
 });
 
 export type DeckGenerateRequest = z.infer<typeof GenerateRequestSchema>;
+
+export const ImageGenerationModeSchema = z.enum(['missing', 'failed']);
+export const ImageGenerationStatusSchema = z.enum(['pending', 'generated', 'failed']);
+
+export const GenerateImagesRequestSchema = z.object({
+  illustrationStyle: IllustrationStyleSchema.default('pixel-art'),
+  mode: ImageGenerationModeSchema.optional().default('missing'),
+});
+
+export type GenerateImagesRequest = z.infer<typeof GenerateImagesRequestSchema>;
+export type ImageGenerationMode = z.infer<typeof ImageGenerationModeSchema>;
+export type ImageGenerationStatus = z.infer<typeof ImageGenerationStatusSchema>;
 
 export interface SlideContent {
   id?: string;
@@ -71,9 +84,47 @@ export const CreateSlideSchema = z.object({
 
 export type CreateSlideInput = z.infer<typeof CreateSlideSchema>;
 
+export const CreateSlideRequestSchema = CreateSlideSchema.omit({ order: true }).extend({
+  order: z.number().int().min(0).optional(),
+});
+
+export type CreateSlideRequest = z.infer<typeof CreateSlideRequestSchema>;
+
 export const UpdateSlideSchema = CreateSlideSchema.partial();
 export type UpdateSlideInput = z.infer<typeof UpdateSlideSchema>;
 export type SlideUpdateRequest = UpdateSlideInput;
+
+export type DeckSlide = {
+  id: string;
+  deckId: string;
+  title: string;
+  subtitle: string | null;
+  bullets: string;
+  bulletPoints: string[];
+  notes: string | null;
+  imageUrl: string | null;
+  imageStatus: ImageGenerationStatus;
+  imageError: string | null;
+  imagePrompt: string | null;
+  order: number;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+};
+
+export type DeckDetailResponse = {
+  id: string;
+  title: string;
+  theme?: string | null;
+  illustrationStyle?: string | null;
+  slides: DeckSlide[];
+  captions: CaptionPackage | null;
+};
+
+export const WorkspaceRecoverSchema = z.object({
+  accessKey: z.string().min(1, 'Access key is required'),
+});
+
+export type WorkspaceRecoverRequest = z.infer<typeof WorkspaceRecoverSchema>;
 
 // Caption Schemas
 export const CaptionPackageSchema = z.object({

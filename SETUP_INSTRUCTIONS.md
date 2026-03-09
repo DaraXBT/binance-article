@@ -2,15 +2,20 @@
 
 ## Quick Start
 
-### 1. Set Your Gemini API Key
-Before running the app, you need to set your Google Gemini API key:
+### 1. Set Your Runtime Environment Variables
+Before running the app, you need to set your Google Gemini API key and Blob token:
 
 1. Go to [Google AI Studio](https://aistudio.google.com) and create a free API key
-2. In v0, click the **Settings** button (gear icon) in the top right
-3. Go to the **Vars** tab
-4. Add a new environment variable:
+2. Create or copy a Vercel Blob read/write token for this project
+3. In Vercel-linked local development, run:
+   ```bash
+   vercel env pull .env.local
+   ```
+4. If you are setting values manually, add:
    - **Key**: `GEMINI_API_KEY`
    - **Value**: Paste your API key from Google AI Studio
+   - **Key**: `BLOB_READ_WRITE_TOKEN`
+   - **Value**: Paste your Vercel Blob read/write token
 
 ### 2. Start the Development Server
 ```bash
@@ -50,6 +55,7 @@ pnpm dev
 
 Required:
 - `GEMINI_API_KEY` - Your Google Gemini API key (get from https://aistudio.google.com)
+- `BLOB_READ_WRITE_TOKEN` - Required for slide image storage in local and hosted environments
 
 Optional:
 - `DATABASE_URL` - Database connection string (defaults to SQLite in `.env.local`)
@@ -93,6 +99,9 @@ prisma/
 
 ### "GEMINI_API_KEY is not set"
 Make sure you've added the environment variable in the project settings (Vars tab).
+
+### "BLOB_READ_WRITE_TOKEN is not set"
+Make sure `.env.local` contains the Blob token. `.env.vercel.local` is not loaded automatically by `pnpm dev`.
 
 ### Database errors
 Try deleting `prisma/dev.db` and restarting the dev server.

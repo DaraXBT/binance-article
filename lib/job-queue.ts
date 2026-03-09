@@ -12,6 +12,7 @@ export interface JobLog {
 export interface RenderJob {
   id: string;
   deckId: string;
+  workspaceId: string;
   status: JobStatus;
   progress: number; // 0-100
   logs: JobLog[];
@@ -26,10 +27,11 @@ const jobs = new Map<string, RenderJob>();
 // Job queue with concurrency limit
 export const jobQueue = new PQueue({ concurrency: 2, timeout: 30000 });
 
-export function createJob(deckId: string): RenderJob {
+export function createJob(deckId: string, workspaceId: string): RenderJob {
   const job: RenderJob = {
     id: uuidv4(),
     deckId,
+    workspaceId,
     status: 'pending',
     progress: 0,
     logs: [],

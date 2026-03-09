@@ -2,17 +2,41 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("POSTGRES_PRISMA_URL")
-  directUrl = env("POSTGRES_URL_NON_POOLING")
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
   provider = "prisma-client-js"
 }
 
+model Workspace {
+  id              String             @id @default(cuid())
+  accessKeyHash   String             @unique
+  accessKeyPrefix String
+  sessions        WorkspaceSession[]
+  decks           DeckProject[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([accessKeyPrefix])
+}
+
+model WorkspaceSession {
+  id          String    @id @default(cuid())
+  sessionId   String    @unique
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([workspaceId])
+}
+
 model DeckProject {
   id            String    @id @default(cuid())
+  workspaceId    String?
+  workspace      Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   title         String
   description   String?
   content       String    // Raw content/markdown input
@@ -29,6 +53,7 @@ model DeckProject {
   updatedAt     DateTime  @updatedAt
 
   @@index([sessionId])
+  @@index([workspaceId])
 }
 
 model Slide {
@@ -40,6 +65,8 @@ model Slide {
   bullets       String    // Array of bullet points (JSON string)
   notes         String?   // Speaker notes
   imageUrl      String?   // URL to generated slide image (Vercel Blob)
+  imageStatus   String    @default("pending") // "pending" | "generated" | "failed"
+  imageError    String?   // Last image generation or upload error
   imagePrompt   String?   // Prompt used to generate the image
   order         Int       // For ordering slides
   createdAt     DateTime  @default(now())

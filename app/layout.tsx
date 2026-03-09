@@ -1,14 +1,42 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { cookies } from 'next/headers'
+import { Geist, Geist_Mono } from 'next/font/google'
+import localFont from 'next/font/local'
+
 import { Providers } from '@/components/providers'
+import { isLanguage } from '@/lib/i18n'
 import './globals.css'
 
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
+const geist = Geist({
+  subsets: ['latin'],
+  variable: '--font-geist',
+})
+
+const geistMono = Geist_Mono({
+  subsets: ['latin'],
+  variable: '--font-geist-mono',
+})
+
+const interKhmerLooped = localFont({
+  src: [
+    {
+      path: '../public/font/InterKhmerLooped-Medium.ttf',
+      weight: '500',
+      style: 'normal',
+    },
+    {
+      path: '../public/font/InterKhmerLooped-Bold.ttf',
+      weight: '700',
+      style: 'normal',
+    },
+  ],
+  variable: '--font-khmer',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
-  title: 'DeckForge - AI-Powered Presentations',
+  title: 'xArticle - AI-Powered Presentations',
   description: 'Create beautiful presentation decks with AI in minutes',
   generator: 'v0.app',
   icons: {
@@ -30,15 +58,21 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const cookieStore = await cookies()
+  const cookieLanguage = cookieStore.get('deckforge_language')?.value
+  const initialLanguage = isLanguage(cookieLanguage) ? cookieLanguage : 'km'
+
   return (
-    <html lang="en">
-      <body className="font-sans antialiased">
-        <Providers>
+    <html lang={initialLanguage} suppressHydrationWarning>
+      <body
+        className={`${geist.variable} ${geistMono.variable} ${interKhmerLooped.variable} bg-background font-sans text-foreground antialiased`}
+      >
+        <Providers initialLanguage={initialLanguage}>
           {children}
         </Providers>
         <Analytics />

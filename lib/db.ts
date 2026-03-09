@@ -1,80 +1,59 @@
-import prisma from './prisma';
-import { CreateDeckProjectInput, UpdateSlideInput, SlideUpdateRequest } from './schemas';
-import { GeneratedDeckResponse } from './gemini';
-import { Slide, DeckProject } from '@prisma/client';
+import { DeckProject, Slide } from '@prisma/client';
+
+import { GeneratedDeckResponse } from '@/lib/gemini';
+import prisma from '@/lib/prisma';
+import { CreateSlideInput, SlideUpdateRequest } from '@/lib/schemas';
+
+function withParsedBullets<T extends { slides: Array<Slide> }>(deck: T) {
+  return {
+    ...deck,
+    slides: deck.slides.map((slide: Slide) => ({
+      ...slide,
+      bulletPoints: slide.bullets ? JSON.parse(slide.bullets) : [],
+    })),
+  };
+}
+
+async function findDeckOrNull(workspaceId: string, deckId: string) {
+  return prisma.deckProject.findFirst({
+    where: {
+      id: deckId,
+      workspaceId,
+    },
+  });
+}
+
+async function ensureDeck(workspaceId: string, deckId: string) {
+  const deck = await findDeckOrNull(workspaceId, deckId);
+
+  if (!deck) {
+    throw new Error('Deck not found');
+  }
+
+  return deck;
+}
 
 export async function createDeckProject(
   title: string,
   content: string,
-  description?: string,
-  illustrationStyle?: string,
-  sessionId?: string
+  description: string | undefined,
+  illustrationStyle: string | undefined,
+  workspaceId: string
 ): Promise<DeckProject> {
   return prisma.deckProject.create({
     data: {
+      workspaceId,
       title,
       content,
       description,
       illustrationStyle: illustrationStyle || 'pixel-art',
-      sessionId: sessionId || '',
     },
   });
 }
 
-export async function getDeckProject(id: string) {
-  const deck = await prisma.deckProject.findUnique({
-    where: { id },
-    include: {
-      slides: {
-        orderBy: { order: 'asc' },
-      },
-      captions: true,
-      renderAssets: true,
-    },
-  });
-
-  if (!deck) return null;
-
-  return {
-    ...deck,
-    slides: deck.slides.map((slide: any) => ({
-      ...slide,
-      bulletPoints: slide.bullets ? JSON.parse(slide.bullets) : [],
-    }))
-  };
-}
-
-export async function updateDeckProject(
-  id: string,
-  data: Partial<{
-    title: string;
-    description: string;
-    theme: string;
-    status: string;
-  }>
-) {
-  const deck = await prisma.deckProject.update({
-    where: { id },
-    data,
-    include: {
-      slides: {
-        orderBy: { order: 'asc' },
-      },
-    },
-  });
-
-  return {
-    ...deck,
-    slides: deck.slides.map((slide: any) => ({
-      ...slide,
-      bulletPoints: slide.bullets ? JSON.parse(slide.bullets) : [],
-    }))
-  };
-}
-
-export async function listDeckProjects(sessionId: string, limit = 10) {
+export async function listDeckProjects(workspaceId: string, limit = 10) {
   return prisma.deckProject.findMany({
-    where: { sessionId },
+    where: { workspaceId },
     take: limit,
     orderBy: { createdAt: 'desc' },
     include: {
@@ -85,10 +64,130 @@ export async function listDeckProjects(sessionId: string, limit = 10) {
   });
 }
 
+export async function getDeckProject(id: string, workspaceId: string) {
+  const deck = await prisma.deckProject.findFirst({
+    where: {
+      id,
+      workspaceId,
+    },
+    include: {
+      slides: {
+        orderBy: { order: 'asc' },
+      },
+      captions: true,
+      renderAssets: true,
+    },
+  });
+
+  if (!deck) {
+    return null;
+  }
+
+  return withParsedBullets(deck);
+}
+
+export async function markSlidesImagePending(slideIds: string[]) {
+  await Promise.all(
+    slideIds.map((id) =>
+      prisma.slide.update({
+        where: { id },
+        data: {
+          imageStatus: 'pending',
+          imageError: null,
+        },
+      })
+    )
+  );
+}
+
+export async function markSlideImageFailed(slideId: string, message: string) {
+  await prisma.slide.update({
+    where: { id: slideId },
+    data: {
+      imageUrl: null,
+      imageStatus: 'failed',
+      imageError: message,
+    },
+  });
+}
+
+export async function markSlideImageGenerated(slideId: string, imageUrl: string) {
+  await prisma.slide.update({
+    where: { id: slideId },
+    data: {
+      imageUrl,
+      imageStatus: 'generated',
+      imageError: null,
+    },
+  });
+}
+
+export async function getDeckWithAssets(deckId: string, workspaceId: string) {
+  const deck = await prisma.deckProject.findFirst({
+    where: {
+      id: deckId,
+      workspaceId,
+    },
+    include: {
+      slides: {
+        orderBy: { order: 'asc' },
+      },
+      captions: true,
+      renderAssets: {
+        orderBy: { createdAt: 'desc' },
+      },
+    },
+  });
+
+  if (!deck) {
+    return null;
+  }
+
+  return withParsedBullets(deck);
+}
+
+export async function updateDeckProject(
+  id: string,
+  workspaceId: string,
+  data: Partial<{
+    title: string;
+    description: string;
+    theme: string;
+    status: string;
+  }>
+) {
+  await ensureDeck(workspaceId, id);
+
+  const deck = await prisma.deckProject.update({
+    where: { id },
+    data,
+    include: {
+      slides: {
+        orderBy: { order: 'asc' },
+      },
+      captions: true,
+      renderAssets: true,
+    },
+  });
+
+  return withParsedBullets(deck);
+}
+
+export async function deleteDeckProject(id: string, workspaceId: string) {
+  await ensureDeck(workspaceId, id);
+
+  return prisma.deckProject.delete({
+    where: { id },
+  });
+}
+
 export async function createSlidesFromGeneration(
   deckId: string,
+  workspaceId: string,
   generated: GeneratedDeckResponse
 ): Promise<Slide[]> {
+  await ensureDeck(workspaceId, deckId);
+
   const slides = await Promise.all(
     generated.slides.map((slide) =>
       prisma.slide.create({
@@ -98,6 +197,8 @@ export async function createSlidesFromGeneration(
           subtitle: slide.subtitle,
           bullets: JSON.stringify(slide.bulletPoints || []),
           notes: slide.notes,
+          imageStatus: 'pending',
+          imageError: null,
           imagePrompt: slide.imagePrompt || null,
           order: slide.order,
         },
@@ -105,15 +206,18 @@ export async function createSlidesFromGeneration(
     )
   );
 
-  // Store captions
   await prisma.captionPackage.upsert({
     where: { deckId },
     update: {
       blogTitle: generated.captions.blog?.seoTitle,
       blogMeta: generated.captions.blog?.metaDescription,
       blogIntro: generated.captions.blog?.introText,
-      blogSections: generated.captions.blog?.sections ? JSON.stringify(generated.captions.blog.sections) : null,
-      blogTags: generated.captions.blog?.tags ? JSON.stringify(generated.captions.blog.tags) : null,
+      blogSections: generated.captions.blog?.sections
+        ? JSON.stringify(generated.captions.blog.sections)
+        : null,
+      blogTags: generated.captions.blog?.tags
+        ? JSON.stringify(generated.captions.blog.tags)
+        : null,
       xSingle1: generated.captions.twitter?.singles?.[0],
       xSingle2: generated.captions.twitter?.singles?.[1],
       xSingle3: generated.captions.twitter?.singles?.[2],
@@ -124,8 +228,12 @@ export async function createSlidesFromGeneration(
       blogTitle: generated.captions.blog?.seoTitle,
       blogMeta: generated.captions.blog?.metaDescription,
       blogIntro: generated.captions.blog?.introText,
-      blogSections: generated.captions.blog?.sections ? JSON.stringify(generated.captions.blog.sections) : null,
-      blogTags: generated.captions.blog?.tags ? JSON.stringify(generated.captions.blog.tags) : null,
+      blogSections: generated.captions.blog?.sections
+        ? JSON.stringify(generated.captions.blog.sections)
+        : null,
+      blogTags: generated.captions.blog?.tags
+        ? JSON.stringify(generated.captions.blog.tags)
+        : null,
       xSingle1: generated.captions.twitter?.singles?.[0],
       xSingle2: generated.captions.twitter?.singles?.[1],
       xSingle3: generated.captions.twitter?.singles?.[2],
@@ -136,10 +244,89 @@ export async function createSlidesFromGeneration(
   return slides;
 }
 
+export async function createSlide(
+  workspaceId: string,
+  deckId: string,
+  input: Omit<CreateSlideInput, 'order'> & { order?: number }
+) {
+  return prisma.$transaction(async (tx) => {
+    const deck = await tx.deckProject.findFirst({
+      where: {
+        id: deckId,
+        workspaceId,
+      },
+    });
+
+    if (!deck) {
+      throw new Error('Deck not found');
+    }
+
+    const existingSlides = await tx.slide.findMany({
+      where: { deckId },
+      orderBy: { order: 'asc' },
+    });
+
+    const requestedOrder = input.order ?? existingSlides.length;
+    const order = Math.min(Math.max(requestedOrder, 0), existingSlides.length);
+
+    if (order < existingSlides.length) {
+      const tempOffset = existingSlides.length + 1000;
+
+      for (const slide of existingSlides.filter((slide) => slide.order >= order)) {
+        await tx.slide.update({
+          where: { id: slide.id },
+          data: {
+            order: slide.order + tempOffset,
+          },
+        });
+      }
+
+      for (const slide of existingSlides.filter((slide) => slide.order >= order)) {
+        await tx.slide.update({
+          where: { id: slide.id },
+          data: {
+            order: slide.order + 1,
+          },
+        });
+      }
+    }
+
+    return tx.slide.create({
+      data: {
+        deckId,
+        title: input.title,
+        subtitle: input.subtitle,
+        bullets: JSON.stringify(input.bullets ?? []),
+        notes: input.notes,
+        imageStatus: 'pending',
+        imageError: null,
+        imagePrompt: null,
+        order,
+      },
+    });
+  });
+}
+
 export async function updateSlide(
+  workspaceId: string,
+  deckId: string,
   slideId: string,
   update: SlideUpdateRequest
 ): Promise<Slide> {
+  const slide = await prisma.slide.findFirst({
+    where: {
+      id: slideId,
+      deckId,
+      deck: {
+        workspaceId,
+      },
+    },
+  });
+
+  if (!slide) {
+    throw new Error('Slide not found');
+  }
+
   return prisma.slide.update({
     where: { id: slideId },
     data: {
@@ -152,22 +339,115 @@ export async function updateSlide(
 }
 
 export async function reorderSlides(
+  workspaceId: string,
   deckId: string,
   slideOrder: Array<{ id: string; order: number }>
 ): Promise<void> {
-  await Promise.all(
-    slideOrder.map((item) =>
-      prisma.slide.update({
+  await prisma.$transaction(async (tx) => {
+    const deck = await tx.deckProject.findFirst({
+      where: {
+        id: deckId,
+        workspaceId,
+      },
+      include: {
+        slides: {
+          orderBy: { order: 'asc' },
+        },
+      },
+    });
+
+    if (!deck) {
+      throw new Error('Deck not found');
+    }
+
+    if (slideOrder.length !== deck.slides.length) {
+      throw new Error('Slide reorder payload is incomplete');
+    }
+
+    const deckSlideIds = new Set(deck.slides.map((slide) => slide.id));
+    const requestedSlideIds = new Set(slideOrder.map((slide) => slide.id));
+
+    if (deckSlideIds.size !== requestedSlideIds.size) {
+      throw new Error('Slide reorder payload is invalid');
+    }
+
+    for (const slideId of requestedSlideIds) {
+      if (!deckSlideIds.has(slideId)) {
+        throw new Error('Slide reorder payload references another deck');
+      }
+    }
+
+    const requestedOrders = slideOrder
+      .map((slide) => slide.order)
+      .sort((left, right) => left - right);
+
+    for (const [index, order] of requestedOrders.entries()) {
+      if (order !== index) {
+        throw new Error('Slide reorder payload must be normalized');
+      }
+    }
+
+    const tempOffset = deck.slides.length + 1000;
+
+    for (const item of slideOrder) {
+      await tx.slide.update({
         where: { id: item.id },
-        data: { order: item.order },
-      })
-    )
-  );
+        data: {
+          order: item.order + tempOffset,
+        },
+      });
+    }
+
+    for (const item of slideOrder) {
+      await tx.slide.update({
+        where: { id: item.id },
+        data: {
+          order: item.order,
+        },
+      });
+    }
+  });
 }
 
-export async function deleteSlide(slideId: string): Promise<void> {
-  await prisma.slide.delete({
-    where: { id: slideId },
+export async function deleteSlide(
+  workspaceId: string,
+  deckId: string,
+  slideId: string
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const slide = await tx.slide.findFirst({
+      where: {
+        id: slideId,
+        deckId,
+        deck: {
+          workspaceId,
+        },
+      },
+    });
+
+    if (!slide) {
+      throw new Error('Slide not found');
+    }
+
+    await tx.slide.delete({
+      where: {
+        id: slideId,
+      },
+    });
+
+    const remainingSlides = await tx.slide.findMany({
+      where: { deckId },
+      orderBy: { order: 'asc' },
+    });
+
+    for (const [index, remainingSlide] of remainingSlides.entries()) {
+      if (remainingSlide.order !== index) {
+        await tx.slide.update({
+          where: { id: remainingSlide.id },
+          data: { order: index },
+        });
+      }
+    }
   });
 }
 
@@ -183,7 +463,12 @@ export async function createRenderAsset(
       filename,
       filePath,
       format: assetType,
-      mimeType: assetType === 'pdf' ? 'application/pdf' : assetType === 'png' ? 'image/png' : 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      mimeType:
+        assetType === 'pdf'
+          ? 'application/pdf'
+          : assetType === 'png'
+            ? 'image/png'
+            : 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     },
   });
 }
@@ -199,29 +484,4 @@ export async function getCaptions(deckId: string) {
   return prisma.captionPackage.findUnique({
     where: { deckId },
   });
-}
-
-export async function getDeckWithAssets(deckId: string) {
-  const deck = await prisma.deckProject.findUnique({
-    where: { id: deckId },
-    include: {
-      slides: {
-        orderBy: { order: 'asc' },
-      },
-      captions: true,
-      renderAssets: {
-        orderBy: { createdAt: 'desc' },
-      },
-    },
-  });
-
-  if (!deck) return null;
-
-  return {
-    ...deck,
-    slides: deck.slides.map((slide: any) => ({
-      ...slide,
-      bulletPoints: slide.bullets ? JSON.parse(slide.bullets) : [],
-    }))
-  };
 }
