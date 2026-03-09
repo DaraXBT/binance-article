@@ -1,18 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import path from 'path';
-import fs from 'fs/promises';
-
-const execFileAsync = promisify(execFile);
-
-// Style reference file mapping
-const STYLE_FILES: Record<string, string> = {
-  'pixel-art': 'binance-pixel-art.md',
-  'fantasy-animation': 'binance-fantasy-animation.md',
-  'lab-notes': 'binance-lab-notes.md',
-};
+import {
+  generateImage,
+  getStyleReference,
+  uploadToBlob,
+  buildImagePrompt,
+} from '@/lib/image-gen';
 
 export async function POST(
   request: NextRequest,
@@ -37,35 +30,11 @@ export async function POST(
       return NextResponse.json({ error: 'Deck not found' }, { status: 404 });
     }
 
-    // Create output directory
-    const outputDir = path.join(process.cwd(), 'public', 'renders', deckId);
-    await fs.mkdir(outputDir, { recursive: true });
-
-    // Read style reference file for the prompt
-    const styleFileName = STYLE_FILES[illustrationStyle] || STYLE_FILES['pixel-art'];
-    const styleFilePath = path.join(
-      process.cwd(),
-      '.agents',
-      'skills',
-      'baoyu-article-illustrator',
-      'references',
-      'styles',
-      styleFileName
-    );
-
-    let styleContext = '';
-    try {
-      styleContext = await fs.readFile(styleFilePath, 'utf-8');
-    } catch {
-      console.warn(`[ImageGen] Style file not found: ${styleFilePath}, using fallback`);
-    }
+    // Load style reference
+    const styleContext = await getStyleReference(illustrationStyle);
 
     // Generate images for each slide
     const results: { slideId: string; imageUrl: string | null; error?: string }[] = [];
-
-    // Find the baoyu-image-gen script
-    const skillDir = path.join(process.cwd(), '.agents', 'skills', 'baoyu-image-gen');
-    const scriptPath = path.join(skillDir, 'scripts', 'main.ts');
 
     for (const slide of deck.slides) {
       if (!slide.imagePrompt) {
@@ -73,39 +42,22 @@ export async function POST(
         continue;
       }
 
-      const imageFilename = `slide-${String(slide.order + 1).padStart(2, '0')}.png`;
-      const imagePath = path.join(outputDir, imageFilename);
-      const imageUrl = `/renders/${deckId}/${imageFilename}`;
-
       try {
-        // Build combined prompt with style context
-        const fullPrompt = styleContext
-          ? `${styleContext}\n\n---\n\nGenerate an illustration following the style above. Content:\n${slide.imagePrompt}`
-          : slide.imagePrompt;
+        const fullPrompt = buildImagePrompt(styleContext, slide.imagePrompt);
 
-        // Save prompt to temp file for promptfiles approach
-        const promptFile = path.join(outputDir, `prompt-${String(slide.order + 1).padStart(2, '0')}.md`);
-        await fs.writeFile(promptFile, fullPrompt, 'utf-8');
+        console.log(`[ImageGen] Generating image for slide ${slide.order + 1}...`);
 
-        // Try to use bun, fall back to npx
-        let bunCommand = 'bun';
-        try {
-          await execFileAsync('which', ['bun']);
-        } catch {
-          bunCommand = 'npx';
+        // Generate image via Google Gemini
+        const imageBuffer = await generateImage(fullPrompt);
+
+        if (!imageBuffer) {
+          results.push({ slideId: slide.id, imageUrl: null, error: 'No image generated' });
+          continue;
         }
 
-        const args = bunCommand === 'npx'
-          ? ['-y', 'bun', scriptPath, '--promptfiles', promptFile, '--image', imagePath, '--ar', '16:9', '--quality', '2k']
-          : [scriptPath, '--promptfiles', promptFile, '--image', imagePath, '--ar', '16:9', '--quality', '2k'];
-
-        console.log(`[ImageGen] Generating image for slide ${slide.order + 1}: ${imageFilename}`);
-
-        await execFileAsync(bunCommand, args, {
-          cwd: process.cwd(),
-          timeout: 120000, // 2 min timeout per image
-          env: { ...process.env },
-        });
+        // Upload to Vercel Blob
+        const filename = `decks/${deckId}/slide-${String(slide.order + 1).padStart(2, '0')}.png`;
+        const imageUrl = await uploadToBlob(imageBuffer, filename);
 
         // Update slide with image URL
         await prisma.slide.update({
@@ -114,7 +66,7 @@ export async function POST(
         });
 
         results.push({ slideId: slide.id, imageUrl });
-        console.log(`[ImageGen] ✅ Slide ${slide.order + 1} generated: ${imageFilename}`);
+        console.log(`[ImageGen] ✅ Slide ${slide.order + 1} uploaded to Blob`);
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Unknown error';
         console.error(`[ImageGen] ❌ Slide ${slide.order + 1} failed:`, errorMsg);
@@ -122,7 +74,7 @@ export async function POST(
       }
     }
 
-    const successCount = results.filter(r => r.imageUrl).length;
+    const successCount = results.filter((r) => r.imageUrl).length;
 
     return NextResponse.json({
       success: true,

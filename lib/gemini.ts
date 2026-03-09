@@ -1,13 +1,14 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { DeckGenerateRequest, SlideContent } from './schemas';
 
-const apiKey = process.env.GEMINI_API_KEY;
-if (!apiKey) {
-  throw new Error('GEMINI_API_KEY environment variable is not set');
+function getModel() {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY environment variable is not set');
+  }
+  const genAI = new GoogleGenerativeAI(apiKey);
+  return genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 }
-
-const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
 export interface GeneratedCaptionPackage {
   blog: {
@@ -46,6 +47,7 @@ export async function generateDeckWithGemini(
 ): Promise<GeneratedDeckResponse> {
   const prompt = buildGenerationPrompt(request);
 
+  const model = getModel();
   const result = await model.generateContent(prompt);
   const responseText = result.response.text();
 

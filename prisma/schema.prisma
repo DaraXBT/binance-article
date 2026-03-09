@@ -2,8 +2,9 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
 }
 
 generator client {
@@ -38,7 +39,7 @@ model Slide {
   subtitle      String?
   bullets       String    // Array of bullet points (JSON string)
   notes         String?   // Speaker notes
-  imageUrl      String?   // Path to generated slide image
+  imageUrl      String?   // URL to generated slide image (Vercel Blob)
   imagePrompt   String?   // Prompt used to generate the image
   order         Int       // For ordering slides
   createdAt     DateTime  @default(now())
@@ -79,7 +80,7 @@ model RenderAsset {
   filename      String    // e.g., "deck.pdf", "slide-1.png"
   format        String    // "pdf" | "pptx" | "png"
   mimeType      String
-  filePath      String    // Local storage path (relative to /public/renders)
+  filePath      String    // Storage path or Blob URL
   fileSize      Int?      // Bytes
   jobId         String?
   job           RenderJob? @relation(fields: [jobId], references: [id])

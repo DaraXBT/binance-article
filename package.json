@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
+    "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint ."
   },
@@ -41,6 +42,7 @@
     "@radix-ui/react-tooltip": "1.2.8",
     "@tanstack/react-query": "^5.56.0",
     "@vercel/analytics": "1.6.1",
+    "@vercel/blob": "^2.3.1",
     "autoprefixer": "^10.4.20",
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.1",
