@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createDeckProject, listDeckProjects } from '@/lib/db';
-import { CreateDeckRequest } from '@/lib/schemas';
+import { CreateDeckProjectSchema } from '@/lib/schemas';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const validated = CreateDeckRequest.parse(body);
+    const validated = CreateDeckProjectSchema.parse(body);
 
     const deck = await createDeckProject(validated.title, validated.description);
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { DeckGenerateRequest } from '@/lib/schemas';
+import { GeneratedDeckSchema } from '@/lib/schemas';
 import { generateDeckWithGemini } from '@/lib/gemini';
 import { createSlidesFromGeneration, updateDeckProject } from '@/lib/db';
 
@@ -10,7 +10,7 @@ export async function POST(
   try {
     const deckId = params.id;
     const body = await request.json();
-    const validated = DeckGenerateRequest.parse(body);
+    const validated = GeneratedDeckSchema.parse(body);
 
     // Generate content with Gemini
     const generated = await generateDeckWithGemini(validated);

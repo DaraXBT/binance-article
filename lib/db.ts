@@ -1,5 +1,5 @@
-import { prisma } from './prisma';
-import { DeckGenerateRequest, SlideUpdateRequest } from './schemas';
+import prisma from './prisma';
+import { CreateDeckProjectInput, UpdateSlideInput } from './schemas';
 import { GeneratedDeckResponse } from './gemini';
 import { Slide, DeckProject } from '@prisma/client';
 

@@ -1,5 +1,5 @@
 import { Slide } from '@prisma/client';
-import { THEMES } from './config';
+import { THEME_PRESETS } from './config';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -70,8 +70,8 @@ function generateMockPptxContent(
 }
 
 export function getThemeStyles(themeName: string) {
-  const theme = THEMES.find((t) => t.id === themeName);
-  return theme ? theme.colors : THEMES[0].colors;
+  const theme = THEME_PRESETS[themeName as keyof typeof THEME_PRESETS];
+  return theme ? theme.colors : THEME_PRESETS.default.colors;
 }
 
 export interface ThemeColors {
@@ -83,5 +83,5 @@ export interface ThemeColors {
 }
 
 export function validateTheme(themeName: string): boolean {
-  return THEMES.some((t) => t.id === themeName);
+  return themeName in THEME_PRESETS;
 }

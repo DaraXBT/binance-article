@@ -1,6 +1,6 @@
 'use client';
 
-import { THEMES } from '@/lib/config';
+import { THEME_PRESETS } from '@/lib/config';
 import { Button } from '@/components/ui/button';
 import { Check } from 'lucide-react';
 
@@ -22,12 +22,12 @@ export function ThemeStep({ formData, onUpdate }: ThemeStepProps) {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        {THEMES.map((theme) => (
+        {Object.entries(THEME_PRESETS).map(([themeId, theme]) => (
           <button
-            key={theme.id}
-            onClick={() => onUpdate({ theme: theme.id })}
+            key={themeId}
+            onClick={() => onUpdate({ theme: themeId })}
             className={`relative p-4 rounded-lg border-2 transition-all ${
-              formData.theme === theme.id
+              formData.theme === themeId
                 ? 'border-primary bg-primary/5'
                 : 'border-border hover:border-primary/50'
             }`}
@@ -37,29 +37,29 @@ export function ThemeStep({ formData, onUpdate }: ThemeStepProps) {
               <div
                 className="w-6 h-6 rounded"
                 style={{
-                  backgroundColor: `hsl(${theme.colors.primary})`,
+                  backgroundColor: theme.colors.primary,
                 }}
               />
               <div
                 className="w-6 h-6 rounded"
                 style={{
-                  backgroundColor: `hsl(${theme.colors.secondary})`,
+                  backgroundColor: theme.colors.secondary,
                 }}
               />
               <div
                 className="w-6 h-6 rounded"
                 style={{
-                  backgroundColor: `hsl(${theme.colors.accent})`,
+                  backgroundColor: theme.colors.accent,
                 }}
               />
             </div>
 
             {/* Theme name */}
             <p className="font-medium text-sm mb-1">{theme.name}</p>
-            <p className="text-xs text-muted-foreground mb-3">{theme.description}</p>
+            <p className="text-xs text-muted-foreground mb-3">Theme</p>
 
             {/* Selected indicator */}
-            {formData.theme === theme.id && (
+            {formData.theme === themeId && (
               <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1">
                 <Check className="h-4 w-4" />
               </div>

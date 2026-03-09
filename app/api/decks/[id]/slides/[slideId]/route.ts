@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SlideUpdateRequest } from '@/lib/schemas';
+import { UpdateSlideSchema } from '@/lib/schemas';
 import { updateSlide, deleteSlide } from '@/lib/db';
 
 export async function PATCH(
@@ -9,7 +9,7 @@ export async function PATCH(
   try {
     const { slideId } = params;
     const body = await request.json();
-    const validated = SlideUpdateRequest.parse(body);
+    const validated = UpdateSlideSchema.parse(body);
 
     const slide = await updateSlide(slideId, validated);
 
