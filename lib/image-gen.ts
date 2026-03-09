@@ -129,12 +129,24 @@ export async function uploadToBlob(
   filename: string,
   contentType: string = 'image/jpeg'
 ): Promise<string> {
-  const { url } = await put(filename, imageBuffer, {
-    access: 'public',
-    contentType,
-  });
-
-  return url;
+  try {
+    // Try public access first (ideal for images needed in browser)
+    const { url } = await put(filename, imageBuffer, {
+      access: 'public',
+      contentType,
+      allowOverwrite: true,
+    });
+    return url;
+  } catch (err: any) {
+    // Fallback if the store was created as a "private" store or other config error
+    console.warn('[Blob] Public upload failed, falling back to private access upload', err?.message);
+    const { url } = await put(filename, imageBuffer, {
+      access: 'private',
+      contentType,
+      allowOverwrite: true,
+    });
+    return url;
+  }
 }
 
 /**
