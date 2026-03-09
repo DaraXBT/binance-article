@@ -1,3 +1,4 @@
+import { ZodError } from 'zod';
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteDeckProject, getDeckWithAssets, updateDeckProject } from '@/lib/db';
 import { deleteDeckAssets } from '@/lib/file-utils';
@@ -50,7 +51,14 @@ export async function PATCH(
 
     console.error('[API] Error updating deck:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to update deck' },
+      {
+        error:
+          error instanceof ZodError
+            ? error.issues[0]?.message || 'Failed to update deck'
+            : error instanceof Error
+              ? error.message
+              : 'Failed to update deck',
+      },
       { status: 400 }
     );
   }

@@ -1,30 +1,33 @@
 'use client';
 
-import { useDeferredValue, useState } from 'react';
+import { useDeferredValue, useEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import {
-  Clock3,
-  Copy,
-  FileKey2,
-  FileText,
-  FolderOpenDot,
-  KeyRound,
-  Layers3,
-  MessageSquarePlus,
-  Search,
-  Sparkles,
-} from 'lucide-react';
-
-import { DeckCard } from '@/components/deck-card';
+import { useRouter } from 'next/navigation';
+import { FolderOpenDot, Layers3, Loader2, MessageSquarePlus, MoreHorizontal, Search, Sparkles } from 'lucide-react';
 import { LanguageToggle } from '@/components/language-toggle';
 import { useLanguage } from '@/components/language-provider';
 import { ThemeToggle } from '@/components/theme-toggle';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -36,11 +39,11 @@ import {
   SidebarMenuSkeleton,
   SidebarProvider,
   SidebarRail,
-  SidebarSeparator,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
+import { Textarea } from '@/components/ui/textarea';
 import { formatRelativeTime } from '@/lib/i18n';
-import { useDecks, useRecoverWorkspace, useWorkspace } from '@/lib/hooks';
+import { useDecks, useDeleteDeck, useUpdateDeck } from '@/lib/hooks';
 
 type DeckListItem = {
   id: string;
@@ -54,7 +57,329 @@ type DeckListItem = {
   };
 };
 
+type HomeFetch = typeof fetch;
+
+interface SubmitPromptArticleOptions {
+  title: string;
+  prompt: string;
+  slideCount?: number;
+  illustrationStyle?: 'pixel-art' | 'fantasy-animation' | 'lab-notes';
+  fetchImpl?: HomeFetch;
+}
+
 const sidebarSkeletonWidths = ['88%', '64%', '76%', '58%', '71%', '67%'] as const;
+
+async function readHomeResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.error || fallbackMessage);
+  }
+
+  return data as T;
+}
+
+export async function requestPromptSuggestion({
+  title,
+  fetchImpl = fetch,
+}: {
+  title: string;
+  fetchImpl?: HomeFetch;
+}) {
+  const trimmedTitle = title.trim();
+
+  if (!trimmedTitle) {
+    throw new Error('A topic is required.');
+  }
+
+  const response = await fetchImpl('/api/articles/generate-prompt', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: trimmedTitle }),
+  });
+
+  const data = await readHomeResponse<{ prompt?: string }>(response, 'Failed to generate prompt');
+
+  if (!data.prompt?.trim()) {
+    throw new Error('Failed to generate prompt');
+  }
+
+  return data.prompt;
+}
+
+export async function submitPromptArticle({
+  title,
+  prompt,
+  slideCount = 1,
+  illustrationStyle = 'pixel-art',
+  fetchImpl = fetch,
+}: SubmitPromptArticleOptions) {
+  const trimmedTitle = title.trim();
+  const trimmedPrompt = prompt.trim();
+
+  if (!trimmedTitle) {
+    throw new Error('A topic is required.');
+  }
+
+  if (!trimmedPrompt) {
+    throw new Error('A prompt is required.');
+  }
+
+  const createResponse = await fetchImpl('/api/articles', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title: trimmedTitle,
+      description: trimmedPrompt.slice(0, 200),
+      content: trimmedPrompt,
+      illustrationStyle,
+    }),
+  });
+
+  const createdArticle = await readHomeResponse<{ id?: string }>(
+    createResponse,
+    'Failed to generate article'
+  );
+  const deckId = createdArticle.id;
+
+  if (!deckId) {
+    throw new Error('Failed to generate article');
+  }
+
+  const generateResponse = await fetchImpl(`/api/articles/${deckId}/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      articleContent: trimmedPrompt,
+      slideCount,
+      illustrationStyle,
+      mode: 'prompt',
+    }),
+  });
+
+  await readHomeResponse(generateResponse, 'Failed to generate article');
+
+  const imageResponse = await fetchImpl(`/api/articles/${deckId}/generate-images`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ illustrationStyle }),
+  });
+
+  await imageResponse.json().catch(() => null);
+
+  return { deckId };
+}
+
+function DeckSidebarRow({
+  deck,
+  language,
+}: {
+  deck: DeckListItem;
+  language: 'km' | 'en';
+}) {
+  const { messages } = useLanguage();
+  const updateDeck = useUpdateDeck();
+  const deleteDeck = useDeleteDeck();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const skipRenameSubmitRef = useRef(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [draftTitle, setDraftTitle] = useState(deck.title);
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isRenaming) {
+      setDraftTitle(deck.title);
+      setRenameError(null);
+    }
+  }, [deck.title, isRenaming]);
+
+  useEffect(() => {
+    if (isRenaming) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [isRenaming]);
+
+  const description =
+    deck.description ||
+    `${deck._count?.slides || 0} ${messages.deckCard.slides.toLowerCase()} • ${messages.deckCard.updated} ${formatRelativeTime(new Date(deck.updatedAt), language)}`;
+
+  const handleRenameStart = () => {
+    skipRenameSubmitRef.current = false;
+    setDraftTitle(deck.title);
+    setRenameError(null);
+    setIsRenaming(true);
+  };
+
+  const handleRenameCancel = () => {
+    skipRenameSubmitRef.current = false;
+    setDraftTitle(deck.title);
+    setRenameError(null);
+    setIsRenaming(false);
+  };
+
+  const handleRenameSubmit = () => {
+    if (skipRenameSubmitRef.current) {
+      skipRenameSubmitRef.current = false;
+      return;
+    }
+
+    const trimmedTitle = draftTitle.trim();
+
+    if (!trimmedTitle) {
+      setRenameError(messages.dashboard.renameTitleRequired);
+      return;
+    }
+
+    if (trimmedTitle === deck.title) {
+      setDraftTitle(deck.title);
+      setRenameError(null);
+      setIsRenaming(false);
+      return;
+    }
+
+    updateDeck.mutate(
+      {
+        deckId: deck.id,
+        title: trimmedTitle,
+      },
+      {
+        onSuccess: () => {
+          setRenameError(null);
+          setIsRenaming(false);
+        },
+        onError: (error) => {
+          setRenameError(
+            error instanceof Error ? error.message : messages.dashboard.renameArticleFailed
+          );
+          setDraftTitle(deck.title);
+          setIsRenaming(false);
+        },
+      }
+    );
+  };
+
+  return (
+    <SidebarMenuItem className="group/item">
+      <div className="relative">
+        {isRenaming ? (
+          <div className="flex min-w-0 items-start gap-2 rounded-md px-3 py-3 pr-12 text-sidebar-foreground">
+            <FolderOpenDot className="mt-1 h-4 w-4 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <Input
+                ref={inputRef}
+                value={draftTitle}
+                onChange={(event) => {
+                  setDraftTitle(event.target.value);
+                  if (renameError) {
+                    setRenameError(null);
+                  }
+                }}
+                onBlur={handleRenameSubmit}
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+                onKeyDown={(event) => {
+                  event.stopPropagation();
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                  }
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    skipRenameSubmitRef.current = true;
+                    event.currentTarget.blur();
+                    handleRenameCancel();
+                  }
+                }}
+                className="h-7 bg-background"
+                disabled={updateDeck.isPending}
+              />
+              <p className="mt-1 truncate text-xs text-sidebar-foreground/65">{description}</p>
+              {renameError ? (
+                <p className="mt-1 truncate text-xs text-destructive">{renameError}</p>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <SidebarMenuButton asChild className="h-auto px-3 py-3 pr-12">
+            <Link href={`/articles/${deck.id}`}>
+              <FolderOpenDot className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">{deck.title}</p>
+                <p className="mt-1 truncate text-xs text-sidebar-foreground/65">{description}</p>
+                {renameError ? (
+                  <p className="mt-1 truncate text-xs text-destructive">{renameError}</p>
+                ) : null}
+              </div>
+            </Link>
+          </SidebarMenuButton>
+        )}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="absolute right-2 top-2 z-10 opacity-0 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100 data-[state=open]:opacity-100"
+              onClick={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
+              aria-label={`${messages.common.rename} ${deck.title}`}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault();
+                handleRenameStart();
+              }}
+            >
+              {messages.common.rename}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={(event) => {
+                event.preventDefault();
+                setIsDeleteOpen(true);
+              }}
+            >
+              {messages.common.delete}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{messages.deckPage.deleteArticleTitle}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {messages.deckPage.deleteArticleDescription}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{messages.common.cancel}</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(event) => {
+                  event.stopPropagation();
+                  deleteDeck.mutate(deck.id, {
+                    onSuccess: () => {
+                      setIsDeleteOpen(false);
+                    },
+                  });
+                }}
+              >
+                {messages.common.delete}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </SidebarMenuItem>
+  );
+}
 
 function DeckSidebarList({
   decks,
@@ -63,7 +388,6 @@ function DeckSidebarList({
   query,
   onQueryChange,
   language,
-  accessKeyPrefix,
 }: {
   decks: DeckListItem[];
   isLoading: boolean;
@@ -71,7 +395,6 @@ function DeckSidebarList({
   query: string;
   onQueryChange: (value: string) => void;
   language: 'km' | 'en';
-  accessKeyPrefix?: string | null;
 }) {
   const { messages } = useLanguage();
 
@@ -123,22 +446,7 @@ function DeckSidebarList({
                   {messages.dashboard.couldNotLoadDeckList}
                 </div>
               ) : decks.length > 0 ? (
-                decks.map((deck) => (
-                  <SidebarMenuItem key={deck.id}>
-                    <SidebarMenuButton asChild className="h-auto px-3 py-3">
-                      <Link href={`/articles/${deck.id}`}>
-                        <FolderOpenDot className="mt-0.5 h-4 w-4 shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate font-medium">{deck.title}</p>
-                          <p className="mt-1 truncate text-xs text-sidebar-foreground/65">
-                            {deck.description ||
-                              `${deck._count?.slides || 0} ${messages.deckCard.slides.toLowerCase()} • ${messages.deckCard.updated} ${formatRelativeTime(new Date(deck.updatedAt), language)}`}
-                          </p>
-                        </div>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))
+                decks.map((deck) => <DeckSidebarRow key={deck.id} deck={deck} language={language} />)
               ) : (
                 <div className="border border-sidebar-border/70 bg-background px-3 py-4 text-sm text-sidebar-foreground/70">
                   {query ? messages.dashboard.noMatchingDecks : messages.dashboard.noDecksYet}
@@ -148,40 +456,21 @@ function DeckSidebarList({
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-
-      <SidebarSeparator />
-
-      <SidebarFooter className="p-3">
-        <div className="border border-sidebar-border/70 bg-background px-3 py-3">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-sidebar-foreground/60">
-            {messages.dashboard.privateWorkspace}
-          </p>
-          <p className="mt-2 text-sm text-sidebar-foreground/80">
-            {messages.dashboard.workspaceDescription}
-          </p>
-          {accessKeyPrefix ? (
-            <p className="mt-3 text-xs text-sidebar-foreground/65">
-              {messages.dashboard.accessKeyPrefixLabel}: {accessKeyPrefix}
-            </p>
-          ) : null}
-        </div>
-      </SidebarFooter>
     </>
   );
 }
 
 export function DashboardHome() {
+  const router = useRouter();
   const { language, messages } = useLanguage();
   const [query, setQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [showRecoveryForm, setShowRecoveryForm] = useState(false);
-  const [recoveryKeyInput, setRecoveryKeyInput] = useState('');
-  const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
-  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [topic, setTopic] = useState('');
+  const [prompt, setPrompt] = useState('');
+  const [composerError, setComposerError] = useState<string | null>(null);
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const deferredQuery = useDeferredValue(query);
   const { data, isLoading, isError, refetch } = useDecks();
-  const workspaceQuery = useWorkspace();
-  const recoverWorkspace = useRecoverWorkspace();
   const decks = (data ?? []) as DeckListItem[];
 
   const filteredDecks = decks.filter((deck) => {
@@ -195,52 +484,66 @@ export function DashboardHome() {
       }
     }
 
-    if (statusFilter !== 'all' && deck.status !== statusFilter) {
-      return false;
-    }
-
     return true;
   });
 
-  const handleCopyAccessKey = async () => {
-    const recoveryKey = workspaceQuery.data?.recoveryKey;
-    if (!recoveryKey) {
+  const handleSuggest = async () => {
+    if (!topic.trim()) {
+      setComposerError(messages.dashboard.topicRequired);
       return;
     }
+
+    setIsSuggesting(true);
+    setComposerError(null);
 
     try {
-      await navigator.clipboard.writeText(recoveryKey);
-      setWorkspaceError(null);
-      setWorkspaceNotice(messages.dashboard.accessKeyCopied);
-    } catch {
-      setWorkspaceError(messages.dashboard.copyAccessKeyFailed);
+      const suggestedPrompt = await requestPromptSuggestion({ title: topic });
+      setPrompt(suggestedPrompt);
+    } catch (error) {
+      setComposerError(
+        error instanceof Error ? error.message : messages.dashboard.promptGenerateFailed
+      );
+    } finally {
+      setIsSuggesting(false);
     }
   };
 
-  const handleRecoverWorkspace = () => {
-    const trimmedKey = recoveryKeyInput.trim();
-    if (!trimmedKey) {
-      setWorkspaceError(messages.dashboard.accessKeyRequired);
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!topic.trim()) {
+      setComposerError(messages.dashboard.topicRequired);
       return;
     }
 
-    setWorkspaceNotice(null);
-    setWorkspaceError(null);
+    if (!prompt.trim()) {
+      setComposerError(messages.dashboard.promptRequired);
+      return;
+    }
 
-    recoverWorkspace.mutate(trimmedKey, {
-      onSuccess: async () => {
-        setRecoveryKeyInput('');
-        setShowRecoveryForm(false);
-        setWorkspaceNotice(messages.dashboard.workspaceRecovered);
-        await refetch();
-      },
-      onError: (error) => {
-        setWorkspaceError(
-          error instanceof Error ? error.message : messages.dashboard.recoverWorkspaceFailed
-        );
-      },
-    });
+    setIsSubmitting(true);
+    setComposerError(null);
+
+    try {
+      const { deckId } = await submitPromptArticle({
+        title: topic,
+        prompt,
+      });
+      await refetch();
+      router.push(`/articles/${deckId}`);
+    } catch (error) {
+      setComposerError(
+        error instanceof Error ? error.message : messages.dashboard.articleGenerateFailed
+      );
+      setIsSubmitting(false);
+    }
   };
+
+  const helperText = composerError
+    ? composerError
+    : prompt.trim()
+      ? messages.dashboard.promptHintReady
+      : messages.dashboard.promptHintEmpty;
 
   return (
     <SidebarProvider defaultOpen className="min-h-screen w-full bg-background">
@@ -252,7 +555,6 @@ export function DashboardHome() {
           query={query}
           onQueryChange={setQuery}
           language={language}
-          accessKeyPrefix={workspaceQuery.data?.accessKeyPrefix}
         />
         <SidebarRail />
       </Sidebar>
@@ -280,297 +582,89 @@ export function DashboardHome() {
           </div>
         </header>
 
-        <div className="flex-1 px-4 py-6 sm:px-6 sm:py-8">
-          <div className="mx-auto flex w-full flex-col gap-10">
-            <section className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
-              {workspaceQuery.data?.recoveryKey ? (
-                <div className="border border-primary/25 bg-primary/5 p-5">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center bg-primary/10 text-primary">
-                      <FileKey2 className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h2 className="text-lg font-semibold text-foreground">
-                        {messages.dashboard.saveAccessKeyTitle}
-                      </h2>
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        {messages.dashboard.saveAccessKeyDescription}
-                      </p>
-                      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                        <div className="min-w-0 flex-1 border border-border bg-background px-3 py-3 font-mono text-sm text-foreground">
-                          {workspaceQuery.data.recoveryKey}
-                        </div>
-                        <Button onClick={handleCopyAccessKey} className="gap-2">
-                          <Copy className="h-4 w-4" />
-                          {messages.dashboard.copyAccessKey}
-                        </Button>
-                      </div>
-                      <p className="mt-3 text-xs text-muted-foreground">
-                        {messages.dashboard.accessKeyPrefixLabel}:{' '}
-                        {workspaceQuery.data.accessKeyPrefix}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="border border-border/60 bg-background/80 p-5">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center bg-muted text-foreground">
-                      <KeyRound className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h2 className="text-lg font-semibold text-foreground">
-                        {messages.dashboard.privateWorkspace}
-                      </h2>
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        {messages.dashboard.workspaceDescription}
-                      </p>
-                      {workspaceQuery.data?.accessKeyPrefix ? (
-                        <p className="mt-3 text-xs text-muted-foreground">
-                          {messages.dashboard.accessKeyPrefixLabel}:{' '}
-                          {workspaceQuery.data.accessKeyPrefix}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              )}
+        <div className="flex min-h-[calc(100vh-4rem)] flex-1 items-center justify-center px-4 py-10 sm:px-6 sm:py-14">
+          <section className="mx-auto w-full max-w-3xl">
+            <div className="mb-8 text-center">
+              <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                {messages.dashboard.promptHomeTitle}
+              </h1>
+              <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
+                {messages.dashboard.promptHomeSubtitle}
+              </p>
+            </div>
 
-              <div className="border border-border/60 bg-background/80 p-5">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center bg-[#F0B90B]/10 text-[#F0B90B]">
-                    <KeyRound className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h2 className="text-lg font-semibold text-foreground">
-                      {messages.dashboard.useAccessKeyTitle}
-                    </h2>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {messages.dashboard.useAccessKeyDescription}
-                    </p>
-                    {showRecoveryForm ? (
-                      <div className="mt-4 flex flex-col gap-3">
-                        <Input
-                          value={recoveryKeyInput}
-                          onChange={(event) => setRecoveryKeyInput(event.target.value)}
-                          placeholder={messages.dashboard.accessKeyPlaceholder}
-                          disabled={recoverWorkspace.isPending}
-                        />
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            onClick={handleRecoverWorkspace}
-                            disabled={recoverWorkspace.isPending}
-                          >
-                            {recoverWorkspace.isPending
-                              ? messages.dashboard.recoveringWorkspace
-                              : messages.dashboard.useAccessKeyAction}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setShowRecoveryForm(false);
-                              setRecoveryKeyInput('');
-                              setWorkspaceError(null);
-                            }}
-                            disabled={recoverWorkspace.isPending}
-                          >
-                            {messages.common.cancel}
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        className="mt-4"
-                        onClick={() => {
-                          setShowRecoveryForm(true);
-                          setWorkspaceNotice(null);
-                          setWorkspaceError(null);
-                        }}
-                      >
-                        {messages.dashboard.useAccessKeyAction}
-                      </Button>
-                    )}
-                    {workspaceNotice ? (
-                      <p className="mt-3 text-sm font-medium text-primary">{workspaceNotice}</p>
-                    ) : null}
-                    {workspaceError ? (
-                      <p className="mt-3 text-sm text-destructive">{workspaceError}</p>
-                    ) : null}
-                  </div>
-                </div>
+            <form
+              onSubmit={handleSubmit}
+              className="overflow-hidden border border-border/70 bg-background/90 shadow-[0_30px_80px_-60px_rgba(15,23,42,0.45)]"
+            >
+              <div className="border-b border-border/70 px-4 py-4 sm:px-5">
+                <Input
+                  value={topic}
+                  onChange={(event) => {
+                    setTopic(event.target.value);
+                    if (composerError) {
+                      setComposerError(null);
+                    }
+                  }}
+                  placeholder={messages.dashboard.topicPlaceholder}
+                  className="h-12 border-0 bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
+                  disabled={isSubmitting}
+                />
               </div>
-            </section>
 
-            <section className="space-y-4">
-              <h2 className="text-xl font-semibold tracking-tight text-foreground">
-                {messages.dashboard.quickStart}
-              </h2>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <Link
-                  href="/new"
-                  className="group flex flex-col justify-between border border-border/60 bg-background/80 p-5 shadow-sm transition-all hover:-translate-y-1 hover:border-foreground/20 hover:shadow-md"
-                >
-                  <div className="mb-4 flex h-10 w-10 items-center justify-center bg-primary/10 text-primary">
-                    <FileText className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-foreground group-hover:underline">
-                      {messages.dashboard.startFromText}
-                    </h3>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {messages.dashboard.startFromTextDesc}
-                    </p>
-                  </div>
-                </Link>
+              <div className="px-4 py-4 sm:px-5 sm:py-5">
+                <Textarea
+                  value={prompt}
+                  onChange={(event) => {
+                    setPrompt(event.target.value);
+                    if (composerError) {
+                      setComposerError(null);
+                    }
+                  }}
+                  placeholder={messages.dashboard.promptPlaceholder}
+                  rows={8}
+                  className="min-h-[180px] resize-y border-0 bg-transparent px-0 text-sm leading-7 shadow-none focus-visible:ring-0"
+                  disabled={isSubmitting || isSuggesting}
+                />
 
-                <Link
-                  href="/new?mode=url"
-                  className="group flex flex-col justify-between border border-border/60 bg-background/80 p-5 shadow-sm transition-all hover:-translate-y-1 hover:border-foreground/20 hover:shadow-md"
-                >
-                  <div className="mb-4 flex h-10 w-10 items-center justify-center bg-[#02C076]/10 text-[#02C076]">
-                    <Layers3 className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-foreground group-hover:underline">
-                      {messages.dashboard.importFromUrl}
-                    </h3>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {messages.dashboard.importFromUrlDesc}
-                    </p>
-                  </div>
-                </Link>
-
-                <Link
-                  href="/new?mode=prompt"
-                  className="group flex flex-col justify-between border border-border/60 bg-background/80 p-5 shadow-sm transition-all hover:-translate-y-1 hover:border-foreground/20 hover:shadow-md sm:col-span-2 lg:col-span-1"
-                >
-                  <div className="mb-4 flex h-10 w-10 items-center justify-center bg-[#F0B90B]/10 text-[#F0B90B]">
-                    <Sparkles className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-foreground group-hover:underline">
-                      {messages.dashboard.generateWithAI}
-                    </h3>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {messages.dashboard.generateWithAIDesc}
-                    </p>
-                  </div>
-                </Link>
-              </div>
-            </section>
-
-            {isLoading ? (
-              <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="border border-border/70 bg-background/88 p-6 shadow-[0_28px_80px_-60px_rgba(15,23,42,0.28)]"
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p
+                    className={`text-sm ${
+                      composerError ? 'text-destructive' : 'text-muted-foreground'
+                    }`}
                   >
-                    <div className="animate-pulse space-y-5">
-                      <div className="h-5 w-24 bg-foreground/10" />
-                      <div className="space-y-3">
-                        <div className="h-6 w-3/4 bg-foreground/10" />
-                        <div className="h-4 w-full bg-foreground/8" />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="h-20 bg-foreground/8" />
-                        <div className="h-20 bg-foreground/8" />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </section>
-            ) : isError ? (
-              <section className="border border-destructive/25 bg-destructive/5 p-8">
-                <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-                  {messages.dashboard.loadErrorTitle}
-                </h2>
-                <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">
-                  {messages.dashboard.loadErrorDescription}
-                </p>
-                <Button variant="outline" className="mt-5" onClick={() => refetch()}>
-                  {messages.common.retry}
-                </Button>
-              </section>
-            ) : decks.length > 0 ? (
-              <section className="space-y-6">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-3">
-                    <Clock3 className="h-4 w-4 text-muted-foreground" />
-                    <h2 className="text-xl font-semibold tracking-tight text-foreground">
-                      {messages.dashboard.continueRecent}
-                    </h2>
-                  </div>
-
-                  <div className="flex space-x-1 overflow-x-auto border border-border/60 bg-background/50 p-1">
-                    {['all', 'draft', 'generating', 'generated', 'rendered'].map((status) => (
-                      <button
-                        key={status}
-                        onClick={() => setStatusFilter(status)}
-                        className={`whitespace-nowrap px-3 py-1 text-xs font-medium uppercase tracking-wider transition-colors ${
-                          statusFilter === status
-                            ? 'bg-foreground text-background'
-                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                        }`}
-                      >
-                        {messages.dashboard[
-                          `filter${status.charAt(0).toUpperCase() + status.slice(1)}` as keyof typeof messages.dashboard
-                        ] || status}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {filteredDecks.length > 0 ? (
-                  <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
-                    {filteredDecks.slice(0, 9).map((deck) => (
-                      <DeckCard
-                        key={deck.id}
-                        id={deck.id}
-                        title={deck.title}
-                        description={deck.description ?? undefined}
-                        slideCount={deck._count?.slides || 0}
-                        createdAt={deck.createdAt}
-                        updatedAt={deck.updatedAt}
-                        status={deck.status ?? undefined}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="border border-dashed border-border/70 bg-background/50 py-12 text-center text-sm text-muted-foreground">
-                    {messages.dashboard.noFilteredDecks.replace('{status}', statusFilter)}
-                  </div>
-                )}
-              </section>
-            ) : (
-              <section className="border border-dashed border-border/70 bg-background/72 p-10 text-center">
-                <div className="mx-auto max-w-2xl">
-                  <div className="mx-auto flex h-14 w-14 items-center justify-center bg-secondary text-foreground">
-                    <Sparkles className="h-6 w-6" />
-                  </div>
-                  <h2 className="mt-6 text-3xl font-semibold tracking-tight text-foreground">
-                    {messages.dashboard.emptyTitle}
-                  </h2>
-                  <p className="mt-3 text-base leading-8 text-muted-foreground">
-                    {messages.dashboard.emptyDescription}
+                    {helperText}
                   </p>
-                  <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                    <Button asChild className="px-5">
-                      <Link href="/new">
-                        <MessageSquarePlus className="h-4 w-4" />
-                        {messages.dashboard.createFirstDeck}
-                      </Link>
+
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleSuggest}
+                      disabled={isSuggesting || isSubmitting}
+                      className="gap-2"
+                    >
+                      {isSuggesting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-4 w-4" />
+                      )}
+                      {isSuggesting
+                        ? messages.dashboard.aiSuggestLoading
+                        : messages.dashboard.aiSuggest}
                     </Button>
-                    <div className="inline-flex items-center gap-2 border border-border/70 px-4 py-2 text-sm text-muted-foreground">
-                      <FileText className="h-4 w-4" />
-                      {messages.dashboard.pasteToBegin}
-                    </div>
+
+                    <Button type="submit" disabled={isSubmitting || isSuggesting} className="gap-2">
+                      {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      {isSubmitting
+                        ? messages.dashboard.generateLoading
+                        : messages.dashboard.generateAction}
+                    </Button>
                   </div>
                 </div>
-              </section>
-            )}
-          </div>
+              </div>
+            </form>
+          </section>
         </div>
       </SidebarInset>
     </SidebarProvider>

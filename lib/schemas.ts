@@ -37,6 +37,7 @@ export interface SlideContent {
 export const CreateDeckProjectSchema = z.object({
   title: z
     .string()
+    .trim()
     .min(1, "Title is required")
     .max(VALIDATION.TITLE_MAX_LENGTH, `Title must be less than ${VALIDATION.TITLE_MAX_LENGTH} characters`),
   description: z

@@ -1,0 +1,279 @@
+import React from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { renderToStaticMarkup } from 'react-dom/server';
+
+const messages = {
+  common: {
+    cancel: 'Cancel',
+    delete: 'Delete',
+    newDeck: 'New article',
+    rename: 'Rename',
+    retry: 'Retry',
+  },
+  dashboard: {
+    workspaceDashboard: 'Workspace dashboard',
+    searchDecks: 'Search articles',
+    allDecks: 'All articles',
+    couldNotLoadDeckList: 'Could not load your article list.',
+    noMatchingDecks: 'No articles match this search.',
+    noDecksYet: 'No articles yet. Create one to get started.',
+    renameTitleRequired: 'Title is required.',
+    renameArticleFailed: 'Failed to rename article',
+    privateWorkspace: 'Private workspace',
+    workspaceDescription: 'This workspace is private by default.',
+    accessKeyPrefixLabel: 'Access key prefix',
+    saveAccessKeyTitle: 'Save this access key',
+    saveAccessKeyDescription: 'Store it somewhere safe before you leave this page.',
+    copyAccessKey: 'Copy access key',
+    accessKeyCopied: 'Access key copied.',
+    copyAccessKeyFailed: 'Could not copy the access key.',
+    useAccessKeyTitle: 'Use an access key',
+    useAccessKeyDescription: 'Enter a recovery key to attach this browser.',
+    accessKeyPlaceholder: 'Paste workspace access key',
+    useAccessKeyAction: 'Use access key',
+    recoveringWorkspace: 'Recovering workspace...',
+    accessKeyRequired: 'Access key is required.',
+    workspaceRecovered: 'Workspace recovered for this browser.',
+    recoverWorkspaceFailed: 'Failed to recover workspace.',
+    headerTitle: 'Dashboard',
+    loadErrorTitle: 'Articles could not be loaded.',
+    loadErrorDescription: 'The dashboard shell is available, but the list failed to load.',
+    quickStart: 'Quick Start',
+    startFromText: 'Start from Text',
+    startFromTextDesc: 'Paste your blog or outline to generate.',
+    importFromUrl: 'Import from URL',
+    importFromUrlDesc: 'Turn any webpage into an article.',
+    generateWithAI: 'Generate with AI',
+    generateWithAIDesc: 'Describe your topic and let AI write it.',
+    emptyTitle: 'Your dashboard is ready for the first article.',
+    emptyDescription: 'Create your first article and it will appear in the left sidebar.',
+    createFirstDeck: 'Create first article',
+    pasteToBegin: 'Paste an article to begin',
+    promptHomeTitle: 'What do you want to write about?',
+    promptHomeSubtitle: 'Start with a topic. We will turn it into a full AI-generated article.',
+    topicPlaceholder: 'Enter a topic or angle',
+    promptPlaceholder: 'Add your own instructions or let AI suggest them.',
+    promptHintEmpty: 'Enter a topic first, then ask AI for a suggestion.',
+    promptHintReady: 'You can refine the prompt before generating.',
+    aiSuggest: 'AI Suggest',
+    aiSuggestLoading: 'Suggesting...',
+    generateAction: 'Generate article',
+    generateLoading: 'Generating article...',
+    topicRequired: 'A topic is required.',
+    promptRequired: 'A prompt is required.',
+    promptGenerateFailed: 'Failed to generate prompt',
+    articleGenerateFailed: 'Failed to generate article',
+  },
+  deckPage: {
+    deleteArticleTitle: 'Delete this article?',
+    deleteArticleDescription: 'This permanently deletes the article.',
+  },
+  deckCard: {
+    slides: 'Slides',
+    updated: 'Updated',
+  },
+};
+
+vi.mock('next/link', () => ({
+  default: ({ children, href }: { children: React.ReactNode; href: string }) =>
+    React.createElement('a', { href }, children),
+}));
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
+vi.mock('@/components/language-provider', () => ({
+  useLanguage: () => ({ language: 'en', messages }),
+}));
+
+vi.mock('@/components/language-toggle', () => ({
+  LanguageToggle: () => React.createElement('button', { type: 'button' }, 'Language'),
+}));
+
+vi.mock('@/components/theme-toggle', () => ({
+  ThemeToggle: () => React.createElement('button', { type: 'button' }, 'Theme'),
+}));
+
+vi.mock('@/components/ui/button', () => ({
+  Button: ({ asChild, children, ...props }: any) =>
+    asChild ? React.createElement(React.Fragment, null, children) : React.createElement('button', props, children),
+}));
+
+vi.mock('@/components/ui/input', () => ({
+  Input: (props: any) => React.createElement('input', props),
+}));
+
+vi.mock('@/components/ui/textarea', () => ({
+  Textarea: (props: any) => React.createElement('textarea', props),
+}));
+
+vi.mock('@/components/ui/alert-dialog', () => ({
+  AlertDialog: ({ children }: any) => React.createElement(React.Fragment, null, children),
+  AlertDialogAction: ({ children, ...props }: any) => React.createElement('button', props, children),
+  AlertDialogCancel: ({ children, ...props }: any) => React.createElement('button', props, children),
+  AlertDialogContent: ({ children }: any) => React.createElement('div', null, children),
+  AlertDialogDescription: ({ children }: any) => React.createElement('p', null, children),
+  AlertDialogFooter: ({ children }: any) => React.createElement('div', null, children),
+  AlertDialogHeader: ({ children }: any) => React.createElement('div', null, children),
+  AlertDialogTitle: ({ children }: any) => React.createElement('h2', null, children),
+}));
+
+vi.mock('@/components/ui/dropdown-menu', () => ({
+  DropdownMenu: ({ children }: any) => React.createElement(React.Fragment, null, children),
+  DropdownMenuContent: ({ children }: any) => React.createElement('div', null, children),
+  DropdownMenuItem: ({ children, ...props }: any) => React.createElement('button', props, children),
+  DropdownMenuTrigger: ({ children }: any) => React.createElement(React.Fragment, null, children),
+}));
+
+vi.mock('@/components/ui/sidebar', () => ({
+  Sidebar: ({ children }: any) => React.createElement('aside', null, children),
+  SidebarContent: ({ children }: any) => React.createElement('div', null, children),
+  SidebarFooter: ({ children }: any) => React.createElement('div', null, children),
+  SidebarGroup: ({ children }: any) => React.createElement('div', null, children),
+  SidebarGroupContent: ({ children }: any) => React.createElement('div', null, children),
+  SidebarGroupLabel: ({ children }: any) => React.createElement('div', null, children),
+  SidebarHeader: ({ children }: any) => React.createElement('div', null, children),
+  SidebarInset: ({ children }: any) => React.createElement('main', null, children),
+  SidebarMenu: ({ children }: any) => React.createElement('div', null, children),
+  SidebarMenuButton: ({ asChild, children, ...props }: any) =>
+    asChild ? React.createElement(React.Fragment, null, children) : React.createElement('button', props, children),
+  SidebarMenuItem: ({ children }: any) => React.createElement('div', null, children),
+  SidebarMenuSkeleton: () => React.createElement('div', null, 'skeleton'),
+  SidebarProvider: ({ children }: any) => React.createElement('div', null, children),
+  SidebarRail: () => React.createElement('div'),
+  SidebarSeparator: () => React.createElement('hr'),
+  SidebarTrigger: () => React.createElement('button', { type: 'button' }, 'Toggle sidebar'),
+}));
+
+const refetch = vi.fn();
+const mutate = vi.fn();
+
+vi.mock('@/lib/hooks', () => ({
+  useDecks: () => ({ data: [], isLoading: false, isError: false, refetch }),
+  useWorkspace: () => ({ data: { accessKeyPrefix: 'dwk_test', recoveryKey: null } }),
+  useRecoverWorkspace: () => ({ isPending: false, mutate }),
+  useUpdateDeck: () => ({ isPending: false, mutate }),
+  useDeleteDeck: () => ({ isPending: false, mutate }),
+}));
+
+describe('DashboardHome', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+  });
+
+  it('renders a prompt-first home composer without the old onboarding dashboard sections', async () => {
+    const { DashboardHome } = await import('@/components/home/dashboard-home');
+
+    const html = renderToStaticMarkup(React.createElement(DashboardHome));
+
+    expect(html).toContain(messages.dashboard.promptHomeTitle);
+    expect(html).toContain(messages.dashboard.topicPlaceholder);
+    expect(html).toContain(messages.dashboard.aiSuggest);
+    expect(html).toContain(messages.dashboard.generateAction);
+    expect(html).not.toContain(messages.dashboard.quickStart);
+    expect(html).not.toContain(messages.dashboard.privateWorkspace);
+    expect(html).not.toContain(messages.dashboard.useAccessKeyTitle);
+    expect(html).not.toContain(messages.dashboard.emptyTitle);
+  });
+
+  it('exports a helper that requests an AI prompt suggestion from the existing prompt API', async () => {
+    const module = await import('@/components/home/dashboard-home');
+
+    expect(typeof (module as any).requestPromptSuggestion).toBe('function');
+
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ prompt: 'Generated article prompt' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+
+    const prompt = await (module as any).requestPromptSuggestion({
+      title: 'Solana treasury strategy',
+      fetchImpl,
+    });
+
+    expect(prompt).toBe('Generated article prompt');
+    expect(fetchImpl).toHaveBeenCalledWith(
+      '/api/articles/generate-prompt',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+    expect(fetchImpl.mock.calls[0]?.[1]?.body).toBe(
+      JSON.stringify({ title: 'Solana treasury strategy' })
+    );
+  });
+
+  it('exports a helper that runs the existing prompt article generation sequence', async () => {
+    const module = await import('@/components/home/dashboard-home');
+
+    expect(typeof (module as any).submitPromptArticle).toBe('function');
+
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: 'deck-123' }), {
+          status: 201,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, slideCount: 1 }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: 'success', generated: 1, failed: 0, total: 1 }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+
+    const result = await (module as any).submitPromptArticle({
+      title: 'Institutional stablecoin adoption',
+      prompt: 'Write a strategic article for CFOs about stablecoin settlement.',
+      fetchImpl,
+    });
+
+    expect(result).toEqual({ deckId: 'deck-123' });
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      1,
+      '/api/articles',
+      expect.objectContaining({ method: 'POST' })
+    );
+    expect(fetchImpl.mock.calls[0]?.[1]?.body).toBe(
+      JSON.stringify({
+        title: 'Institutional stablecoin adoption',
+        description: 'Write a strategic article for CFOs about stablecoin settlement.',
+        content: 'Write a strategic article for CFOs about stablecoin settlement.',
+        illustrationStyle: 'pixel-art',
+      })
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      2,
+      '/api/articles/deck-123/generate',
+      expect.objectContaining({ method: 'POST' })
+    );
+    expect(fetchImpl.mock.calls[1]?.[1]?.body).toBe(
+      JSON.stringify({
+        articleContent: 'Write a strategic article for CFOs about stablecoin settlement.',
+        slideCount: 1,
+        illustrationStyle: 'pixel-art',
+        mode: 'prompt',
+      })
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      3,
+      '/api/articles/deck-123/generate-images',
+      expect.objectContaining({ method: 'POST' })
+    );
+    expect(fetchImpl.mock.calls[2]?.[1]?.body).toBe(
+      JSON.stringify({ illustrationStyle: 'pixel-art' })
+    );
+  });
+});
