@@ -32,7 +32,7 @@ function getImageModel() {
   }
   const genAI = new GoogleGenerativeAI(apiKey);
   return genAI.getGenerativeModel({
-    model: 'gemini-2.0-flash-preview-image-generation',
+    model: 'gemini-3-pro-preview-image-generation',
   });
 }
 
