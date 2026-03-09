@@ -36,47 +36,53 @@ export async function POST(
     // Get embedded style description (no filesystem needed)
     const styleDescription = getStyleDescription(illustrationStyle);
 
-    // Generate images for each slide
+    // Generate images for each slide in parallel chunks to avoid Vercel 60s timeout
     const results: { slideId: string; imageUrl: string | null; error?: string }[] = [];
-
-    for (const slide of deck.slides) {
-      if (!slide.imagePrompt) {
-        results.push({ slideId: slide.id, imageUrl: null, error: 'No image prompt' });
-        continue;
-      }
-
-      try {
-        const fullPrompt = buildImagePrompt(styleDescription, slide.imagePrompt);
-
-        console.log(`[ImageGen] Generating image for slide ${slide.order + 1}...`);
-
-        // Generate image via Google Gemini
-        const imageResult = await generateImage(fullPrompt);
-
-        if (!imageResult) {
-          console.warn(`[ImageGen] No image returned for slide ${slide.order + 1}`);
-          results.push({ slideId: slide.id, imageUrl: null, error: 'No image generated' });
-          continue;
+    
+    const CHUNK_SIZE = 5;
+    for (let i = 0; i < deck.slides.length; i += CHUNK_SIZE) {
+      const chunk = deck.slides.slice(i, i + CHUNK_SIZE);
+      
+      const chunkPromises = chunk.map(async (slide) => {
+        if (!slide.imagePrompt) {
+          return { slideId: slide.id, imageUrl: null, error: 'No image prompt' };
         }
 
-        // Upload to Vercel Blob
-        const ext = imageResult.mimeType === 'image/jpeg' ? 'jpg' : 'png';
-        const filename = `decks/${deckId}/slide-${String(slide.order + 1).padStart(2, '0')}.${ext}`;
-        const imageUrl = await uploadToBlob(imageResult.buffer, filename, imageResult.mimeType);
+        try {
+          const fullPrompt = buildImagePrompt(styleDescription, slide.imagePrompt);
 
-        // Update slide with image URL
-        await prisma.slide.update({
-          where: { id: slide.id },
-          data: { imageUrl },
-        });
+          console.log(`[ImageGen] Generating image for slide ${slide.order + 1}...`);
 
-        results.push({ slideId: slide.id, imageUrl });
-        console.log(`[ImageGen] ✅ Slide ${slide.order + 1} uploaded: ${imageUrl}`);
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-        console.error(`[ImageGen] ❌ Slide ${slide.order + 1} failed:`, errorMsg);
-        results.push({ slideId: slide.id, imageUrl: null, error: errorMsg });
-      }
+          // Generate image via Google Gemini
+          const imageResult = await generateImage(fullPrompt);
+
+          if (!imageResult) {
+            console.warn(`[ImageGen] No image returned for slide ${slide.order + 1}`);
+            return { slideId: slide.id, imageUrl: null, error: 'No image generated' };
+          }
+
+          // Upload to Vercel Blob
+          const ext = imageResult.mimeType === 'image/jpeg' ? 'jpg' : 'png';
+          const filename = `decks/${deckId}/slide-${String(slide.order + 1).padStart(2, '0')}.${ext}`;
+          const imageUrl = await uploadToBlob(imageResult.buffer, filename, imageResult.mimeType);
+
+          // Update slide with image URL
+          await prisma.slide.update({
+            where: { id: slide.id },
+            data: { imageUrl },
+          });
+
+          console.log(`[ImageGen] ✅ Slide ${slide.order + 1} uploaded: ${imageUrl}`);
+          return { slideId: slide.id, imageUrl };
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+          console.error(`[ImageGen] ❌ Slide ${slide.order + 1} failed:`, errorMsg);
+          return { slideId: slide.id, imageUrl: null, error: errorMsg };
+        }
+      });
+
+      const chunkResults = await Promise.all(chunkPromises);
+      results.push(...chunkResults);
     }
 
     const successCount = results.filter((r) => r.imageUrl).length;
