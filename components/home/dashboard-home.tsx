@@ -26,6 +26,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -45,6 +52,7 @@ import {
 import { RecoveryKeyDialog } from '@/components/workspace/recovery-key-dialog';
 import { WorkspaceSidebarFooter } from '@/components/workspace/workspace-sidebar-footer';
 import { Textarea } from '@/components/ui/textarea';
+import { ILLUSTRATION_STYLES, type IllustrationStyleId } from '@/lib/config';
 import { formatRelativeTime } from '@/lib/i18n';
 import { useDecks, useDeleteDeck, useUpdateDeck, useWorkspace } from '@/lib/hooks';
 
@@ -66,10 +74,13 @@ interface SubmitPromptArticleOptions {
   title: string;
   prompt: string;
   slideCount?: number;
-  illustrationStyle?: 'pixel-art' | 'fantasy-animation' | 'lab-notes';
+  illustrationStyle?: IllustrationStyleId;
   fetchImpl?: HomeFetch;
 }
 
+const HOME_SLIDE_COUNT_OPTIONS = [1, 3, 5, 7, 10, 15] as const;
+const DEFAULT_HOME_SLIDE_COUNT = 1;
+const DEFAULT_HOME_ILLUSTRATION_STYLE: IllustrationStyleId = 'pixel-art';
 const sidebarSkeletonWidths = ['88%', '64%', '76%', '58%', '71%', '67%'] as const;
 
 async function readHomeResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
@@ -481,6 +492,9 @@ export function DashboardHome() {
   const [query, setQuery] = useState('');
   const [topic, setTopic] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [slideCount, setSlideCount] = useState<number>(DEFAULT_HOME_SLIDE_COUNT);
+  const [illustrationStyle, setIllustrationStyle] =
+    useState<IllustrationStyleId>(DEFAULT_HOME_ILLUSTRATION_STYLE);
   const [composerError, setComposerError] = useState<string | null>(null);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -544,6 +558,8 @@ export function DashboardHome() {
       const { deckId } = await submitPromptArticle({
         title: topic,
         prompt,
+        slideCount,
+        illustrationStyle,
       });
       await refetch();
       router.push(`/articles/${deckId}`);
@@ -661,7 +677,56 @@ export function DashboardHome() {
                       {helperText}
                     </p>
 
-                    <div className="flex flex-col gap-2 sm:flex-row">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+                      <Select
+                        value={String(slideCount)}
+                        onValueChange={(value) => setSlideCount(Number(value))}
+                      >
+                        <SelectTrigger
+                          aria-label={messages.dashboard.slideCountLabel}
+                          size="sm"
+                          className="w-full sm:w-auto"
+                          disabled={isSubmitting || isSuggesting}
+                        >
+                          <SelectValue placeholder={messages.dashboard.slideCountLabel} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {HOME_SLIDE_COUNT_OPTIONS.map((count) => (
+                            <SelectItem key={count} value={String(count)}>
+                              {count}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Select
+                        value={illustrationStyle}
+                        onValueChange={(value) => setIllustrationStyle(value as IllustrationStyleId)}
+                      >
+                        <SelectTrigger
+                          aria-label={messages.dashboard.illustrationStyleLabel}
+                          size="sm"
+                          className="w-full sm:w-[11rem]"
+                          disabled={isSubmitting || isSuggesting}
+                        >
+                          <SelectValue placeholder={messages.dashboard.illustrationStyleLabel} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ILLUSTRATION_STYLES.map((style) => {
+                            const localizedStyle =
+                              messages.newDeck.styleOptions[
+                                style.id as keyof typeof messages.newDeck.styleOptions
+                              ];
+
+                            return (
+                              <SelectItem key={style.id} value={style.id}>
+                                {localizedStyle.name}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+
                       <div className="relative inline-flex">
                         <span
                           aria-hidden="true"

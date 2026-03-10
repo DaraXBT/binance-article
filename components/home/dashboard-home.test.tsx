@@ -1,6 +1,9 @@
+// @vitest-environment jsdom
+
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 const messages = {
   common: {
@@ -49,12 +52,27 @@ const messages = {
     promptHintReady: 'You can refine the prompt before generating.',
     aiSuggest: 'AI Suggest',
     aiSuggestLoading: 'Suggesting...',
+    slideCountLabel: 'Slides',
+    illustrationStyleLabel: 'Style',
     generateAction: 'Generate article',
     generateLoading: 'Generating article...',
     topicRequired: 'A topic is required.',
     promptRequired: 'A prompt is required.',
     promptGenerateFailed: 'Failed to generate prompt',
     articleGenerateFailed: 'Failed to generate article',
+  },
+  newDeck: {
+    styleOptions: {
+      'pixel-art': {
+        name: 'Pixel Art',
+      },
+      'fantasy-animation': {
+        name: 'Fantasy Animation',
+      },
+      'lab-notes': {
+        name: 'Lab Notes',
+      },
+    },
   },
   deckPage: {
     deleteArticleTitle: 'Delete this article?',
@@ -71,8 +89,10 @@ vi.mock('next/link', () => ({
     React.createElement('a', { href }, children),
 }));
 
+const routerPush = vi.fn();
+
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: routerPush }),
 }));
 
 vi.mock('@/components/language-provider', () => ({
@@ -165,7 +185,18 @@ describe('DashboardHome', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn(),
+    });
     workspaceData = { accessKeyPrefix: 'dwk_test', recoveryKey: null };
+  });
+
+  afterEach(() => {
+    cleanup();
+    routerPush.mockReset();
+    refetch.mockReset();
+    vi.resetAllMocks();
   });
 
   it('renders a prompt-first home composer without the old onboarding dashboard sections', async () => {
@@ -336,5 +367,88 @@ describe('DashboardHome', () => {
     expect(fetchImpl.mock.calls[2]?.[1]?.body).toBe(
       JSON.stringify({ illustrationStyle: 'pixel-art' })
     );
+  });
+
+  it('renders the quick-start controls with /new defaults alongside the existing actions', async () => {
+    const { DashboardHome } = await import('@/components/home/dashboard-home');
+
+    render(React.createElement(DashboardHome));
+
+    expect(screen.getByRole('button', { name: /ai suggest/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /generate article/i })).toBeTruthy();
+
+    const slidesTrigger = screen.getByRole('combobox', { name: /slides/i });
+    const styleTrigger = screen.getByRole('combobox', { name: /style/i });
+
+    expect(slidesTrigger.textContent).toContain('1');
+    expect(styleTrigger.textContent).toContain('Pixel Art');
+  });
+
+  it('submits the selected slide count and illustration style through the existing generation flow', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: 'deck-456' }), {
+          status: 201,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, slideCount: 5 }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: 'success', generated: 5, failed: 0, total: 5 }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+
+    const originalFetch = global.fetch;
+
+    try {
+      global.fetch = fetchMock as typeof fetch;
+
+      const module = await import('@/components/home/dashboard-home');
+
+      render(React.createElement(module.DashboardHome));
+
+      fireEvent.change(screen.getByPlaceholderText(messages.dashboard.topicPlaceholder), {
+        target: { value: 'Stablecoin treasury operations' },
+      });
+      fireEvent.change(screen.getByPlaceholderText(messages.dashboard.promptPlaceholder), {
+        target: { value: 'Create an article about treasury settlement using stablecoins.' },
+      });
+
+      fireEvent.click(screen.getByRole('combobox', { name: /slides/i }));
+      fireEvent.click(await screen.findByRole('option', { name: '5' }));
+
+      fireEvent.click(screen.getByRole('combobox', { name: /style/i }));
+      fireEvent.click(await screen.findByRole('option', { name: /lab notes/i }));
+
+      fireEvent.click(screen.getByRole('button', { name: /generate article/i }));
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+      });
+
+      expect(fetchMock.mock.calls[1]?.[1]?.body).toBe(
+        JSON.stringify({
+          articleContent: 'Create an article about treasury settlement using stablecoins.',
+          slideCount: 5,
+          illustrationStyle: 'lab-notes',
+          mode: 'prompt',
+        })
+      );
+      expect(fetchMock.mock.calls[2]?.[1]?.body).toBe(
+        JSON.stringify({ illustrationStyle: 'lab-notes' })
+      );
+      expect(refetch).toHaveBeenCalledTimes(1);
+      expect(routerPush).toHaveBeenCalledWith('/articles/deck-456');
+    } finally {
+      global.fetch = originalFetch;
+    }
   });
 });
