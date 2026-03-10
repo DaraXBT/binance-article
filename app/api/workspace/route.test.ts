@@ -34,6 +34,20 @@ describe('/api/workspace routes', () => {
     });
   });
 
+  it('returns a sanitized structured error when workspace bootstrap fails', async () => {
+    workspaceMock.getWorkspaceBootstrap.mockRejectedValue(new Error('Prisma failed to open SQLite database'));
+
+    const { GET } = await import('@/app/api/workspace/route');
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body).toEqual({
+      error: 'Failed to fetch workspace',
+      code: 'WORKSPACE_BOOTSTRAP_FAILED',
+    });
+  });
+
   it('creates a workspace explicitly for the current session', async () => {
     workspaceMock.createWorkspaceForCurrentSession.mockResolvedValue({
       workspace: {

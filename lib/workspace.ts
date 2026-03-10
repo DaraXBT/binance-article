@@ -155,6 +155,17 @@ async function ensureLegacyWorkspacesBackfilled(currentSessionId: string) {
   await global.workspaceBackfillPromise;
 }
 
+async function ensureLegacyWorkspacesBackfilledBestEffort(currentSessionId: string) {
+  try {
+    await ensureLegacyWorkspacesBackfilled(currentSessionId);
+  } catch (error) {
+    console.error('[workspace] Legacy backfill failed during bootstrap', {
+      sessionId: currentSessionId,
+      error,
+    });
+  }
+}
+
 export async function getCurrentWorkspace() {
   const sessionId = await getSessionId();
   await ensureLegacyWorkspacesBackfilled(sessionId);
@@ -248,7 +259,7 @@ export async function createWorkspaceForCurrentSession() {
 
 export async function getWorkspaceBootstrap(): Promise<WorkspaceBootstrap> {
   const sessionId = await getSessionId();
-  await ensureLegacyWorkspacesBackfilled(sessionId);
+  await ensureLegacyWorkspacesBackfilledBestEffort(sessionId);
 
   const existingSession = await prisma.workspaceSession.findUnique({
     where: { sessionId },

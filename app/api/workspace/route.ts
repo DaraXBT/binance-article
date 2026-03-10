@@ -12,6 +12,7 @@ export async function GET() {
     return NextResponse.json(
       {
         error: 'Failed to fetch workspace',
+        code: 'WORKSPACE_BOOTSTRAP_FAILED',
       },
       { status: 500 }
     );

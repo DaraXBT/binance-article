@@ -301,6 +301,12 @@ const en = {
     recoverWorkspaceTitle: 'Recover an existing workspace',
     recoverWorkspaceDescription: 'Use a previously saved recovery key to reconnect this browser.',
     openRecoverDialogAction: 'Use existing key',
+    bootstrapLoadingTitle: 'Loading workspace',
+    bootstrapLoadingDescription:
+      'We are checking your workspace before opening the dashboard.',
+    bootstrapErrorTitle: 'Workspace unavailable',
+    bootstrapErrorDescription:
+      'We could not load your workspace right now. Try again to reconnect this browser.',
     sidebarKeyLabel: 'Workspace key',
     copyFullKey: 'Copy full key',
     copyPrefix: 'Copy key prefix',
@@ -620,6 +626,12 @@ const km: typeof en = {
     recoverWorkspaceTitle: 'ស្ដារផ្ទាំងការងារដែលមានស្រាប់',
     recoverWorkspaceDescription: 'ប្រើសោស្ដារដែលបានរក្សាទុកពីមុន ដើម្បីភ្ជាប់ browser នេះឡើងវិញ។',
     openRecoverDialogAction: 'ប្រើសោចាស់',
+    bootstrapLoadingTitle: 'កំពុងផ្ទុកផ្ទាំងការងារ',
+    bootstrapLoadingDescription:
+      'យើងកំពុងពិនិត្យផ្ទាំងការងាររបស់អ្នក មុនពេលបើកផ្ទាំងគ្រប់គ្រង។',
+    bootstrapErrorTitle: 'ផ្ទាំងការងារមិនអាចប្រើបាន',
+    bootstrapErrorDescription:
+      'យើងមិនអាចផ្ទុកផ្ទាំងការងាររបស់អ្នកបានទេនៅពេលនេះ។ សូមសាកល្បងម្ដងទៀត ដើម្បីភ្ជាប់ browser នេះឡើងវិញ។',
     sidebarKeyLabel: 'សោផ្ទាំងការងារ',
     copyFullKey: 'ចម្លងសោពេញ',
     copyPrefix: 'ចម្លងសោផ្ដើម',

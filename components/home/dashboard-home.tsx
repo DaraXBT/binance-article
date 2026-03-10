@@ -500,7 +500,12 @@ export function DashboardHome() {
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const deferredQuery = useDeferredValue(query);
-  const { data: workspace, isLoading: isWorkspaceLoading } = useWorkspace();
+  const {
+    data: workspace,
+    isLoading: isWorkspaceLoading,
+    error: workspaceError,
+    refetch: refetchWorkspace,
+  } = useWorkspace();
   const hasWorkspace = workspace?.hasWorkspace ?? false;
   const { data, isLoading, isError, refetch } = useDecks(hasWorkspace);
   const decks = (data ?? []) as DeckListItem[];
@@ -580,7 +585,37 @@ export function DashboardHome() {
       : messages.dashboard.promptHintEmpty;
 
   if (isWorkspaceLoading && !workspace) {
-    return <main className="min-h-screen bg-background" />;
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background px-6">
+        <div className="max-w-md text-center">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
+          <h1 className="mt-4 text-xl font-semibold text-foreground">
+            {messages.workspace.bootstrapLoadingTitle}
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {messages.workspace.bootstrapLoadingDescription}
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  if (workspaceError && !workspace) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background px-6">
+        <div className="max-w-md border border-destructive/20 bg-destructive/5 p-6 text-center">
+          <h1 className="text-xl font-semibold text-foreground">
+            {messages.workspace.bootstrapErrorTitle}
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {workspaceError.message || messages.workspace.bootstrapErrorDescription}
+          </p>
+          <Button type="button" className="mt-4" onClick={() => void refetchWorkspace()}>
+            {messages.common.retry}
+          </Button>
+        </div>
+      </main>
+    );
   }
 
   if (!hasWorkspace) {

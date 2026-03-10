@@ -36,11 +36,26 @@ export type WorkspaceRecoveryResult = {
   accessKeyPrefix: string;
 };
 
+export class ApiError extends Error {
+  code?: string;
+  status: number;
+
+  constructor(message: string, options: { code?: string; status: number }) {
+    super(message);
+    this.name = 'ApiError';
+    this.code = options.code;
+    this.status = options.status;
+  }
+}
+
 async function readApiResponse<T>(res: Response, fallbackMessage: string): Promise<T> {
   const data = await res.json().catch(() => null);
 
   if (!res.ok) {
-    throw new Error(data?.error || fallbackMessage);
+    throw new ApiError(data?.error || fallbackMessage, {
+      code: typeof data?.code === 'string' ? data.code : undefined,
+      status: res.status,
+    });
   }
 
   return data as T;
@@ -103,7 +118,7 @@ export function useJob(jobId: string, enabled = true) {
 }
 
 export function useWorkspace() {
-  return useQuery({
+  return useQuery<WorkspaceBootstrap, ApiError>({
     queryKey: queryKeys.workspace(),
     queryFn: fetchWorkspace,
     staleTime: 30000,

@@ -113,6 +113,22 @@ describe('workspace helpers', () => {
     });
   });
 
+  it('returns bootstrap data even when legacy backfill fails', async () => {
+    prismaMock.deckProject.findMany.mockResolvedValue([{ sessionId: 'legacy-session' }]);
+    prismaMock.$transaction.mockRejectedValue(new Error('SQLite write failed'));
+    prismaMock.workspaceSession.findUnique.mockResolvedValue(null);
+
+    const { getWorkspaceBootstrap } = await import('@/lib/workspace');
+    const bootstrap = await getWorkspaceBootstrap();
+
+    expect(bootstrap).toEqual({
+      hasWorkspace: false,
+      workspaceId: null,
+      accessKeyPrefix: null,
+      recoveryKey: null,
+    });
+  });
+
   it('attaches the current session when recovering a valid workspace key', async () => {
     prismaMock.workspace.findUnique.mockResolvedValue({
       id: 'workspace-2',

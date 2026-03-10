@@ -81,6 +81,10 @@ const messages = {
     recoverWorkspaceTitle: 'Recover an existing workspace',
     recoverWorkspaceDescription: 'Use a previously saved recovery key to reconnect this browser.',
     openRecoverDialogAction: 'Use existing key',
+    bootstrapLoadingTitle: 'Loading workspace',
+    bootstrapLoadingDescription: 'We are checking your workspace before opening the dashboard.',
+    bootstrapErrorTitle: 'Workspace unavailable',
+    bootstrapErrorDescription: 'We could not load your workspace right now. Try again to reconnect this browser.',
     sidebarKeyLabel: 'Workspace key',
     copyFullKey: 'Copy full key',
     copyPrefix: 'Copy key prefix',
@@ -181,6 +185,7 @@ vi.mock('@/components/workspace/workspace-onboarding', () => ({
 }));
 
 const refetch = vi.fn();
+const refetchWorkspace = vi.fn();
 const mutate = vi.fn();
 let workspaceData:
   | {
@@ -196,10 +201,16 @@ let workspaceData:
   recoveryKey: null,
 };
 let workspaceIsLoading = false;
+let workspaceError: Error | null = null;
 
 vi.mock('@/lib/hooks', () => ({
   useDecks: () => ({ data: [], isLoading: false, isError: false, refetch }),
-  useWorkspace: () => ({ data: workspaceData, isLoading: workspaceIsLoading }),
+  useWorkspace: () => ({
+    data: workspaceData,
+    isLoading: workspaceIsLoading,
+    error: workspaceError,
+    refetch: refetchWorkspace,
+  }),
   useUpdateDeck: () => ({ isPending: false, mutate }),
   useDeleteDeck: () => ({ isPending: false, mutate }),
 }));
@@ -219,24 +230,54 @@ describe('DashboardHome', () => {
       recoveryKey: null,
     };
     workspaceIsLoading = false;
+    workspaceError = null;
   });
 
   afterEach(() => {
     cleanup();
     routerPush.mockReset();
     refetch.mockReset();
+    refetchWorkspace.mockReset();
     vi.resetAllMocks();
   });
 
-  it('does not show onboarding while workspace status is still loading', async () => {
+  it('shows visible loading UI while workspace status is still loading', async () => {
     workspaceData = undefined;
     workspaceIsLoading = true;
 
     const { DashboardHome } = await import('@/components/home/dashboard-home');
     const html = renderToStaticMarkup(React.createElement(DashboardHome));
 
+    expect(html).toContain(messages.workspace.bootstrapLoadingTitle);
     expect(html).not.toContain('data-testid="workspace-onboarding"');
     expect(html).not.toContain(messages.dashboard.promptHomeTitle);
+  });
+
+  it('shows a workspace bootstrap error state instead of a blank screen', async () => {
+    workspaceData = undefined;
+    workspaceError = new Error('Failed to fetch workspace');
+
+    const { DashboardHome } = await import('@/components/home/dashboard-home');
+    const html = renderToStaticMarkup(React.createElement(DashboardHome));
+
+    expect(html).toContain(messages.workspace.bootstrapErrorTitle);
+    expect(html).toContain('Failed to fetch workspace');
+    expect(html).toContain(messages.common.retry);
+    expect(html).not.toContain('data-testid="workspace-onboarding"');
+    expect(html).not.toContain(messages.dashboard.promptHomeTitle);
+  });
+
+  it('retries workspace bootstrap when the retry action is clicked', async () => {
+    workspaceData = undefined;
+    workspaceError = new Error('Failed to fetch workspace');
+
+    const { DashboardHome } = await import('@/components/home/dashboard-home');
+
+    render(React.createElement(DashboardHome));
+
+    fireEvent.click(screen.getByRole('button', { name: messages.common.retry }));
+
+    expect(refetchWorkspace).toHaveBeenCalledTimes(1);
   });
 
   it('shows workspace onboarding instead of the dashboard when no workspace is attached', async () => {
