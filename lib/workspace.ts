@@ -17,6 +17,13 @@ export interface CurrentWorkspace {
   accessKeyPrefix: string;
 }
 
+export interface WorkspaceBootstrap {
+  hasWorkspace: boolean;
+  workspaceId: string | null;
+  accessKeyPrefix: string | null;
+  recoveryKey: string | null;
+}
+
 function createRecoveryAccessKey() {
   const raw = randomBytes(18).toString('hex');
   const accessKey = `dwk_${raw}`;
@@ -159,17 +166,42 @@ export async function getCurrentWorkspace() {
     },
   });
 
+  if (!existingSession?.workspace) {
+    throw new Error('Workspace not found for current session');
+  }
+
+  return {
+    sessionId,
+    workspace: {
+      id: existingSession.workspace.id,
+      accessKeyPrefix: existingSession.workspace.accessKeyPrefix,
+    } satisfies CurrentWorkspace,
+  };
+}
+
+export async function createWorkspaceForCurrentSession() {
+  const sessionId = await getSessionId();
+  await ensureLegacyWorkspacesBackfilled(sessionId);
+
+  const existingSession = await prisma.workspaceSession.findUnique({
+    where: { sessionId },
+    include: {
+      workspace: true,
+    },
+  });
+
   if (existingSession?.workspace) {
     return {
-      sessionId,
       workspace: {
         id: existingSession.workspace.id,
         accessKeyPrefix: existingSession.workspace.accessKeyPrefix,
       } satisfies CurrentWorkspace,
+      recoveryKey: await consumePendingWorkspaceRecoveryKey(),
     };
   }
 
   const generated = createRecoveryAccessKey();
+
   try {
     const workspace = await prisma.workspace.create({
       data: {
@@ -186,11 +218,11 @@ export async function getCurrentWorkspace() {
     await setPendingWorkspaceRecoveryKey(generated.accessKey);
 
     return {
-      sessionId,
       workspace: {
         id: workspace.id,
         accessKeyPrefix: workspace.accessKeyPrefix,
       } satisfies CurrentWorkspace,
+      recoveryKey: generated.accessKey,
     };
   } catch (error) {
     const concurrentSession = await prisma.workspaceSession.findUnique({
@@ -202,11 +234,11 @@ export async function getCurrentWorkspace() {
 
     if (concurrentSession?.workspace) {
       return {
-        sessionId,
         workspace: {
           id: concurrentSession.workspace.id,
           accessKeyPrefix: concurrentSession.workspace.accessKeyPrefix,
         } satisfies CurrentWorkspace,
+        recoveryKey: await consumePendingWorkspaceRecoveryKey(),
       };
     }
 
@@ -214,14 +246,31 @@ export async function getCurrentWorkspace() {
   }
 }
 
-export async function getWorkspaceBootstrap() {
-  const { workspace } = await getCurrentWorkspace();
-  const recoveryKey = await consumePendingWorkspaceRecoveryKey();
+export async function getWorkspaceBootstrap(): Promise<WorkspaceBootstrap> {
+  const sessionId = await getSessionId();
+  await ensureLegacyWorkspacesBackfilled(sessionId);
+
+  const existingSession = await prisma.workspaceSession.findUnique({
+    where: { sessionId },
+    include: {
+      workspace: true,
+    },
+  });
+
+  if (!existingSession?.workspace) {
+    return {
+      hasWorkspace: false,
+      workspaceId: null,
+      accessKeyPrefix: null,
+      recoveryKey: null,
+    };
+  }
 
   return {
-    workspaceId: workspace.id,
-    accessKeyPrefix: workspace.accessKeyPrefix,
-    recoveryKey,
+    hasWorkspace: true,
+    workspaceId: existingSession.workspace.id,
+    accessKeyPrefix: existingSession.workspace.accessKeyPrefix,
+    recoveryKey: await consumePendingWorkspaceRecoveryKey(),
   };
 }
 

@@ -49,12 +49,13 @@ vi.mock('@/lib/prisma', () => ({
 describe('workspace helpers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.resetModules();
     cookieValues.clear();
     prismaMock.deckProject.findMany.mockResolvedValue([]);
-    prismaMock.workspace.create.mockImplementation(async ({ data }) => ({
+    prismaMock.workspace.create.mockResolvedValue({
       id: 'workspace-1',
-      accessKeyPrefix: data.accessKeyPrefix,
-    }));
+      accessKeyPrefix: 'dwk_created',
+    });
     prismaMock.$transaction.mockImplementation(async (callback) => callback(prismaMock));
     (
       global as typeof globalThis & {
@@ -63,32 +64,56 @@ describe('workspace helpers', () => {
     ).workspaceBackfillPromise = undefined;
   });
 
-  it('reveals the recovery key once when a workspace is first created', async () => {
+  it('reports that a fresh session has no workspace without auto-creating one', async () => {
+    prismaMock.workspaceSession.findUnique.mockResolvedValue(null);
+
+    const { getWorkspaceBootstrap } = await import('@/lib/workspace');
+    const bootstrap = await getWorkspaceBootstrap();
+
+    expect(bootstrap).toEqual({
+      hasWorkspace: false,
+      workspaceId: null,
+      accessKeyPrefix: null,
+      recoveryKey: null,
+    });
+    expect(prismaMock.workspace.create).not.toHaveBeenCalled();
+  });
+
+  it('creates a workspace explicitly and reveals its recovery key once', async () => {
     prismaMock.workspaceSession.findUnique
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
+      .mockResolvedValue({
         workspace: {
           id: 'workspace-1',
-          accessKeyPrefix: 'dwk_prefix',
+          accessKeyPrefix: 'dwk_created',
         },
       });
 
-    const { getWorkspaceBootstrap } = await import('@/lib/workspace');
+    const { createWorkspaceForCurrentSession, getWorkspaceBootstrap } = await import('@/lib/workspace');
+    const created = await createWorkspaceForCurrentSession();
     const firstBootstrap = await getWorkspaceBootstrap();
     const secondBootstrap = await getWorkspaceBootstrap();
 
-    expect(firstBootstrap.workspaceId).toBe('workspace-1');
-    expect(firstBootstrap.recoveryKey).toMatch(/^dwk_/);
-    expect(secondBootstrap.recoveryKey).toBeNull();
+    expect(created.workspace).toEqual({
+      id: 'workspace-1',
+      accessKeyPrefix: 'dwk_created',
+    });
+    expect(created.recoveryKey).toMatch(/^dwk_/);
+    expect(firstBootstrap).toEqual({
+      hasWorkspace: true,
+      workspaceId: 'workspace-1',
+      accessKeyPrefix: 'dwk_created',
+      recoveryKey: created.recoveryKey,
+    });
+    expect(secondBootstrap).toEqual({
+      hasWorkspace: true,
+      workspaceId: 'workspace-1',
+      accessKeyPrefix: 'dwk_created',
+      recoveryKey: null,
+    });
   });
 
   it('attaches the current session when recovering a valid workspace key', async () => {
-    prismaMock.workspaceSession.findUnique.mockResolvedValue({
-      workspace: {
-        id: 'workspace-1',
-        accessKeyPrefix: 'dwk_prefix',
-      },
-    });
     prismaMock.workspace.findUnique.mockResolvedValue({
       id: 'workspace-2',
       accessKeyPrefix: 'dwk_saved',

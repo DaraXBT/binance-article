@@ -33,17 +33,6 @@ const messages = {
     headerTitle: 'Dashboard',
     loadErrorTitle: 'Articles could not be loaded.',
     loadErrorDescription: 'The dashboard shell is available, but the list failed to load.',
-    quickStart: 'Quick Start',
-    startFromText: 'Start from Text',
-    startFromTextDesc: 'Paste your blog or outline to generate.',
-    importFromUrl: 'Import from URL',
-    importFromUrlDesc: 'Turn any webpage into an article.',
-    generateWithAI: 'Generate with AI',
-    generateWithAIDesc: 'Describe your topic and let AI write it.',
-    emptyTitle: 'Your dashboard is ready for the first article.',
-    emptyDescription: 'Create your first article and it will appear in the left sidebar.',
-    createFirstDeck: 'Create first article',
-    pasteToBegin: 'Paste an article to begin',
     promptHomeTitle: 'What do you want to write about?',
     promptHomeSubtitle: 'Start with a topic. We will turn it into a full AI-generated article.',
     topicPlaceholder: 'Enter a topic or angle',
@@ -81,6 +70,22 @@ const messages = {
   deckCard: {
     slides: 'Slides',
     updated: 'Updated',
+  },
+  workspace: {
+    onboardingTitle: 'Set up your workspace',
+    onboardingDescription: 'Create a new recovery key or reconnect an existing workspace before entering the dashboard.',
+    createWorkspaceTitle: 'Create a new workspace key',
+    createWorkspaceDescription: 'Generate a new recovery key for this browser session.',
+    createWorkspaceAction: 'Create new key',
+    createWorkspaceLoading: 'Creating key...',
+    recoverWorkspaceTitle: 'Recover an existing workspace',
+    recoverWorkspaceDescription: 'Use a previously saved recovery key to reconnect this browser.',
+    openRecoverDialogAction: 'Use existing key',
+    sidebarKeyLabel: 'Workspace key',
+    copyFullKey: 'Copy full key',
+    copyPrefix: 'Copy key prefix',
+    keyCopied: 'Copied!',
+    recoverDialogTitle: 'Recover workspace',
   },
 };
 
@@ -170,13 +175,31 @@ vi.mock('@/components/workspace/workspace-sidebar-footer', () => ({
     React.createElement('div', { 'data-testid': 'workspace-sidebar-footer' }, accessKeyPrefix),
 }));
 
+vi.mock('@/components/workspace/workspace-onboarding', () => ({
+  WorkspaceOnboarding: () =>
+    React.createElement('div', { 'data-testid': 'workspace-onboarding' }, messages.workspace.onboardingTitle),
+}));
+
 const refetch = vi.fn();
 const mutate = vi.fn();
-let workspaceData = { accessKeyPrefix: 'dwk_test', recoveryKey: null as string | null };
+let workspaceData:
+  | {
+      hasWorkspace: boolean;
+      workspaceId: string | null;
+      accessKeyPrefix: string | null;
+      recoveryKey: string | null;
+    }
+  | undefined = {
+  hasWorkspace: true,
+  workspaceId: 'workspace-1',
+  accessKeyPrefix: 'dwk_test',
+  recoveryKey: null,
+};
+let workspaceIsLoading = false;
 
 vi.mock('@/lib/hooks', () => ({
   useDecks: () => ({ data: [], isLoading: false, isError: false, refetch }),
-  useWorkspace: () => ({ data: workspaceData }),
+  useWorkspace: () => ({ data: workspaceData, isLoading: workspaceIsLoading }),
   useUpdateDeck: () => ({ isPending: false, mutate }),
   useDeleteDeck: () => ({ isPending: false, mutate }),
 }));
@@ -189,7 +212,13 @@ describe('DashboardHome', () => {
       configurable: true,
       value: vi.fn(),
     });
-    workspaceData = { accessKeyPrefix: 'dwk_test', recoveryKey: null };
+    workspaceData = {
+      hasWorkspace: true,
+      workspaceId: 'workspace-1',
+      accessKeyPrefix: 'dwk_test',
+      recoveryKey: null,
+    };
+    workspaceIsLoading = false;
   });
 
   afterEach(() => {
@@ -199,7 +228,34 @@ describe('DashboardHome', () => {
     vi.resetAllMocks();
   });
 
-  it('renders a prompt-first home composer without the old onboarding dashboard sections', async () => {
+  it('does not show onboarding while workspace status is still loading', async () => {
+    workspaceData = undefined;
+    workspaceIsLoading = true;
+
+    const { DashboardHome } = await import('@/components/home/dashboard-home');
+    const html = renderToStaticMarkup(React.createElement(DashboardHome));
+
+    expect(html).not.toContain('data-testid="workspace-onboarding"');
+    expect(html).not.toContain(messages.dashboard.promptHomeTitle);
+  });
+
+  it('shows workspace onboarding instead of the dashboard when no workspace is attached', async () => {
+    workspaceData = {
+      hasWorkspace: false,
+      workspaceId: null,
+      accessKeyPrefix: null,
+      recoveryKey: null,
+    };
+
+    const { DashboardHome } = await import('@/components/home/dashboard-home');
+    const html = renderToStaticMarkup(React.createElement(DashboardHome));
+
+    expect(html).toContain('data-testid="workspace-onboarding"');
+    expect(html).toContain(messages.workspace.onboardingTitle);
+    expect(html).not.toContain(messages.dashboard.promptHomeTitle);
+  });
+
+  it('renders a prompt-first home composer after a workspace is attached', async () => {
     const { DashboardHome } = await import('@/components/home/dashboard-home');
 
     const html = renderToStaticMarkup(React.createElement(DashboardHome));
@@ -209,11 +265,9 @@ describe('DashboardHome', () => {
     expect(html).toContain(messages.dashboard.aiSuggest);
     expect(html).toContain('ai-suggest-glow');
     expect(html).toContain(messages.dashboard.generateAction);
-    expect(html).not.toContain(messages.dashboard.quickStart);
-    expect(html).not.toContain(messages.dashboard.emptyTitle);
   });
 
-  it('renders workspace sidebar footer with key prefix', async () => {
+  it('renders workspace sidebar footer with key prefix only after workspace attachment', async () => {
     const { DashboardHome } = await import('@/components/home/dashboard-home');
     const html = renderToStaticMarkup(React.createElement(DashboardHome));
 
@@ -222,7 +276,12 @@ describe('DashboardHome', () => {
   });
 
   it('renders recovery key dialog when bootstrap returns a recovery key', async () => {
-    workspaceData = { accessKeyPrefix: 'dwk_test', recoveryKey: 'dwk_secret_123' };
+    workspaceData = {
+      hasWorkspace: true,
+      workspaceId: 'workspace-1',
+      accessKeyPrefix: 'dwk_test',
+      recoveryKey: 'dwk_secret_123',
+    };
 
     const { DashboardHome } = await import('@/components/home/dashboard-home');
     const html = renderToStaticMarkup(React.createElement(DashboardHome));
@@ -369,7 +428,7 @@ describe('DashboardHome', () => {
     );
   });
 
-  it('renders the quick-start controls with /new defaults alongside the existing actions', async () => {
+  it('renders the prompt-first controls only when a workspace is attached', async () => {
     const { DashboardHome } = await import('@/components/home/dashboard-home');
 
     render(React.createElement(DashboardHome));

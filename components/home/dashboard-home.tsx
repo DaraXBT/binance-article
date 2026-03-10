@@ -50,6 +50,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { RecoveryKeyDialog } from '@/components/workspace/recovery-key-dialog';
+import { WorkspaceOnboarding } from '@/components/workspace/workspace-onboarding';
 import { WorkspaceSidebarFooter } from '@/components/workspace/workspace-sidebar-footer';
 import { Textarea } from '@/components/ui/textarea';
 import { ILLUSTRATION_STYLES, type IllustrationStyleId } from '@/lib/config';
@@ -499,8 +500,9 @@ export function DashboardHome() {
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const deferredQuery = useDeferredValue(query);
-  const { data, isLoading, isError, refetch } = useDecks();
-  const { data: workspace } = useWorkspace();
+  const { data: workspace, isLoading: isWorkspaceLoading } = useWorkspace();
+  const hasWorkspace = workspace?.hasWorkspace ?? false;
+  const { data, isLoading, isError, refetch } = useDecks(hasWorkspace);
   const decks = (data ?? []) as DeckListItem[];
 
   const filteredDecks = decks.filter((deck) => {
@@ -577,6 +579,14 @@ export function DashboardHome() {
       ? messages.dashboard.promptHintReady
       : messages.dashboard.promptHintEmpty;
 
+  if (isWorkspaceLoading && !workspace) {
+    return <main className="min-h-screen bg-background" />;
+  }
+
+  if (!hasWorkspace) {
+    return <WorkspaceOnboarding />;
+  }
+
   return (
     <SidebarProvider defaultOpen className="min-h-screen w-full bg-background">
       <Sidebar className="z-30 border-r border-sidebar-border/70" collapsible="offcanvas">
@@ -590,14 +600,14 @@ export function DashboardHome() {
         />
         <SidebarFooter className="border-t border-sidebar-border/70">
           <WorkspaceSidebarFooter
-            accessKeyPrefix={workspace?.accessKeyPrefix ?? '—'}
-            recoveryKey={workspace?.recoveryKey ?? null}
+            accessKeyPrefix={workspace.accessKeyPrefix ?? '—'}
+            recoveryKey={workspace.recoveryKey ?? null}
           />
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>
 
-      <RecoveryKeyDialog recoveryKey={workspace?.recoveryKey ?? null} />
+      <RecoveryKeyDialog recoveryKey={workspace.recoveryKey ?? null} />
 
       <SidebarInset className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(120,119,198,0.06),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(56,189,248,0.08),transparent_30%)]">
         <header className="sticky top-0 z-10 border-b border-border/70 bg-background/85 backdrop-blur">

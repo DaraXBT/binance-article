@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const workspaceMock = {
   getWorkspaceBootstrap: vi.fn(),
+  createWorkspaceForCurrentSession: vi.fn(),
   recoverWorkspaceForCurrentSession: vi.fn(),
 };
 
@@ -12,11 +13,12 @@ describe('/api/workspace routes', () => {
     vi.clearAllMocks();
   });
 
-  it('returns the current workspace bootstrap payload', async () => {
+  it('returns workspace status without auto-creating for a fresh session', async () => {
     workspaceMock.getWorkspaceBootstrap.mockResolvedValue({
-      workspaceId: 'workspace-1',
-      accessKeyPrefix: 'dwk_123456',
-      recoveryKey: 'dwk_1234567890',
+      hasWorkspace: false,
+      workspaceId: null,
+      accessKeyPrefix: null,
+      recoveryKey: null,
     });
 
     const { GET } = await import('@/app/api/workspace/route');
@@ -25,6 +27,29 @@ describe('/api/workspace routes', () => {
 
     expect(response.status).toBe(200);
     expect(body).toEqual({
+      hasWorkspace: false,
+      workspaceId: null,
+      accessKeyPrefix: null,
+      recoveryKey: null,
+    });
+  });
+
+  it('creates a workspace explicitly for the current session', async () => {
+    workspaceMock.createWorkspaceForCurrentSession.mockResolvedValue({
+      workspace: {
+        id: 'workspace-1',
+        accessKeyPrefix: 'dwk_123456',
+      },
+      recoveryKey: 'dwk_1234567890',
+    });
+
+    const { POST } = await import('@/app/api/workspace/route');
+    const response = await POST();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      success: true,
       workspaceId: 'workspace-1',
       accessKeyPrefix: 'dwk_123456',
       recoveryKey: 'dwk_1234567890',

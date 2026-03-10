@@ -31,7 +31,7 @@ export function AccessGateForm() {
       return;
     }
 
-    window.location.href = '/';
+    window.location.href = '/workspace';
   };
 
   return (

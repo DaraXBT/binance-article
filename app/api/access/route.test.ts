@@ -43,4 +43,19 @@ describe('/api/access', () => {
     await expect(response.json()).resolves.toEqual({ error: 'Invalid access code' });
     expect(response.headers.get('set-cookie')).toBeNull();
   });
+
+  it('continues granting access using the current env-configured code after rotation', async () => {
+    process.env.APP_ACCESS_CODE = 'SERAPH';
+    const { POST } = await import('@/app/api/access/route');
+    const response = await POST(
+      new Request('http://localhost/api/access', {
+        method: 'POST',
+        body: JSON.stringify({ code: 'SERAPH' }),
+      }) as never
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ success: true });
+    expect(response.headers.get('set-cookie')).toContain('deckforge_app_access');
+  });
 });

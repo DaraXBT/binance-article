@@ -17,6 +17,14 @@ type DeckMutationInput = {
 };
 
 export type WorkspaceBootstrap = {
+  hasWorkspace: boolean;
+  workspaceId: string | null;
+  accessKeyPrefix: string | null;
+  recoveryKey: string | null;
+};
+
+export type WorkspaceCreateResult = {
+  success: true;
   workspaceId: string;
   accessKeyPrefix: string;
   recoveryKey: string | null;
@@ -67,11 +75,12 @@ async function fetchWorkspace() {
   return readApiResponse<WorkspaceBootstrap>(res, 'Failed to fetch workspace');
 }
 
-export function useDecks() {
+export function useDecks(enabled = true) {
   return useQuery({
     queryKey: queryKeys.lists(),
     queryFn: fetchDecks,
     staleTime: 30000,
+    enabled,
   });
 }
 
@@ -197,6 +206,24 @@ export function useDeleteDeck() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.lists() });
+    },
+  });
+}
+
+export function useCreateWorkspace() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/workspace', {
+        method: 'POST',
+      });
+
+      return readApiResponse<WorkspaceCreateResult>(res, 'Failed to create workspace');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.workspace() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.all });
     },
   });
 }

@@ -291,6 +291,16 @@ const en = {
     openDeck: 'Open article',
   },
   workspace: {
+    onboardingTitle: 'Set up your workspace',
+    onboardingDescription:
+      'Create a new recovery key or reconnect an existing workspace before entering the dashboard.',
+    createWorkspaceTitle: 'Create a new workspace key',
+    createWorkspaceDescription: 'Generate a new recovery key for this browser session.',
+    createWorkspaceAction: 'Create new key',
+    createWorkspaceLoading: 'Creating key...',
+    recoverWorkspaceTitle: 'Recover an existing workspace',
+    recoverWorkspaceDescription: 'Use a previously saved recovery key to reconnect this browser.',
+    openRecoverDialogAction: 'Use existing key',
     sidebarKeyLabel: 'Workspace key',
     copyFullKey: 'Copy full key',
     copyPrefix: 'Copy key prefix',
@@ -600,6 +610,16 @@ const km: typeof en = {
     openDeck: 'បើកអត្ថបទ',
   },
   workspace: {
+    onboardingTitle: 'រៀបចំផ្ទាំងការងាររបស់អ្នក',
+    onboardingDescription:
+      'បង្កើតសោស្ដារថ្មី ឬភ្ជាប់ទៅផ្ទាំងការងារដែលមានស្រាប់ មុនពេលចូលទៅផ្ទាំងគ្រប់គ្រង។',
+    createWorkspaceTitle: 'បង្កើតសោផ្ទាំងការងារថ្មី',
+    createWorkspaceDescription: 'បង្កើតសោស្ដារថ្មីសម្រាប់ browser នេះ។',
+    createWorkspaceAction: 'បង្កើតសោថ្មី',
+    createWorkspaceLoading: 'កំពុងបង្កើតសោ...',
+    recoverWorkspaceTitle: 'ស្ដារផ្ទាំងការងារដែលមានស្រាប់',
+    recoverWorkspaceDescription: 'ប្រើសោស្ដារដែលបានរក្សាទុកពីមុន ដើម្បីភ្ជាប់ browser នេះឡើងវិញ។',
+    openRecoverDialogAction: 'ប្រើសោចាស់',
     sidebarKeyLabel: 'សោផ្ទាំងការងារ',
     copyFullKey: 'ចម្លងសោពេញ',
     copyPrefix: 'ចម្លងសោផ្ដើម',

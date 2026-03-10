@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { getWorkspaceBootstrap } from '@/lib/workspace';
+import { createWorkspaceForCurrentSession, getWorkspaceBootstrap } from '@/lib/workspace';
 
 export async function GET() {
   try {
@@ -12,6 +12,27 @@ export async function GET() {
     return NextResponse.json(
       {
         error: 'Failed to fetch workspace',
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST() {
+  try {
+    const created = await createWorkspaceForCurrentSession();
+
+    return NextResponse.json({
+      success: true,
+      workspaceId: created.workspace.id,
+      accessKeyPrefix: created.workspace.accessKeyPrefix,
+      recoveryKey: created.recoveryKey,
+    });
+  } catch (error) {
+    console.error('[API] Error creating workspace:', error);
+    return NextResponse.json(
+      {
+        error: 'Failed to create workspace',
       },
       { status: 500 }
     );
