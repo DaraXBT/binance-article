@@ -71,11 +71,13 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.0",
+    "@testing-library/react": "^16.3.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@types/uuid": "^10.0.0",
+    "jsdom": "^28.1.0",
     "postcss": "^8.5",
     "prisma": "^5.20.0",
     "tailwindcss": "^4.2.0",

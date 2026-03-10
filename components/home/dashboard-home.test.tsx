@@ -10,6 +10,14 @@ const messages = {
     rename: 'Rename',
     retry: 'Retry',
   },
+  accessGate: {
+    title: 'Private access',
+    description: 'Enter the access code to continue into this workspace.',
+    codePlaceholder: 'Enter access code',
+    submit: 'Continue',
+    submitting: 'Checking...',
+    invalidCode: 'Invalid access code',
+  },
   dashboard: {
     workspaceDashboard: 'Workspace dashboard',
     searchDecks: 'Search articles',
@@ -19,22 +27,6 @@ const messages = {
     noDecksYet: 'No articles yet. Create one to get started.',
     renameTitleRequired: 'Title is required.',
     renameArticleFailed: 'Failed to rename article',
-    privateWorkspace: 'Private workspace',
-    workspaceDescription: 'This workspace is private by default.',
-    accessKeyPrefixLabel: 'Access key prefix',
-    saveAccessKeyTitle: 'Save this access key',
-    saveAccessKeyDescription: 'Store it somewhere safe before you leave this page.',
-    copyAccessKey: 'Copy access key',
-    accessKeyCopied: 'Access key copied.',
-    copyAccessKeyFailed: 'Could not copy the access key.',
-    useAccessKeyTitle: 'Use an access key',
-    useAccessKeyDescription: 'Enter a recovery key to attach this browser.',
-    accessKeyPlaceholder: 'Paste workspace access key',
-    useAccessKeyAction: 'Use access key',
-    recoveringWorkspace: 'Recovering workspace...',
-    accessKeyRequired: 'Access key is required.',
-    workspaceRecovered: 'Workspace recovered for this browser.',
-    recoverWorkspaceFailed: 'Failed to recover workspace.',
     headerTitle: 'Dashboard',
     loadErrorTitle: 'Articles could not be loaded.',
     loadErrorDescription: 'The dashboard shell is available, but the list failed to load.',
@@ -129,7 +121,7 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
 vi.mock('@/components/ui/sidebar', () => ({
   Sidebar: ({ children }: any) => React.createElement('aside', null, children),
   SidebarContent: ({ children }: any) => React.createElement('div', null, children),
-  SidebarFooter: ({ children }: any) => React.createElement('div', null, children),
+  SidebarFooter: ({ children }: any) => React.createElement('div', { 'data-testid': 'sidebar-footer' }, children),
   SidebarGroup: ({ children }: any) => React.createElement('div', null, children),
   SidebarGroupContent: ({ children }: any) => React.createElement('div', null, children),
   SidebarGroupLabel: ({ children }: any) => React.createElement('div', null, children),
@@ -146,13 +138,25 @@ vi.mock('@/components/ui/sidebar', () => ({
   SidebarTrigger: () => React.createElement('button', { type: 'button' }, 'Toggle sidebar'),
 }));
 
+vi.mock('@/components/workspace/recovery-key-dialog', () => ({
+  RecoveryKeyDialog: ({ recoveryKey }: any) =>
+    recoveryKey
+      ? React.createElement('div', { 'data-testid': 'recovery-key-dialog' }, recoveryKey)
+      : null,
+}));
+
+vi.mock('@/components/workspace/workspace-sidebar-footer', () => ({
+  WorkspaceSidebarFooter: ({ accessKeyPrefix }: any) =>
+    React.createElement('div', { 'data-testid': 'workspace-sidebar-footer' }, accessKeyPrefix),
+}));
+
 const refetch = vi.fn();
 const mutate = vi.fn();
+let workspaceData = { accessKeyPrefix: 'dwk_test', recoveryKey: null as string | null };
 
 vi.mock('@/lib/hooks', () => ({
   useDecks: () => ({ data: [], isLoading: false, isError: false, refetch }),
-  useWorkspace: () => ({ data: { accessKeyPrefix: 'dwk_test', recoveryKey: null } }),
-  useRecoverWorkspace: () => ({ isPending: false, mutate }),
+  useWorkspace: () => ({ data: workspaceData }),
   useUpdateDeck: () => ({ isPending: false, mutate }),
   useDeleteDeck: () => ({ isPending: false, mutate }),
 }));
@@ -161,6 +165,7 @@ describe('DashboardHome', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    workspaceData = { accessKeyPrefix: 'dwk_test', recoveryKey: null };
   });
 
   it('renders a prompt-first home composer without the old onboarding dashboard sections', async () => {
@@ -171,11 +176,67 @@ describe('DashboardHome', () => {
     expect(html).toContain(messages.dashboard.promptHomeTitle);
     expect(html).toContain(messages.dashboard.topicPlaceholder);
     expect(html).toContain(messages.dashboard.aiSuggest);
+    expect(html).toContain('ai-suggest-glow');
     expect(html).toContain(messages.dashboard.generateAction);
     expect(html).not.toContain(messages.dashboard.quickStart);
-    expect(html).not.toContain(messages.dashboard.privateWorkspace);
-    expect(html).not.toContain(messages.dashboard.useAccessKeyTitle);
     expect(html).not.toContain(messages.dashboard.emptyTitle);
+  });
+
+  it('renders workspace sidebar footer with key prefix', async () => {
+    const { DashboardHome } = await import('@/components/home/dashboard-home');
+    const html = renderToStaticMarkup(React.createElement(DashboardHome));
+
+    expect(html).toContain('data-testid="workspace-sidebar-footer"');
+    expect(html).toContain('dwk_test');
+  });
+
+  it('renders recovery key dialog when bootstrap returns a recovery key', async () => {
+    workspaceData = { accessKeyPrefix: 'dwk_test', recoveryKey: 'dwk_secret_123' };
+
+    const { DashboardHome } = await import('@/components/home/dashboard-home');
+    const html = renderToStaticMarkup(React.createElement(DashboardHome));
+
+    expect(html).toContain('data-testid="recovery-key-dialog"');
+    expect(html).toContain('dwk_secret_123');
+  });
+
+  it('does not render recovery key dialog when no recovery key is present', async () => {
+    const { DashboardHome } = await import('@/components/home/dashboard-home');
+    const html = renderToStaticMarkup(React.createElement(DashboardHome));
+
+    expect(html).not.toContain('data-testid="recovery-key-dialog"');
+  });
+
+  it('exports a helper that returns the AI suggest glow classes for idle and non-idle states', async () => {
+    const module = await import('@/components/home/dashboard-home');
+
+    expect(typeof (module as any).getAiSuggestGlowClassName).toBe('function');
+
+    const idleClassName = (module as any).getAiSuggestGlowClassName({ hasTopic: true, isSuggesting: false });
+    const suggestingClassName = (module as any).getAiSuggestGlowClassName({ hasTopic: true, isSuggesting: true });
+    const noTopicClassName = (module as any).getAiSuggestGlowClassName({ hasTopic: false, isSuggesting: false });
+
+    expect(idleClassName).toContain('opacity-100');
+    expect(idleClassName).toContain('motion-safe:animate-[ai-suggest-sweep');
+
+    expect(suggestingClassName).toContain('opacity-0');
+    expect(suggestingClassName).not.toContain('motion-safe:animate-[ai-suggest-glow');
+    expect(suggestingClassName).not.toContain('ai-suggest-sweep');
+
+    expect(noTopicClassName).toContain('opacity-0');
+    expect(noTopicClassName).not.toContain('motion-safe:animate-[ai-suggest-glow');
+    expect(noTopicClassName).not.toContain('ai-suggest-sweep');
+  });
+
+  it('uses warm gradient glow classes for the idle AI suggest state', async () => {
+    const module = await import('@/components/home/dashboard-home');
+
+    const className = (module as any).getAiSuggestGlowClassName({ hasTopic: true, isSuggesting: false });
+
+    expect(className).toContain('from-yellow-400/20');
+    expect(className).toContain('via-amber-400/90');
+    expect(className).toContain('to-orange-400/25');
+    expect(className).toContain('[background-size:200%_100%]');
   });
 
   it('exports a helper that requests an AI prompt suggestion from the existing prompt API', async () => {

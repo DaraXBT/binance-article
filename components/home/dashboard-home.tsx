@@ -28,6 +28,7 @@ import { Input } from '@/components/ui/input';
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -41,9 +42,11 @@ import {
   SidebarRail,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
+import { RecoveryKeyDialog } from '@/components/workspace/recovery-key-dialog';
+import { WorkspaceSidebarFooter } from '@/components/workspace/workspace-sidebar-footer';
 import { Textarea } from '@/components/ui/textarea';
 import { formatRelativeTime } from '@/lib/i18n';
-import { useDecks, useDeleteDeck, useUpdateDeck } from '@/lib/hooks';
+import { useDecks, useDeleteDeck, useUpdateDeck, useWorkspace } from '@/lib/hooks';
 
 type DeckListItem = {
   id: string;
@@ -105,6 +108,18 @@ export async function requestPromptSuggestion({
   }
 
   return data.prompt;
+}
+
+export function getAiSuggestGlowClassName({
+  hasTopic,
+  isSuggesting,
+}: {
+  hasTopic: boolean;
+  isSuggesting: boolean;
+}) {
+  return hasTopic && !isSuggesting
+    ? 'ai-suggest-glow pointer-events-none absolute inset-0 rounded-md bg-gradient-to-r from-yellow-400/20 via-amber-400/90 to-orange-400/25 [background-size:200%_100%] p-px opacity-100 transition-opacity duration-200 motion-safe:animate-[ai-suggest-sweep_2.2s_linear_infinite]'
+    : 'ai-suggest-glow pointer-events-none absolute inset-0 rounded-md bg-gradient-to-r from-yellow-400/20 via-amber-400/90 to-orange-400/25 [background-size:200%_100%] p-px opacity-0 transition-opacity duration-200';
 }
 
 export async function submitPromptArticle({
@@ -471,6 +486,7 @@ export function DashboardHome() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const deferredQuery = useDeferredValue(query);
   const { data, isLoading, isError, refetch } = useDecks();
+  const { data: workspace } = useWorkspace();
   const decks = (data ?? []) as DeckListItem[];
 
   const filteredDecks = decks.filter((deck) => {
@@ -556,8 +572,16 @@ export function DashboardHome() {
           onQueryChange={setQuery}
           language={language}
         />
+        <SidebarFooter className="border-t border-sidebar-border/70">
+          <WorkspaceSidebarFooter
+            accessKeyPrefix={workspace?.accessKeyPrefix ?? '—'}
+            recoveryKey={workspace?.recoveryKey ?? null}
+          />
+        </SidebarFooter>
         <SidebarRail />
       </Sidebar>
+
+      <RecoveryKeyDialog recoveryKey={workspace?.recoveryKey ?? null} />
 
       <SidebarInset className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(120,119,198,0.06),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(56,189,248,0.08),transparent_30%)]">
         <header className="sticky top-0 z-10 border-b border-border/70 bg-background/85 backdrop-blur">
@@ -593,77 +617,89 @@ export function DashboardHome() {
               </p>
             </div>
 
-            <form
-              onSubmit={handleSubmit}
-              className="overflow-hidden border border-border/70 bg-background/90 shadow-[0_30px_80px_-60px_rgba(15,23,42,0.45)]"
-            >
-              <div className="border-b border-border/70 px-4 py-4 sm:px-5">
-                <Input
-                  value={topic}
-                  onChange={(event) => {
-                    setTopic(event.target.value);
-                    if (composerError) {
-                      setComposerError(null);
-                    }
-                  }}
-                  placeholder={messages.dashboard.topicPlaceholder}
-                  className="h-12 border-0 bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
-                  disabled={isSubmitting}
-                />
-              </div>
+            <div className="space-y-6">
+              <form
+                onSubmit={handleSubmit}
+                className="overflow-hidden border border-border/70 bg-background/90 shadow-[0_30px_80px_-60px_rgba(15,23,42,0.45)]"
+              >
+                <div className="border-b border-border/70 px-4 py-4 sm:px-5">
+                  <Input
+                    value={topic}
+                    onChange={(event) => {
+                      setTopic(event.target.value);
+                      if (composerError) {
+                        setComposerError(null);
+                      }
+                    }}
+                    placeholder={messages.dashboard.topicPlaceholder}
+                    className="h-12 border-0 bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
+                    disabled={isSubmitting}
+                  />
+                </div>
 
-              <div className="px-4 py-4 sm:px-5 sm:py-5">
-                <Textarea
-                  value={prompt}
-                  onChange={(event) => {
-                    setPrompt(event.target.value);
-                    if (composerError) {
-                      setComposerError(null);
-                    }
-                  }}
-                  placeholder={messages.dashboard.promptPlaceholder}
-                  rows={8}
-                  className="min-h-[180px] resize-y border-0 bg-transparent px-0 text-sm leading-7 shadow-none focus-visible:ring-0"
-                  disabled={isSubmitting || isSuggesting}
-                />
+                <div className="px-4 py-4 sm:px-5 sm:py-5">
+                  <Textarea
+                    value={prompt}
+                    onChange={(event) => {
+                      setPrompt(event.target.value);
+                      if (composerError) {
+                        setComposerError(null);
+                      }
+                    }}
+                    placeholder={messages.dashboard.promptPlaceholder}
+                    rows={8}
+                    className="min-h-[180px] resize-y border-0 bg-transparent px-0 text-sm leading-7 shadow-none focus-visible:ring-0"
+                    disabled={isSubmitting || isSuggesting}
+                  />
 
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p
-                    className={`text-sm ${
-                      composerError ? 'text-destructive' : 'text-muted-foreground'
-                    }`}
-                  >
-                    {helperText}
-                  </p>
-
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleSuggest}
-                      disabled={isSuggesting || isSubmitting}
-                      className="gap-2"
+                  <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p
+                      className={`text-sm ${
+                        composerError ? 'text-destructive' : 'text-muted-foreground'
+                      }`}
                     >
-                      {isSuggesting ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Sparkles className="h-4 w-4" />
-                      )}
-                      {isSuggesting
-                        ? messages.dashboard.aiSuggestLoading
-                        : messages.dashboard.aiSuggest}
-                    </Button>
+                      {helperText}
+                    </p>
 
-                    <Button type="submit" disabled={isSubmitting || isSuggesting} className="gap-2">
-                      {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                      {isSubmitting
-                        ? messages.dashboard.generateLoading
-                        : messages.dashboard.generateAction}
-                    </Button>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <div className="relative inline-flex">
+                        <span
+                          aria-hidden="true"
+                          className={getAiSuggestGlowClassName({
+                            hasTopic: Boolean(topic.trim()),
+                            isSuggesting,
+                          })}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleSuggest}
+                          disabled={isSuggesting || isSubmitting}
+                          className="gap-2"
+                        >
+                          {isSuggesting ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Sparkles className="h-4 w-4" />
+                          )}
+                          {isSuggesting
+                            ? messages.dashboard.aiSuggestLoading
+                            : messages.dashboard.aiSuggest}
+                        </Button>
+                      </div>
+
+                      <Button type="submit" disabled={isSubmitting || isSuggesting} className="gap-2">
+                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                        {isSubmitting
+                          ? messages.dashboard.generateLoading
+                          : messages.dashboard.generateAction}
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </form>
+              </form>
+
+            </div>
           </section>
         </div>
       </SidebarInset>

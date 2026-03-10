@@ -21,6 +21,14 @@ const en = {
     rename: 'Rename',
     add: 'Add',
   },
+  accessGate: {
+    title: 'Private access',
+    description: 'Enter the access code to continue into this workspace.',
+    codePlaceholder: 'Enter access code',
+    submit: 'Continue',
+    submitting: 'Checking...',
+    invalidCode: 'Invalid access code',
+  },
   theme: {
     ariaLabel: 'Toggle theme',
     light: 'Light',
@@ -216,6 +224,7 @@ const en = {
     imageFailureReason: 'Last error',
     slide: (index: number) => `Slide ${index}`,
     notes: 'Notes',
+    viewFullImage: 'View full image',
   },
   captions: {
     noCaptions: 'No captions available',
@@ -279,6 +288,28 @@ const en = {
     created: 'Created',
     openDeck: 'Open article',
   },
+  workspace: {
+    sidebarKeyLabel: 'Workspace key',
+    copyFullKey: 'Copy full key',
+    copyPrefix: 'Copy key prefix',
+    keyCopied: 'Copied!',
+    recoveryDialogTitle: 'Save your recovery key',
+    recoveryDialogDescription:
+      'This is the only time your full recovery key will be shown. Copy it and store it somewhere safe — you will need it to access this workspace from another browser.',
+    recoveryDialogCopy: 'Copy key',
+    recoveryDialogCopied: 'Copied',
+    recoveryDialogWarning: 'You must copy the key before continuing.',
+    recoveryDialogAcknowledge: 'I have saved my key',
+    recoverDialogTitle: 'Recover workspace',
+    recoverDialogDescription:
+      'Paste your recovery key to attach this browser to an existing workspace.',
+    recoverDialogPlaceholder: 'Paste workspace recovery key',
+    recoverDialogAction: 'Recover',
+    recoverDialogRecovering: 'Recovering...',
+    recoverDialogSuccess: 'Workspace recovered for this browser.',
+    recoverDialogFailed: 'Failed to recover workspace.',
+    recoverDialogKeyRequired: 'Recovery key is required.',
+  },
 };
 
 const km: typeof en = {
@@ -296,6 +327,14 @@ const km: typeof en = {
     delete: 'លុប',
     rename: 'ប្ដូរឈ្មោះ',
     add: 'បន្ថែម',
+  },
+  accessGate: {
+    title: 'ការចូលប្រើឯកជន',
+    description: 'បញ្ចូលកូដចូលប្រើ ដើម្បីបន្តចូលទៅកាន់ផ្ទាំងការងារនេះ។',
+    codePlaceholder: 'បញ្ចូលកូដចូលប្រើ',
+    submit: 'បន្ត',
+    submitting: 'កំពុងពិនិត្យ...',
+    invalidCode: 'កូដចូលប្រើមិនត្រឹមត្រូវ',
   },
   theme: {
     ariaLabel: 'ប្ដូររូបរាង',
@@ -492,6 +531,7 @@ const km: typeof en = {
     imageFailureReason: 'កំហុសចុងក្រោយ',
     slide: (index: number) => `ស្លាយ ${index}`,
     notes: 'កំណត់ចំណាំ',
+    viewFullImage: 'មើលរូបភាពពេញ',
   },
   captions: {
     noCaptions: 'មិនមាន captions ទេ',
@@ -554,6 +594,28 @@ const km: typeof en = {
     updated: 'បានកែប្រែ',
     created: 'បានបង្កើត',
     openDeck: 'បើកអត្ថបទ',
+  },
+  workspace: {
+    sidebarKeyLabel: 'សោផ្ទាំងការងារ',
+    copyFullKey: 'ចម្លងសោពេញ',
+    copyPrefix: 'ចម្លងសោផ្ដើម',
+    keyCopied: 'បានចម្លង!',
+    recoveryDialogTitle: 'រក្សាទុកសោស្ដារ',
+    recoveryDialogDescription:
+      'នេះជាពេលតែមួយគត់ដែលសោស្ដារពេញរបស់អ្នកត្រូវបានបង្ហាញ។ ចម្លងវា ហើយរក្សាទុកនៅកន្លែងមានសុវត្ថិភាព។',
+    recoveryDialogCopy: 'ចម្លងសោ',
+    recoveryDialogCopied: 'បានចម្លង',
+    recoveryDialogWarning: 'អ្នកត្រូវចម្លងសោមុនពេលបន្ត។',
+    recoveryDialogAcknowledge: 'ខ្ញុំបានរក្សាទុកសោរួចហើយ',
+    recoverDialogTitle: 'ស្ដារផ្ទាំងការងារ',
+    recoverDialogDescription:
+      'បិទភ្ជាប់សោស្ដារដើម្បីភ្ជាប់ browser នេះទៅផ្ទាំងការងារដែលមានស្រាប់។',
+    recoverDialogPlaceholder: 'បិទភ្ជាប់សោស្ដារផ្ទាំងការងារ',
+    recoverDialogAction: 'ស្ដារ',
+    recoverDialogRecovering: 'កំពុងស្ដារ...',
+    recoverDialogSuccess: 'បានស្ដារផ្ទាំងការងារសម្រាប់ browser នេះហើយ។',
+    recoverDialogFailed: 'មិនអាចស្ដារផ្ទាំងការងារបានទេ។',
+    recoverDialogKeyRequired: 'ត្រូវការសោស្ដារ។',
   },
 };
 

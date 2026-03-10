@@ -5,7 +5,9 @@ import { useLanguage } from '@/components/language-provider';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import { Loader2, Sparkles } from 'lucide-react';
+import { getAiSuggestGlowClassName, requestPromptSuggestion } from '@/components/home/dashboard-home';
 
 interface PromptStepProps {
   formData: {
@@ -13,10 +15,11 @@ interface PromptStepProps {
     articleContent: string;
   };
   onUpdate: (updates: any) => void;
+  fetchImpl?: typeof fetch;
 }
 
-export function PromptStep({ formData, onUpdate }: PromptStepProps) {
-  const { messages } = useLanguage();
+export function PromptStep({ formData, onUpdate, fetchImpl }: PromptStepProps) {
+  useLanguage();
   const [isGenerating, setIsGenerating] = useState(false);
   const [genError, setGenError] = useState('');
 
@@ -27,19 +30,11 @@ export function PromptStep({ formData, onUpdate }: PromptStepProps) {
     setGenError('');
 
     try {
-      const res = await fetch('/api/articles/generate-prompt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: formData.title.trim() }),
+      const suggestedPrompt = await requestPromptSuggestion({
+        title: formData.title,
+        fetchImpl,
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to generate prompt');
-      }
-
-      onUpdate({ articleContent: data.prompt });
+      onUpdate({ articleContent: suggestedPrompt });
     } catch (err) {
       setGenError(err instanceof Error ? err.message : 'Generation failed');
     } finally {
@@ -88,33 +83,39 @@ export function PromptStep({ formData, onUpdate }: PromptStepProps) {
               }`}
               disabled={isGenerating}
             />
-            <button
-              type="button"
-              onClick={handleAutoGenerate}
-              disabled={!canGenerate}
-              className={`absolute bottom-3 right-3 flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium backdrop-blur-sm transition-all ${
-                canGenerate
-                  ? 'bg-[#F0B90B]/15 text-[#F0B90B] border border-[#F0B90B]/30 hover:bg-[#F0B90B]/25 hover:border-[#F0B90B]/50 hover:shadow-[0_0_12px_rgba(240,185,11,0.15)] cursor-pointer'
-                  : isGenerating
-                    ? 'bg-[#F0B90B]/10 text-[#F0B90B]/70 border border-[#F0B90B]/20 cursor-wait'
-                    : 'bg-background/80 text-muted-foreground cursor-not-allowed'
-              }`}
-            >
-              {isGenerating ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Sparkles className="h-3 w-3" />
-              )}
-              {isGenerating ? 'Generating...' : '✨ AI Prompt'}
-            </button>
+            <div className="absolute bottom-3 right-3">
+              <div className="relative inline-flex">
+                <span
+                  aria-hidden="true"
+                  className={getAiSuggestGlowClassName({
+                    hasTopic: Boolean(formData.title.trim()),
+                    isSuggesting: isGenerating,
+                  })}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleAutoGenerate}
+                  disabled={!canGenerate}
+                  className="gap-2"
+                >
+                  {isGenerating ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4" />
+                  )}
+                  {isGenerating ? 'Suggesting...' : 'AI Suggest'}
+                </Button>
+              </div>
+            </div>
           </div>
           {genError ? (
             <p className="mt-1.5 text-xs text-destructive">{genError}</p>
           ) : (
             <p className="mt-1.5 text-xs text-muted-foreground">
               {formData.title.trim()
-                ? 'Click "✨ AI Prompt" to auto-generate instructions from your topic title, or write your own.'
-                : 'Enter a topic title first, then click "✨ AI Prompt" to auto-generate.'}
+                ? 'Click AI Suggest to auto-generate instructions from your topic title, or write your own.'
+                : 'Enter a topic title first, then click AI Suggest to auto-generate.'}
             </p>
           )}
         </div>

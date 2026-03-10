@@ -1,9 +1,10 @@
 'use client';
 
-import { AlertCircle, ImageIcon, Loader2, Download } from 'lucide-react';
+import { AlertCircle, ImageIcon, Loader2, Download, Expand } from 'lucide-react';
 
 import { useLanguage } from '@/components/language-provider';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { buildArticleSlideAssetUrl } from '@/lib/article-assets';
 import { DeckSlide } from '@/lib/schemas';
 
@@ -41,33 +42,58 @@ export function SlidePreview({ articleId, slide, theme = 'default' }: SlidePrevi
     <div className="w-full h-full flex flex-col gap-4 overflow-auto">
       {/* Generated Image */}
       {imageUrl ? (
-        <div className="w-full relative overflow-hidden border border-border shadow-md flex-shrink-0 group">
-          <img
-            src={imageUrl}
-            alt={slide.title}
-            className="w-full h-auto object-contain"
-            style={{ aspectRatio: '16 / 9' }}
-          />
-          {/* Download Button Overlay */}
-          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button
-              variant="secondary"
-              size="sm"
-              asChild
-              className="gap-2 bg-background/80 hover:bg-background/95 backdrop-blur-sm shadow-sm"
-            >
-              <a
-                href={downloadUrl ?? undefined}
-                download={`slide-${slide.order + 1}-${slide.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}`}
-                target="_blank"
-                rel="noreferrer"
+        <Dialog>
+          <div className="w-full relative overflow-hidden border border-border shadow-md flex-shrink-0 group">
+            <DialogTrigger asChild>
+              <button type="button" className="w-full cursor-pointer">
+                <img
+                  src={imageUrl}
+                  alt={slide.title}
+                  className="w-full h-auto object-contain"
+                  style={{ aspectRatio: '16 / 9' }}
+                />
+              </button>
+            </DialogTrigger>
+            {/* Overlay buttons */}
+            <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+              <DialogTrigger asChild>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="gap-2 bg-background/80 hover:bg-background/95 backdrop-blur-sm shadow-sm pointer-events-auto"
+                >
+                  <Expand className="w-4 h-4" />
+                  {messages.slidePreview.viewFullImage}
+                </Button>
+              </DialogTrigger>
+              <Button
+                variant="secondary"
+                size="sm"
+                asChild
+                className="gap-2 bg-background/80 hover:bg-background/95 backdrop-blur-sm shadow-sm pointer-events-auto"
               >
-                <Download className="w-4 h-4" />
-                Download
-              </a>
-            </Button>
+                <a
+                  href={downloadUrl ?? undefined}
+                  download={`slide-${slide.order + 1}-${slide.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Download className="w-4 h-4" />
+                  Download
+                </a>
+              </Button>
+            </div>
           </div>
-        </div>
+          <DialogContent className="max-w-[95vw] max-h-[95vh] w-auto border-none bg-black/90 p-0 sm:max-w-[95vw]">
+            <DialogTitle className="sr-only">{slide.title}</DialogTitle>
+            <img
+              src={imageUrl}
+              alt={slide.title}
+              className="max-w-[95vw] max-h-[95vh] object-contain"
+            />
+          </DialogContent>
+        </Dialog>
       ) : (
         <div
           className="w-full  border border-dashed border-border flex items-center justify-center bg-muted/50 flex-shrink-0"
