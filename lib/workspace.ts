@@ -3,6 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 
 import prisma from '@/lib/prisma';
 import { getSessionId } from '@/lib/session';
+import { logEvent } from '@/server/http/log';
 
 const WORKSPACE_RECOVERY_COOKIE_NAME = 'deckforge_workspace_key_reveal';
 const WORKSPACE_RECOVERY_COOKIE_MAX_AGE = 60 * 10; // 10 minutes
@@ -198,6 +199,7 @@ export async function recoverWorkspaceForCurrentSession(accessKey: string) {
   });
 
   if (!workspace) {
+    logEvent('warn', 'workspace.recovery.not_found', { accessKeyPrefix: trimmedKey.slice(0, 12) });
     return null;
   }
 
@@ -215,6 +217,8 @@ export async function recoverWorkspaceForCurrentSession(accessKey: string) {
   });
 
   await clearPendingWorkspaceRecoveryKey();
+
+  logEvent('info', 'workspace.recovery.success', { workspaceId: workspace.id });
 
   return {
     id: workspace.id,

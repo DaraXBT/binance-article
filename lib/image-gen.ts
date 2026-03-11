@@ -200,7 +200,7 @@ export function normalizeImageGenerationError(
   if (!payload) {
     return {
       statusCode: 500,
-      message: error instanceof Error ? error.message : fallbackMessage,
+      message: fallbackMessage,
     };
   }
 
@@ -239,7 +239,7 @@ export function normalizeImageGenerationError(
     providerStatus,
     retryAfterSeconds,
     model,
-    message: payload.message || (error instanceof Error ? error.message : fallbackMessage),
+    message: payload.message || fallbackMessage,
   };
 }
 

@@ -4,6 +4,7 @@ import { isIP } from 'node:net';
 import { load } from 'cheerio';
 
 import { AppError } from '@/server/http/errors';
+import { logEvent } from '@/server/http/log';
 
 const MAX_REDIRECTS = 3;
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
@@ -81,6 +82,7 @@ function assertPublicIpAddress(address: string) {
   const family = isIP(address);
 
   if (family === 4 && isBlockedIpv4(address)) {
+    logEvent('warn', 'ssrf.blocked_ip', { address, family: 4 });
     throw new AppError({
       code: 'UNSAFE_SOURCE_URL',
       message: 'The source URL resolves to a private or reserved network.',
@@ -89,6 +91,7 @@ function assertPublicIpAddress(address: string) {
   }
 
   if (family === 6 && isBlockedIpv6(address)) {
+    logEvent('warn', 'ssrf.blocked_ip', { address, family: 6 });
     throw new AppError({
       code: 'UNSAFE_SOURCE_URL',
       message: 'The source URL resolves to a private or reserved network.',
@@ -205,6 +208,7 @@ export async function fetchArticleSourceText(input: string) {
         const location = response.headers.get('location');
 
         if (!location) {
+          logEvent('warn', 'ssrf.invalid_redirect', { url: currentUrl.href, status: response.status });
           throw new AppError({
             code: 'SOURCE_REDIRECT_FAILED',
             message: 'The source URL redirect is invalid.',
@@ -264,6 +268,7 @@ export async function fetchArticleSourceText(input: string) {
     }
   }
 
+  logEvent('warn', 'ssrf.too_many_redirects', { url: input });
   throw new AppError({
     code: 'TOO_MANY_REDIRECTS',
     message: 'The source URL redirected too many times.',

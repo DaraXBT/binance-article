@@ -50,7 +50,7 @@ export function toAppError(
   if (error instanceof Error && /not found/i.test(error.message)) {
     return new AppError({
       code: 'NOT_FOUND',
-      message: error.message,
+      message: 'The requested resource was not found.',
       status: 404,
       cause: error,
     });

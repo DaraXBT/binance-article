@@ -92,7 +92,7 @@ export function normalizeGeminiError(
   if (!payload) {
     return {
       statusCode: 500,
-      message: error instanceof Error ? error.message : fallbackMessage,
+      message: fallbackMessage,
     };
   }
 
@@ -131,7 +131,7 @@ export function normalizeGeminiError(
     providerStatus,
     retryAfterSeconds,
     model,
-    message: payload.message || (error instanceof Error ? error.message : fallbackMessage),
+    message: payload.message || fallbackMessage,
   };
 }
 

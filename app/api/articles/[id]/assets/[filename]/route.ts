@@ -8,6 +8,7 @@ import {
 import { getDeckWithAssets } from '@/lib/db';
 import { getBlobToken } from '@/lib/image-gen';
 import { errorResponse } from '@/server/http/errors';
+import { logEvent } from '@/server/http/log';
 import { getCurrentWorkspace } from '@/server/modules/workspace/service';
 
 function buildContentDisposition(filename: string, download: boolean) {
@@ -59,6 +60,8 @@ export async function GET(
     }
 
     const download = new URL(request.url).searchParams.get('download') === '1';
+
+    logEvent('info', 'asset.served', { deckId, filename });
 
     return new NextResponse(blob.stream, {
       headers: {

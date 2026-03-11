@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generatePlainTextWithGemini, normalizeGeminiError } from '@/lib/gemini';
+import { generatePlainTextWithGemini } from '@/lib/gemini';
 import { assertAllowedOrigin } from '@/server/auth/origin';
-import { withNoStoreHeaders } from '@/server/http/errors';
+import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
 
 export const maxDuration = 30;
 
@@ -51,16 +51,10 @@ Output ONLY the prompt text, nothing else. No preamble, no "Here's your prompt:"
       }
     );
   } catch (error) {
-    const normalizedError = normalizeGeminiError(error, 'Failed to generate prompt');
-
-    return NextResponse.json(
-      {
-        error: normalizedError.message,
-        code: normalizedError.providerCode,
-        retryAfterSeconds: normalizedError.retryAfterSeconds,
-        model: normalizedError.model,
-      },
-      { status: normalizedError.statusCode, headers: withNoStoreHeaders() }
-    );
+    return errorResponse(error, {
+      code: 'PROMPT_GENERATION_FAILED',
+      message: 'Failed to generate prompt.',
+      status: 500,
+    });
   }
 }
