@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { ZodError } from 'zod';
 import { AppError, toAppError, errorResponse, isAppError } from './errors';
 
@@ -114,5 +114,24 @@ describe('errorResponse', () => {
     expect(response.status).toBe(502);
     const body = await response.json();
     expect(body).toEqual({ error: 'Something specific failed.', code: 'MY_FALLBACK' });
+  });
+
+  it('logs server errors (5xx) with original error details', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const raw = new Error('Connection refused at 10.0.0.1:5432');
+    errorResponse(raw);
+    expect(spy).toHaveBeenCalledOnce();
+    const logged = JSON.parse(spy.mock.calls[0][0] as string);
+    expect(logged.event).toBe('api.error');
+    expect(logged.cause).toContain('Connection refused');
+    spy.mockRestore();
+  });
+
+  it('does not log client errors (4xx)', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const err = new AppError({ code: 'BAD_REQUEST', message: 'Invalid input', status: 400 });
+    errorResponse(err);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });

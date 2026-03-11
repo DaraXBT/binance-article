@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 
+import { logEvent } from '@/server/http/log';
+
 type AppErrorOptions = {
   code: string;
   message: string;
@@ -67,6 +69,14 @@ export function errorResponse(
   fallback?: { code: string; message: string; status?: number }
 ) {
   const appError = toAppError(error, fallback);
+
+  if (appError.status >= 500) {
+    logEvent('error', 'api.error', {
+      code: appError.code,
+      cause: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+  }
 
   return NextResponse.json(
     {

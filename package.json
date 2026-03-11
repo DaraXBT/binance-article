@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "prisma:generate": "node scripts/run-with-default-database-url.mjs prisma generate",
-    "build": "npm run prisma:generate && next build",
+    "build": "npm run prisma:generate && node scripts/migrate-if-database.mjs && next build",
     "postinstall": "npm run prisma:generate",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
