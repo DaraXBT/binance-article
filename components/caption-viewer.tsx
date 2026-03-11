@@ -34,8 +34,8 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
     seoTitle: captions.blogTitle || '',
     metaDescription: captions.blogMeta || '',
     introText: captions.blogIntro || '',
-    tags: captions.blogTags ? JSON.parse(captions.blogTags) : [],
-    sections: captions.blogSections ? JSON.parse(captions.blogSections) : [],
+    tags: captions.blogTags ?? [],
+    sections: captions.blogSections ?? [],
   };
   const twitter = {
     singles: [captions.xSingle1, captions.xSingle2, captions.xSingle3].filter(Boolean) as string[],

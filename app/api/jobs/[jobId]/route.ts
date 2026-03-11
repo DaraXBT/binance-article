@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getJob } from '@/lib/job-queue';
-import { getCurrentWorkspace } from '@/lib/workspace';
+import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
+import { getJobRun, serializeJobRun } from '@/server/modules/jobs/service';
+import { getCurrentWorkspace } from '@/server/modules/workspace/service';
 
 export async function GET(
   request: NextRequest,
@@ -9,29 +10,23 @@ export async function GET(
   try {
     const { workspace } = await getCurrentWorkspace();
     const jobId = (await params).jobId;
-    const job = getJob(jobId);
+    const job = await getJobRun(jobId, workspace.id);
 
-    if (!job || job.workspaceId !== workspace.id) {
-      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    if (!job) {
+      return NextResponse.json(
+        { error: 'Job not found', code: 'JOB_NOT_FOUND' },
+        { status: 404, headers: withNoStoreHeaders() }
+      );
     }
 
-    return NextResponse.json({
-      id: job.id,
-      deckId: job.deckId,
-      status: job.status,
-      progress: job.progress,
-      logs: job.logs,
-      startedAt: job.startedAt,
-      completedAt: job.completedAt,
-      error: job.error,
+    return NextResponse.json(serializeJobRun(job), {
+      headers: withNoStoreHeaders(),
     });
   } catch (error) {
-    console.error('[API] Error fetching job:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to fetch job',
-      },
-      { status: 500 }
-    );
+    return errorResponse(error, {
+      code: 'JOB_FETCH_FAILED',
+      message: 'Failed to fetch job.',
+      status: 500,
+    });
   }
 }

@@ -1,26 +1,30 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-import { createWorkspaceForCurrentSession, getWorkspaceBootstrap } from '@/lib/workspace';
+import { createWorkspaceForCurrentSession, getWorkspaceBootstrap } from '@/server/modules/workspace/service';
+import { assertAllowedOrigin } from '@/server/auth/origin';
+import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
 
 export async function GET() {
   try {
     const workspace = await getWorkspaceBootstrap();
 
-    return NextResponse.json(workspace);
+    return NextResponse.json(workspace, {
+      headers: withNoStoreHeaders(),
+    });
   } catch (error) {
-    console.error('[API] Error fetching workspace:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to fetch workspace',
-        code: 'WORKSPACE_BOOTSTRAP_FAILED',
-      },
-      { status: 500 }
-    );
+    return errorResponse(error, {
+      code: 'WORKSPACE_BOOTSTRAP_FAILED',
+      message: 'Failed to fetch workspace.',
+      status: 500,
+    });
   }
 }
 
-export async function POST() {
+export async function POST(request?: NextRequest) {
   try {
+    if (request) {
+      assertAllowedOrigin(request);
+    }
     const created = await createWorkspaceForCurrentSession();
 
     return NextResponse.json({
@@ -28,14 +32,14 @@ export async function POST() {
       workspaceId: created.workspace.id,
       accessKeyPrefix: created.workspace.accessKeyPrefix,
       recoveryKey: created.recoveryKey,
+    }, {
+      headers: withNoStoreHeaders(),
     });
   } catch (error) {
-    console.error('[API] Error creating workspace:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to create workspace',
-      },
-      { status: 500 }
-    );
+    return errorResponse(error, {
+      code: 'WORKSPACE_CREATE_FAILED',
+      message: 'Failed to create workspace.',
+      status: 500,
+    });
   }
 }

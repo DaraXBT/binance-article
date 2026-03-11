@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generatePlainTextWithGemini, normalizeGeminiError } from '@/lib/gemini';
+import { assertAllowedOrigin } from '@/server/auth/origin';
+import { withNoStoreHeaders } from '@/server/http/errors';
 
 export const maxDuration = 30;
 
 export async function POST(request: NextRequest) {
   try {
+    assertAllowedOrigin(request);
     const body = await request.json();
     const { title } = body;
 
     if (!title || typeof title !== 'string' || title.trim().length < 1) {
       return NextResponse.json(
-        { error: 'A topic title is required' },
-        { status: 400 }
+        { error: 'A topic title is required', code: 'TOPIC_REQUIRED' },
+        { status: 400, headers: withNoStoreHeaders() }
       );
     }
 
@@ -41,9 +44,13 @@ Output ONLY the prompt text, nothing else. No preamble, no "Here's your prompt:"
       );
     }
 
-    return NextResponse.json({ prompt: generatedPrompt });
+    return NextResponse.json(
+      { prompt: generatedPrompt },
+      {
+        headers: withNoStoreHeaders(),
+      }
+    );
   } catch (error) {
-    console.error('[API] Error generating prompt:', error);
     const normalizedError = normalizeGeminiError(error, 'Failed to generate prompt');
 
     return NextResponse.json(
@@ -53,7 +60,7 @@ Output ONLY the prompt text, nothing else. No preamble, no "Here's your prompt:"
         retryAfterSeconds: normalizedError.retryAfterSeconds,
         model: normalizedError.model,
       },
-      { status: normalizedError.statusCode }
+      { status: normalizedError.statusCode, headers: withNoStoreHeaders() }
     );
   }
 }

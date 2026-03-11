@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { LanguageToggle } from '@/components/language-toggle';
 import { useLanguage } from '@/components/language-provider';
@@ -23,7 +23,6 @@ interface WizardFormData {
 }
 
 export default function NewDeckPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const mode = searchParams.get('mode') || 'text'; // 'url', 'prompt', or 'text'
   const { messages } = useLanguage();
@@ -131,7 +130,7 @@ export default function NewDeckPage() {
             <StyleStep formData={formData} onUpdate={updateFormData} />
           )}
           {currentStep === 2 && (
-            <GenerateStep formData={formData} mode={mode as any} onDone={() => router.push('/')} />
+            <GenerateStep formData={formData} mode={mode as any} />
           )}
         </div>
 

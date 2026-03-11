@@ -1,14 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const dbMock = {
-  getDeckProject: vi.fn(),
-  createSlidesFromGeneration: vi.fn(),
-  updateDeckProject: vi.fn(),
-};
-
-const geminiMock = {
-  generateDeckWithGemini: vi.fn(),
-  normalizeGeminiError: vi.fn(),
+  beginGenerationRevision: vi.fn(),
 };
 
 const workspaceMock = {
@@ -20,29 +13,39 @@ const workspaceMock = {
   })),
 };
 
+const jobServiceMock = {
+  createJobRun: vi.fn(),
+  attachWorkflowRunId: vi.fn(),
+};
+
+const workflowClientMock = {
+  startWorkflow: vi.fn(),
+};
+
 vi.mock('@/lib/db', () => dbMock);
-vi.mock('@/lib/gemini', () => geminiMock);
-vi.mock('@/lib/workspace', () => workspaceMock);
+vi.mock('@/server/modules/workspace/service', () => workspaceMock);
+vi.mock('@/server/modules/jobs/service', () => jobServiceMock);
+vi.mock('@/server/integrations/workflow-client', () => workflowClientMock);
+vi.mock('@/workflows/article-jobs', () => ({
+  handleArticleGenerationJob: vi.fn(),
+}));
 
 describe('POST /api/articles/[id]/generate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    dbMock.getDeckProject.mockResolvedValue({
-      id: 'deck-1',
+    dbMock.beginGenerationRevision.mockResolvedValue({
+      deck: { id: 'deck-1' },
+      revision: 1,
+      articleRevisionId: 'deck-1:rev:1',
     });
+    jobServiceMock.createJobRun.mockResolvedValue({
+      id: 'job-1',
+      status: 'queued',
+    });
+    workflowClientMock.startWorkflow.mockResolvedValue({ runId: 'run-1' });
   });
 
-  it('returns a normalized 429 when Gemini quota is exhausted', async () => {
-    const providerError = new Error('provider quota error');
-    geminiMock.generateDeckWithGemini.mockRejectedValue(providerError);
-    geminiMock.normalizeGeminiError.mockReturnValue({
-      statusCode: 429,
-      message: 'Gemini API quota exceeded for gemini-2.0-flash. Retry in about 41 seconds.',
-      providerCode: 429,
-      retryAfterSeconds: 41,
-      model: 'gemini-2.0-flash',
-    });
-
+  it('returns 202 with jobId when generation is started', async () => {
     const { POST } = await import('@/app/api/articles/[id]/generate/route');
     const response = await POST(
       new Request('http://localhost/api/articles/deck-1/generate', {
@@ -58,14 +61,18 @@ describe('POST /api/articles/[id]/generate', () => {
     );
     const body = await response.json();
 
-    expect(response.status).toBe(429);
+    expect(response.status).toBe(202);
     expect(body).toEqual({
-      error: 'Gemini API quota exceeded for gemini-2.0-flash. Retry in about 41 seconds.',
-      code: 429,
-      retryAfterSeconds: 41,
-      model: 'gemini-2.0-flash',
+      jobId: 'job-1',
+      status: 'queued',
+      articleRevisionId: 'deck-1:rev:1',
     });
-    expect(dbMock.createSlidesFromGeneration).not.toHaveBeenCalled();
-    expect(dbMock.updateDeckProject).not.toHaveBeenCalled();
+    expect(jobServiceMock.createJobRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deckId: 'deck-1',
+        workspaceId: 'workspace-1',
+        kind: 'generate',
+      })
+    );
   });
 });

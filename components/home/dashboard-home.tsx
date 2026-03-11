@@ -56,6 +56,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ILLUSTRATION_STYLES, type IllustrationStyleId } from '@/lib/config';
 import { formatRelativeTime } from '@/lib/i18n';
 import { useDecks, useDeleteDeck, useUpdateDeck, useWorkspace } from '@/lib/hooks';
+import { JobSummary } from '@/lib/schemas';
 
 type DeckListItem = {
   id: string;
@@ -92,6 +93,31 @@ async function readHomeResponse<T>(response: Response, fallbackMessage: string):
   }
 
   return data as T;
+}
+
+async function waitForJob({
+  jobId,
+  fetchImpl = fetch,
+}: {
+  jobId: string;
+  fetchImpl?: HomeFetch;
+}) {
+  const maxAttempts = 90;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const response = await fetchImpl(`/api/jobs/${jobId}`, {
+      cache: 'no-store',
+    });
+    const job = await readHomeResponse<JobSummary>(response, 'Failed to fetch job');
+
+    if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
+      return job;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+
+  throw new Error('Timed out while waiting for the article to finish generating.');
 }
 
 export async function requestPromptSuggestion({
@@ -184,15 +210,23 @@ export async function submitPromptArticle({
     }),
   });
 
-  await readHomeResponse(generateResponse, 'Failed to generate article');
+  const generationJob = await readHomeResponse<{ jobId?: string }>(
+    generateResponse,
+    'Failed to generate article'
+  );
 
-  const imageResponse = await fetchImpl(`/api/articles/${deckId}/generate-images`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ illustrationStyle }),
+  if (!generationJob.jobId) {
+    throw new Error('Failed to start article generation');
+  }
+
+  const completedJob = await waitForJob({
+    jobId: generationJob.jobId,
+    fetchImpl,
   });
 
-  await imageResponse.json().catch(() => null);
+  if (completedJob.status !== 'completed') {
+    throw new Error(completedJob.error || 'Failed to generate article');
+  }
 
   return { deckId };
 }
@@ -618,7 +652,7 @@ export function DashboardHome() {
     );
   }
 
-  if (!hasWorkspace) {
+  if (!workspace || !hasWorkspace) {
     return <WorkspaceOnboarding />;
   }
 

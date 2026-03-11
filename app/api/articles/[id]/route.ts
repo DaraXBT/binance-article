@@ -1,13 +1,9 @@
-import { ZodError } from 'zod';
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteDeckProject, getDeckWithAssets, updateDeckProject } from '@/lib/db';
-import { deleteDeckAssets } from '@/lib/file-utils';
 import { UpdateDeckProjectSchema } from '@/lib/schemas';
-import { getCurrentWorkspace } from '@/lib/workspace';
-
-function isNotFoundError(error: unknown) {
-  return error instanceof Error && /not found/i.test(error.message);
-}
+import { getCurrentWorkspace } from '@/server/modules/workspace/service';
+import { assertAllowedOrigin } from '@/server/auth/origin';
+import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
 
 export async function GET(
   request: NextRequest,
@@ -19,16 +15,21 @@ export async function GET(
     const deck = await getDeckWithAssets(deckId, workspace.id);
 
     if (!deck) {
-      return NextResponse.json({ error: 'Deck not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Article not found', code: 'ARTICLE_NOT_FOUND' },
+        { status: 404, headers: withNoStoreHeaders() }
+      );
     }
 
-    return NextResponse.json(deck);
+    return NextResponse.json(deck, {
+      headers: withNoStoreHeaders(),
+    });
   } catch (error) {
-    console.error('[API] Error fetching deck:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch deck' },
-      { status: 500 }
-    );
+    return errorResponse(error, {
+      code: 'ARTICLE_FETCH_FAILED',
+      message: 'Failed to fetch article.',
+      status: 500,
+    });
   }
 }
 
@@ -37,30 +38,22 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    assertAllowedOrigin(request);
     const { workspace } = await getCurrentWorkspace();
     const deckId = (await params).id;
     const body = await request.json();
     const data = UpdateDeckProjectSchema.parse(body);
 
     const deck = await updateDeckProject(deckId, workspace.id, data);
-    return NextResponse.json(deck);
+    return NextResponse.json(deck, {
+      headers: withNoStoreHeaders(),
+    });
   } catch (error) {
-    if (isNotFoundError(error)) {
-      return NextResponse.json({ error: 'Deck not found' }, { status: 404 });
-    }
-
-    console.error('[API] Error updating deck:', error);
-    return NextResponse.json(
-      {
-        error:
-          error instanceof ZodError
-            ? error.issues[0]?.message || 'Failed to update deck'
-            : error instanceof Error
-              ? error.message
-              : 'Failed to update deck',
-      },
-      { status: 400 }
-    );
+    return errorResponse(error, {
+      code: 'ARTICLE_UPDATE_FAILED',
+      message: 'Failed to update article.',
+      status: 400,
+    });
   }
 }
 
@@ -69,22 +62,23 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    assertAllowedOrigin(request);
     const { workspace } = await getCurrentWorkspace();
     const deckId = (await params).id;
 
     await deleteDeckProject(deckId, workspace.id);
-    deleteDeckAssets(deckId);
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    if (isNotFoundError(error)) {
-      return NextResponse.json({ error: 'Deck not found' }, { status: 404 });
-    }
-
-    console.error('[API] Error deleting deck:', error);
     return NextResponse.json(
-      { error: 'Failed to delete deck' },
-      { status: 500 }
+      { success: true },
+      {
+        headers: withNoStoreHeaders(),
+      }
     );
+  } catch (error) {
+    return errorResponse(error, {
+      code: 'ARTICLE_DELETE_FAILED',
+      message: 'Failed to delete article.',
+      status: 500,
+    });
   }
 }

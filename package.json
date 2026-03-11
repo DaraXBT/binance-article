@@ -1,14 +1,18 @@
 {
-  "name": "my-project",
+  "name": "xarticle",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
-    "postinstall": "prisma generate",
+    "prisma:generate": "node scripts/run-with-default-database-url.mjs prisma generate",
+    "build": "npm run prisma:generate && next build",
+    "postinstall": "npm run prisma:generate",
     "start": "next start",
-    "lint": "eslint .",
-    "test": "vitest run"
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "npm run prisma:generate && tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "db:migrate:deploy": "node scripts/run-with-default-database-url.mjs prisma migrate deploy"
   },
   "dependencies": {
     "@google/genai": "^1.44.0",
@@ -44,6 +48,7 @@
     "@tanstack/react-query": "^5.56.0",
     "@vercel/analytics": "1.6.1",
     "@vercel/blob": "^2.3.1",
+    "cheerio": "^1.1.2",
     "autoprefixer": "^10.4.20",
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.1",
@@ -67,9 +72,11 @@
     "tailwind-merge": "^3.3.1",
     "uuid": "^10.0.0",
     "vaul": "^1.1.2",
+    "workflow": "4.2.0-beta.67",
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "@tailwindcss/postcss": "^4.2.0",
     "@testing-library/react": "^16.3.2",
     "@types/bcryptjs": "^2.4.6",
@@ -77,6 +84,8 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@types/uuid": "^10.0.0",
+    "eslint": "^9.34.0",
+    "eslint-config-next": "16.1.6",
     "jsdom": "^28.1.0",
     "postcss": "^8.5",
     "prisma": "^5.20.0",

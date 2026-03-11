@@ -21,7 +21,7 @@ export function UrlStep({ formData, onUpdate }: UrlStepProps) {
       <div>
         <h2 className="mb-2 text-2xl font-semibold">Import from URL</h2>
         <p className="mb-6 text-muted-foreground">
-          Paste a link to any blog post, news article, or webpage. We'll extract the content and turn it into slides.
+          Paste a link to any blog post, news article, or webpage. We&apos;ll extract the content and turn it into slides.
         </p>
       </div>
 

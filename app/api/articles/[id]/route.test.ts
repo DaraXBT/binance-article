@@ -15,13 +15,8 @@ const workspaceMock = {
   })),
 };
 
-const fileUtilsMock = {
-  deleteDeckAssets: vi.fn(),
-};
-
 vi.mock('@/lib/db', () => dbMock);
-vi.mock('@/lib/workspace', () => workspaceMock);
-vi.mock('@/lib/file-utils', () => fileUtilsMock);
+vi.mock('@/server/modules/workspace/service', () => workspaceMock);
 
 describe('GET/PATCH/DELETE /api/articles/[id]', () => {
   beforeEach(() => {
@@ -75,7 +70,7 @@ describe('GET/PATCH/DELETE /api/articles/[id]', () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: 'Title is required' });
+    expect(body).toEqual({ error: 'Title is required', code: 'VALIDATION_ERROR' });
     expect(dbMock.updateDeckProject).not.toHaveBeenCalled();
   });
 
@@ -99,7 +94,7 @@ describe('GET/PATCH/DELETE /api/articles/[id]', () => {
     );
   });
 
-  it('deletes the article and its local assets inside the current workspace', async () => {
+  it('deletes the article inside the current workspace', async () => {
     dbMock.deleteDeckProject.mockResolvedValue({ id: 'deck-1' });
 
     const { DELETE } = await import('@/app/api/articles/[id]/route');
@@ -114,6 +109,5 @@ describe('GET/PATCH/DELETE /api/articles/[id]', () => {
     expect(response.status).toBe(200);
     expect(body).toEqual({ success: true });
     expect(dbMock.deleteDeckProject).toHaveBeenCalledWith('deck-1', 'workspace-1');
-    expect(fileUtilsMock.deleteDeckAssets).toHaveBeenCalledWith('deck-1');
   });
 });

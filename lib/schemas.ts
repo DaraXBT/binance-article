@@ -14,6 +14,9 @@ export type DeckGenerateRequest = z.infer<typeof GenerateRequestSchema>;
 
 export const ImageGenerationModeSchema = z.enum(['missing', 'failed']);
 export const ImageGenerationStatusSchema = z.enum(['pending', 'generated', 'failed']);
+export const DeckStatusSchema = z.enum(['draft', 'queued', 'generating', 'ready', 'rendering', 'failed']);
+export const JobStatusSchema = z.enum(['queued', 'running', 'completed', 'failed', 'cancelled']);
+export const JobKindSchema = z.enum(['generate', 'generate_images', 'render']);
 
 export const GenerateImagesRequestSchema = z.object({
   illustrationStyle: IllustrationStyleSchema.default('pixel-art'),
@@ -23,6 +26,9 @@ export const GenerateImagesRequestSchema = z.object({
 export type GenerateImagesRequest = z.infer<typeof GenerateImagesRequestSchema>;
 export type ImageGenerationMode = z.infer<typeof ImageGenerationModeSchema>;
 export type ImageGenerationStatus = z.infer<typeof ImageGenerationStatusSchema>;
+export type DeckStatus = z.infer<typeof DeckStatusSchema>;
+export type JobStatus = z.infer<typeof JobStatusSchema>;
+export type JobKind = z.infer<typeof JobKindSchema>;
 
 export interface SlideContent {
   id?: string;
@@ -53,8 +59,13 @@ export const CreateDeckProjectSchema = z.object({
 });
 
 export type CreateDeckProjectInput = z.infer<typeof CreateDeckProjectSchema>;
-
-export const UpdateDeckProjectSchema = CreateDeckProjectSchema.partial();
+export const UpdateDeckProjectSchema = z.object({
+  title: CreateDeckProjectSchema.shape.title.optional(),
+  description: CreateDeckProjectSchema.shape.description.optional(),
+  content: CreateDeckProjectSchema.shape.content.optional(),
+  theme: z.string().optional(),
+  status: DeckStatusSchema.optional(),
+});
 export type UpdateDeckProjectInput = z.infer<typeof UpdateDeckProjectSchema>;
 
 // Slide Schemas
@@ -100,7 +111,7 @@ export type DeckSlide = {
   deckId: string;
   title: string;
   subtitle: string | null;
-  bullets: string;
+  bullets: string[];
   bulletPoints: string[];
   notes: string | null;
   imageUrl: string | null;
@@ -112,13 +123,43 @@ export type DeckSlide = {
   updatedAt: string | Date;
 };
 
+export type JobLogEntry = {
+  timestamp: string;
+  message: string;
+  level: 'info' | 'warn' | 'error' | 'success';
+  meta?: Record<string, unknown>;
+};
+
+export type JobSummary = {
+  id: string;
+  deckId: string;
+  workspaceId: string;
+  kind: JobKind;
+  status: JobStatus;
+  progress: number;
+  logs: JobLogEntry[];
+  errorCode?: string | null;
+  error?: string | null;
+  articleRevisionId: string;
+  runId?: string | null;
+  result?: unknown;
+  startedAt: string | Date | null;
+  completedAt: string | Date | null;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+};
+
 export type DeckDetailResponse = {
   id: string;
+  status: DeckStatus;
   title: string;
+  description?: string | null;
+  content?: string;
   theme?: string | null;
   illustrationStyle?: string | null;
   slides: DeckSlide[];
   captions: CaptionPackage | null;
+  lastJob?: JobSummary | null;
 };
 
 export const WorkspaceRecoverSchema = z.object({
@@ -132,8 +173,8 @@ export const CaptionPackageSchema = z.object({
   blogTitle: z.string().optional(),
   blogMeta: z.string().optional(),
   blogIntro: z.string().optional(),
-  blogSections: z.string().optional(),
-  blogTags: z.string().optional(),
+  blogSections: z.array(z.string()).optional(),
+  blogTags: z.array(z.string()).optional(),
   xSingle1: z.string().optional(),
   xSingle2: z.string().optional(),
   xSingle3: z.string().optional(),

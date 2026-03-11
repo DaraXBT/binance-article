@@ -1,13 +1,45 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 generator client {
   provider = "prisma-client-js"
+}
+
+enum DeckStatus {
+  draft
+  queued
+  generating
+  ready
+  rendering
+  failed
+}
+
+enum SlideImageStatus {
+  pending
+  generated
+  failed
+}
+
+enum JobKind {
+  generate
+  generate_images
+  render
+}
+
+enum JobStatus {
+  queued
+  running
+  completed
+  failed
+  cancelled
+}
+
+enum AssetFormat {
+  pdf
+  pptx
+  png
 }
 
 model Workspace {
@@ -16,6 +48,7 @@ model Workspace {
   accessKeyPrefix String
   sessions        WorkspaceSession[]
   decks           DeckProject[]
+  jobRuns         JobRun[]
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 
@@ -34,105 +67,111 @@ model WorkspaceSession {
 }
 
 model DeckProject {
-  id            String    @id @default(cuid())
-  workspaceId    String?
-  workspace      Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  title         String
-  description   String?
-  content       String    // Raw content/markdown input
-  theme         String    @default("default") // Theme preset name
-  customTheme   String?   // Custom theme overrides (JSON string)
-  illustrationStyle String @default("pixel-art") // "pixel-art" | "fantasy-animation" | "lab-notes"
-  status        String    @default("draft")   // "draft" | "generated" | "rendered"
-  slides        Slide[]
-  captions      CaptionPackage?
-  renderAssets  RenderAsset[]
-  renderJobs    RenderJob[]
-  sessionId     String    @default("")  // Anonymous session ID from cookie
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                    String         @id @default(cuid())
+  workspaceId           String
+  workspace             Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  title                 String
+  description           String?
+  content               String
+  theme                 String         @default("default")
+  customTheme           Json?
+  illustrationStyle     String         @default("pixel-art")
+  status                DeckStatus     @default(draft)
+  generationRevision    Int            @default(0)
+  lastCompletedRevision Int            @default(0)
+  slides                Slide[]
+  captions              CaptionPackage?
+  renderAssets          RenderAsset[]
+  jobRuns               JobRun[]
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
 
-  @@index([sessionId])
-  @@index([workspaceId])
+  @@index([workspaceId, updatedAt])
+  @@index([status])
 }
 
 model Slide {
-  id            String    @id @default(cuid())
-  deckId        String
-  deck          DeckProject @relation(fields: [deckId], references: [id], onDelete: Cascade)
-  title         String
-  subtitle      String?
-  bullets       String    // Array of bullet points (JSON string)
-  notes         String?   // Speaker notes
-  imageUrl      String?   // URL to generated slide image (Vercel Blob)
-  imageStatus   String    @default("pending") // "pending" | "generated" | "failed"
-  imageError    String?   // Last image generation or upload error
-  imagePrompt   String?   // Prompt used to generate the image
-  order         Int       // For ordering slides
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id          String           @id @default(cuid())
+  deckId      String
+  deck        DeckProject      @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  title       String
+  subtitle    String?
+  bullets     Json
+  notes       String?
+  imageUrl    String?
+  imageStatus SlideImageStatus @default(pending)
+  imageError  String?
+  imagePrompt String?
+  order       Int
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
   @@index([deckId])
   @@unique([deckId, order])
 }
 
 model CaptionPackage {
-  id            String    @id @default(cuid())
-  deckId        String    @unique
-  deck          DeckProject @relation(fields: [deckId], references: [id], onDelete: Cascade)
-  
-  // Blog package
-  blogTitle     String?   // SEO title
-  blogMeta      String?   // Meta description
-  blogIntro     String?   // Intro paragraph
-  blogSections  String?   // JSON array of sections
-  blogTags      String?   // Comma-separated tags
-  
-  // Twitter/X variants
-  xSingle1      String?   // Single tweet 1
-  xSingle2      String?   // Single tweet 2
-  xSingle3      String?   // Single tweet 3
-  xThread       String?   // Full thread (newline-separated tweets)
-  
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id           String      @id @default(cuid())
+  deckId       String      @unique
+  deck         DeckProject @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  blogTitle    String?
+  blogMeta     String?
+  blogIntro    String?
+  blogSections Json?
+  blogTags     Json?
+  xSingle1     String?
+  xSingle2     String?
+  xSingle3     String?
+  xThread      String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 
   @@index([deckId])
 }
 
 model RenderAsset {
-  id            String    @id @default(cuid())
-  deckId        String
-  deck          DeckProject @relation(fields: [deckId], references: [id], onDelete: Cascade)
-  filename      String    // e.g., "deck.pdf", "slide-1.png"
-  format        String    // "pdf" | "pptx" | "png"
-  mimeType      String
-  filePath      String    // Storage path or Blob URL
-  fileSize      Int?      // Bytes
-  jobId         String?
-  job           RenderJob? @relation(fields: [jobId], references: [id])
-  createdAt     DateTime  @default(now())
+  id              String      @id @default(cuid())
+  deckId          String
+  deck            DeckProject @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  filename        String
+  format          AssetFormat
+  mimeType        String
+  filePath        String
+  fileSize        Int?
+  storageProvider String      @default("blob")
+  jobId           String?
+  job             JobRun?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  createdAt       DateTime    @default(now())
 
   @@index([deckId])
   @@index([jobId])
   @@unique([deckId, filename])
 }
 
-model RenderJob {
-  id            String    @id @default(cuid())
-  deckId        String
-  deck          DeckProject @relation(fields: [deckId], references: [id], onDelete: Cascade)
-  status        String    @default("queued") // "queued" | "running" | "completed" | "failed"
-  progress      Int       @default(0)        // 0-100
-  logs          String    @default("")       // Newline-separated log entries
-  error         String?
-  format        String    @default("pdf")    // What to render
-  assets        RenderAsset[]
-  startedAt     DateTime?
-  completedAt   DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+model JobRun {
+  id                String      @id @default(cuid())
+  deckId            String
+  deck              DeckProject @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  workspaceId       String
+  workspace         Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  kind              JobKind
+  status            JobStatus   @default(queued)
+  progress          Int         @default(0)
+  logs              Json
+  errorCode         String?
+  errorMessage      String?
+  articleRevisionId String
+  runId             String?
+  payload           Json?
+  result            Json?
+  assets            RenderAsset[]
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
-  @@index([deckId])
-  @@index([status])
+  @@index([deckId, createdAt])
+  @@index([workspaceId, createdAt])
+  @@index([status, kind])
+  @@index([articleRevisionId])
 }

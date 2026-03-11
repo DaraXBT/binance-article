@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/components/language-provider';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, Circle, Loader2, AlertCircle } from 'lucide-react';
+import { JobSummary } from '@/lib/schemas';
 
 interface GenerateStepProps {
   formData: {
@@ -14,7 +15,6 @@ interface GenerateStepProps {
     illustrationStyle: string;
   };
   mode: 'text' | 'url' | 'prompt';
-  onDone: () => void;
 }
 
 type Phase = 'idle' | 'creating' | 'generating-slides' | 'generating-images' | 'generating-captions' | 'complete' | 'error';
@@ -44,14 +44,39 @@ interface ImageGenerationSummary {
   errorSummary?: ImageErrorSummary;
 }
 
-export function GenerateStep({ formData, mode, onDone }: GenerateStepProps) {
+async function waitForJob(jobId: string, onProgress: (job: JobSummary) => void) {
+  const maxAttempts = 90;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const response = await fetch(`/api/jobs/${jobId}`, {
+      cache: 'no-store',
+    });
+    const job = (await response.json()) as JobSummary & { error?: string };
+
+    if (!response.ok) {
+      throw new Error(job.error || 'Failed to fetch job status');
+    }
+
+    onProgress(job);
+
+    if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
+      return job;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+
+  throw new Error('Timed out while waiting for generation to finish.');
+}
+
+export function GenerateStep({ formData, mode }: GenerateStepProps) {
   const router = useRouter();
   const { messages } = useLanguage();
   const [phase, setPhase] = useState<Phase>('idle');
-  const [deckId, setDeckId] = useState('');
   const [error, setError] = useState('');
   const [imageProgress, setImageProgress] = useState({ current: 0, total: 0 });
   const [imageSummary, setImageSummary] = useState<ImageGenerationSummary | null>(null);
+  const [jobProgress, setJobProgress] = useState(0);
 
   const phases: PhaseInfo[] = [
     { id: 'creating', label: messages.newDeck.generateView.creatingDeck },
@@ -82,6 +107,7 @@ export function GenerateStep({ formData, mode, onDone }: GenerateStepProps) {
       setPhase('creating');
       setError('');
       setImageSummary(null);
+      setJobProgress(0);
 
       // Step 1: Create deck
       const createRes = await fetch('/api/articles', {
@@ -101,9 +127,8 @@ export function GenerateStep({ formData, mode, onDone }: GenerateStepProps) {
       }
       const deckData = await createRes.json();
       const newDeckId = deckData.id;
-      setDeckId(newDeckId);
 
-      // Step 2: Generate slides
+      // Step 2: Start the generation workflow
       setPhase('generating-slides');
       const generateRes = await fetch(`/api/articles/${newDeckId}/generate`, {
         method: 'POST',
@@ -121,49 +146,41 @@ export function GenerateStep({ formData, mode, onDone }: GenerateStepProps) {
         throw new Error(errorData?.error || messages.newDeck.generateView.generateSlidesError);
       }
 
-      const genResult = await generateRes.json();
+      const generationStart = await generateRes.json();
+      const finalJob = await waitForJob(generationStart.jobId, (job) => {
+        setJobProgress(job.progress);
 
-      // Step 3: Generate images
-      setPhase('generating-images');
-      setImageProgress({ current: 0, total: genResult.slideCount || formData.slideCount });
+        if (job.progress >= 95) {
+          setPhase('generating-captions');
+          return;
+        }
 
-      const imageRes = await fetch(`/api/articles/${newDeckId}/generate-images`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          illustrationStyle: formData.illustrationStyle,
-        }),
+        if (job.progress >= 55) {
+          setPhase('generating-images');
+          return;
+        }
+
+        setPhase('generating-slides');
       });
 
-      const fallbackTotal = genResult.slideCount || formData.slideCount;
-      const imageData = await imageRes.json().catch(() => null) as ImageGenerationSummary | null;
-
-      if (imageRes.ok && imageData) {
-        setImageSummary(imageData);
-        setImageProgress({
-          current: (imageData.generated || 0) + (imageData.failed || 0),
-          total: imageData.total || fallbackTotal,
-        });
-      } else {
-        console.warn('Image generation had issues, continuing...');
-        setImageSummary({
-          status: 'failed',
-          generated: 0,
-          failed: fallbackTotal,
-          total: fallbackTotal,
-        });
-        setImageProgress({ current: fallbackTotal, total: fallbackTotal });
+      if (finalJob.status !== 'completed') {
+        throw new Error(finalJob.error || messages.newDeck.generateView.generateSlidesError);
       }
 
-      // Step 4: Captions are already generated with slides
-      setPhase('generating-captions');
+      const jobResult = (finalJob.result ?? null) as
+        | {
+            slideCount?: number;
+            imageSummary?: ImageGenerationSummary;
+          }
+        | null;
 
-      // Update deck status
-      await fetch(`/api/articles/${newDeckId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ theme: 'default' }),
-      }).catch(() => {});
+      const resolvedImageSummary = jobResult?.imageSummary ?? null;
+      setImageSummary(resolvedImageSummary);
+      setImageProgress({
+        current:
+          (resolvedImageSummary?.generated || 0) + (resolvedImageSummary?.failed || 0),
+        total: resolvedImageSummary?.total || jobResult?.slideCount || formData.slideCount,
+      });
 
       setPhase('complete');
 
@@ -178,20 +195,21 @@ export function GenerateStep({ formData, mode, onDone }: GenerateStepProps) {
       setPhase('error');
       setError(message);
     }
-  }, [formData, messages, router]);
+  }, [formData, messages, mode, router]);
 
   useEffect(() => {
     if (phase === 'idle') {
-      handleGenerate();
+      void handleGenerate();
     }
-  }, []);
+  }, [handleGenerate, phase]);
 
   const progress = (() => {
+    if (phase === 'generating-slides' || phase === 'generating-images' || phase === 'generating-captions') {
+      return Math.max(jobProgress, phase === 'generating-slides' ? 20 : phase === 'generating-images' ? 60 : 90);
+    }
+
     switch (phase) {
       case 'creating': return 10;
-      case 'generating-slides': return 30;
-      case 'generating-images': return 60;
-      case 'generating-captions': return 85;
       case 'complete': return 100;
       default: return 0;
     }

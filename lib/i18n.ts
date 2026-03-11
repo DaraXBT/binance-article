@@ -73,8 +73,8 @@ const en = {
     filterAll: 'all',
     filterDraft: 'draft',
     filterGenerating: 'generating',
-    filterGenerated: 'generated',
-    filterRendered: 'rendered',
+    filterGenerated: 'ready',
+    filterRendered: 'rendering',
     noFilteredDecks: 'No articles match the selected \'{status}\' status or search query.',
   },
   newDeck: {
@@ -280,8 +280,11 @@ const en = {
   deckCard: {
     status: {
       draft: 'Draft',
-      generated: 'Generated',
-      rendered: 'Rendered',
+      queued: 'Queued',
+      generating: 'Generating',
+      ready: 'Ready',
+      rendering: 'Rendering',
+      failed: 'Failed',
     },
     fallbackDescription:
       'Article-to-slides project with slides, visuals, and caption-ready output.',
@@ -605,8 +608,11 @@ const km: typeof en = {
   deckCard: {
     status: {
       draft: 'ព្រាង',
-      generated: 'បានបង្កើត',
-      rendered: 'បានរេនឌ័រ',
+      queued: 'បានដាក់ជាជួរ',
+      generating: 'កំពុងបង្កើត',
+      ready: 'រួចរាល់',
+      rendering: 'កំពុងរេនឌ័រ',
+      failed: 'បរាជ័យ',
     },
     fallbackDescription:
       'គម្រោងបម្លែងអត្ថបទទៅអត្ថបទ ដែលមានស្លាយ រូបភាព និង captions រួចរាល់សម្រាប់ប្រើ។',

@@ -6,7 +6,7 @@ const workspaceMock = {
   recoverWorkspaceForCurrentSession: vi.fn(),
 };
 
-vi.mock('@/lib/workspace', () => workspaceMock);
+vi.mock('@/server/modules/workspace/service', () => workspaceMock);
 
 describe('/api/workspace routes', () => {
   beforeEach(() => {
@@ -43,7 +43,7 @@ describe('/api/workspace routes', () => {
 
     expect(response.status).toBe(500);
     expect(body).toEqual({
-      error: 'Failed to fetch workspace',
+      error: 'Failed to fetch workspace.',
       code: 'WORKSPACE_BOOTSTRAP_FAILED',
     });
   });
@@ -106,6 +106,6 @@ describe('/api/workspace routes', () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: 'Invalid access key' });
+    expect(body).toEqual({ error: 'Invalid access key', code: 'INVALID_ACCESS_KEY' });
   });
 });

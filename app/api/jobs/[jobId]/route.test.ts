@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const jobQueueMock = {
-  getJob: vi.fn(),
-};
-
 const workspaceMock = {
   getCurrentWorkspace: vi.fn(async () => ({
     workspace: {
@@ -13,26 +9,21 @@ const workspaceMock = {
   })),
 };
 
-vi.mock('@/lib/job-queue', () => jobQueueMock);
-vi.mock('@/lib/workspace', () => workspaceMock);
+const jobServiceMock = {
+  getJobRun: vi.fn(),
+  serializeJobRun: vi.fn((job: Record<string, unknown>) => job),
+};
+
+vi.mock('@/server/modules/workspace/service', () => workspaceMock);
+vi.mock('@/server/modules/jobs/service', () => jobServiceMock);
 
 describe('GET /api/jobs/[jobId]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('returns 404 for jobs from another workspace', async () => {
-    jobQueueMock.getJob.mockReturnValue({
-      id: 'job-1',
-      deckId: 'deck-1',
-      workspaceId: 'workspace-2',
-      status: 'running',
-      progress: 50,
-      logs: [],
-      startedAt: null,
-      completedAt: null,
-      error: null,
-    });
+  it('returns 404 when the job is not found', async () => {
+    jobServiceMock.getJobRun.mockResolvedValue(null);
 
     const { GET } = await import('@/app/api/jobs/[jobId]/route');
     const response = await GET(
@@ -44,7 +35,7 @@ describe('GET /api/jobs/[jobId]', () => {
   });
 
   it('returns the job payload inside the current workspace', async () => {
-    jobQueueMock.getJob.mockReturnValue({
+    const mockJob = {
       id: 'job-2',
       deckId: 'deck-1',
       workspaceId: 'workspace-1',
@@ -54,7 +45,8 @@ describe('GET /api/jobs/[jobId]', () => {
       startedAt: '2026-03-09T00:00:00.000Z',
       completedAt: '2026-03-09T00:01:00.000Z',
       error: null,
-    });
+    };
+    jobServiceMock.getJobRun.mockResolvedValue(mockJob);
 
     const { GET } = await import('@/app/api/jobs/[jobId]/route');
     const response = await GET(

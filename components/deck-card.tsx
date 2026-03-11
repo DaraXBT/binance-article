@@ -30,11 +30,20 @@ const statusStyles: Record<string, { className: string }> = {
   draft: {
     className: 'border-amber-500/20 bg-amber-500/10 text-amber-700',
   },
-  generated: {
+  queued: {
+    className: 'border-violet-500/20 bg-violet-500/10 text-violet-700',
+  },
+  generating: {
     className: 'border-sky-500/20 bg-sky-500/10 text-sky-700',
   },
-  rendered: {
+  ready: {
     className: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700',
+  },
+  rendering: {
+    className: 'border-cyan-500/20 bg-cyan-500/10 text-cyan-700',
+  },
+  failed: {
+    className: 'border-destructive/20 bg-destructive/10 text-destructive',
   },
 };
 

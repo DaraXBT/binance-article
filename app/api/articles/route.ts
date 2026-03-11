@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createDeckProject, listDeckProjects } from '@/lib/db';
 import { CreateDeckProjectSchema } from '@/lib/schemas';
-import { getCurrentWorkspace } from '@/lib/workspace';
+import { getCurrentWorkspace } from '@/server/modules/workspace/service';
+import { assertAllowedOrigin } from '@/server/auth/origin';
+import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
 
 export async function POST(request: NextRequest) {
   try {
+    assertAllowedOrigin(request);
     const { workspace } = await getCurrentWorkspace();
     const body = await request.json();
     const validated = CreateDeckProjectSchema.parse(body);
@@ -17,15 +20,13 @@ export async function POST(request: NextRequest) {
       workspace.id
     );
 
-    return NextResponse.json(deck, { status: 201 });
+    return NextResponse.json(deck, { status: 201, headers: withNoStoreHeaders() });
   } catch (error) {
-    console.error('[API] Error creating deck:', error);
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : 'Failed to create deck',
-      },
-      { status: 400 }
-    );
+    return errorResponse(error, {
+      code: 'ARTICLE_CREATE_FAILED',
+      message: 'Failed to create article.',
+      status: 400,
+    });
   }
 }
 
@@ -33,14 +34,14 @@ export async function GET() {
   try {
     const { workspace } = await getCurrentWorkspace();
     const decks = await listDeckProjects(workspace.id, 20);
-    return NextResponse.json(decks);
+    return NextResponse.json(decks, {
+      headers: withNoStoreHeaders(),
+    });
   } catch (error) {
-    console.error('[API] Error fetching decks:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to fetch decks',
-      },
-      { status: 500 }
-    );
+    return errorResponse(error, {
+      code: 'ARTICLE_LIST_FAILED',
+      message: 'Failed to fetch articles.',
+      status: 500,
+    });
   }
 }

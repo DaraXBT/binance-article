@@ -7,7 +7,8 @@ import {
 } from '@/lib/article-assets';
 import { getDeckWithAssets } from '@/lib/db';
 import { getBlobToken } from '@/lib/image-gen';
-import { getCurrentWorkspace } from '@/lib/workspace';
+import { errorResponse } from '@/server/http/errors';
+import { getCurrentWorkspace } from '@/server/modules/workspace/service';
 
 function buildContentDisposition(filename: string, download: boolean) {
   const safeFilename = filename.replaceAll('"', '');
@@ -67,13 +68,10 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('[API] Error fetching asset:', error);
-
-    return NextResponse.json(
-      {
-        error: 'Failed to fetch asset',
-      },
-      { status: 500 }
-    );
+    return errorResponse(error, {
+      code: 'ASSET_FETCH_FAILED',
+      message: 'Failed to fetch asset.',
+      status: 500,
+    });
   }
 }

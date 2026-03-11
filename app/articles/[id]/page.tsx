@@ -2,8 +2,7 @@
 
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
-import JSZip from 'jszip';
-import { ChevronLeft, Download, Loader2, Trash2 } from 'lucide-react';
+import { ChevronLeft, Loader2, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -41,20 +40,11 @@ import {
   useReorderSlides,
   useUpdateSlide,
 } from '@/lib/hooks';
-import { buildArticleSlideAssetUrl } from '@/lib/article-assets';
-import { DeckDetailResponse, DeckSlide, SlideUpdateRequest } from '@/lib/schemas';
+import { DeckDetailResponse, DeckSlide, JobSummary, SlideUpdateRequest } from '@/lib/schemas';
 
 interface DeckPageProps {
   params: Promise<{ id: string }>;
 }
-
-interface ImageBatchResponse {
-  status: 'success' | 'partial' | 'failed';
-  generated: number;
-  failed: number;
-  total: number;
-}
-
 
 function buildMovedSlideOrder(
   slides: DeckSlide[],
@@ -81,6 +71,29 @@ function buildMovedSlideOrder(
   }));
 }
 
+async function waitForJob(jobId: string): Promise<JobSummary> {
+  const maxAttempts = 60;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const response = await fetch(`/api/jobs/${jobId}`, {
+      cache: 'no-store',
+    });
+    const job = (await response.json()) as JobSummary & { error?: string };
+
+    if (!response.ok) {
+      throw new Error(job.error || 'Failed to fetch job status');
+    }
+
+    if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
+      return job;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+
+  throw new Error('Timed out while waiting for the background job to finish.');
+}
+
 export default function DeckPage({ params }: DeckPageProps) {
   const { id: deckId } = use(params);
   const router = useRouter();
@@ -92,7 +105,6 @@ export default function DeckPage({ params }: DeckPageProps) {
   const [editorFeedback, setEditorFeedback] = useState<string | null>(null);
   const [editorError, setEditorError] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<'slides' | 'editor' | 'preview'>('slides');
-  const [isExporting, setIsExporting] = useState(false);
 
   const { data, isLoading, isError, refetch } = useDeck(deckId);
   const deck = (data ?? null) as DeckDetailResponse | null;
@@ -104,7 +116,7 @@ export default function DeckPage({ params }: DeckPageProps) {
   const deleteDeck = useDeleteDeck();
 
   const retryFailedImages = useMutation({
-    mutationFn: async (): Promise<ImageBatchResponse> => {
+    mutationFn: async (): Promise<JobSummary> => {
       const res = await fetch(`/api/articles/${deckId}/generate-images`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -119,7 +131,7 @@ export default function DeckPage({ params }: DeckPageProps) {
         throw new Error(data?.error || messages.deckPage.imageRetryFailed);
       }
 
-      return data;
+      return waitForJob(data.jobId);
     },
     onMutate: () => {
       setRetryFeedback(null);
@@ -129,12 +141,22 @@ export default function DeckPage({ params }: DeckPageProps) {
       await queryClient.invalidateQueries({ queryKey: queryKeys.detail(deckId) });
       await refetch();
 
-      if (result.status === 'failed') {
+      if (result.status !== 'completed') {
+        setRetryError(result.error || messages.deckPage.imageRetryFailed);
+        return;
+      }
+
+      const imageSummary = result.result as
+        | { generated?: number; status?: 'success' | 'partial' | 'failed' }
+        | null
+        | undefined;
+
+      if (imageSummary?.status === 'failed') {
         setRetryError(messages.deckPage.imageRetryFailed);
         return;
       }
 
-      setRetryFeedback(messages.deckPage.imageRetrySuccess(result.generated));
+      setRetryFeedback(messages.deckPage.imageRetrySuccess(imageSummary?.generated ?? 0));
     },
     onError: (error) => {
       setRetryError(error instanceof Error ? error.message : messages.deckPage.imageRetryFailed);
@@ -167,43 +189,6 @@ export default function DeckPage({ params }: DeckPageProps) {
   const resetEditorMessages = () => {
     setEditorFeedback(null);
     setEditorError(null);
-  };
-
-  const handleExport = async () => {
-    const slidesWithImages = slides.filter((s) => s.imageUrl);
-    if (slidesWithImages.length === 0) return;
-
-    setIsExporting(true);
-    try {
-      const zip = new JSZip();
-
-      await Promise.all(
-        slidesWithImages.map(async (slide) => {
-          try {
-            const assetUrl = buildArticleSlideAssetUrl(deckId, slide.imageUrl!);
-            const res = await fetch(assetUrl);
-            if (!res.ok) return;
-            const blob = await res.blob();
-            const mimeType = res.headers.get('Content-Type') || blob.type;
-            const ext = mimeType === 'image/jpeg' ? 'jpg' : mimeType.split('/')[1] || 'png';
-            const name = `${String(slide.order + 1).padStart(2, '0')}-${slide.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.${ext}`;
-            zip.file(name, blob);
-          } catch {
-            // skip failed downloads
-          }
-        })
-      );
-
-      const content = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(content);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${deck?.title?.replace(/[^a-z0-9]/gi, '-').toLowerCase() || 'export'}.zip`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } finally {
-      setIsExporting(false);
-    }
   };
 
   const handleAddSlide = () => {
@@ -367,20 +352,6 @@ export default function DeckPage({ params }: DeckPageProps) {
                 </span>
               </Button>
             ) : null}
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-2"
-              onClick={handleExport}
-              disabled={isExporting || slides.every((s) => !s.imageUrl)}
-            >
-              {isExporting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4" />
-              )}
-              <span className="hidden sm:inline">{messages.common.export}</span>
-            </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button

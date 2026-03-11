@@ -40,7 +40,10 @@ describe('/api/access', () => {
     );
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: 'Invalid access code' });
+    await expect(response.json()).resolves.toEqual({
+      error: 'Invalid access code',
+      code: 'INVALID_ACCESS_CODE',
+    });
     expect(response.headers.get('set-cookie')).toBeNull();
   });
 

@@ -414,13 +414,13 @@ describe('DashboardHome', () => {
         })
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ success: true, slideCount: 1 }), {
-          status: 200,
+        new Response(JSON.stringify({ jobId: 'job-1', status: 'queued' }), {
+          status: 202,
           headers: { 'Content-Type': 'application/json' },
         })
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ status: 'success', generated: 1, failed: 0, total: 1 }), {
+        new Response(JSON.stringify({ id: 'job-1', status: 'completed', progress: 100 }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         })
@@ -461,11 +461,8 @@ describe('DashboardHome', () => {
     );
     expect(fetchImpl).toHaveBeenNthCalledWith(
       3,
-      '/api/articles/deck-123/generate-images',
-      expect.objectContaining({ method: 'POST' })
-    );
-    expect(fetchImpl.mock.calls[2]?.[1]?.body).toBe(
-      JSON.stringify({ illustrationStyle: 'pixel-art' })
+      '/api/jobs/job-1',
+      expect.objectContaining({ cache: 'no-store' })
     );
   });
 
@@ -494,13 +491,13 @@ describe('DashboardHome', () => {
         })
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ success: true, slideCount: 5 }), {
-          status: 200,
+        new Response(JSON.stringify({ jobId: 'job-2', status: 'queued' }), {
+          status: 202,
           headers: { 'Content-Type': 'application/json' },
         })
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ status: 'success', generated: 5, failed: 0, total: 5 }), {
+        new Response(JSON.stringify({ id: 'job-2', status: 'completed', progress: 100 }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         })
@@ -542,8 +539,10 @@ describe('DashboardHome', () => {
           mode: 'prompt',
         })
       );
-      expect(fetchMock.mock.calls[2]?.[1]?.body).toBe(
-        JSON.stringify({ illustrationStyle: 'lab-notes' })
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        3,
+        '/api/jobs/job-2',
+        expect.objectContaining({ cache: 'no-store' })
       );
       expect(refetch).toHaveBeenCalledTimes(1);
       expect(routerPush).toHaveBeenCalledWith('/articles/deck-456');
