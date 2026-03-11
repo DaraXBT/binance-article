@@ -467,7 +467,7 @@ export default function DeckPage({ params }: DeckPageProps) {
 
       <div className="hidden flex-1 overflow-hidden md:block">
         <ResizablePanelGroup direction="horizontal">
-          <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
+          <ResizablePanel defaultSize="20%" minSize="15%" maxSize="30%">
             <SlideList
               articleId={deckId}
               slides={slides}
@@ -482,7 +482,7 @@ export default function DeckPage({ params }: DeckPageProps) {
 
           <ResizableHandle />
 
-          <ResizablePanel defaultSize={30} minSize={25} maxSize={50}>
+          <ResizablePanel defaultSize="30%" minSize="25%" maxSize="50%">
             <div className="h-full overflow-y-auto border-r border-border p-6">
               <SlideEditor
                 slide={activeSlide}
@@ -496,9 +496,9 @@ export default function DeckPage({ params }: DeckPageProps) {
 
           <ResizableHandle />
 
-          <ResizablePanel defaultSize={50} minSize={30}>
+          <ResizablePanel defaultSize="50%" minSize="30%">
             <ResizablePanelGroup direction="vertical">
-              <ResizablePanel defaultSize={60} minSize={30}>
+              <ResizablePanel defaultSize="60%" minSize="30%">
                 <div className="h-full overflow-auto p-6">
                   <SlidePreview articleId={deckId} slide={activeSlide} theme={deck.theme || undefined} />
                 </div>
@@ -506,7 +506,7 @@ export default function DeckPage({ params }: DeckPageProps) {
 
               <ResizableHandle />
 
-              <ResizablePanel defaultSize={40} minSize={20}>
+              <ResizablePanel defaultSize="40%" minSize="20%">
                 <CaptionViewer captions={deck.captions} />
               </ResizablePanel>
             </ResizablePanelGroup>
