@@ -47,15 +47,6 @@ export function toAppError(
     });
   }
 
-  if (error instanceof Error && /not found/i.test(error.message)) {
-    return new AppError({
-      code: 'NOT_FOUND',
-      message: 'The requested resource was not found.',
-      status: 404,
-      cause: error,
-    });
-  }
-
   return new AppError({
     code: fallback.code,
     message: fallback.message,

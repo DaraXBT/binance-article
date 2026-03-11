@@ -3,6 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 
 import prisma from '@/lib/prisma';
 import { getSessionId } from '@/lib/session';
+import { AppError } from '@/server/http/errors';
 import { logEvent } from '@/server/http/log';
 
 const WORKSPACE_RECOVERY_COOKIE_NAME = 'deckforge_workspace_key_reveal';
@@ -79,7 +80,11 @@ export async function getCurrentWorkspace() {
   });
 
   if (!existingSession?.workspace) {
-    throw new Error('Workspace not found for current session');
+    throw new AppError({
+      code: 'WORKSPACE_NOT_FOUND',
+      message: 'Workspace not found for current session.',
+      status: 404,
+    });
   }
 
   return {

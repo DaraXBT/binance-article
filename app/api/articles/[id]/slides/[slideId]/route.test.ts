@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AppError } from '@/server/http/errors';
 
 const dbMock = {
   updateSlide: vi.fn(),
@@ -23,7 +24,7 @@ describe('PATCH/DELETE /api/articles/[id]/slides/[slideId]', () => {
   });
 
   it('returns 404 when updating a slide outside the current workspace', async () => {
-    dbMock.updateSlide.mockRejectedValue(new Error('Slide not found'));
+    dbMock.updateSlide.mockRejectedValue(new AppError({ code: 'SLIDE_NOT_FOUND', message: 'Slide not found.', status: 404 }));
 
     const { PATCH } = await import('@/app/api/articles/[id]/slides/[slideId]/route');
     const response = await PATCH(

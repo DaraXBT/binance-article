@@ -29,12 +29,12 @@ describe('toAppError', () => {
     expect(result.message).not.toContain('10.0.0.1');
   });
 
-  it('converts "not found" errors to NOT_FOUND with generic message', () => {
+  it('does not convert "not found" plain errors to 404 — uses fallback instead', () => {
     const raw = new Error('Record not found in database table "users" (workspace_abc)');
     const result = toAppError(raw);
-    expect(result.code).toBe('NOT_FOUND');
-    expect(result.status).toBe(404);
-    expect(result.message).toBe('The requested resource was not found.');
+    expect(result.code).toBe('INTERNAL_ERROR');
+    expect(result.status).toBe(500);
+    expect(result.message).toBe('Something went wrong.');
     expect(result.message).not.toContain('database');
     expect(result.message).not.toContain('workspace_abc');
   });

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AppError } from '@/server/http/errors';
 
 const dbMock = {
   getDeckWithAssets: vi.fn(),
@@ -75,7 +76,7 @@ describe('GET/PATCH/DELETE /api/articles/[id]', () => {
   });
 
   it('returns 404 on update when the article is not owned by the workspace', async () => {
-    dbMock.updateDeckProject.mockRejectedValue(new Error('Deck not found'));
+    dbMock.updateDeckProject.mockRejectedValue(new AppError({ code: 'ARTICLE_NOT_FOUND', message: 'Article not found.', status: 404 }));
 
     const { PATCH } = await import('@/app/api/articles/[id]/route');
     const response = await PATCH(
