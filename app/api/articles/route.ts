@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     return errorResponse(error, {
       code: 'ARTICLE_CREATE_FAILED',
       message: 'Failed to create article.',
-      status: 400,
+      status: 500,
     });
   }
 }
