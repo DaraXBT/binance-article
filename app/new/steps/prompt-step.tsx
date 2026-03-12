@@ -71,12 +71,12 @@ export function PromptStep({ formData, onUpdate, fetchImpl }: PromptStepProps) {
               value={formData.articleContent}
               onChange={(e) => onUpdate({ articleContent: e.target.value })}
               rows={8}
-              className={`min-h-[150px] resize-y text-sm leading-relaxed pr-28 ${
+              className={`min-h-[150px] resize-y text-sm leading-relaxed sm:pr-28 ${
                 isGenerating ? 'opacity-50' : ''
               }`}
               disabled={isGenerating}
             />
-            <div className="absolute bottom-3 right-3">
+            <div className="mt-2 flex justify-end sm:absolute sm:bottom-3 sm:right-3 sm:mt-0">
               <div className="relative inline-flex">
                 <span
                   aria-hidden="true"

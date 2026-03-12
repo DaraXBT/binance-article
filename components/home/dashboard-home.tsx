@@ -753,7 +753,7 @@ export function DashboardHome() {
                       {helperText}
                     </p>
 
-                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+                    <div className="flex flex-wrap gap-2 sm:flex-row sm:items-center sm:justify-end">
                       <Select
                         value={String(slideCount)}
                         onValueChange={(value) => setSlideCount(Number(value))}
@@ -761,7 +761,7 @@ export function DashboardHome() {
                         <SelectTrigger
                           aria-label={messages.dashboard.slideCountLabel}
                           size="sm"
-                          className="w-full sm:w-auto"
+                          className="w-auto min-w-[5rem]"
                           disabled={isSubmitting || isSuggesting}
                         >
                           <SelectValue placeholder={messages.dashboard.slideCountLabel} />
@@ -782,7 +782,7 @@ export function DashboardHome() {
                         <SelectTrigger
                           aria-label={messages.dashboard.illustrationStyleLabel}
                           size="sm"
-                          className="w-full sm:w-[11rem]"
+                          className="w-auto min-w-[8rem] sm:w-[11rem]"
                           disabled={isSubmitting || isSuggesting}
                         >
                           <SelectValue placeholder={messages.dashboard.illustrationStyleLabel} />
@@ -803,7 +803,7 @@ export function DashboardHome() {
                         </SelectContent>
                       </Select>
 
-                      <div className="relative inline-flex">
+                      <div className="relative inline-flex w-auto">
                         <span
                           aria-hidden="true"
                           className={getAiSuggestGlowClassName({
@@ -816,7 +816,7 @@ export function DashboardHome() {
                           variant="outline"
                           size="sm"
                           onClick={handleSuggest}
-                          disabled={isSuggesting || isSubmitting}
+                          disabled={isSuggesting || isSubmitting || !prompt.trim()}
                           className="gap-2"
                         >
                           {isSuggesting ? (
@@ -830,7 +830,7 @@ export function DashboardHome() {
                         </Button>
                       </div>
 
-                      <Button type="submit" size="sm" disabled={isSubmitting || isSuggesting} className="gap-2">
+                      <Button type="submit" size="sm" disabled={isSubmitting || isSuggesting || !prompt.trim()} className="gap-2 w-auto">
                         {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                         {isSubmitting
                           ? messages.dashboard.generateLoading
