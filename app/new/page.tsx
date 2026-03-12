@@ -58,7 +58,7 @@ export default function NewDeckPage() {
          // Title holds the URL temporarily for validation
         return formData.title.trim().length > 5 && formData.title.startsWith('http');
       } else if (mode === 'prompt') {
-        return formData.title.trim().length >= 1 && formData.articleContent.trim().length >= 10;
+        return formData.articleContent.trim().length >= 10;
       }
       // Text mode: title is auto-extracted from content, only require content
       return formData.articleContent.trim().length >= 10;
@@ -139,6 +139,7 @@ export default function NewDeckPage() {
           <div className="flex items-center justify-between gap-4 mt-8">
             <Button
               variant="outline"
+              size="sm"
               onClick={handlePrevious}
               disabled={currentStep === 0}
               className="gap-2"
@@ -152,6 +153,7 @@ export default function NewDeckPage() {
             </div>
 
             <Button
+              size="sm"
               onClick={handleNext}
               disabled={!canProceed()}
               className="gap-2"

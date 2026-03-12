@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
+import { GenerateAccessDialog } from '@/components/generate-access-dialog';
 import { useLanguage } from '@/components/language-provider';
+import { GenerateAccessError } from '@/lib/generate-access-error';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, Circle, Loader2, AlertCircle } from 'lucide-react';
 import { JobSummary } from '@/lib/schemas';
@@ -77,6 +79,7 @@ export function GenerateStep({ formData, mode }: GenerateStepProps) {
   const [imageProgress, setImageProgress] = useState({ current: 0, total: 0 });
   const [imageSummary, setImageSummary] = useState<ImageGenerationSummary | null>(null);
   const [jobProgress, setJobProgress] = useState(0);
+  const [showAccessDialog, setShowAccessDialog] = useState(false);
 
   const phases: PhaseInfo[] = [
     { id: 'creating', label: messages.newDeck.generateView.creatingDeck },
@@ -123,6 +126,11 @@ export function GenerateStep({ formData, mode }: GenerateStepProps) {
 
       if (!createRes.ok) {
         const errorData = await createRes.json().catch(() => null);
+        if (GenerateAccessError.isGenerateAccessResponse(createRes.status, errorData)) {
+          setShowAccessDialog(true);
+          setPhase('idle');
+          return;
+        }
         throw new Error(errorData?.error || messages.newDeck.generateView.createDeckError);
       }
       const deckData = await createRes.json();
@@ -143,6 +151,11 @@ export function GenerateStep({ formData, mode }: GenerateStepProps) {
 
       if (!generateRes.ok) {
         const errorData = await generateRes.json().catch(() => null);
+        if (GenerateAccessError.isGenerateAccessResponse(generateRes.status, errorData)) {
+          setShowAccessDialog(true);
+          setPhase('idle');
+          return;
+        }
         throw new Error(errorData?.error || messages.newDeck.generateView.generateSlidesError);
       }
 
@@ -218,6 +231,7 @@ export function GenerateStep({ formData, mode }: GenerateStepProps) {
   const hasImageWarnings = imageSummary?.status === 'partial' || imageSummary?.status === 'failed';
 
   return (
+    <>
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-semibold mb-2">
@@ -245,7 +259,7 @@ export function GenerateStep({ formData, mode }: GenerateStepProps) {
               <p className="text-sm text-destructive/80">{error}</p>
             </div>
           </div>
-          <Button onClick={handleGenerate} variant="outline" className="gap-2">
+          <Button onClick={handleGenerate} variant="outline" size="sm" className="gap-2">
             {messages.newDeck.generateView.tryAgain}
           </Button>
         </div>
@@ -339,5 +353,14 @@ export function GenerateStep({ formData, mode }: GenerateStepProps) {
         </div>
       )}
     </div>
+      <GenerateAccessDialog
+        open={showAccessDialog}
+        onOpenChange={setShowAccessDialog}
+        onSuccess={() => {
+          setShowAccessDialog(false);
+          void handleGenerate();
+        }}
+      />
+    </>
   );
 }

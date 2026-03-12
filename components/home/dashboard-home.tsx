@@ -49,6 +49,7 @@ import {
   SidebarRail,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
+import { GenerateAccessDialog } from '@/components/generate-access-dialog';
 import { RecoveryKeyDialog } from '@/components/workspace/recovery-key-dialog';
 import { WorkspaceOnboarding } from '@/components/workspace/workspace-onboarding';
 import { WorkspaceSidebarFooter } from '@/components/workspace/workspace-sidebar-footer';
@@ -56,6 +57,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ILLUSTRATION_STYLES, type IllustrationStyleId } from '@/lib/config';
 import { formatRelativeTime, type Language } from '@/lib/i18n';
 import { useDecks, useDeleteDeck, useUpdateDeck, useWorkspace } from '@/lib/hooks';
+import { GenerateAccessError } from '@/lib/generate-access-error';
 import { JobSummary } from '@/lib/schemas';
 
 type DeckListItem = {
@@ -73,7 +75,7 @@ type DeckListItem = {
 type HomeFetch = typeof fetch;
 
 interface SubmitPromptArticleOptions {
-  title: string;
+  title?: string;
   prompt: string;
   slideCount?: number;
   illustrationStyle?: IllustrationStyleId;
@@ -89,6 +91,9 @@ async function readHomeResponse<T>(response: Response, fallbackMessage: string):
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
+    if (GenerateAccessError.isGenerateAccessResponse(response.status, data)) {
+      throw new GenerateAccessError(data?.error);
+    }
     throw new Error(data?.error || fallbackMessage);
   }
 
@@ -160,6 +165,13 @@ export function getAiSuggestGlowClassName({
     : 'ai-suggest-glow pointer-events-none absolute inset-0 rounded-md bg-gradient-to-r from-violet-500/30 via-indigo-400/70 to-cyan-400/30 [background-size:200%_100%] p-px opacity-0 transition-opacity duration-200';
 }
 
+function extractTitleFromContent(content: string): string {
+  const headingMatch = content.match(/^#\s+(.+)$/m);
+  if (headingMatch) return headingMatch[1].trim().slice(0, 80);
+  const firstLine = content.split('\n').find((line) => line.trim().length > 0);
+  return firstLine ? firstLine.trim().slice(0, 80) : 'Untitled';
+}
+
 export async function submitPromptArticle({
   title,
   prompt,
@@ -167,12 +179,8 @@ export async function submitPromptArticle({
   illustrationStyle = 'pixel-art',
   fetchImpl = fetch,
 }: SubmitPromptArticleOptions) {
-  const trimmedTitle = title.trim();
   const trimmedPrompt = prompt.trim();
-
-  if (!trimmedTitle) {
-    throw new Error('A topic is required.');
-  }
+  const trimmedTitle = title?.trim() || extractTitleFromContent(trimmedPrompt);
 
   if (!trimmedPrompt) {
     throw new Error('A prompt is required.');
@@ -516,7 +524,6 @@ export function DashboardHome() {
   const router = useRouter();
   const { language, messages } = useLanguage();
   const [query, setQuery] = useState('');
-  const [topic, setTopic] = useState('');
   const [prompt, setPrompt] = useState('');
   const [slideCount, setSlideCount] = useState<number>(DEFAULT_HOME_SLIDE_COUNT);
   const [illustrationStyle, setIllustrationStyle] =
@@ -524,6 +531,8 @@ export function DashboardHome() {
   const [composerError, setComposerError] = useState<string | null>(null);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showAccessDialog, setShowAccessDialog] = useState(false);
+  const pendingRetryRef = useRef<(() => void) | null>(null);
   const deferredQuery = useDeferredValue(query);
   const {
     data: workspace,
@@ -550,8 +559,8 @@ export function DashboardHome() {
   });
 
   const handleSuggest = async () => {
-    if (!topic.trim()) {
-      setComposerError(messages.dashboard.topicRequired);
+    if (!prompt.trim()) {
+      setComposerError(messages.dashboard.promptRequired);
       return;
     }
 
@@ -559,9 +568,15 @@ export function DashboardHome() {
     setComposerError(null);
 
     try {
-      const suggestedPrompt = await requestPromptSuggestion({ title: topic });
+      const suggestedPrompt = await requestPromptSuggestion({ title: prompt });
       setPrompt(suggestedPrompt);
     } catch (error) {
+      if (error instanceof GenerateAccessError) {
+        pendingRetryRef.current = () => void handleSuggest();
+        setShowAccessDialog(true);
+        setIsSuggesting(false);
+        return;
+      }
       setComposerError(
         error instanceof Error ? error.message : messages.dashboard.promptGenerateFailed
       );
@@ -573,11 +588,6 @@ export function DashboardHome() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!topic.trim()) {
-      setComposerError(messages.dashboard.topicRequired);
-      return;
-    }
-
     if (!prompt.trim()) {
       setComposerError(messages.dashboard.promptRequired);
       return;
@@ -588,7 +598,6 @@ export function DashboardHome() {
 
     try {
       const { deckId } = await submitPromptArticle({
-        title: topic,
         prompt,
         slideCount,
         illustrationStyle,
@@ -596,11 +605,23 @@ export function DashboardHome() {
       await refetch();
       router.push(`/articles/${deckId}`);
     } catch (error) {
+      if (error instanceof GenerateAccessError) {
+        pendingRetryRef.current = () => void handleSubmit(event);
+        setShowAccessDialog(true);
+        setIsSubmitting(false);
+        return;
+      }
       setComposerError(
         error instanceof Error ? error.message : messages.dashboard.articleGenerateFailed
       );
       setIsSubmitting(false);
     }
+  };
+
+  const handleAccessSuccess = () => {
+    const retry = pendingRetryRef.current;
+    pendingRetryRef.current = null;
+    if (retry) retry();
   };
 
   const helperText = composerError
@@ -683,7 +704,7 @@ export function DashboardHome() {
             <LanguageToggle />
             <ThemeToggle />
 
-            <Button asChild className="px-4 sm:px-5">
+            <Button asChild size="sm" className="px-4 sm:px-5">
               <Link href="/new">
                 <MessageSquarePlus className="h-4 w-4" />
                 <span className="hidden sm:inline">{messages.common.newDeck}</span>
@@ -708,21 +729,6 @@ export function DashboardHome() {
                 onSubmit={handleSubmit}
                 className="overflow-hidden border border-border/70 bg-background/90 shadow-[0_30px_80px_-60px_rgba(15,23,42,0.45)]"
               >
-                <div className="border-b border-border/70 px-4 py-4 sm:px-5">
-                  <Input
-                    value={topic}
-                    onChange={(event) => {
-                      setTopic(event.target.value);
-                      if (composerError) {
-                        setComposerError(null);
-                      }
-                    }}
-                    placeholder={messages.dashboard.topicPlaceholder}
-                    className="h-12 border-0 bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
-                    disabled={isSubmitting}
-                  />
-                </div>
-
                 <div className="px-4 py-4 sm:px-5 sm:py-5">
                   <Textarea
                     value={prompt}
@@ -801,7 +807,7 @@ export function DashboardHome() {
                         <span
                           aria-hidden="true"
                           className={getAiSuggestGlowClassName({
-                            hasTopic: Boolean(topic.trim()),
+                            hasTopic: Boolean(prompt.trim()),
                             isSuggesting,
                           })}
                         />
@@ -839,6 +845,11 @@ export function DashboardHome() {
           </section>
         </div>
       </SidebarInset>
+      <GenerateAccessDialog
+        open={showAccessDialog}
+        onOpenChange={setShowAccessDialog}
+        onSuccess={handleAccessSuccess}
+      />
     </SidebarProvider>
   );
 }

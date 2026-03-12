@@ -29,6 +29,7 @@ export function WorkspaceOnboarding() {
             </div>
             <Button
               type="button"
+              size="sm"
               onClick={() => createWorkspace.mutate()}
               disabled={createWorkspace.isPending}
               className="w-full"
@@ -46,7 +47,7 @@ export function WorkspaceOnboarding() {
                 {messages.workspace.recoverWorkspaceDescription}
               </p>
             </div>
-            <Button type="button" variant="outline" onClick={() => setRecoverOpen(true)} className="w-full">
+            <Button type="button" variant="outline" size="sm" onClick={() => setRecoverOpen(true)} className="w-full">
               {messages.workspace.openRecoverDialogAction}
             </Button>
           </section>

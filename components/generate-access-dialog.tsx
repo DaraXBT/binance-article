@@ -85,7 +85,7 @@ export function GenerateAccessDialog({ open, onOpenChange, onSuccess }: Generate
             />
           </div>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          <Button type="submit" disabled={isSubmitting || !code.trim()} className="w-full">
+          <Button type="submit" size="sm" disabled={isSubmitting || !code.trim()} className="w-full">
             {isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />

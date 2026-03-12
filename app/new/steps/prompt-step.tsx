@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useLanguage } from '@/components/language-provider';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -18,20 +17,27 @@ interface PromptStepProps {
   fetchImpl?: typeof fetch;
 }
 
+function extractTitleFromContent(content: string): string {
+  const headingMatch = content.match(/^#\s+(.+)$/m);
+  if (headingMatch) return headingMatch[1].trim().slice(0, 80);
+  const firstLine = content.split('\n').find((line) => line.trim().length > 0);
+  return firstLine ? firstLine.trim().slice(0, 80) : '';
+}
+
 export function PromptStep({ formData, onUpdate, fetchImpl }: PromptStepProps) {
-  useLanguage();
+  const { messages } = useLanguage();
   const [isGenerating, setIsGenerating] = useState(false);
   const [genError, setGenError] = useState('');
 
   const handleAutoGenerate = async () => {
-    if (!formData.title.trim()) return;
+    if (!formData.articleContent.trim()) return;
 
     setIsGenerating(true);
     setGenError('');
 
     try {
       const suggestedPrompt = await requestPromptSuggestion({
-        title: formData.title,
+        title: extractTitleFromContent(formData.articleContent) || formData.articleContent.slice(0, 100),
         fetchImpl,
       });
       onUpdate({ articleContent: suggestedPrompt });
@@ -42,39 +48,26 @@ export function PromptStep({ formData, onUpdate, fetchImpl }: PromptStepProps) {
     }
   };
 
-  const canGenerate = formData.title.trim().length >= 1 && !isGenerating;
+  const canGenerate = formData.articleContent.trim().length >= 1 && !isGenerating;
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="mb-2 text-2xl font-semibold">Generate with AI</h2>
+        <h2 className="mb-2 text-2xl font-semibold">{messages.newDeck.promptView.title}</h2>
         <p className="mb-6 text-muted-foreground">
-          Describe the topic or idea you want to present. Our AI will write the full article and generate the slides for you.
+          {messages.newDeck.promptView.subtitle}
         </p>
       </div>
 
       <div className="space-y-5">
         <div>
-          <Label htmlFor="title" className="mb-2 block text-sm font-medium">
-            Topic Title
-          </Label>
-          <Input
-            id="title"
-            placeholder="e.g., The Future of Web3 Wallets"
-            value={formData.title}
-            onChange={(e) => onUpdate({ title: e.target.value })}
-            className="text-base"
-          />
-        </div>
-
-        <div>
           <Label htmlFor="articleContent" className="mb-2 block text-sm font-medium">
-            Detailed Instructions (Prompt)
+            {messages.newDeck.promptView.promptLabel}
           </Label>
           <div className="relative">
             <Textarea
               id="articleContent"
-              placeholder="Write a comprehensive article exploring the evolution of crypto wallets over the next 5 years, focusing on account abstraction and seamless onboarding..."
+              placeholder={messages.newDeck.promptView.promptPlaceholder}
               value={formData.articleContent}
               onChange={(e) => onUpdate({ articleContent: e.target.value })}
               rows={8}
@@ -88,13 +81,14 @@ export function PromptStep({ formData, onUpdate, fetchImpl }: PromptStepProps) {
                 <span
                   aria-hidden="true"
                   className={getAiSuggestGlowClassName({
-                    hasTopic: Boolean(formData.title.trim()),
+                    hasTopic: Boolean(formData.articleContent.trim()),
                     isSuggesting: isGenerating,
                   })}
                 />
                 <Button
                   type="button"
                   variant="outline"
+                  size="sm"
                   onClick={handleAutoGenerate}
                   disabled={!canGenerate}
                   className="gap-2"
@@ -104,7 +98,7 @@ export function PromptStep({ formData, onUpdate, fetchImpl }: PromptStepProps) {
                   ) : (
                     <Sparkles className="h-4 w-4" />
                   )}
-                  {isGenerating ? 'Suggesting...' : 'AI Suggest'}
+                  {isGenerating ? messages.dashboard.aiSuggestLoading : messages.dashboard.aiSuggest}
                 </Button>
               </div>
             </div>
@@ -113,9 +107,9 @@ export function PromptStep({ formData, onUpdate, fetchImpl }: PromptStepProps) {
             <p className="mt-1.5 text-xs text-destructive">{genError}</p>
           ) : (
             <p className="mt-1.5 text-xs text-muted-foreground">
-              {formData.title.trim()
-                ? 'Click AI Suggest to auto-generate instructions from your topic title, or write your own.'
-                : 'Enter a topic title first, then click AI Suggest to auto-generate.'}
+              {formData.articleContent.trim()
+                ? messages.newDeck.promptView.promptHintWithTopic
+                : messages.newDeck.promptView.promptHintEmpty}
             </p>
           )}
         </div>

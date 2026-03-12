@@ -203,6 +203,7 @@ export function SlideEditor({
       <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
         <Button
           onClick={handleSave}
+          size="sm"
           disabled={!isDirty || !draft.title.trim() || isSaving || isDeleting}
           className="gap-2"
         >
@@ -211,6 +212,7 @@ export function SlideEditor({
         </Button>
         <Button
           variant="outline"
+          size="sm"
           onClick={handleDiscard}
           disabled={!isDirty || isSaving || isDeleting}
         >

@@ -5,7 +5,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 vi.mock('@/components/language-provider', () => ({
-  useLanguage: () => ({ language: 'en', messages: {} }),
+  useLanguage: () => ({
+    language: 'en',
+    messages: {
+      dashboard: {
+        aiSuggest: 'AI Suggest',
+        aiSuggestLoading: 'Suggesting...',
+      },
+      newDeck: {
+        promptView: {
+          title: 'Generate with AI',
+          subtitle: 'Describe the topic or idea you want to present. Our AI will write the full article and generate the slides for you.',
+          topicLabel: 'Topic Title',
+          topicPlaceholder: 'e.g., The Future of Web3 Wallets',
+          promptLabel: 'Detailed Instructions (Prompt)',
+          promptPlaceholder: 'Write a comprehensive article...',
+          promptHintWithTopic: 'Click AI Suggest to auto-generate instructions from your prompt, or write your own.',
+          promptHintEmpty: 'Enter your prompt, then click AI Suggest to auto-generate.',
+        },
+      },
+    },
+  }),
 }));
 
 vi.mock('@/components/ui/input', () => ({
@@ -50,7 +70,7 @@ describe('PromptStep', () => {
 
     const { container } = render(
       React.createElement(PromptStep, {
-        formData: { title: 'Bitcoin ETF inflows', articleContent: '' },
+        formData: { title: 'Bitcoin ETF inflows', articleContent: 'Write about Bitcoin ETF inflows' },
         onUpdate,
         fetchImpl: fetchMock,
       })
@@ -97,7 +117,7 @@ describe('PromptStep', () => {
 
     render(
       React.createElement(PromptStep, {
-        formData: { title: 'Bitcoin ETF inflows', articleContent: '' },
+        formData: { title: 'Bitcoin ETF inflows', articleContent: 'Write about Bitcoin ETF inflows' },
         onUpdate: vi.fn(),
         fetchImpl: fetchMock,
       })
@@ -131,7 +151,7 @@ describe('PromptStep', () => {
 
     render(
       React.createElement(PromptStep, {
-        formData: { title: 'Bitcoin ETF inflows', articleContent: '' },
+        formData: { title: 'Bitcoin ETF inflows', articleContent: 'Write about Bitcoin ETF inflows' },
         onUpdate: vi.fn(),
         fetchImpl: fetchMock,
       })
@@ -148,7 +168,7 @@ describe('PromptStep', () => {
 
     const readyRender = render(
       React.createElement(PromptStep, {
-        formData: { title: 'Bitcoin ETF inflows', articleContent: '' },
+        formData: { title: 'Bitcoin ETF inflows', articleContent: 'Write about Bitcoin ETF inflows' },
         onUpdate: vi.fn(),
       })
     );
@@ -168,7 +188,7 @@ describe('PromptStep', () => {
 
     const suggestingRender = render(
       React.createElement(PromptStep, {
-        formData: { title: 'Bitcoin ETF inflows', articleContent: '' },
+        formData: { title: 'Bitcoin ETF inflows', articleContent: 'Write about Bitcoin ETF inflows' },
         onUpdate: vi.fn(),
         fetchImpl: fetchMock,
       })

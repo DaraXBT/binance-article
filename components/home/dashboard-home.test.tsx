@@ -71,6 +71,15 @@ const messages = {
     slides: 'Slides',
     updated: 'Updated',
   },
+  generateAccess: {
+    title: 'Generation Access Code',
+    description: 'Enter the generation access code to unlock article generation.',
+    codeLabel: 'Access Code',
+    codePlaceholder: 'Enter generation code',
+    submit: 'Unlock Generation',
+    submitting: 'Verifying...',
+    invalidCode: 'Invalid generation code. Please try again.',
+  },
   workspace: {
     onboardingTitle: 'Set up your workspace',
     onboardingDescription: 'Create a new recovery key or reconnect an existing workspace before entering the dashboard.',
@@ -182,6 +191,11 @@ vi.mock('@/components/workspace/workspace-sidebar-footer', () => ({
 vi.mock('@/components/workspace/workspace-onboarding', () => ({
   WorkspaceOnboarding: () =>
     React.createElement('div', { 'data-testid': 'workspace-onboarding' }, messages.workspace.onboardingTitle),
+}));
+
+vi.mock('@/components/generate-access-dialog', () => ({
+  GenerateAccessDialog: ({ open }: any) =>
+    open ? React.createElement('div', { 'data-testid': 'generate-access-dialog' }, 'Generate Access Dialog') : null,
 }));
 
 const refetch = vi.fn();
@@ -302,7 +316,6 @@ describe('DashboardHome', () => {
     const html = renderToStaticMarkup(React.createElement(DashboardHome));
 
     expect(html).toContain(messages.dashboard.promptHomeTitle);
-    expect(html).toContain(messages.dashboard.topicPlaceholder);
     expect(html).toContain(messages.dashboard.aiSuggest);
     expect(html).toContain('ai-suggest-glow');
     expect(html).toContain(messages.dashboard.generateAction);
@@ -501,9 +514,6 @@ describe('DashboardHome', () => {
 
       render(React.createElement(module.DashboardHome));
 
-      fireEvent.change(screen.getByPlaceholderText(messages.dashboard.topicPlaceholder), {
-        target: { value: 'Stablecoin treasury operations' },
-      });
       fireEvent.change(screen.getByPlaceholderText(messages.dashboard.promptPlaceholder), {
         target: { value: 'Create an article about treasury settlement using stablecoins.' },
       });
@@ -520,12 +530,12 @@ describe('DashboardHome', () => {
         expect(fetchMock).toHaveBeenCalledTimes(2);
       });
 
-      expect(fetchMock.mock.calls[1]?.[1]?.body).toBe(
+      expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
         JSON.stringify({
-          articleContent: 'Create an article about treasury settlement using stablecoins.',
-          slideCount: 5,
+          title: 'Create an article about treasury settlement using stablecoins.',
+          description: 'Create an article about treasury settlement using stablecoins.',
+          content: 'Create an article about treasury settlement using stablecoins.',
           illustrationStyle: 'lab-notes',
-          mode: 'prompt',
         })
       );
       expect(refetch).toHaveBeenCalledTimes(1);

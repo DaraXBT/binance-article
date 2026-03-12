@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generatePlainTextWithGemini } from '@/lib/gemini';
+import { isGenerateAccessEnabled, hasGrantedGenerateAccess } from '@/lib/generate-access';
 import { assertAllowedOrigin } from '@/server/auth/origin';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
 
@@ -8,6 +9,17 @@ export const maxDuration = 30;
 export async function POST(request: NextRequest) {
   try {
     assertAllowedOrigin(request);
+
+    if (isGenerateAccessEnabled()) {
+      const hasAccess = await hasGrantedGenerateAccess(request);
+      if (!hasAccess) {
+        return NextResponse.json(
+          { error: 'Generation access code required.', code: 'GENERATE_ACCESS_REQUIRED' },
+          { status: 403, headers: withNoStoreHeaders() }
+        );
+      }
+    }
+
     const body = await request.json();
     const { title } = body;
 

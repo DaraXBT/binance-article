@@ -311,7 +311,7 @@ export default function DeckPage({ params }: DeckPageProps) {
       <div className="flex h-screen flex-col items-center justify-center gap-4">
         <p className="text-destructive">{messages.deckPage.failedToLoad}</p>
         <Link href="/">
-          <Button variant="outline">{messages.common.backToDashboard}</Button>
+          <Button variant="outline" size="sm">{messages.common.backToDashboard}</Button>
         </Link>
       </div>
     );
