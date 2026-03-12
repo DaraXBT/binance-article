@@ -2,7 +2,7 @@ import type { Locale } from 'date-fns';
 import { formatDistanceToNow } from 'date-fns';
 import { enUS, km as kmLocale } from 'date-fns/locale';
 
-export type Language = 'km' | 'en' | 'id' | 'lo' | 'my' | 'fil';
+export type Language = 'km' | 'en' | 'id' | 'lo' | 'my' | 'th' | 'fil';
 
 export const LANGUAGE_COOKIE_NAME = 'deckforge_language';
 
@@ -12,6 +12,7 @@ export const LANGUAGES: { code: Language; flag: string; name: string; nativeName
   { code: 'id', flag: '🇮🇩', name: 'Indonesian', nativeName: 'Bahasa' },
   { code: 'lo', flag: '🇱🇦', name: 'Lao', nativeName: 'ລາວ' },
   { code: 'my', flag: '🇲🇲', name: 'Myanmar', nativeName: 'မြန်မာ' },
+  { code: 'th', flag: '🇹🇭', name: 'Thai', nativeName: 'ไทย' },
   { code: 'fil', flag: '🇵🇭', name: 'Filipino', nativeName: 'Filipino' },
 ];
 
@@ -61,6 +62,7 @@ const en = {
     indonesian: 'ID',
     lao: 'ລາວ',
     myanmar: 'မြန်မာ',
+    thai: 'ไทย',
     filipino: 'Filipino',
   },
   dashboard: {
@@ -416,6 +418,7 @@ const km: typeof en = {
     indonesian: 'ID',
     lao: 'ລາວ',
     myanmar: 'မြန်မာ',
+    thai: 'ไทย',
     filipino: 'Filipino',
   },
   dashboard: {
@@ -771,6 +774,7 @@ const id: typeof en = {
     indonesian: 'ID',
     lao: 'ລາວ',
     myanmar: 'မြန်မာ',
+    thai: 'ไทย',
     filipino: 'Filipino',
   },
   dashboard: {
@@ -1126,6 +1130,7 @@ const lo: typeof en = {
     indonesian: 'ID',
     lao: 'ລາວ',
     myanmar: 'မြန်မာ',
+    thai: 'ไทย',
     filipino: 'Filipino',
   },
   dashboard: {
@@ -1481,6 +1486,7 @@ const my: typeof en = {
     indonesian: 'ID',
     lao: 'ລາວ',
     myanmar: 'မြန်မာ',
+    thai: 'ไทย',
     filipino: 'Filipino',
   },
   dashboard: {
@@ -1790,6 +1796,362 @@ const my: typeof en = {
   },
 };
 
+const th: typeof en = {
+  common: {
+    back: 'กลับ',
+    backToDashboard: 'กลับไปแดชบอร์ด',
+    retry: 'ลองอีกครั้ง',
+    cancel: 'ยกเลิก',
+    next: 'ถัดไป',
+    previous: 'ก่อนหน้า',
+    generate: 'สร้าง',
+    newDeck: 'บทความใหม่',
+    share: 'แชร์',
+    export: 'ส่งออก',
+    delete: 'ลบ',
+    rename: 'เปลี่ยนชื่อ',
+    add: 'เพิ่ม',
+  },
+  accessGate: {
+    title: 'การเข้าถึงส่วนตัว',
+    description: 'กรุณาใส่รหัสเข้าถึงเพื่อเข้าสู่พื้นที่ทำงานนี้',
+    codePlaceholder: 'กรุณาใส่รหัสเข้าถึง',
+    submit: 'ดำเนินการต่อ',
+    submitting: 'กำลังตรวจสอบ...',
+    invalidCode: 'รหัสเข้าถึงไม่ถูกต้อง',
+  },
+  generateAccess: {
+    title: 'จำเป็นต้องมีรหัสสร้างเนื้อหา',
+    description: 'กรุณาใส่รหัสสร้างเนื้อหาเพื่อสร้างบทความ ซึ่งช่วยจัดการค่าใช้จ่าย API',
+    codeLabel: 'รหัสสร้างเนื้อหา',
+    codePlaceholder: 'กรุณาใส่รหัสสร้างเนื้อหา',
+    submit: 'ปลดล็อกการสร้าง',
+    submitting: 'กำลังตรวจสอบ...',
+    invalidCode: 'รหัสสร้างเนื้อหาไม่ถูกต้อง',
+  },
+  theme: {
+    ariaLabel: 'สลับธีม',
+    light: 'สว่าง',
+    dark: 'มืด',
+    system: 'ระบบ',
+  },
+  language: {
+    ariaLabel: 'เปลี่ยนภาษา',
+    khmer: 'ខ្មែរ',
+    english: 'EN',
+    indonesian: 'ID',
+    lao: 'ລາວ',
+    myanmar: 'မြန်မာ',
+    thai: 'ไทย',
+    filipino: 'Filipino',
+  },
+  dashboard: {
+    workspaceDashboard: 'แดชบอร์ดพื้นที่ทำงาน',
+    searchDecks: 'ค้นหาบทความ',
+    allDecks: 'บทความทั้งหมด',
+    couldNotLoadDeckList: 'ไม่สามารถโหลดรายการบทความของคุณได้',
+    noMatchingDecks: 'ไม่มีบทความที่ตรงกับการค้นหานี้',
+    noDecksYet: 'ยังไม่มีบทความ สร้างบทความแรกเพื่อเริ่มต้น',
+    renameTitleRequired: 'จำเป็นต้องมีชื่อเรื่อง',
+    renameArticleFailed: 'เปลี่ยนชื่อบทความล้มเหลว',
+    headerTitle: 'แดชบอร์ด',
+    loadErrorTitle: 'ไม่สามารถโหลดบทความได้',
+    loadErrorDescription:
+      'เชลล์แดชบอร์ดพร้อมใช้งาน แต่พื้นที่ทำงานปัจจุบันไม่สามารถดึงรายการบทความได้ ลองอีกครั้งหรือสร้างบทความใหม่จากแถบด้านบน',
+    promptHomeTitle: 'คุณต้องการเขียนเกี่ยวกับอะไร?',
+    promptHomeSubtitle:
+      'เริ่มต้นด้วยหัวข้อ เราจะเปลี่ยนเป็นบทความที่สร้างโดย AI และนำคุณไปยังผลลัพธ์โดยตรง',
+    topicPlaceholder: 'ใส่หัวข้อหรือมุมมอง',
+    promptPlaceholder: 'เพิ่มคำแนะนำของคุณเองหรือให้ AI แนะนำ',
+    promptHintEmpty: 'ใส่หัวข้อก่อน แล้วขอคำแนะนำจาก AI',
+    promptHintReady: 'คุณสามารถปรับแต่งพรอมต์ก่อนสร้างได้',
+    aiSuggest: 'AI แนะนำ',
+    aiSuggestLoading: 'กำลังแนะนำ...',
+    slideCountLabel: 'สไลด์',
+    illustrationStyleLabel: 'สไตล์',
+    generateAction: 'สร้างบทความ',
+    generateLoading: 'กำลังสร้างบทความ...',
+    topicRequired: 'จำเป็นต้องมีหัวข้อ',
+    promptRequired: 'จำเป็นต้องมีพรอมต์',
+    promptGenerateFailed: 'สร้างพรอมต์ล้มเหลว',
+    articleGenerateFailed: 'สร้างบทความล้มเหลว',
+    filterAll: 'ทั้งหมด',
+    filterDraft: 'ฉบับร่าง',
+    filterGenerating: 'กำลังสร้าง',
+    filterGenerated: 'พร้อม',
+    filterRendered: 'กำลังเรนเดอร์',
+    noFilteredDecks: "ไม่มีบทความที่ตรงกับสถานะ '{status}' หรือคำค้นหาที่เลือก",
+  },
+  newDeck: {
+    title: 'สร้างบทความใหม่',
+    subtitle: 'วางบทความของคุณ เลือกสไตล์ แล้วเราจะสร้างทุกอย่างให้อัตโนมัติ',
+    steps: {
+      article: {
+        title: 'บทความ',
+        description: 'วางเนื้อหาของคุณ',
+      },
+      style: {
+        title: 'สไตล์',
+        description: 'เลือกรูปลักษณ์และสไลด์',
+      },
+      generate: {
+        title: 'สร้าง',
+        description: 'สร้างบทความอัตโนมัติ',
+      },
+    },
+    stepCounter: (current: number, total: number) => `ขั้นตอนที่ ${current} จาก ${total}`,
+    content: {
+      title: 'วางบทความของคุณ',
+      subtitle: 'วางบทความฉบับเต็ม — เราจะเปลี่ยนเป็นสไลด์พร้อมรูปภาพ',
+      articleTitle: 'ชื่อบทความ',
+      articleContent: 'เนื้อหาบทความ',
+      titlePlaceholder: 'เช่น โครงสร้างพื้นฐานคริปโตตลอด 24 ชั่วโมงสำหรับนักเทรดทองคำ',
+      contentPlaceholder: 'วางบทความฉบับเต็มที่นี่ (markdown หรือข้อความธรรมดา)...',
+      markdownHint: 'รองรับการจัดรูปแบบ markdown บทความที่ยาวขึ้นจะสร้างสไลด์ที่สมบูรณ์ยิ่งขึ้น',
+      wordCount: (count: number) => `${count} คำ`,
+    },
+    style: {
+      title: 'เลือกสไตล์และสไลด์',
+      subtitle: 'เลือกสไตล์ภาพประกอบและจำนวนสไลด์ที่คุณต้องการ',
+      illustrationStyle: 'สไตล์ภาพประกอบ',
+      numberOfSlides: 'จำนวนสไลด์',
+      quick: '3 สไลด์ (รวดเร็ว)',
+      detailed: '15 สไลด์ (ละเอียด)',
+    },
+    styleOptions: {
+      'pixel-art': {
+        name: 'Pixel Art',
+        description:
+          'สุนทรียะเกมคริปโตย้อนยุค 8 บิตพร้อมพิกเซลใหญ่และฉากไอโซเมตริก',
+        bestFor: 'GameFi',
+      },
+      'fantasy-animation': {
+        name: 'แฟนตาซีแอนิเมชัน',
+        description:
+          'เรื่องเล่าจากหนังสือนิทานมหัศจรรย์พร้อมแสงเรืองรองและความอบอุ่นแบบภาพวาด',
+        bestFor: 'อธิบาย Web3',
+      },
+      'lab-notes': {
+        name: 'บันทึกห้องปฏิบัติการ',
+        description:
+          'แผนภาพวิจัยพร้อมคำอธิบายเชิงเทคนิคที่กระชับชัดเจน',
+        bestFor: 'อธิบายโปรโตคอล',
+      },
+    },
+    generateView: {
+      creatingDeck: 'กำลังสร้างบทความ',
+      generatingSlideContent: 'กำลังสร้างเนื้อหาสไลด์',
+      generatingImages: 'กำลังสร้างรูปภาพ',
+      generatingBlogAndX: 'กำลังสร้างโพสต์ Blog และ X',
+      deckReady: 'บทความของคุณพร้อมแล้ว!',
+      generatingDeck: 'กำลังสร้างบทความของคุณ',
+      readyDescription: 'สไลด์ รูปภาพ และคำบรรยายพร้อมหมดแล้ว กำลังเปลี่ยนเส้นทาง...',
+      readyWithWarningsDescription:
+        'บทความพร้อมแล้ว แต่รูปภาพบางส่วนยังต้องแก้ไข กำลังเปลี่ยนเส้นทางเพื่อให้คุณลองใหม่',
+      workingDescription: 'รอสักครู่ — เรากำลังสร้างสไลด์ รูปภาพ และคำบรรยายให้คุณ',
+      generationFailed: 'การสร้างล้มเหลว',
+      generationCompletedWithWarnings: 'การสร้างเสร็จสมบูรณ์พร้อมคำเตือน',
+      quotaWarningTitle: 'โควตารูปภาพ Gemini ถึงขีดจำกัดแล้ว',
+      quotaWarningBody: (failed: number) =>
+        `Gemini ไม่สามารถสร้างรูปภาพสำหรับ ${failed} สไลด์เนื่องจากโควตารูปภาพถึงขีดจำกัดแล้ว`,
+      quotaWarningRetryAfter: (seconds: number) => `สามารถลองใหม่ได้ในอีกประมาณ ${seconds} วินาที`,
+      quotaWarningModel: (model: string) => `โมเดลที่ได้รับผลกระทบ: ${model}`,
+      quotaWarningAction:
+        'ลองสร้างรูปภาพที่ล้มเหลวใหม่จากหน้าบทความ หากยังเกิดปัญหาซ้ำ ให้ตรวจสอบโควตา การเรียกเก็บเงิน และการกำหนดค่า Gemini',
+      tryAgain: 'ลองอีกครั้ง',
+      progress: 'ความคืบหน้า',
+      successSummary: (count: number) =>
+        `บทความของคุณถูกสร้างแล้วพร้อม ${count} สไลด์ รูปภาพที่กำหนดเอง และคำบรรยายสำหรับ Blog และโพสต์ X ที่พร้อมใช้งาน!`,
+      partialImageSummary: (generated: number, failed: number) =>
+        `สร้างรูปภาพสำเร็จ ${generated} รูปและล้มเหลว ${failed} รูป คุณสามารถลองสไลด์ที่ล้มเหลวใหม่ได้จากหน้าบทความ`,
+      failedImageSummary: (failed: number) =>
+        `การสร้างรูปภาพล้มเหลวสำหรับ ${failed} สไลด์ คุณสามารถลองใหม่ได้จากหน้าบทความ`,
+      createDeckError: 'สร้างบทความล้มเหลว',
+      generateSlidesError: 'สร้างสไลด์ล้มเหลว',
+      unknownError: 'เกิดข้อผิดพลาด',
+    },
+    promptView: {
+      title: 'สร้างด้วย AI',
+      subtitle:
+        'อธิบายหัวข้อหรือไอเดียที่คุณต้องการนำเสนอ AI ของเราจะเขียนบทความฉบับเต็มและสร้างสไลด์ให้คุณ',
+      topicLabel: 'ชื่อหัวข้อ',
+      topicPlaceholder: 'เช่น อนาคตของกระเป๋าเงิน Web3',
+      promptLabel: 'คำแนะนำโดยละเอียด (พรอมต์)',
+      promptPlaceholder:
+        'เขียนบทความฉบับสมบูรณ์เกี่ยวกับวิวัฒนาการของกระเป๋าเงินคริปโตในอีก 5 ปีข้างหน้า โดยเน้นที่การแยกบัญชีและการเริ่มต้นใช้งานที่ราบรื่น...',
+      promptHintWithTopic:
+        'คลิก AI แนะนำเพื่อสร้างคำแนะนำอัตโนมัติจากพรอมต์ของคุณ หรือเขียนเอง',
+      promptHintEmpty:
+        'ใส่พรอมต์ของคุณ แล้วคลิก AI แนะนำเพื่อสร้างอัตโนมัติ',
+    },
+  },
+  deckPage: {
+    failedToLoad: 'โหลดบทความล้มเหลว',
+    back: 'กลับ',
+    deleteArticle: 'ลบบทความ',
+    deleteArticleTitle: 'ลบบทความนี้หรือไม่?',
+    deleteArticleDescription:
+      'การดำเนินการนี้จะลบบทความ สไลด์ คำบรรยาย และทรัพยากรเรนเดอร์ในเครื่องอย่างถาวร',
+    deleteArticleFailed: 'ลบบทความล้มเหลว',
+    retryFailedImages: 'ลองสร้างรูปภาพที่ล้มเหลวใหม่',
+    retryingImages: 'กำลังลองสร้างรูปภาพใหม่...',
+    imageRetryFailed: 'ลองสร้างรูปภาพใหม่ล้มเหลว',
+    imageRetrySuccess: (count: number) => `สร้างรูปภาพสไลด์ใหม่ ${count} รูป`,
+    imagesFailed: (count: number) => `รูปภาพสไลด์ ${count} รูปสร้างไม่สำเร็จ`,
+    imagesPending: (count: number) => `รูปภาพสไลด์ ${count} รูปยังอยู่ระหว่างรอดำเนินการ`,
+    slideAdded: 'เพิ่มสไลด์แล้ว',
+    slideAddFailed: 'เพิ่มสไลด์ล้มเหลว',
+    slideSaved: 'บันทึกสไลด์แล้ว',
+    slideSaveFailed: 'บันทึกสไลด์ล้มเหลว',
+    slideDeleted: 'ลบสไลด์แล้ว',
+    slideDeleteFailed: 'ลบสไลด์ล้มเหลว',
+    slidesReordered: 'เรียงลำดับสไลด์ใหม่แล้ว',
+    slideReorderFailed: 'เรียงลำดับสไลด์ใหม่ล้มเหลว',
+    tabsSlides: (count: number) => `สไลด์ (${count})`,
+    tabsEditor: 'ตัวแก้ไข',
+    tabsPreview: 'ตัวอย่าง',
+  },
+  slideList: {
+    slides: (count: number) => `สไลด์ (${count})`,
+    noSlidesYet: 'ยังไม่มีสไลด์',
+    slide: (index: number) => `สไลด์ ${index}`,
+    moveUp: 'เลื่อนสไลด์ขึ้น',
+    moveDown: 'เลื่อนสไลด์ลง',
+  },
+  slideEditor: {
+    selectSlide: 'เลือกสไลด์เพื่อแก้ไข',
+    editSlide: (index: number) => `แก้ไขสไลด์ ${index}`,
+    untitledSlide: 'สไลด์ไม่มีชื่อ',
+    slideTitle: 'ชื่อสไลด์',
+    subtitle: 'คำบรรยายย่อย (ไม่บังคับ)',
+    bulletPoints: 'หัวข้อย่อย',
+    bulletPlaceholder: 'ใส่แต่ละหัวข้อย่อยในบรรทัดใหม่',
+    bulletHint: 'หนึ่งหัวข้อย่อยต่อหนึ่งบรรทัด',
+    speakerNotes: 'บันทึกผู้บรรยาย',
+    speakerNotesPlaceholder: 'เพิ่มบันทึกผู้บรรยายสำหรับสไลด์นี้...',
+    unsavedChanges: 'มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก',
+    allChangesSaved: 'บันทึกการเปลี่ยนแปลงทั้งหมดแล้ว',
+    save: 'บันทึก',
+    saving: 'กำลังบันทึก...',
+    discard: 'ยกเลิกการเปลี่ยนแปลง',
+    deleteTitle: 'ลบสไลด์นี้หรือไม่?',
+    deleteDescription: 'การดำเนินการนี้จะลบสไลด์และเรียงลำดับสไลด์ที่เหลือใหม่',
+  },
+  slidePreview: {
+    selectSlide: 'เลือกสไลด์เพื่อดูตัวอย่าง',
+    imageNotGenerated: 'ยังไม่ได้สร้างรูปภาพ',
+    imagePending: 'การสร้างรูปภาพอยู่ระหว่างรอดำเนินการ',
+    imageFailed: 'การสร้างรูปภาพล้มเหลว',
+    imageFailureReason: 'ข้อผิดพลาดล่าสุด',
+    slide: (index: number) => `สไลด์ ${index}`,
+    notes: 'บันทึก',
+    viewFullImage: 'ดูรูปภาพเต็ม',
+  },
+  captions: {
+    noCaptions: 'ไม่มีคำบรรยาย',
+    blog: 'Blog',
+    twitter: 'Twitter/X',
+    seoTitle: 'ชื่อ SEO',
+    metaDescription: 'คำอธิบาย Meta',
+    introText: 'ข้อความแนะนำ',
+    tags: 'แท็ก',
+    individualTweets: 'ทวีตแต่ละรายการ',
+    tweet: (index: number) => `ทวีต ${index}`,
+    twitterThread: 'เธรด Twitter',
+    characters: (count: number, max: number) => `${count}/${max} ตัวอักษร`,
+  },
+  settingsStep: {
+    title: 'กำหนดค่าบทความของคุณ',
+    subtitle: 'ให้รายละเอียดเพิ่มเติมเพื่อปรับแต่งการนำเสนอของคุณ',
+    targetAudience: 'กลุ่มเป้าหมาย',
+    targetAudiencePlaceholder: 'เช่น ผู้บริหาร นักศึกษา ประชาชนทั่วไป',
+    targetAudienceHint: 'กลุ่มเป้าหมายหลักของคุณคือใคร?',
+    presentationStyle: 'สไตล์การนำเสนอ',
+    selectStyle: 'เลือกสไตล์',
+    styleHint: 'เลือกสไตล์ที่เข้ากับหัวข้อของคุณ',
+    additionalNotes: 'หมายเหตุเพิ่มเติม (ไม่บังคับ)',
+    additionalNotesPlaceholder:
+      'ข้อกำหนดเฉพาะ ประเด็นสำคัญ หรือคำแนะนำพิเศษ...',
+    additionalNotesHint: 'ช่วยให้เราสร้างเนื้อหาที่ตรงกับความต้องการของคุณมากขึ้น',
+    styleOptions: {
+      professional: {
+        label: 'มืออาชีพ',
+        description: 'องค์กร/ธุรกิจ',
+      },
+      creative: {
+        label: 'สร้างสรรค์',
+        description: 'มีชีวิตชีวา/ศิลปะ',
+      },
+      educational: {
+        label: 'การศึกษา',
+        description: 'วิชาการ/การเรียนรู้',
+      },
+      minimal: {
+        label: 'มินิมอล',
+        description: 'สะอาด/เรียบง่าย',
+      },
+      storytelling: {
+        label: 'การเล่าเรื่อง',
+        description: 'ขับเคลื่อนด้วยเรื่องราว',
+      },
+    },
+  },
+  deckCard: {
+    status: {
+      draft: 'ฉบับร่าง',
+      queued: 'อยู่ในคิว',
+      generating: 'กำลังสร้าง',
+      ready: 'พร้อม',
+      rendering: 'กำลังเรนเดอร์',
+      failed: 'ล้มเหลว',
+    },
+    fallbackDescription:
+      'โปรเจกต์แปลงบทความเป็นสไลด์พร้อมภาพประกอบและคำบรรยายที่พร้อมใช้งาน',
+    slides: 'สไลด์',
+    updated: 'อัปเดต',
+    created: 'สร้างเมื่อ',
+    openDeck: 'เปิดบทความ',
+  },
+  workspace: {
+    onboardingTitle: 'ตั้งค่าพื้นที่ทำงานของคุณ',
+    onboardingDescription:
+      'สร้างคีย์กู้คืนใหม่หรือเชื่อมต่อพื้นที่ทำงานที่มีอยู่ก่อนเข้าสู่แดชบอร์ด',
+    createWorkspaceTitle: 'สร้างคีย์พื้นที่ทำงานใหม่',
+    createWorkspaceDescription: 'สร้างคีย์กู้คืนใหม่สำหรับเซสชันเบราว์เซอร์นี้',
+    createWorkspaceAction: 'สร้างคีย์ใหม่',
+    createWorkspaceLoading: 'กำลังสร้างคีย์...',
+    recoverWorkspaceTitle: 'กู้คืนพื้นที่ทำงานที่มีอยู่',
+    recoverWorkspaceDescription: 'ใช้คีย์กู้คืนที่บันทึกไว้ก่อนหน้านี้เพื่อเชื่อมต่อเบราว์เซอร์นี้ใหม่',
+    openRecoverDialogAction: 'ใช้คีย์ที่มีอยู่',
+    bootstrapLoadingTitle: 'กำลังโหลดพื้นที่ทำงาน',
+    bootstrapLoadingDescription:
+      'เรากำลังตรวจสอบพื้นที่ทำงานของคุณก่อนเปิดแดชบอร์ด',
+    bootstrapErrorTitle: 'พื้นที่ทำงานไม่พร้อมใช้งาน',
+    bootstrapErrorDescription:
+      'ไม่สามารถโหลดพื้นที่ทำงานของคุณได้ในขณะนี้ ลองอีกครั้งเพื่อเชื่อมต่อเบราว์เซอร์นี้ใหม่',
+    sidebarKeyLabel: 'คีย์พื้นที่ทำงาน',
+    copyFullKey: 'คัดลอกคีย์เต็ม',
+    copyPrefix: 'คัดลอกคำนำหน้าคีย์',
+    keyCopied: 'คัดลอกแล้ว!',
+    recoveryDialogTitle: 'บันทึกคีย์กู้คืนของคุณ',
+    recoveryDialogDescription:
+      'นี่เป็นครั้งเดียวที่คีย์กู้คืนเต็มของคุณจะแสดง คัดลอกและเก็บไว้ในที่ปลอดภัย — คุณจะต้องใช้มันเพื่อเข้าถึงพื้นที่ทำงานนี้จากเบราว์เซอร์อื่น',
+    recoveryDialogCopy: 'คัดลอกคีย์',
+    recoveryDialogCopied: 'คัดลอกแล้ว',
+    recoveryDialogWarning: 'คุณต้องคัดลอกคีย์ก่อนดำเนินการต่อ',
+    recoveryDialogAcknowledge: 'ฉันได้บันทึกคีย์ของฉันแล้ว',
+    recoverDialogTitle: 'กู้คืนพื้นที่ทำงาน',
+    recoverDialogDescription:
+      'วางคีย์กู้คืนของคุณเพื่อเชื่อมต่อเบราว์เซอร์นี้กับพื้นที่ทำงานที่มีอยู่',
+    recoverDialogPlaceholder: 'วางคีย์กู้คืนพื้นที่ทำงาน',
+    recoverDialogAction: 'กู้คืน',
+    recoverDialogRecovering: 'กำลังกู้คืน...',
+    recoverDialogSuccess: 'กู้คืนพื้นที่ทำงานสำหรับเบราว์เซอร์นี้แล้ว',
+    recoverDialogFailed: 'กู้คืนพื้นที่ทำงานล้มเหลว',
+    recoverDialogKeyRequired: 'จำเป็นต้องมีคีย์กู้คืน',
+  },
+};
+
 const fil: typeof en = {
   common: {
     back: 'Bumalik',
@@ -1836,6 +2198,7 @@ const fil: typeof en = {
     indonesian: 'ID',
     lao: 'ລາວ',
     myanmar: 'မြန်မာ',
+    thai: 'ไทย',
     filipino: 'Filipino',
   },
   dashboard: {
@@ -2151,13 +2514,14 @@ export const translations: Record<Language, typeof en> = {
   id,
   lo,
   my,
+  th,
   fil,
 };
 
 export type Messages = typeof en;
 
 export function isLanguage(value: string | undefined | null): value is Language {
-  return value === 'km' || value === 'en' || value === 'id' || value === 'lo' || value === 'my' || value === 'fil';
+  return value === 'km' || value === 'en' || value === 'id' || value === 'lo' || value === 'my' || value === 'th' || value === 'fil';
 }
 
 export function formatRelativeTime(date: Date, language: Language) {
@@ -2167,6 +2531,7 @@ export function formatRelativeTime(date: Date, language: Language) {
     id: enUS,
     lo: enUS,
     my: enUS,
+    th: enUS,
     fil: enUS,
   };
   return formatDistanceToNow(date, {
