@@ -1,27 +1,26 @@
+import { waitUntil } from '@vercel/functions';
+
 export async function startWorkflow<TArgs extends unknown[]>(
   handler: (...args: TArgs) => Promise<unknown>,
   args: TArgs
 ) {
-  if (process.env.NODE_ENV === 'test' || !process.env.VERCEL) {
-    const runId = crypto.randomUUID();
+  const runId = crypto.randomUUID();
 
-    setTimeout(() => {
-      void handler(...args).catch((error) => {
-        console.error(
-          JSON.stringify({
-            level: 'error',
-            event: 'workflow.fallback.failed',
-            runId,
-            error: error instanceof Error ? error.message : String(error),
-            timestamp: new Date().toISOString(),
-          })
-        );
-      });
-    }, 0);
+  const promise = handler(...args).catch((error) => {
+    console.error(
+      JSON.stringify({
+        level: 'error',
+        event: 'workflow.background.failed',
+        runId,
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString(),
+      })
+    );
+  });
 
-    return { runId };
+  if (process.env.VERCEL) {
+    waitUntil(promise);
   }
 
-  const { start } = await import('workflow/api');
-  return start(handler, args);
+  return { runId };
 }

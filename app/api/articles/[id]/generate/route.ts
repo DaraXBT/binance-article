@@ -10,7 +10,7 @@ import { attachWorkflowRunId, createJobRun } from '@/server/modules/jobs/service
 import { getCurrentWorkspace } from '@/server/modules/workspace/service';
 import { handleArticleGenerationJob } from '@/workflows/article-jobs';
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const RATE_LIMIT = 10;
 const RATE_WINDOW_MS = 60 * 60 * 1000; // 1 hour
@@ -73,7 +73,7 @@ export async function POST(
     return errorResponse(error, {
       code: 'ARTICLE_GENERATION_START_FAILED',
       message: 'Failed to start article generation.',
-      status: 400,
+      status: 500,
     });
   }
 }

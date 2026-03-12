@@ -10,6 +10,7 @@ const config = [
       'coverage/**',
       'node_modules/**',
       'prisma/migrations/**',
+      'app/.well-known/**',
       '**/*.test.ts',
       '**/*.test.tsx',
     ],
