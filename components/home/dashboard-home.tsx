@@ -568,18 +568,7 @@ export function DashboardHome() {
     return true;
   });
 
-  const handleSuggest = async () => {
-    if (!prompt.trim()) {
-      setComposerError(messages.dashboard.promptRequired);
-      return;
-    }
-
-    if (workspace?.generateAccessEnabled && !accessCodeRef.current) {
-      pendingRetryRef.current = () => void handleSuggest();
-      setShowAccessDialog(true);
-      return;
-    }
-
+  const doSuggest = async () => {
     setIsSuggesting(true);
     setComposerError(null);
 
@@ -588,11 +577,12 @@ export function DashboardHome() {
         title: prompt,
         accessCode: accessCodeRef.current || undefined,
       });
+      accessCodeRef.current = '';
       setPrompt(suggestedPrompt);
     } catch (error) {
       if (error instanceof GenerateAccessError) {
         accessCodeRef.current = '';
-        pendingRetryRef.current = () => void handleSuggest();
+        pendingRetryRef.current = () => void doSuggest();
         setShowAccessDialog(true);
         setIsSuggesting(false);
         return;
@@ -605,20 +595,23 @@ export function DashboardHome() {
     }
   };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
+  const handleSuggest = async () => {
     if (!prompt.trim()) {
       setComposerError(messages.dashboard.promptRequired);
       return;
     }
 
-    if (workspace?.generateAccessEnabled && !accessCodeRef.current) {
-      pendingRetryRef.current = () => void handleSubmit(event);
+    if (workspace?.generateAccessEnabled) {
+      accessCodeRef.current = '';
+      pendingRetryRef.current = () => void doSuggest();
       setShowAccessDialog(true);
       return;
     }
 
+    await doSuggest();
+  };
+
+  const doSubmit = async (event: FormEvent<HTMLFormElement>) => {
     setIsSubmitting(true);
     setComposerError(null);
 
@@ -635,7 +628,7 @@ export function DashboardHome() {
     } catch (error) {
       if (error instanceof GenerateAccessError) {
         accessCodeRef.current = '';
-        pendingRetryRef.current = () => void handleSubmit(event);
+        pendingRetryRef.current = () => void doSubmit(event);
         setShowAccessDialog(true);
         setIsSubmitting(false);
         return;
@@ -645,6 +638,24 @@ export function DashboardHome() {
       );
       setIsSubmitting(false);
     }
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!prompt.trim()) {
+      setComposerError(messages.dashboard.promptRequired);
+      return;
+    }
+
+    if (workspace?.generateAccessEnabled) {
+      accessCodeRef.current = '';
+      pendingRetryRef.current = () => void doSubmit(event);
+      setShowAccessDialog(true);
+      return;
+    }
+
+    await doSubmit(event);
   };
 
   const handleAccessSuccess = (code: string) => {

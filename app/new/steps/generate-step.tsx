@@ -208,6 +208,7 @@ export function GenerateStep({ formData, mode, generateAccessEnabled }: Generate
         total: resolvedImageSummary?.total || jobResult?.slideCount || formData.slideCount,
       });
 
+      accessCodeRef.current = '';
       setPhase('complete');
 
       // Redirect after a short delay
