@@ -60,7 +60,8 @@ export default function NewDeckPage() {
       } else if (mode === 'prompt') {
         return formData.title.trim().length >= 1 && formData.articleContent.trim().length >= 10;
       }
-      return formData.title.trim().length >= 1 && formData.articleContent.trim().length >= 10;
+      // Text mode: title is auto-extracted from content, only require content
+      return formData.articleContent.trim().length >= 10;
     }
     if (currentStep === 1) {
       return formData.illustrationStyle && formData.slideCount >= 1;

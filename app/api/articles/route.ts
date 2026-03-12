@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createDeckProject, listDeckProjects } from '@/lib/db';
+import { isGenerateAccessEnabled, hasGrantedGenerateAccess } from '@/lib/generate-access';
 import { CreateDeckProjectSchema } from '@/lib/schemas';
 import { getCurrentWorkspace } from '@/server/modules/workspace/service';
 import { assertAllowedOrigin } from '@/server/auth/origin';
@@ -8,6 +9,16 @@ import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
 export async function POST(request: NextRequest) {
   try {
     assertAllowedOrigin(request);
+
+    if (isGenerateAccessEnabled()) {
+      const hasAccess = await hasGrantedGenerateAccess(request);
+      if (!hasAccess) {
+        return NextResponse.json(
+          { error: 'Generation access code required.', code: 'GENERATE_ACCESS_REQUIRED' },
+          { status: 403, headers: withNoStoreHeaders() }
+        );
+      }
+    }
     const { workspace } = await getCurrentWorkspace();
     const body = await request.json();
     const validated = CreateDeckProjectSchema.parse(body);

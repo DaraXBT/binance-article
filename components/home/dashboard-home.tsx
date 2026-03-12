@@ -54,7 +54,7 @@ import { WorkspaceOnboarding } from '@/components/workspace/workspace-onboarding
 import { WorkspaceSidebarFooter } from '@/components/workspace/workspace-sidebar-footer';
 import { Textarea } from '@/components/ui/textarea';
 import { ILLUSTRATION_STYLES, type IllustrationStyleId } from '@/lib/config';
-import { formatRelativeTime } from '@/lib/i18n';
+import { formatRelativeTime, type Language } from '@/lib/i18n';
 import { useDecks, useDeleteDeck, useUpdateDeck, useWorkspace } from '@/lib/hooks';
 import { JobSummary } from '@/lib/schemas';
 
@@ -156,8 +156,8 @@ export function getAiSuggestGlowClassName({
   isSuggesting: boolean;
 }) {
   return hasTopic && !isSuggesting
-    ? 'ai-suggest-glow pointer-events-none absolute inset-0 rounded-md bg-gradient-to-r from-yellow-400/20 via-amber-400/90 to-orange-400/25 [background-size:200%_100%] p-px opacity-100 transition-opacity duration-200 motion-safe:animate-[ai-suggest-sweep_2.2s_linear_infinite]'
-    : 'ai-suggest-glow pointer-events-none absolute inset-0 rounded-md bg-gradient-to-r from-yellow-400/20 via-amber-400/90 to-orange-400/25 [background-size:200%_100%] p-px opacity-0 transition-opacity duration-200';
+    ? 'ai-suggest-glow pointer-events-none absolute inset-0 rounded-md bg-gradient-to-r from-violet-500/30 via-indigo-400/70 to-cyan-400/30 [background-size:200%_100%] p-px opacity-100 transition-opacity duration-200 motion-safe:animate-[ai-suggest-sweep_2.2s_linear_infinite]'
+    : 'ai-suggest-glow pointer-events-none absolute inset-0 rounded-md bg-gradient-to-r from-violet-500/30 via-indigo-400/70 to-cyan-400/30 [background-size:200%_100%] p-px opacity-0 transition-opacity duration-200';
 }
 
 export async function submitPromptArticle({
@@ -219,15 +219,6 @@ export async function submitPromptArticle({
     throw new Error('Failed to start article generation');
   }
 
-  const completedJob = await waitForJob({
-    jobId: generationJob.jobId,
-    fetchImpl,
-  });
-
-  if (completedJob.status !== 'completed') {
-    throw new Error(completedJob.error || 'Failed to generate article');
-  }
-
   return { deckId };
 }
 
@@ -236,7 +227,7 @@ function DeckSidebarRow({
   language,
 }: {
   deck: DeckListItem;
-  language: 'km' | 'en';
+  language: Language;
 }) {
   const { messages } = useLanguage();
   const updateDeck = useUpdateDeck();
@@ -455,7 +446,7 @@ function DeckSidebarList({
   isError: boolean;
   query: string;
   onQueryChange: (value: string) => void;
-  language: 'km' | 'en';
+  language: Language;
 }) {
   const { messages } = useLanguage();
 
@@ -817,6 +808,7 @@ export function DashboardHome() {
                         <Button
                           type="button"
                           variant="outline"
+                          size="sm"
                           onClick={handleSuggest}
                           disabled={isSuggesting || isSubmitting}
                           className="gap-2"
@@ -832,7 +824,7 @@ export function DashboardHome() {
                         </Button>
                       </div>
 
-                      <Button type="submit" disabled={isSubmitting || isSuggesting} className="gap-2">
+                      <Button type="submit" size="sm" disabled={isSubmitting || isSuggesting} className="gap-2">
                         {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                         {isSubmitting
                           ? messages.dashboard.generateLoading

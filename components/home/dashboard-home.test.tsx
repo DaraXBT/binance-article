@@ -364,9 +364,9 @@ describe('DashboardHome', () => {
 
     const className = (module as any).getAiSuggestGlowClassName({ hasTopic: true, isSuggesting: false });
 
-    expect(className).toContain('from-yellow-400/20');
-    expect(className).toContain('via-amber-400/90');
-    expect(className).toContain('to-orange-400/25');
+    expect(className).toContain('from-violet-500/30');
+    expect(className).toContain('via-indigo-400/70');
+    expect(className).toContain('to-cyan-400/30');
     expect(className).toContain('[background-size:200%_100%]');
   });
 
@@ -459,11 +459,6 @@ describe('DashboardHome', () => {
         mode: 'prompt',
       })
     );
-    expect(fetchImpl).toHaveBeenNthCalledWith(
-      3,
-      '/api/jobs/job-1',
-      expect.objectContaining({ cache: 'no-store' })
-    );
   });
 
   it('renders the prompt-first controls only when a workspace is attached', async () => {
@@ -495,12 +490,6 @@ describe('DashboardHome', () => {
           status: 202,
           headers: { 'Content-Type': 'application/json' },
         })
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ id: 'job-2', status: 'completed', progress: 100 }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
       );
 
     const originalFetch = global.fetch;
@@ -528,7 +517,7 @@ describe('DashboardHome', () => {
       fireEvent.click(screen.getByRole('button', { name: /generate article/i }));
 
       await waitFor(() => {
-        expect(fetchMock).toHaveBeenCalledTimes(3);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
       });
 
       expect(fetchMock.mock.calls[1]?.[1]?.body).toBe(
@@ -538,11 +527,6 @@ describe('DashboardHome', () => {
           illustrationStyle: 'lab-notes',
           mode: 'prompt',
         })
-      );
-      expect(fetchMock).toHaveBeenNthCalledWith(
-        3,
-        '/api/jobs/job-2',
-        expect.objectContaining({ cache: 'no-store' })
       );
       expect(refetch).toHaveBeenCalledTimes(1);
       expect(routerPush).toHaveBeenCalledWith('/articles/deck-456');

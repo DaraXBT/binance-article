@@ -1,10 +1,10 @@
 'use client';
 
+import { useEffect, useCallback } from 'react';
 import { useLanguage } from '@/components/language-provider';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { FileText } from 'lucide-react';
+import { FileText, Type } from 'lucide-react';
 
 interface ContentStepProps {
   formData: {
@@ -14,9 +14,31 @@ interface ContentStepProps {
   onUpdate: (updates: any) => void;
 }
 
+function extractTitle(content: string): string {
+  const lines = content.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    // Match markdown heading
+    const headingMatch = trimmed.match(/^#{1,3}\s+(.+)/);
+    if (headingMatch) return headingMatch[1].trim();
+    // Use first non-empty line as title
+    return trimmed.length > 80 ? trimmed.slice(0, 80) : trimmed;
+  }
+  return '';
+}
+
 export function ContentStep({ formData, onUpdate }: ContentStepProps) {
   const { messages } = useLanguage();
   const wordCount = formData.articleContent.trim().split(/\s+/).filter(Boolean).length;
+
+  const handleContentChange = useCallback(
+    (content: string) => {
+      const extracted = extractTitle(content);
+      onUpdate({ articleContent: content, ...(extracted ? { title: extracted } : {}) });
+    },
+    [onUpdate]
+  );
 
   return (
     <div className="space-y-6">
@@ -29,19 +51,6 @@ export function ContentStep({ formData, onUpdate }: ContentStepProps) {
 
       <div className="space-y-5">
         <div>
-          <Label htmlFor="title" className="mb-2 block text-sm font-medium">
-            {messages.newDeck.content.articleTitle}
-          </Label>
-          <Input
-            id="title"
-            placeholder={messages.newDeck.content.titlePlaceholder}
-            value={formData.title}
-            onChange={(e) => onUpdate({ title: e.target.value })}
-            className="text-base"
-          />
-        </div>
-
-        <div>
           <Label htmlFor="articleContent" className="mb-2 block text-sm font-medium">
             {messages.newDeck.content.articleContent}
           </Label>
@@ -50,9 +59,9 @@ export function ContentStep({ formData, onUpdate }: ContentStepProps) {
               id="articleContent"
               placeholder={messages.newDeck.content.contentPlaceholder}
               value={formData.articleContent}
-              onChange={(e) => onUpdate({ articleContent: e.target.value })}
-              rows={14}
-              className="text-sm leading-relaxed resize-y min-h-[200px]"
+              onChange={(e) => handleContentChange(e.target.value)}
+              rows={16}
+              className="text-sm leading-relaxed resize-y min-h-[250px]"
             />
             <div className="absolute bottom-3 right-3 flex items-center gap-1.5 text-xs text-muted-foreground bg-background/80 backdrop-blur-sm px-2 py-1 rounded">
               <FileText className="h-3 w-3" />
@@ -63,6 +72,14 @@ export function ContentStep({ formData, onUpdate }: ContentStepProps) {
             {messages.newDeck.content.markdownHint}
           </p>
         </div>
+
+        {formData.title ? (
+          <div className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2">
+            <Type className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-sm text-muted-foreground">{messages.newDeck.content.articleTitle}:</span>
+            <span className="text-sm font-medium truncate">{formData.title}</span>
+          </div>
+        ) : null}
       </div>
     </div>
   );

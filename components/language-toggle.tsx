@@ -1,41 +1,44 @@
 'use client';
 
 import { useLanguage } from '@/components/language-provider';
-import { cn } from '@/lib/utils';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { LANGUAGES, type Language } from '@/lib/i18n';
 
 export function LanguageToggle() {
   const { language, setLanguage, messages } = useLanguage();
 
+  const currentLang = LANGUAGES.find((l) => l.code === language);
+
   return (
-    <div
-      className="inline-flex items-center  border border-border/70 bg-background p-1"
-      aria-label={messages.language.ariaLabel}
-      role="group"
-    >
-      <button
-        type="button"
-        onClick={() => setLanguage('km')}
-        className={cn(
-          ' px-3 py-1.5 text-sm font-medium transition-colors',
-          language === 'km'
-            ? 'bg-foreground text-background'
-            : 'text-muted-foreground hover:text-foreground',
-        )}
+    <Select value={language} onValueChange={(value) => setLanguage(value as Language)}>
+      <SelectTrigger
+        aria-label={messages.language.ariaLabel}
+        className="w-auto min-w-[100px] gap-2"
+        size="sm"
       >
-        {messages.language.khmer}
-      </button>
-      <button
-        type="button"
-        onClick={() => setLanguage('en')}
-        className={cn(
-          ' px-3 py-1.5 text-sm font-medium transition-colors',
-          language === 'en'
-            ? 'bg-foreground text-background'
-            : 'text-muted-foreground hover:text-foreground',
-        )}
-      >
-        {messages.language.english}
-      </button>
-    </div>
+        <SelectValue>
+          <span className="flex items-center gap-2">
+            <span>{currentLang?.flag}</span>
+            <span>{currentLang?.nativeName}</span>
+          </span>
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {LANGUAGES.map((lang) => (
+          <SelectItem key={lang.code} value={lang.code}>
+            <span className="flex items-center gap-2">
+              <span>{lang.flag}</span>
+              <span>{lang.nativeName}</span>
+            </span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

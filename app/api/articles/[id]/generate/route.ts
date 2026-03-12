@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { beginGenerationRevision } from '@/lib/db';
+import { isGenerateAccessEnabled, hasGrantedGenerateAccess } from '@/lib/generate-access';
 import { GenerateRequestSchema } from '@/lib/schemas';
 import { assertAllowedOrigin } from '@/server/auth/origin';
 import { startWorkflow } from '@/server/integrations/workflow-client';
@@ -21,6 +22,16 @@ export async function POST(
 ) {
   try {
     assertAllowedOrigin(request);
+
+    if (isGenerateAccessEnabled()) {
+      const hasAccess = await hasGrantedGenerateAccess(request);
+      if (!hasAccess) {
+        return NextResponse.json(
+          { error: 'Generation access code required.', code: 'GENERATE_ACCESS_REQUIRED' },
+          { status: 403, headers: withNoStoreHeaders() }
+        );
+      }
+    }
     const { workspace } = await getCurrentWorkspace();
 
     const { allowed, resetAt } = checkRateLimit(`generate:${workspace.id}`, RATE_LIMIT, RATE_WINDOW_MS);
