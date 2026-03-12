@@ -71,6 +71,13 @@ async function waitForJob(jobId: string, onProgress: (job: JobSummary) => void) 
   throw new Error('Timed out while waiting for generation to finish.');
 }
 
+function extractTitleFromContent(content: string): string {
+  const headingMatch = content.match(/^#\s+(.+)$/m);
+  if (headingMatch) return headingMatch[1].trim().slice(0, 80);
+  const firstLine = content.split('\n').find((line) => line.trim().length > 0);
+  return firstLine ? firstLine.trim().slice(0, 80) : 'Untitled';
+}
+
 export function GenerateStep({ formData, mode }: GenerateStepProps) {
   const router = useRouter();
   const { messages } = useLanguage();
@@ -117,8 +124,8 @@ export function GenerateStep({ formData, mode }: GenerateStepProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: mode === 'url' ? 'Import from URL' : formData.title, // Temporarily use a placeholder title for URL mode
-          description: mode === 'url' ? formData.title : formData.articleContent.slice(0, 200), // formData.title temporarily holds the URL
+          title: mode === 'url' ? 'Import from URL' : (formData.title.trim() || extractTitleFromContent(formData.articleContent)),
+          description: mode === 'url' ? formData.title : formData.articleContent.slice(0, 200),
           content: mode === 'url' ? formData.title : formData.articleContent,
           illustrationStyle: formData.illustrationStyle,
         }),
