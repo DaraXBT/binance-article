@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { beginGenerationRevision } from '@/lib/db';
-import { isGenerateAccessEnabled, hasGrantedGenerateAccess } from '@/lib/generate-access';
+import { isGenerateAccessEnabled, isValidGenerateAccessCode } from '@/lib/generate-access';
 import { GenerateRequestSchema } from '@/lib/schemas';
 import { assertAllowedOrigin } from '@/server/auth/origin';
 import { startWorkflow } from '@/server/integrations/workflow-client';
@@ -23,9 +23,11 @@ export async function POST(
   try {
     assertAllowedOrigin(request);
 
+    const body = await request.json();
+
     if (isGenerateAccessEnabled()) {
-      const hasAccess = await hasGrantedGenerateAccess(request);
-      if (!hasAccess) {
+      const accessCode = typeof body?.accessCode === 'string' ? body.accessCode : '';
+      if (!accessCode || !(await isValidGenerateAccessCode(accessCode))) {
         return NextResponse.json(
           { error: 'Generation access code required.', code: 'GENERATE_ACCESS_REQUIRED' },
           { status: 403, headers: withNoStoreHeaders() }
@@ -49,7 +51,6 @@ export async function POST(
       );
     }
     const deckId = (await params).id;
-    const body = await request.json();
     const validated = GenerateRequestSchema.parse(body);
 
     const revision = await beginGenerationRevision(deckId, workspace.id);

@@ -21,6 +21,7 @@ export type WorkspaceBootstrap = {
   workspaceId: string | null;
   accessKeyPrefix: string | null;
   recoveryKey: string | null;
+  generateAccessEnabled: boolean;
 };
 
 export type WorkspaceCreateResult = {

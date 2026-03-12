@@ -79,6 +79,7 @@ interface SubmitPromptArticleOptions {
   prompt: string;
   slideCount?: number;
   illustrationStyle?: IllustrationStyleId;
+  accessCode?: string;
   fetchImpl?: HomeFetch;
 }
 
@@ -127,9 +128,11 @@ async function waitForJob({
 
 export async function requestPromptSuggestion({
   title,
+  accessCode,
   fetchImpl = fetch,
 }: {
   title: string;
+  accessCode?: string;
   fetchImpl?: HomeFetch;
 }) {
   const trimmedTitle = title.trim();
@@ -141,7 +144,10 @@ export async function requestPromptSuggestion({
   const response = await fetchImpl('/api/articles/generate-prompt', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title: trimmedTitle }),
+    body: JSON.stringify({
+      title: trimmedTitle,
+      ...(accessCode ? { accessCode } : {}),
+    }),
   });
 
   const data = await readHomeResponse<{ prompt?: string }>(response, 'Failed to generate prompt');
@@ -177,6 +183,7 @@ export async function submitPromptArticle({
   prompt,
   slideCount = 1,
   illustrationStyle = 'pixel-art',
+  accessCode,
   fetchImpl = fetch,
 }: SubmitPromptArticleOptions) {
   const trimmedPrompt = prompt.trim();
@@ -194,6 +201,7 @@ export async function submitPromptArticle({
       description: trimmedPrompt.slice(0, 200),
       content: trimmedPrompt,
       illustrationStyle,
+      ...(accessCode ? { accessCode } : {}),
     }),
   });
 
@@ -215,6 +223,7 @@ export async function submitPromptArticle({
       slideCount,
       illustrationStyle,
       mode: 'prompt',
+      ...(accessCode ? { accessCode } : {}),
     }),
   });
 
@@ -533,6 +542,7 @@ export function DashboardHome() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAccessDialog, setShowAccessDialog] = useState(false);
   const pendingRetryRef = useRef<(() => void) | null>(null);
+  const accessCodeRef = useRef<string>('');
   const deferredQuery = useDeferredValue(query);
   const {
     data: workspace,
@@ -564,14 +574,24 @@ export function DashboardHome() {
       return;
     }
 
+    if (workspace?.generateAccessEnabled && !accessCodeRef.current) {
+      pendingRetryRef.current = () => void handleSuggest();
+      setShowAccessDialog(true);
+      return;
+    }
+
     setIsSuggesting(true);
     setComposerError(null);
 
     try {
-      const suggestedPrompt = await requestPromptSuggestion({ title: prompt });
+      const suggestedPrompt = await requestPromptSuggestion({
+        title: prompt,
+        accessCode: accessCodeRef.current || undefined,
+      });
       setPrompt(suggestedPrompt);
     } catch (error) {
       if (error instanceof GenerateAccessError) {
+        accessCodeRef.current = '';
         pendingRetryRef.current = () => void handleSuggest();
         setShowAccessDialog(true);
         setIsSuggesting(false);
@@ -593,6 +613,12 @@ export function DashboardHome() {
       return;
     }
 
+    if (workspace?.generateAccessEnabled && !accessCodeRef.current) {
+      pendingRetryRef.current = () => void handleSubmit(event);
+      setShowAccessDialog(true);
+      return;
+    }
+
     setIsSubmitting(true);
     setComposerError(null);
 
@@ -601,11 +627,14 @@ export function DashboardHome() {
         prompt,
         slideCount,
         illustrationStyle,
+        accessCode: accessCodeRef.current || undefined,
       });
+      accessCodeRef.current = '';
       await refetch();
       router.push(`/articles/${deckId}`);
     } catch (error) {
       if (error instanceof GenerateAccessError) {
+        accessCodeRef.current = '';
         pendingRetryRef.current = () => void handleSubmit(event);
         setShowAccessDialog(true);
         setIsSubmitting(false);
@@ -618,7 +647,8 @@ export function DashboardHome() {
     }
   };
 
-  const handleAccessSuccess = () => {
+  const handleAccessSuccess = (code: string) => {
+    accessCodeRef.current = code;
     const retry = pendingRetryRef.current;
     pendingRetryRef.current = null;
     if (retry) retry();

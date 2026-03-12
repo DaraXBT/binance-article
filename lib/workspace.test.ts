@@ -75,6 +75,7 @@ describe('workspace helpers', () => {
       workspaceId: null,
       accessKeyPrefix: null,
       recoveryKey: null,
+      generateAccessEnabled: false,
     });
     expect(prismaMock.workspace.create).not.toHaveBeenCalled();
   });
@@ -104,12 +105,14 @@ describe('workspace helpers', () => {
       workspaceId: 'workspace-1',
       accessKeyPrefix: 'dwk_created',
       recoveryKey: created.recoveryKey,
+      generateAccessEnabled: false,
     });
     expect(secondBootstrap).toEqual({
       hasWorkspace: true,
       workspaceId: 'workspace-1',
       accessKeyPrefix: 'dwk_created',
       recoveryKey: null,
+      generateAccessEnabled: false,
     });
   });
 
@@ -126,6 +129,7 @@ describe('workspace helpers', () => {
       workspaceId: null,
       accessKeyPrefix: null,
       recoveryKey: null,
+      generateAccessEnabled: false,
     });
   });
 

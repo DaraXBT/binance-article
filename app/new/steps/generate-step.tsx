@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { GenerateAccessDialog } from '@/components/generate-access-dialog';
 import { useLanguage } from '@/components/language-provider';
@@ -17,9 +17,10 @@ interface GenerateStepProps {
     illustrationStyle: string;
   };
   mode: 'text' | 'url' | 'prompt';
+  generateAccessEnabled?: boolean;
 }
 
-type Phase = 'idle' | 'creating' | 'generating-slides' | 'generating-images' | 'generating-captions' | 'complete' | 'error';
+type Phase = 'idle' | 'awaiting-code' | 'creating' | 'generating-slides' | 'generating-images' | 'generating-captions' | 'complete' | 'error';
 
 interface PhaseInfo {
   id: Phase;
@@ -78,15 +79,16 @@ function extractTitleFromContent(content: string): string {
   return firstLine ? firstLine.trim().slice(0, 80) : 'Untitled';
 }
 
-export function GenerateStep({ formData, mode }: GenerateStepProps) {
+export function GenerateStep({ formData, mode, generateAccessEnabled }: GenerateStepProps) {
   const router = useRouter();
   const { messages } = useLanguage();
-  const [phase, setPhase] = useState<Phase>('idle');
+  const [phase, setPhase] = useState<Phase>(generateAccessEnabled ? 'awaiting-code' : 'idle');
   const [error, setError] = useState('');
   const [imageProgress, setImageProgress] = useState({ current: 0, total: 0 });
   const [imageSummary, setImageSummary] = useState<ImageGenerationSummary | null>(null);
   const [jobProgress, setJobProgress] = useState(0);
-  const [showAccessDialog, setShowAccessDialog] = useState(false);
+  const [showAccessDialog, setShowAccessDialog] = useState(!!generateAccessEnabled);
+  const accessCodeRef = useRef<string>('');
 
   const phases: PhaseInfo[] = [
     { id: 'creating', label: messages.newDeck.generateView.creatingDeck },
@@ -128,14 +130,16 @@ export function GenerateStep({ formData, mode }: GenerateStepProps) {
           description: mode === 'url' ? formData.title : formData.articleContent.slice(0, 200),
           content: mode === 'url' ? formData.title : formData.articleContent,
           illustrationStyle: formData.illustrationStyle,
+          ...(accessCodeRef.current ? { accessCode: accessCodeRef.current } : {}),
         }),
       });
 
       if (!createRes.ok) {
         const errorData = await createRes.json().catch(() => null);
         if (GenerateAccessError.isGenerateAccessResponse(createRes.status, errorData)) {
+          accessCodeRef.current = '';
           setShowAccessDialog(true);
-          setPhase('idle');
+          setPhase('awaiting-code');
           return;
         }
         throw new Error(errorData?.error || messages.newDeck.generateView.createDeckError);
@@ -153,14 +157,16 @@ export function GenerateStep({ formData, mode }: GenerateStepProps) {
           slideCount: formData.slideCount,
           illustrationStyle: formData.illustrationStyle,
           mode: mode, // Tell the backend what mode we are performing
+          ...(accessCodeRef.current ? { accessCode: accessCodeRef.current } : {}),
         }),
       });
 
       if (!generateRes.ok) {
         const errorData = await generateRes.json().catch(() => null);
         if (GenerateAccessError.isGenerateAccessResponse(generateRes.status, errorData)) {
+          accessCodeRef.current = '';
           setShowAccessDialog(true);
-          setPhase('idle');
+          setPhase('awaiting-code');
           return;
         }
         throw new Error(errorData?.error || messages.newDeck.generateView.generateSlidesError);
@@ -363,9 +369,10 @@ export function GenerateStep({ formData, mode }: GenerateStepProps) {
       <GenerateAccessDialog
         open={showAccessDialog}
         onOpenChange={setShowAccessDialog}
-        onSuccess={() => {
+        onSuccess={(code) => {
+          accessCodeRef.current = code;
           setShowAccessDialog(false);
-          void handleGenerate();
+          setPhase('idle');
         }}
       />
     </>

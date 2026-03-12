@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { grantGenerateAccess, isValidGenerateAccessCode } from '@/lib/generate-access';
+import { isValidGenerateAccessCode } from '@/lib/generate-access';
 import { assertAllowedOrigin } from '@/server/auth/origin';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
 import { checkRateLimit } from '@/server/http/rate-limit';
@@ -41,14 +41,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const response = NextResponse.json(
+    return NextResponse.json(
       { success: true },
       {
         headers: withNoStoreHeaders(),
       }
     );
-    await grantGenerateAccess(response);
-    return response;
   } catch (error) {
     return errorResponse(error, {
       code: 'GENERATE_ACCESS_FAILED',

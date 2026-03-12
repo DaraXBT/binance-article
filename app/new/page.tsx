@@ -14,6 +14,7 @@ import { StyleStep } from './steps/style-step';
 import { GenerateStep } from './steps/generate-step';
 import { UrlStep } from './steps/url-step';
 import { PromptStep } from './steps/prompt-step';
+import { useWorkspace } from '@/lib/hooks';
 
 interface WizardFormData {
   title: string;
@@ -26,6 +27,7 @@ export default function NewDeckPage() {
   const searchParams = useSearchParams();
   const mode = searchParams.get('mode') || 'text'; // 'url', 'prompt', or 'text'
   const { messages } = useLanguage();
+  const { data: workspace } = useWorkspace();
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<WizardFormData>({
     title: '',
@@ -131,7 +133,7 @@ export default function NewDeckPage() {
             <StyleStep formData={formData} onUpdate={updateFormData} />
           )}
           {currentStep === 2 && (
-            <GenerateStep formData={formData} mode={mode as any} />
+            <GenerateStep formData={formData} mode={mode as any} generateAccessEnabled={workspace?.generateAccessEnabled} />
           )}
         </div>
 

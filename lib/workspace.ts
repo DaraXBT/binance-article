@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { createHash, randomBytes } from 'node:crypto';
 
 import prisma from '@/lib/prisma';
+import { isGenerateAccessEnabled } from '@/lib/generate-access';
 import { getSessionId } from '@/lib/session';
 import { AppError } from '@/server/http/errors';
 import { logEvent } from '@/server/http/log';
@@ -19,6 +20,7 @@ export interface WorkspaceBootstrap {
   workspaceId: string | null;
   accessKeyPrefix: string | null;
   recoveryKey: string | null;
+  generateAccessEnabled: boolean;
 }
 
 function createRecoveryAccessKey() {
@@ -178,6 +180,7 @@ export async function getWorkspaceBootstrap(): Promise<WorkspaceBootstrap> {
       workspaceId: null,
       accessKeyPrefix: null,
       recoveryKey: null,
+      generateAccessEnabled: isGenerateAccessEnabled(),
     };
   }
 
@@ -186,6 +189,7 @@ export async function getWorkspaceBootstrap(): Promise<WorkspaceBootstrap> {
     workspaceId: existingSession.workspace.id,
     accessKeyPrefix: existingSession.workspace.accessKeyPrefix,
     recoveryKey: await consumePendingWorkspaceRecoveryKey(),
+    generateAccessEnabled: isGenerateAccessEnabled(),
   };
 }
 
