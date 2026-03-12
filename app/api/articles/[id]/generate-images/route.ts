@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getCurrentRevisionContext } from '@/lib/db';
+import { isGenerateAccessEnabled, isValidGenerateAccessCode } from '@/lib/generate-access';
 import { GenerateImagesRequestSchema } from '@/lib/schemas';
 import { assertAllowedOrigin } from '@/server/auth/origin';
 import { startWorkflow } from '@/server/integrations/workflow-client';
@@ -21,6 +22,19 @@ export async function POST(
 ) {
   try {
     assertAllowedOrigin(request);
+
+    const body = await request.json().catch(() => ({}));
+
+    if (isGenerateAccessEnabled()) {
+      const accessCode = typeof body?.accessCode === 'string' ? body.accessCode : '';
+      if (!accessCode || !(await isValidGenerateAccessCode(accessCode))) {
+        return NextResponse.json(
+          { error: 'Generation access code required.', code: 'GENERATE_ACCESS_REQUIRED' },
+          { status: 403, headers: withNoStoreHeaders() }
+        );
+      }
+    }
+
     const { workspace } = await getCurrentWorkspace();
 
     const { allowed, resetAt } = checkRateLimit(`gen-images:${workspace.id}`, RATE_LIMIT, RATE_WINDOW_MS);
@@ -38,7 +52,6 @@ export async function POST(
       );
     }
     const deckId = (await params).id;
-    const body = await request.json().catch(() => ({}));
     const validated = GenerateImagesRequestSchema.parse(body);
     const revision = await getCurrentRevisionContext(deckId, workspace.id);
 

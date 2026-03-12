@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLanguage } from '@/components/language-provider';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Loader2, Sparkles } from 'lucide-react';
 import { getAiSuggestGlowClassName, requestPromptSuggestion } from '@/components/home/dashboard-home';
+import { GenerateAccessDialog } from '@/components/generate-access-dialog';
+import { GenerateAccessError } from '@/lib/generate-access-error';
 
 interface PromptStepProps {
   formData: {
@@ -15,6 +17,7 @@ interface PromptStepProps {
   };
   onUpdate: (updates: any) => void;
   fetchImpl?: typeof fetch;
+  generateAccessEnabled?: boolean;
 }
 
 function extractTitleFromContent(content: string): string {
@@ -24,33 +27,65 @@ function extractTitleFromContent(content: string): string {
   return firstLine ? firstLine.trim().slice(0, 80) : '';
 }
 
-export function PromptStep({ formData, onUpdate, fetchImpl }: PromptStepProps) {
+export function PromptStep({ formData, onUpdate, fetchImpl, generateAccessEnabled }: PromptStepProps) {
   const { messages } = useLanguage();
   const [isGenerating, setIsGenerating] = useState(false);
   const [genError, setGenError] = useState('');
+  const [showAccessDialog, setShowAccessDialog] = useState(false);
+  const accessCodeRef = useRef<string>('');
+  const pendingRetryRef = useRef<(() => void) | null>(null);
 
-  const handleAutoGenerate = async () => {
-    if (!formData.articleContent.trim()) return;
-
+  const doAutoGenerate = async () => {
     setIsGenerating(true);
     setGenError('');
 
     try {
       const suggestedPrompt = await requestPromptSuggestion({
         title: extractTitleFromContent(formData.articleContent) || formData.articleContent.slice(0, 100),
+        accessCode: accessCodeRef.current || undefined,
         fetchImpl,
       });
+      accessCodeRef.current = '';
       onUpdate({ articleContent: suggestedPrompt });
     } catch (err) {
+      if (err instanceof GenerateAccessError) {
+        accessCodeRef.current = '';
+        pendingRetryRef.current = () => void doAutoGenerate();
+        setShowAccessDialog(true);
+        setIsGenerating(false);
+        return;
+      }
       setGenError(err instanceof Error ? err.message : 'Generation failed');
     } finally {
       setIsGenerating(false);
     }
   };
 
+  const handleAutoGenerate = async () => {
+    if (!formData.articleContent.trim()) return;
+
+    if (generateAccessEnabled) {
+      accessCodeRef.current = '';
+      pendingRetryRef.current = () => void doAutoGenerate();
+      setShowAccessDialog(true);
+      return;
+    }
+
+    await doAutoGenerate();
+  };
+
+  const handleAccessSuccess = (code: string) => {
+    accessCodeRef.current = code;
+    setShowAccessDialog(false);
+    const retry = pendingRetryRef.current;
+    pendingRetryRef.current = null;
+    if (retry) retry();
+  };
+
   const canGenerate = formData.articleContent.trim().length >= 1 && !isGenerating;
 
   return (
+    <>
     <div className="space-y-6">
       <div>
         <h2 className="mb-2 text-2xl font-semibold">{messages.newDeck.promptView.title}</h2>
@@ -115,5 +150,11 @@ export function PromptStep({ formData, onUpdate, fetchImpl }: PromptStepProps) {
         </div>
       </div>
     </div>
+    <GenerateAccessDialog
+      open={showAccessDialog}
+      onOpenChange={setShowAccessDialog}
+      onSuccess={handleAccessSuccess}
+    />
+    </>
   );
 }

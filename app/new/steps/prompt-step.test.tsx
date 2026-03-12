@@ -49,6 +49,19 @@ vi.mock('lucide-react', () => ({
   Sparkles: (props: React.ComponentProps<'svg'>) => React.createElement('svg', props),
 }));
 
+vi.mock('@/components/generate-access-dialog', () => ({
+  GenerateAccessDialog: () => null,
+}));
+
+vi.mock('@/lib/generate-access-error', () => ({
+  GenerateAccessError: class GenerateAccessError extends Error {
+    constructor() { super('Generate access required'); }
+    static isGenerateAccessResponse(status: number, data: unknown) {
+      return status === 403 && (data as Record<string, string>)?.code === 'GENERATE_ACCESS_REQUIRED';
+    }
+  },
+}));
+
 describe('PromptStep', () => {
   beforeEach(() => {
     vi.clearAllMocks();

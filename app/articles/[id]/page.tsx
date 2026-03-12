@@ -1,12 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { use, useEffect, useState } from 'react';
+import { use, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, Loader2, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { CaptionViewer } from '@/components/caption-viewer';
+import { GenerateAccessDialog } from '@/components/generate-access-dialog';
+import { GenerateAccessError } from '@/lib/generate-access-error';
 import { LanguageToggle } from '@/components/language-toggle';
 import { SlideEditor } from '@/components/slide-editor';
 import { SlideList } from '@/components/slide-list';
@@ -39,6 +41,7 @@ import {
   useDeleteSlide,
   useReorderSlides,
   useUpdateSlide,
+  useWorkspace,
 } from '@/lib/hooks';
 import { DeckDetailResponse, DeckSlide, JobSummary, SlideUpdateRequest } from '@/lib/schemas';
 
@@ -105,7 +108,10 @@ export default function DeckPage({ params }: DeckPageProps) {
   const [editorFeedback, setEditorFeedback] = useState<string | null>(null);
   const [editorError, setEditorError] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<'slides' | 'editor' | 'preview'>('slides');
+  const [showAccessDialog, setShowAccessDialog] = useState(false);
+  const accessCodeRef = useRef<string>('');
 
+  const { data: workspace } = useWorkspace();
   const { data, isLoading, isError, refetch } = useDeck(deckId);
   const deck = (data ?? null) as DeckDetailResponse | null;
 
@@ -123,14 +129,19 @@ export default function DeckPage({ params }: DeckPageProps) {
         body: JSON.stringify({
           illustrationStyle: deck?.illustrationStyle || 'pixel-art',
           mode: 'failed',
+          ...(accessCodeRef.current ? { accessCode: accessCodeRef.current } : {}),
         }),
       });
 
       const data = await res.json().catch(() => null);
       if (!res.ok) {
+        if (GenerateAccessError.isGenerateAccessResponse(res.status, data)) {
+          throw new GenerateAccessError();
+        }
         throw new Error(data?.error || messages.deckPage.imageRetryFailed);
       }
 
+      accessCodeRef.current = '';
       return waitForJob(data.jobId);
     },
     onMutate: () => {
@@ -159,6 +170,11 @@ export default function DeckPage({ params }: DeckPageProps) {
       setRetryFeedback(messages.deckPage.imageRetrySuccess(imageSummary?.generated ?? 0));
     },
     onError: (error) => {
+      if (error instanceof GenerateAccessError) {
+        accessCodeRef.current = '';
+        setShowAccessDialog(true);
+        return;
+      }
       setRetryError(error instanceof Error ? error.message : messages.deckPage.imageRetryFailed);
     },
   });
@@ -318,6 +334,7 @@ export default function DeckPage({ params }: DeckPageProps) {
   }
 
   return (
+    <>
     <div className="flex h-screen flex-col">
       <div className="sticky top-0 z-10 border-b border-border bg-background">
         <div className="flex w-full flex-wrap items-center justify-between gap-2 px-3 py-3 sm:px-4 sm:py-4">
@@ -339,7 +356,14 @@ export default function DeckPage({ params }: DeckPageProps) {
                 size="sm"
                 variant="outline"
                 className="gap-2"
-                onClick={() => retryFailedImages.mutate()}
+                onClick={() => {
+                  if (workspace?.generateAccessEnabled) {
+                    accessCodeRef.current = '';
+                    setShowAccessDialog(true);
+                    return;
+                  }
+                  retryFailedImages.mutate();
+                }}
                 disabled={retryFailedImages.isPending}
               >
                 {retryFailedImages.isPending ? (
@@ -516,5 +540,15 @@ export default function DeckPage({ params }: DeckPageProps) {
         </ResizablePanelGroup>
       </div>
     </div>
+      <GenerateAccessDialog
+        open={showAccessDialog}
+        onOpenChange={setShowAccessDialog}
+        onSuccess={(code) => {
+          accessCodeRef.current = code;
+          setShowAccessDialog(false);
+          retryFailedImages.mutate();
+        }}
+      />
+    </>
   );
 }

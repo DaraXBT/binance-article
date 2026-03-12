@@ -125,7 +125,7 @@ export default function NewDeckPage() {
           {currentStep === 0 && (
             <>
               {mode === 'url' && <UrlStep formData={formData} onUpdate={updateFormData} />}
-              {mode === 'prompt' && <PromptStep formData={formData} onUpdate={updateFormData} />}
+              {mode === 'prompt' && <PromptStep formData={formData} onUpdate={updateFormData} generateAccessEnabled={workspace?.generateAccessEnabled} />}
               {mode === 'text' && <ContentStep formData={formData} onUpdate={updateFormData} />}
             </>
           )}
