@@ -24,6 +24,7 @@ interface SlideListProps {
   onMoveUp?: (slideId: string) => void;
   onMoveDown?: (slideId: string) => void;
   isReordering?: boolean;
+  isAdding?: boolean;
 }
 
 export function SlideList({
@@ -35,6 +36,7 @@ export function SlideList({
   onMoveUp,
   onMoveDown,
   isReordering = false,
+  isAdding = false,
 }: SlideListProps) {
   const { messages } = useLanguage();
 
@@ -48,9 +50,9 @@ export function SlideList({
             variant="outline"
             onClick={onAddSlide}
             className="gap-2"
-            disabled={isReordering}
+            disabled={isReordering || isAdding}
           >
-            <Plus className="h-4 w-4" />
+            {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             {messages.common.add}
           </Button>
         ) : null}

@@ -437,11 +437,15 @@ export async function createSlide(
       orderBy: { order: 'asc' },
     });
 
-    const requestedOrder = input.order ?? existingSlides.length;
-    const order = Math.min(Math.max(requestedOrder, 0), existingSlides.length);
+    const maxExistingOrder = existingSlides.length > 0
+      ? Math.max(...existingSlides.map((s) => s.order))
+      : -1;
+    const appendOrder = maxExistingOrder + 1;
+    const requestedOrder = input.order ?? appendOrder;
+    const order = Math.min(Math.max(requestedOrder, 0), appendOrder);
 
-    if (order < existingSlides.length) {
-      const tempOffset = existingSlides.length + 1000;
+    if (order <= maxExistingOrder) {
+      const tempOffset = appendOrder + 1000;
 
       for (const slide of existingSlides.filter((slide) => slide.order >= order)) {
         await tx.slide.update({

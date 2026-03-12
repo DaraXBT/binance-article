@@ -203,10 +203,10 @@ export default function DeckPage({ params }: DeckPageProps) {
       },
       {
         onSuccess: async (createdSlide) => {
-          setActiveSlideId(createdSlide.id);
           setMobileTab('editor');
           setEditorFeedback(messages.deckPage.slideAdded);
           await refetch();
+          setActiveSlideId(createdSlide.id);
         },
         onError: (error) => {
           setEditorError(
@@ -440,6 +440,7 @@ export default function DeckPage({ params }: DeckPageProps) {
             onMoveUp={(slideId) => handleMoveSlide(slideId, 'up')}
             onMoveDown={(slideId) => handleMoveSlide(slideId, 'down')}
             isReordering={isMutating}
+            isAdding={createSlide.isPending}
           />
         ) : null}
         {mobileTab === 'editor' ? (
@@ -477,6 +478,7 @@ export default function DeckPage({ params }: DeckPageProps) {
               onMoveUp={(slideId) => handleMoveSlide(slideId, 'up')}
               onMoveDown={(slideId) => handleMoveSlide(slideId, 'down')}
               isReordering={isMutating}
+              isAdding={createSlide.isPending}
             />
           </ResizablePanel>
 
