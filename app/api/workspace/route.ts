@@ -20,11 +20,9 @@ export async function GET() {
   }
 }
 
-export async function POST(request?: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    if (request) {
-      assertAllowedOrigin(request);
-    }
+    assertAllowedOrigin(request);
     const created = await createWorkspaceForCurrentSession();
 
     return NextResponse.json({

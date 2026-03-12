@@ -12,7 +12,12 @@ import { logEvent } from '@/server/http/log';
 import { getCurrentWorkspace } from '@/server/modules/workspace/service';
 
 function buildContentDisposition(filename: string, download: boolean) {
-  const safeFilename = filename.replaceAll('"', '');
+  const safeFilename = filename
+    .replaceAll('"', '')
+    .replaceAll('\\', '')
+    .replaceAll('\r', '')
+    .replaceAll('\n', '')
+    .replace(/[\x00-\x1f\x7f]/g, '');
   return `${download ? 'attachment' : 'inline'}; filename="${safeFilename}"`;
 }
 

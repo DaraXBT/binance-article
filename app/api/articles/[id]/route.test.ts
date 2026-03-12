@@ -71,7 +71,7 @@ describe('GET/PATCH/DELETE /api/articles/[id]', () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ error: 'Title is required', code: 'VALIDATION_ERROR' });
+    expect(body).toEqual({ error: 'The request payload is invalid.', code: 'VALIDATION_ERROR' });
     expect(dbMock.updateDeckProject).not.toHaveBeenCalled();
   });
 

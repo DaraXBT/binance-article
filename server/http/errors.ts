@@ -41,9 +41,17 @@ export function toAppError(
   }
 
   if (error instanceof ZodError) {
+    logEvent('warn', 'validation.error', {
+      issues: error.issues.map((issue) => ({
+        path: issue.path.join('.'),
+        code: issue.code,
+        message: issue.message,
+      })),
+    });
+
     return new AppError({
       code: 'VALIDATION_ERROR',
-      message: error.issues[0]?.message || 'The request payload is invalid.',
+      message: 'The request payload is invalid.',
       status: 400,
       cause: error,
     });

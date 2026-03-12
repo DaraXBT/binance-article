@@ -5,11 +5,15 @@ import { GenerateRequestSchema } from '@/lib/schemas';
 import { assertAllowedOrigin } from '@/server/auth/origin';
 import { startWorkflow } from '@/server/integrations/workflow-client';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
+import { checkRateLimit } from '@/server/http/rate-limit';
 import { attachWorkflowRunId, createJobRun } from '@/server/modules/jobs/service';
 import { getCurrentWorkspace } from '@/server/modules/workspace/service';
 import { handleArticleGenerationJob } from '@/workflows/article-jobs';
 
 export const maxDuration = 30;
+
+const RATE_LIMIT = 10;
+const RATE_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
 export async function POST(
   request: NextRequest,
@@ -18,6 +22,21 @@ export async function POST(
   try {
     assertAllowedOrigin(request);
     const { workspace } = await getCurrentWorkspace();
+
+    const { allowed, resetAt } = checkRateLimit(`generate:${workspace.id}`, RATE_LIMIT, RATE_WINDOW_MS);
+
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Generation rate limit exceeded. Please try again later.', code: 'RATE_LIMITED' },
+        {
+          status: 429,
+          headers: {
+            ...withNoStoreHeaders(),
+            'Retry-After': String(Math.ceil((resetAt - Date.now()) / 1000)),
+          },
+        }
+      );
+    }
     const deckId = (await params).id;
     const body = await request.json();
     const validated = GenerateRequestSchema.parse(body);

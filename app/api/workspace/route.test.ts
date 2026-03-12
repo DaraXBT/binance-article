@@ -7,6 +7,9 @@ const workspaceMock = {
 };
 
 vi.mock('@/server/modules/workspace/service', () => workspaceMock);
+vi.mock('@/server/auth/origin', () => ({
+  assertAllowedOrigin: vi.fn(),
+}));
 
 describe('/api/workspace routes', () => {
   beforeEach(() => {
@@ -58,7 +61,9 @@ describe('/api/workspace routes', () => {
     });
 
     const { POST } = await import('@/app/api/workspace/route');
-    const response = await POST();
+    const response = await POST(
+      new Request('http://localhost/api/workspace', { method: 'POST' }) as never
+    );
     const body = await response.json();
 
     expect(response.status).toBe(200);

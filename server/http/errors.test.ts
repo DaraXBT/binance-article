@@ -51,7 +51,7 @@ describe('toAppError', () => {
     const result = toAppError(zodError);
     expect(result.code).toBe('VALIDATION_ERROR');
     expect(result.status).toBe(400);
-    expect(result.message).toBe('Expected string, received number');
+    expect(result.message).toBe('The request payload is invalid.');
   });
 
   it('does not leak non-Error primitives', () => {
