@@ -214,4 +214,28 @@ describe('image-gen', () => {
     expect(normalized.message).not.toMatch(/set GEMINI_IMAGE_MODEL to another available Gemini image model/i);
     expect(normalized.message).not.toMatch(/fallback/i);
   });
+
+  it('normalizes "model not found" errors into a helpful update message', async () => {
+    process.env.GEMINI_IMAGE_MODEL = 'gemini-2.0-flash-exp';
+
+    const { normalizeImageGenerationError } = await import('@/lib/image-gen');
+
+    const normalized = normalizeImageGenerationError(
+      new Error(
+        JSON.stringify({
+          error: {
+            code: 404,
+            status: 'NOT_FOUND',
+            message:
+              'models/gemini-2.0-flash-exp is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.',
+          },
+        })
+      )
+    );
+
+    expect(normalized.statusCode).toBe(404);
+    expect(normalized.model).toBe('gemini-2.0-flash-exp');
+    expect(normalized.message).toMatch(/not available/i);
+    expect(normalized.message).toMatch(/GEMINI_IMAGE_MODEL/i);
+  });
 });

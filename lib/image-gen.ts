@@ -3,7 +3,7 @@ import { put } from '@vercel/blob';
 
 import { getServerEnv } from '@/lib/server-env';
 
-export const DEFAULT_IMAGE_MODEL = 'gemini-2.5-flash-image';
+export const DEFAULT_IMAGE_MODEL = 'gemini-3.1-flash-image-preview';
 
 // Style descriptions embedded directly (no filesystem dependency)
 const STYLE_DESCRIPTIONS: Record<string, string> = {
@@ -233,13 +233,27 @@ export function normalizeImageGenerationError(
     };
   }
 
+  const rawMessage = payload.message || fallbackMessage;
+
+  if (providerStatus === 'NOT_FOUND' || /is not found|not supported for generateContent/i.test(rawMessage)) {
+    return {
+      statusCode: 404,
+      providerCode,
+      providerStatus,
+      model,
+      message:
+        `Model "${model}" is not available. ` +
+        `Update GEMINI_IMAGE_MODEL in your environment to a supported model (default: ${DEFAULT_IMAGE_MODEL}).`,
+    };
+  }
+
   return {
     statusCode,
     providerCode,
     providerStatus,
     retryAfterSeconds,
     model,
-    message: payload.message || fallbackMessage,
+    message: rawMessage,
   };
 }
 
