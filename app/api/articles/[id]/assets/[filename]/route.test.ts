@@ -92,7 +92,8 @@ describe('GET /api/articles/[id]/assets/[filename]', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('Content-Type')).toBe('image/png');
     expect(response.headers.get('Content-Disposition')).toBe('inline; filename="slide-01.png"');
-    expect(response.headers.get('Cache-Control')).toBe('public, max-age=3600');
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store, max-age=0');
+    expect(response.headers.get('Vary')).toBe('Cookie');
     expect(Array.from(new Uint8Array(await response.arrayBuffer()))).toEqual([1, 2, 3]);
     expect(blobMock.get).toHaveBeenCalledWith(
       'https://store-123.private.blob.vercel-storage.com/decks/deck-1/slide-01.png',

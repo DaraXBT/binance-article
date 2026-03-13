@@ -36,7 +36,11 @@ export async function POST(
     }
     const { workspace } = await getCurrentWorkspace();
 
-    const { allowed, resetAt } = checkRateLimit(`generate:${workspace.id}`, RATE_LIMIT, RATE_WINDOW_MS);
+    const { allowed, resetAt } = await checkRateLimit(
+      `generate:${workspace.id}`,
+      RATE_LIMIT,
+      RATE_WINDOW_MS
+    );
 
     if (!allowed) {
       return NextResponse.json(

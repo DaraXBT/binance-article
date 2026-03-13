@@ -1,4 +1,14 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const rateLimitMock = {
+  checkRateLimit: async () => ({
+    allowed: true,
+    remaining: 4,
+    resetAt: Date.now() + 60_000,
+  }),
+};
+
+vi.mock('@/server/http/rate-limit', () => rateLimitMock);
 
 describe('/api/access', () => {
   const originalAppAccessCode = process.env.APP_ACCESS_CODE;

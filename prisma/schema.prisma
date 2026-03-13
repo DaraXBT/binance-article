@@ -175,3 +175,13 @@ model JobRun {
   @@index([status, kind])
   @@index([articleRevisionId])
 }
+
+model RateLimitBucket {
+  key       String   @id
+  count     Int
+  resetAt   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
+}

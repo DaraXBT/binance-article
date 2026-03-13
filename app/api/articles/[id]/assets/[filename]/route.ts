@@ -72,7 +72,8 @@ export async function GET(
       headers: {
         'Content-Type': blob.blob.contentType || 'application/octet-stream',
         'Content-Disposition': buildContentDisposition(filename, download),
-        'Cache-Control': blob.blob.cacheControl || 'public, max-age=3600',
+        'Cache-Control': 'private, no-store, max-age=0',
+        Vary: 'Cookie',
       },
     });
   } catch (error) {

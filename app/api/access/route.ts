@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     assertAllowedOrigin(request);
 
     const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-    const { allowed, resetAt } = checkRateLimit(`access:${clientIp}`, RATE_LIMIT, RATE_WINDOW_MS);
+    const { allowed, resetAt } = await checkRateLimit(`access:${clientIp}`, RATE_LIMIT, RATE_WINDOW_MS);
 
     if (!allowed) {
       return NextResponse.json(

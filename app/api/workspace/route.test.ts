@@ -6,14 +6,28 @@ const workspaceMock = {
   recoverWorkspaceForCurrentSession: vi.fn(),
 };
 
+const rateLimitMock = {
+  checkRateLimit: vi.fn(async () => ({
+    allowed: true,
+    remaining: 4,
+    resetAt: Date.now() + 60_000,
+  })),
+};
+
 vi.mock('@/server/modules/workspace/service', () => workspaceMock);
 vi.mock('@/server/auth/origin', () => ({
   assertAllowedOrigin: vi.fn(),
 }));
+vi.mock('@/server/http/rate-limit', () => rateLimitMock);
 
 describe('/api/workspace routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    rateLimitMock.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      remaining: 4,
+      resetAt: Date.now() + 60_000,
+    });
   });
 
   it('returns workspace status without auto-creating for a fresh session', async () => {

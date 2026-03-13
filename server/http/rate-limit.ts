@@ -1,23 +1,4 @@
-const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
-
-const CLEANUP_INTERVAL_MS = 60_000;
-let lastCleanup = Date.now();
-
-function cleanup() {
-  const now = Date.now();
-
-  if (now - lastCleanup < CLEANUP_INTERVAL_MS) {
-    return;
-  }
-
-  lastCleanup = now;
-
-  for (const [key, bucket] of rateLimitBuckets) {
-    if (bucket.resetAt <= now) {
-      rateLimitBuckets.delete(key);
-    }
-  }
-}
+import prisma from '@/server/integrations/prisma';
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -26,39 +7,64 @@ export interface RateLimitResult {
 }
 
 /**
- * Simple in-memory sliding-window rate limiter.
+ * Shared rate limiter backed by Prisma.
  *
  * @param key      Unique identifier (e.g. "access:1.2.3.4")
  * @param limit    Maximum number of requests in the window
  * @param windowMs Window duration in milliseconds
  */
-export function checkRateLimit(
+export async function checkRateLimit(
   key: string,
   limit: number,
   windowMs: number
-): RateLimitResult {
-  cleanup();
-
+): Promise<RateLimitResult> {
   const now = Date.now();
-  const bucket = rateLimitBuckets.get(key);
+  const resetAt = new Date(now + windowMs);
+  const bucket = await prisma.rateLimitBucket.findUnique({
+    where: { key },
+    select: {
+      count: true,
+      resetAt: true,
+    },
+  });
 
-  if (!bucket || bucket.resetAt <= now) {
-    rateLimitBuckets.set(key, { count: 1, resetAt: now + windowMs });
-    return { allowed: true, remaining: limit - 1, resetAt: now + windowMs };
+  if (!bucket || bucket.resetAt.getTime() <= now) {
+    await prisma.rateLimitBucket.upsert({
+      where: { key },
+      update: {
+        count: 1,
+        resetAt,
+      },
+      create: {
+        key,
+        count: 1,
+        resetAt,
+      },
+    });
+
+    return { allowed: true, remaining: Math.max(limit - 1, 0), resetAt: resetAt.getTime() };
   }
 
-  bucket.count += 1;
+  const updatedBucket = await prisma.rateLimitBucket.update({
+    where: { key },
+    data: {
+      count: {
+        increment: 1,
+      },
+    },
+    select: {
+      count: true,
+      resetAt: true,
+    },
+  });
 
-  if (bucket.count > limit) {
-    return { allowed: false, remaining: 0, resetAt: bucket.resetAt };
+  if (updatedBucket.count > limit) {
+    return { allowed: false, remaining: 0, resetAt: updatedBucket.resetAt.getTime() };
   }
 
-  return { allowed: true, remaining: limit - bucket.count, resetAt: bucket.resetAt };
-}
-
-/**
- * Reset the rate limit buckets. Only for tests.
- */
-export function resetRateLimitForTests() {
-  rateLimitBuckets.clear();
+  return {
+    allowed: true,
+    remaining: Math.max(limit - updatedBucket.count, 0),
+    resetAt: updatedBucket.resetAt.getTime(),
+  };
 }

@@ -22,10 +22,19 @@ const workflowClientMock = {
   startWorkflow: vi.fn(),
 };
 
+const rateLimitMock = {
+  checkRateLimit: vi.fn(async () => ({
+    allowed: true,
+    remaining: 9,
+    resetAt: Date.now() + 60_000,
+  })),
+};
+
 vi.mock('@/lib/db', () => dbMock);
 vi.mock('@/server/modules/workspace/service', () => workspaceMock);
 vi.mock('@/server/modules/jobs/service', () => jobServiceMock);
 vi.mock('@/server/integrations/workflow-client', () => workflowClientMock);
+vi.mock('@/server/http/rate-limit', () => rateLimitMock);
 vi.mock('@/workflows/article-jobs', () => ({
   handleArticleGenerationJob: vi.fn(),
 }));
@@ -33,6 +42,11 @@ vi.mock('@/workflows/article-jobs', () => ({
 describe('POST /api/articles/[id]/generate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    rateLimitMock.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      remaining: 9,
+      resetAt: Date.now() + 60_000,
+    });
     dbMock.beginGenerationRevision.mockResolvedValue({
       deck: { id: 'deck-1' },
       revision: 1,
