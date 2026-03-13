@@ -5,7 +5,7 @@ import { useLanguage } from '@/components/language-provider';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Loader2, Sparkles } from 'lucide-react';
+import { Loader2, Lock, Sparkles } from 'lucide-react';
 import { getAiSuggestGlowClassName, requestPromptSuggestion } from '@/components/home/dashboard-home';
 import { GenerateAccessDialog } from '@/components/generate-access-dialog';
 import { GenerateAccessError } from '@/lib/generate-access-error';
@@ -17,7 +17,8 @@ interface PromptStepProps {
   };
   onUpdate: (updates: any) => void;
   fetchImpl?: typeof fetch;
-  generateAccessEnabled?: boolean;
+  generationLocked?: boolean;
+  onUnlock?: () => void;
 }
 
 function extractTitleFromContent(content: string): string {
@@ -27,12 +28,17 @@ function extractTitleFromContent(content: string): string {
   return firstLine ? firstLine.trim().slice(0, 80) : '';
 }
 
-export function PromptStep({ formData, onUpdate, fetchImpl, generateAccessEnabled }: PromptStepProps) {
+export function PromptStep({
+  formData,
+  onUpdate,
+  fetchImpl,
+  generationLocked = false,
+  onUnlock,
+}: PromptStepProps) {
   const { messages } = useLanguage();
   const [isGenerating, setIsGenerating] = useState(false);
   const [genError, setGenError] = useState('');
   const [showAccessDialog, setShowAccessDialog] = useState(false);
-  const accessCodeRef = useRef<string>('');
   const pendingRetryRef = useRef<(() => void) | null>(null);
 
   const doAutoGenerate = async () => {
@@ -42,14 +48,11 @@ export function PromptStep({ formData, onUpdate, fetchImpl, generateAccessEnable
     try {
       const suggestedPrompt = await requestPromptSuggestion({
         title: extractTitleFromContent(formData.articleContent) || formData.articleContent.slice(0, 100),
-        accessCode: accessCodeRef.current || undefined,
         fetchImpl,
       });
-      accessCodeRef.current = '';
       onUpdate({ articleContent: suggestedPrompt });
     } catch (err) {
       if (err instanceof GenerateAccessError) {
-        accessCodeRef.current = '';
         pendingRetryRef.current = () => void doAutoGenerate();
         setShowAccessDialog(true);
         setIsGenerating(false);
@@ -64,8 +67,7 @@ export function PromptStep({ formData, onUpdate, fetchImpl, generateAccessEnable
   const handleAutoGenerate = async () => {
     if (!formData.articleContent.trim()) return;
 
-    if (generateAccessEnabled) {
-      accessCodeRef.current = '';
+    if (generationLocked) {
       pendingRetryRef.current = () => void doAutoGenerate();
       setShowAccessDialog(true);
       return;
@@ -74,15 +76,16 @@ export function PromptStep({ formData, onUpdate, fetchImpl, generateAccessEnable
     await doAutoGenerate();
   };
 
-  const handleAccessSuccess = (code: string) => {
-    accessCodeRef.current = code;
+  const handleAccessSuccess = () => {
+    onUnlock?.();
     setShowAccessDialog(false);
     const retry = pendingRetryRef.current;
     pendingRetryRef.current = null;
     if (retry) retry();
   };
 
-  const canGenerate = formData.articleContent.trim().length >= 1 && !isGenerating;
+  const canGenerate =
+    formData.articleContent.trim().length >= 1 && !isGenerating && !generationLocked;
 
   return (
     <>
@@ -99,6 +102,24 @@ export function PromptStep({ formData, onUpdate, fetchImpl, generateAccessEnable
           <Label htmlFor="articleContent" className="mb-2 block text-sm font-medium">
             {messages.newDeck.promptView.promptLabel}
           </Label>
+          {generationLocked ? (
+            <div className="mb-3 flex flex-col gap-3 border border-amber-200 bg-amber-50/70 px-3 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-2">
+                <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>{messages.newDeck.promptView.generationLockedBanner}</p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-2 self-start sm:self-auto"
+                onClick={() => setShowAccessDialog(true)}
+              >
+                <Lock className="h-4 w-4" />
+                {messages.generateAccess.submit}
+              </Button>
+            </div>
+          ) : null}
           <div className="relative">
             <Textarea
               id="articleContent"
@@ -142,7 +163,9 @@ export function PromptStep({ formData, onUpdate, fetchImpl, generateAccessEnable
             <p className="mt-1.5 text-xs text-destructive">{genError}</p>
           ) : (
             <p className="mt-1.5 text-xs text-muted-foreground">
-              {formData.articleContent.trim()
+              {generationLocked
+                ? messages.newDeck.promptView.generationLockedHint
+                : formData.articleContent.trim()
                 ? messages.newDeck.promptView.promptHintWithTopic
                 : messages.newDeck.promptView.promptHintEmpty}
             </p>

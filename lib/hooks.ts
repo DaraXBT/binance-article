@@ -22,6 +22,15 @@ export type WorkspaceBootstrap = {
   accessKeyPrefix: string | null;
   recoveryKey: string | null;
   generateAccessEnabled: boolean;
+  hasGenerationAccess: boolean;
+  generationAccessInvalidReason:
+    | 'missing'
+    | 'invalid'
+    | 'rotated'
+    | 'workspace_mismatch'
+    | 'session_mismatch'
+    | 'revoked'
+    | null;
 };
 
 export type WorkspaceCreateResult = {

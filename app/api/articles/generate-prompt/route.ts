@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generatePlainTextWithGemini } from '@/lib/gemini';
-import { isGenerateAccessEnabled, isValidGenerateAccessCode } from '@/lib/generate-access';
+import { getRequestGenerateAccessState, isGenerateAccessEnabled } from '@/lib/generate-access';
+import { createGenerateAccessRequiredResponse } from '@/server/auth/generate-access-response';
 import { assertAllowedOrigin } from '@/server/auth/origin';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
+import { getCurrentWorkspace } from '@/server/modules/workspace/service';
 
 export const maxDuration = 30;
 
@@ -11,14 +13,19 @@ export async function POST(request: NextRequest) {
     assertAllowedOrigin(request);
 
     const body = await request.json();
+    const { sessionId, workspace } = await getCurrentWorkspace();
 
     if (isGenerateAccessEnabled()) {
-      const accessCode = typeof body?.accessCode === 'string' ? body.accessCode : '';
-      if (!accessCode || !(await isValidGenerateAccessCode(accessCode))) {
-        return NextResponse.json(
-          { error: 'Generation access code required.', code: 'GENERATE_ACCESS_REQUIRED' },
-          { status: 403, headers: withNoStoreHeaders() }
-        );
+      const accessState = await getRequestGenerateAccessState(request, {
+        workspaceId: workspace.id,
+        sessionId,
+      });
+
+      if (!accessState.hasAccess) {
+        return createGenerateAccessRequiredResponse({
+          reason: accessState.invalidReason,
+          clearCookie: accessState.invalidReason !== 'missing',
+        });
       }
     }
 

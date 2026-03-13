@@ -12,7 +12,8 @@
     "typecheck": "npm run prisma:generate && tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "db:migrate:deploy": "node scripts/run-with-default-database-url.mjs prisma migrate deploy"
+    "db:migrate:deploy": "node scripts/run-with-default-database-url.mjs prisma migrate deploy",
+    "generate-access:create": "node scripts/create-generate-access-grant.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.44.0",

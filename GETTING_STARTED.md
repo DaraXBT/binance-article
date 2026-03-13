@@ -1,231 +1,127 @@
-# DeckForge - Getting Started Guide
+# xArticle Getting Started
 
-Welcome to DeckForge! This guide will help you get up and running in minutes.
+This guide is for a tester or end user using a running xArticle instance.
 
-## Quick Start (5 minutes)
+## Entry Flow
 
-### 1. Get Your Gemini API Key
+### If the app is protected
 
-1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
-2. Click "Create API Key"
-3. Copy the generated key
+1. Open `/`
+2. Enter the app access code on `/access`
+3. After success, you will land on `/workspace`
 
-### 2. Set Up Environment Variables
+### Workspace choice
 
-For local `next dev`, use `.env.local`. If the project is linked to Vercel, pull the env file first:
+On the workspace screen you will see two choices:
 
-```bash
-vercel env pull .env.local
-```
+- `Create new key`
+  - Creates a new workspace for this browser
+  - Shows a one-time recovery key
+- `Use existing key`
+  - Reconnects this browser to an existing workspace using its recovery key
 
-Required runtime vars:
-- `GEMINI_API_KEY`
-- `BLOB_READ_WRITE_TOKEN`
+Save the recovery key if you create a new workspace. That is how you reconnect from another browser later.
 
-### 3. Install & Run
+## Dashboard Flow
 
-```bash
-# Install dependencies
-pnpm install
+After a workspace is attached, you will reach the dashboard.
 
-# Start the dev server
-pnpm dev
-```
+From there you can:
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+- Draft an article prompt directly on the homepage
+- Open `/new` for the guided article flow
+- Open existing articles from the sidebar
 
-## Creating Your First Deck
+## Generation Lock Flow
 
-### Step 1: Dashboard
-- You'll see the main dashboard
-- Click **"Create New Deck"** button
+If the admin enabled generation locking:
 
-### Step 2: Content
-- Enter a **presentation title**
-- Describe the **topic** in detail
-- Set the **number of slides** (recommended: 8-15)
-- Click **Next**
+- The dashboard still opens normally
+- AI generation actions are visible but disabled
+- You must unlock the browser with the latest article access code from the admin
 
-### Step 3: Settings
-- Add a **target audience** (optional)
-- Choose a **presentation style**:
-  - Professional: Corporate/Business
-  - Creative: Dynamic/Artistic
-  - Educational: Academic/Learning
-  - Minimal: Clean/Simple
-  - Storytelling: Narrative-driven
-- Add any **special instructions** (optional)
-- Click **Next**
+Once unlocked, the same browser session can:
 
-### Step 4: Theme
-- Select from **15+ built-in themes**
-- Each theme has distinct colors and styling
-- Click **Next**
+- Generate from the homepage
+- Generate from `/new`
+- Retry failed images from an article page
 
-### Step 5: Generate
-- Watch the progress bar as AI generates:
-  - Creating deck (25%)
-  - Generating slides (75%)
-  - Finalizing (100%)
-- You'll be redirected to the studio automatically
+If the admin rotates the generation secret, the browser will lose generation access on the next protected request and must be unlocked again with a fresh code.
 
-## Using the Studio
+## Create an Article from the Dashboard
 
-The studio has 4 main sections:
+1. Enter or paste your topic/prompt into the homepage composer
+2. Optionally use `AI Suggest`
+3. Choose slide count and illustration style
+4. Click `Generate article`
 
-### Left Panel: Slide List
-- See all slides in your presentation
-- Click to select a slide
-- Scroll to navigate through many slides
+You will be taken to the article page after generation starts.
 
-### Center Panel: Slide Editor
-- Edit slide **title**, **subtitle**, and **bullet points**
-- Add **speaker notes** for presenting
-- **Delete slide** button (if needed)
-- Changes are auto-saved to the database
+## Create an Article from `/new`
 
-### Right Top: Live Preview
-- See your slide with the selected theme in real-time
-- Preview updates as you edit
-- Shows proper 16:9 aspect ratio
+`/new` supports multiple creation modes.
 
-### Right Bottom: Captions
+### Prompt mode
 
-**Blog Tab:**
-- **SEO Title**: Optimized for search (≤60 chars)
-- **Meta Description**: For website previews (≤160 chars)
-- **Intro Text**: Opening paragraph for blog posts
-- **Tags**: Suggested keywords
-- **Copy buttons**: Copy any caption to clipboard
+Use it when you want AI to help shape the article instructions before generation.
 
-**Twitter/X Tab:**
-- **Individual Tweets**: 3 single-post variations
-- **Twitter Thread**: Formatted for multi-tweet threads
-- **Copy buttons**: Ready to paste to social media
+### Text mode
 
-## Editing Tips
+Use it when you already have article content.
 
-### Quick Edits
-1. Click on any slide in the left panel
-2. Edit the title, subtitle, or bullet points
-3. See changes in real-time in the preview
+### URL mode
 
-### Slide Management
-- **Add Slide**: Not yet implemented (coming soon)
-- **Delete Slide**: Click the trash icon in the editor
-- **Reorder**: Drag-and-drop functionality (coming soon)
+Use it when you want xArticle to fetch and process a webpage as the source.
 
-### Caption Tips
-- Blog captions are optimized for SEO
-- Twitter content is pre-formatted for threading
-- All copy is ready to paste directly into your publishing platform
+In all cases:
 
-## Common Workflows
+1. Fill in the source content
+2. Choose illustration style and slide count
+3. Open the generate step
+4. Unlock generation if needed
+5. Wait for the workflow to finish
 
-### Creating a Pitch Deck
-1. **Topic**: "Product launch for our new mobile app"
-2. **Audience**: "Investors"
-3. **Style**: "Professional"
-4. **Theme**: "Modern Blue"
-5. Generate and customize as needed
+## Article Page
 
-### Making a Tutorial
-1. **Topic**: "How to use our software - step by step"
-2. **Audience**: "New users"
-3. **Style**: "Educational"
-4. **Theme**: "Clean Minimal"
-5. Edit to add specific steps and terms
+On `/articles/[id]` you can:
 
-### Creating Content
-1. **Topic**: "Latest industry trends 2024"
-2. **Audience**: "Social media followers"
-3. **Style**: "Creative"
-4. **Theme**: "Vibrant"
-5. Use the Twitter captions for social sharing
+- Review generated slides
+- Edit titles, bullets, notes, and order
+- Preview the current slide
+- Review blog and X captions
+- Retry failed images
+- Delete the article
 
-## Keyboard Shortcuts
+If generation locking is enabled, `Retry Failed Images` also requires the browser to be unlocked.
 
-Coming soon! Currently using mouse/trackpad navigation.
+## What the Three Keys Mean
 
-## Data Storage
+### App access code
 
-- All decks are saved to a local SQLite database
-- For production, upgrade to PostgreSQL (see README.md)
-- Runtime-generated slide images are stored in Vercel Blob
+- Gets you into the app
+- Shared gate at `/access`
 
-## Troubleshooting
+### Workspace recovery key
 
-### "Failed to generate slides"
-- Check that your Gemini API key is valid
-- Verify you haven't exceeded API quota
-- Try again in a few moments
+- Reattaches a browser to a workspace
+- Chosen through `Create new key` or `Use existing key`
 
-### Slides not displaying
-- Refresh the page
-- Check browser console for errors
-- Ensure JavaScript is enabled
+### Article access code
 
-### Images not generating
-- Confirm both `GEMINI_API_KEY` and `BLOB_READ_WRITE_TOKEN` are set in `.env.local`
-- If you rely on Vercel-managed envs, run `vercel env pull .env.local` again
-- Open the article page and use `Retry Failed Images` for partial failures
+- Unlocks token-spending generation for this browser session
+- Provided by the admin
+- One-time and browser/session-bound
 
-### Performance Issues
-- Large presentations (100+ slides) may take longer
-- Try with 10-15 slides first
-- Use Chrome or Firefox for best performance
+## Common Problems
 
-## Next Steps
+### I can open the dashboard but cannot generate
 
-1. **Create your first deck** - Start with the "Create New Deck" button
-2. **Explore themes** - Try different color schemes
-3. **Edit content** - Customize the AI-generated slides
-4. **Share captions** - Use the generated social media content
-5. **Experiment** - Try different topics and styles
+The browser has not been unlocked for generation yet, or the admin rotated the generation secret.
 
-## Advanced Features (Future)
+### My old article access code no longer works
 
-These features are coming soon:
-- Custom fonts and styling
-- Slide templates and gallery
-- Collaborative editing
-- Team workspaces
-- Advanced rendering (PPTX, PDF export)
-- Presentation mode with speaker notes
-- Real-time collaboration
-- Analytics and usage tracking
+The admin likely rotated `GENERATE_ACCESS_CODE`. Request a new invite code.
 
-## Need Help?
+### I lost my workspace after opening a new browser
 
-- Check the full [README.md](./README.md) for technical details
-- Review the project structure in the README
-- Check the browser console for error messages
-- Ensure your Gemini API key is valid
-
-## Tips for Best Results
-
-### Topic Description
-Be specific and detailed. Instead of "AI", try "How AI is transforming healthcare in 2024"
-
-### Slide Count
-- 10 slides: Quick overview
-- 15 slides: Comprehensive presentation
-- 20+ slides: Deep dive / Tutorial
-
-### Style Selection
-- Professional: Business meetings, pitches
-- Creative: Marketing, social media
-- Educational: Webinars, training
-- Minimal: Conferences, speaking
-- Storytelling: Product launches, narratives
-
-### Theme Selection
-Choose themes that match your content:
-- Blue/teal: Professional, tech, corporate
-- Green: Nature, health, environment
-- Red/orange: Energy, passion, creativity
-- Purple: Innovation, luxury, creativity
-
-## Happy Presenting! 🎉
-
-Now go create amazing presentations with AI!
+Recover it with the saved workspace recovery key.

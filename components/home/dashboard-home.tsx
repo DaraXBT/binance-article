@@ -3,7 +3,7 @@
 import { useDeferredValue, useEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FolderOpenDot, Layers3, Loader2, MessageSquarePlus, MoreHorizontal, Search, Sparkles } from 'lucide-react';
+import { FolderOpenDot, Layers3, Loader2, Lock, MessageSquarePlus, MoreHorizontal, Search, Sparkles } from 'lucide-react';
 import { LanguageToggle } from '@/components/language-toggle';
 import { useLanguage } from '@/components/language-provider';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -542,7 +542,6 @@ export function DashboardHome() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAccessDialog, setShowAccessDialog] = useState(false);
   const pendingRetryRef = useRef<(() => void) | null>(null);
-  const accessCodeRef = useRef<string>('');
   const deferredQuery = useDeferredValue(query);
   const {
     data: workspace,
@@ -550,9 +549,15 @@ export function DashboardHome() {
     error: workspaceError,
     refetch: refetchWorkspace,
   } = useWorkspace();
+  const [hasGenerationAccess, setHasGenerationAccess] = useState(workspace?.hasGenerationAccess ?? false);
   const hasWorkspace = workspace?.hasWorkspace ?? false;
   const { data, isLoading, isError, refetch } = useDecks(hasWorkspace);
   const decks = (data ?? []) as DeckListItem[];
+  const generationLocked = Boolean(workspace?.generateAccessEnabled && !hasGenerationAccess);
+
+  useEffect(() => {
+    setHasGenerationAccess(workspace?.hasGenerationAccess ?? false);
+  }, [workspace?.hasGenerationAccess]);
 
   const filteredDecks = decks.filter((deck) => {
     if (deferredQuery.trim()) {
@@ -575,13 +580,12 @@ export function DashboardHome() {
     try {
       const suggestedPrompt = await requestPromptSuggestion({
         title: prompt,
-        accessCode: accessCodeRef.current || undefined,
       });
-      accessCodeRef.current = '';
       setPrompt(suggestedPrompt);
     } catch (error) {
       if (error instanceof GenerateAccessError) {
-        accessCodeRef.current = '';
+        setHasGenerationAccess(false);
+        void refetchWorkspace();
         pendingRetryRef.current = () => void doSuggest();
         setShowAccessDialog(true);
         setIsSuggesting(false);
@@ -601,8 +605,7 @@ export function DashboardHome() {
       return;
     }
 
-    if (workspace?.generateAccessEnabled) {
-      accessCodeRef.current = '';
+    if (generationLocked) {
       pendingRetryRef.current = () => void doSuggest();
       setShowAccessDialog(true);
       return;
@@ -620,14 +623,13 @@ export function DashboardHome() {
         prompt,
         slideCount,
         illustrationStyle,
-        accessCode: accessCodeRef.current || undefined,
       });
-      accessCodeRef.current = '';
       await refetch();
       router.push(`/articles/${deckId}`);
     } catch (error) {
       if (error instanceof GenerateAccessError) {
-        accessCodeRef.current = '';
+        setHasGenerationAccess(false);
+        void refetchWorkspace();
         pendingRetryRef.current = () => void doSubmit(event);
         setShowAccessDialog(true);
         setIsSubmitting(false);
@@ -648,8 +650,7 @@ export function DashboardHome() {
       return;
     }
 
-    if (workspace?.generateAccessEnabled) {
-      accessCodeRef.current = '';
+    if (generationLocked) {
       pendingRetryRef.current = () => void doSubmit(event);
       setShowAccessDialog(true);
       return;
@@ -658,8 +659,9 @@ export function DashboardHome() {
     await doSubmit(event);
   };
 
-  const handleAccessSuccess = (code: string) => {
-    accessCodeRef.current = code;
+  const handleAccessSuccess = () => {
+    setHasGenerationAccess(true);
+    void refetchWorkspace();
     const retry = pendingRetryRef.current;
     pendingRetryRef.current = null;
     if (retry) retry();
@@ -667,6 +669,8 @@ export function DashboardHome() {
 
   const helperText = composerError
     ? composerError
+    : generationLocked
+      ? messages.dashboard.generationLockedHint
     : prompt.trim()
       ? messages.dashboard.promptHintReady
       : messages.dashboard.promptHintEmpty;
@@ -771,6 +775,25 @@ export function DashboardHome() {
                 className="overflow-hidden border border-border/70 bg-background/90 shadow-[0_30px_80px_-60px_rgba(15,23,42,0.45)]"
               >
                 <div className="px-4 py-4 sm:px-5 sm:py-5">
+                  {generationLocked ? (
+                    <div className="mb-4 flex flex-col gap-3 border border-amber-200 bg-amber-50/70 px-3 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-2">
+                        <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+                        <p>{messages.dashboard.generationLockedBanner}</p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="gap-2 self-start sm:self-auto"
+                        onClick={() => setShowAccessDialog(true)}
+                      >
+                        <Lock className="h-4 w-4" />
+                        {messages.generateAccess.submit}
+                      </Button>
+                    </div>
+                  ) : null}
+
                   <Textarea
                     value={prompt}
                     onChange={(event) => {
@@ -803,7 +826,7 @@ export function DashboardHome() {
                           aria-label={messages.dashboard.slideCountLabel}
                           size="sm"
                           className="w-auto min-w-[5rem]"
-                          disabled={isSubmitting || isSuggesting}
+                          disabled={isSubmitting || isSuggesting || generationLocked}
                         >
                           <SelectValue placeholder={messages.dashboard.slideCountLabel} />
                         </SelectTrigger>
@@ -824,7 +847,7 @@ export function DashboardHome() {
                           aria-label={messages.dashboard.illustrationStyleLabel}
                           size="sm"
                           className="w-auto min-w-[8rem] sm:w-[11rem]"
-                          disabled={isSubmitting || isSuggesting}
+                          disabled={isSubmitting || isSuggesting || generationLocked}
                         >
                           <SelectValue placeholder={messages.dashboard.illustrationStyleLabel} />
                         </SelectTrigger>
@@ -857,7 +880,7 @@ export function DashboardHome() {
                           variant="outline"
                           size="sm"
                           onClick={handleSuggest}
-                          disabled={isSuggesting || isSubmitting || !prompt.trim()}
+                          disabled={isSuggesting || isSubmitting || generationLocked || !prompt.trim()}
                           className="gap-2"
                         >
                           {isSuggesting ? (
@@ -871,7 +894,12 @@ export function DashboardHome() {
                         </Button>
                       </div>
 
-                      <Button type="submit" size="sm" disabled={isSubmitting || isSuggesting || !prompt.trim()} className="gap-2 w-auto">
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={isSubmitting || isSuggesting || generationLocked || !prompt.trim()}
+                        className="gap-2 w-auto"
+                      >
                         {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                         {isSubmitting
                           ? messages.dashboard.generateLoading

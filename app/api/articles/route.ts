@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createDeckProject, listDeckProjects } from '@/lib/db';
-import { isGenerateAccessEnabled, isValidGenerateAccessCode } from '@/lib/generate-access';
+import { getRequestGenerateAccessState, isGenerateAccessEnabled } from '@/lib/generate-access';
 import { CreateDeckProjectSchema } from '@/lib/schemas';
+import { createGenerateAccessRequiredResponse } from '@/server/auth/generate-access-response';
 import { getCurrentWorkspace } from '@/server/modules/workspace/service';
 import { assertAllowedOrigin } from '@/server/auth/origin';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
@@ -11,17 +12,22 @@ export async function POST(request: NextRequest) {
     assertAllowedOrigin(request);
 
     const body = await request.json();
+    const { sessionId, workspace } = await getCurrentWorkspace();
 
     if (isGenerateAccessEnabled()) {
-      const accessCode = typeof body?.accessCode === 'string' ? body.accessCode : '';
-      if (!accessCode || !(await isValidGenerateAccessCode(accessCode))) {
-        return NextResponse.json(
-          { error: 'Generation access code required.', code: 'GENERATE_ACCESS_REQUIRED' },
-          { status: 403, headers: withNoStoreHeaders() }
-        );
+      const accessState = await getRequestGenerateAccessState(request, {
+        workspaceId: workspace.id,
+        sessionId,
+      });
+
+      if (!accessState.hasAccess) {
+        return createGenerateAccessRequiredResponse({
+          reason: accessState.invalidReason,
+          clearCookie: accessState.invalidReason !== 'missing',
+        });
       }
     }
-    const { workspace } = await getCurrentWorkspace();
+
     const validated = CreateDeckProjectSchema.parse(body);
 
     const deck = await createDeckProject(

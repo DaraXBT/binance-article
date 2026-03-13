@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { use, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, Loader2, Trash2 } from 'lucide-react';
+import { use, useEffect, useState } from 'react';
+import { ChevronLeft, Loader2, Lock, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -109,11 +109,13 @@ export default function DeckPage({ params }: DeckPageProps) {
   const [editorError, setEditorError] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<'slides' | 'editor' | 'preview'>('slides');
   const [showAccessDialog, setShowAccessDialog] = useState(false);
-  const accessCodeRef = useRef<string>('');
-
-  const { data: workspace } = useWorkspace();
+  const { data: workspace, refetch: refetchWorkspace } = useWorkspace();
+  const [hasGenerationAccess, setHasGenerationAccess] = useState(
+    workspace?.hasGenerationAccess ?? false
+  );
   const { data, isLoading, isError, refetch } = useDeck(deckId);
   const deck = (data ?? null) as DeckDetailResponse | null;
+  const generationLocked = Boolean(workspace?.generateAccessEnabled && !hasGenerationAccess);
 
   const createSlide = useCreateSlide(deckId);
   const updateSlide = useUpdateSlide(deckId);
@@ -129,7 +131,6 @@ export default function DeckPage({ params }: DeckPageProps) {
         body: JSON.stringify({
           illustrationStyle: deck?.illustrationStyle || 'pixel-art',
           mode: 'failed',
-          ...(accessCodeRef.current ? { accessCode: accessCodeRef.current } : {}),
         }),
       });
 
@@ -141,7 +142,6 @@ export default function DeckPage({ params }: DeckPageProps) {
         throw new Error(data?.error || messages.deckPage.imageRetryFailed);
       }
 
-      accessCodeRef.current = '';
       return waitForJob(data.jobId);
     },
     onMutate: () => {
@@ -171,13 +171,18 @@ export default function DeckPage({ params }: DeckPageProps) {
     },
     onError: (error) => {
       if (error instanceof GenerateAccessError) {
-        accessCodeRef.current = '';
+        setHasGenerationAccess(false);
+        void refetchWorkspace();
         setShowAccessDialog(true);
         return;
       }
       setRetryError(error instanceof Error ? error.message : messages.deckPage.imageRetryFailed);
     },
   });
+
+  useEffect(() => {
+    setHasGenerationAccess(workspace?.hasGenerationAccess ?? false);
+  }, [workspace?.hasGenerationAccess]);
 
   useEffect(() => {
     if (!deck?.slides?.length) {
@@ -356,15 +361,8 @@ export default function DeckPage({ params }: DeckPageProps) {
                 size="sm"
                 variant="outline"
                 className="gap-2"
-                onClick={() => {
-                  if (workspace?.generateAccessEnabled) {
-                    accessCodeRef.current = '';
-                    setShowAccessDialog(true);
-                    return;
-                  }
-                  retryFailedImages.mutate();
-                }}
-                disabled={retryFailedImages.isPending}
+                onClick={() => retryFailedImages.mutate()}
+                disabled={retryFailedImages.isPending || generationLocked}
               >
                 {retryFailedImages.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -374,6 +372,17 @@ export default function DeckPage({ params }: DeckPageProps) {
                     ? messages.deckPage.retryingImages
                     : messages.deckPage.retryFailedImages}
                 </span>
+              </Button>
+            ) : null}
+            {failedSlides.length > 0 && generationLocked ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2"
+                onClick={() => setShowAccessDialog(true)}
+              >
+                <Lock className="h-4 w-4" />
+                {messages.generateAccess.submit}
               </Button>
             ) : null}
             <AlertDialog>
@@ -543,8 +552,9 @@ export default function DeckPage({ params }: DeckPageProps) {
       <GenerateAccessDialog
         open={showAccessDialog}
         onOpenChange={setShowAccessDialog}
-        onSuccess={(code) => {
-          accessCodeRef.current = code;
+        onSuccess={() => {
+          setHasGenerationAccess(true);
+          void refetchWorkspace();
           setShowAccessDialog(false);
           retryFailedImages.mutate();
         }}

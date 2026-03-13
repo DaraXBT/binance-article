@@ -1,119 +1,124 @@
-# DeckForge - Setup Instructions
+# xArticle Setup Instructions
 
-## Quick Start
+## 1. Install Dependencies
 
-### 1. Set Your Runtime Environment Variables
-Before running the app, you need to set your Google Gemini API key and Blob token:
-
-1. Go to [Google AI Studio](https://aistudio.google.com) and create a free API key
-2. Create or copy a Vercel Blob read/write token for this project
-3. In Vercel-linked local development, run:
-   ```bash
-   vercel env pull .env.local
-   ```
-4. If you are setting values manually, add:
-   - **Key**: `GEMINI_API_KEY`
-   - **Value**: Paste your API key from Google AI Studio
-   - **Key**: `BLOB_READ_WRITE_TOKEN`
-   - **Value**: Paste your Vercel Blob read/write token
-
-### 2. Start the Development Server
 ```bash
-pnpm dev
+npm install
 ```
 
-The app will start at `http://localhost:3000`
+## 2. Configure Environment Variables
 
-### 3. Create Your First Deck
-1. Click **"Create New Deck"** on the dashboard
-2. Follow the 4-step wizard:
-   - **Step 1**: Enter your topic (e.g., "Introduction to Machine Learning")
-   - **Step 2**: Set audience and style preferences
-   - **Step 3**: Pick a theme
-   - **Step 4**: Click "Generate" to create slides with AI
+Create `.env.local` and set the runtime values the app needs.
 
-### 4. Edit Your Deck
-- Use the main studio to edit slides
-- View live preview on the right
-- Generate blog posts and Twitter captions automatically
-
-## Database Setup
-
-The app uses SQLite with Prisma. The database is automatically created in `.env.local` when you first run the app.
-
-If you need to reset the database:
 ```bash
-# Delete the SQLite file
-rm prisma/dev.db
-
-# Re-initialize Prisma
-pnpm exec prisma generate
-pnpm dev
+GEMINI_API_KEY=your_gemini_api_key
+BLOB_READ_WRITE_TOKEN=your_vercel_blob_token
+DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/xarticle?schema=public"
 ```
 
-## Environment Variables
+Optional private-access controls:
 
-Required:
-- `GEMINI_API_KEY` - Your Google Gemini API key (get from https://aistudio.google.com)
-- `BLOB_READ_WRITE_TOKEN` - Required for slide image storage in local and hosted environments
+```bash
+# Optional: require users to pass through /access first
+APP_ACCESS_CODE=ANGEL
 
-Optional:
-- `DATABASE_URL` - Database connection string (defaults to SQLite in `.env.local`)
-
-## File Structure
-
+# Optional: enable generation unlock flow and invite-code rotation
+GENERATE_ACCESS_CODE=admin-rotation-secret
 ```
-app/
-  ├── page.tsx                 # Dashboard
-  ├── new/                      # Creator wizard
-  │   ├── page.tsx
-  │   └── steps/               # Wizard steps
-  ├── decks/[id]/              # Main studio
-  │   └── page.tsx
-  ├── api/                      # API routes
-  │   ├── decks/
-  │   ├── jobs/
-  │   └── ...
-  └── layout.tsx
 
-lib/
-  ├── config.ts                # Theme presets
-  ├── gemini.ts                # Gemini AI client
-  ├── job-queue.ts             # Render job queue
-  ├── db.ts                    # Database queries
-  ├── hooks.ts                 # React Query hooks
-  └── schemas.ts               # Zod validation
+Notes:
 
-components/
-  ├── deck-card.tsx
-  ├── slide-editor.tsx
-  ├── slide-preview.tsx
-  ├── caption-viewer.tsx
-  └── ...
+- `APP_ACCESS_CODE` protects entry into the app.
+- `GENERATE_ACCESS_CODE` does not go directly to end users. It is the admin rotation secret used when issuing one-time article access codes.
 
-prisma/
-  └── schema.prisma            # Database schema
+## 3. Run Prisma Migrations
+
+```bash
+npx prisma migrate dev
 ```
+
+If you are using a pre-provisioned environment, you can also deploy existing migrations:
+
+```bash
+npm run db:migrate:deploy
+```
+
+## 4. Generate an Article Access Code for a User
+
+Only needed when `GENERATE_ACCESS_CODE` is set.
+
+```bash
+npm run generate-access:create
+```
+
+This prints a one-time `gac_...` code. Give that code to the user. The first workspace/browser session that uses it will own it.
+
+If you rotate `GENERATE_ACCESS_CODE`, old generation unlocks stop working and you must mint new invite codes.
+
+## 5. Start the Development Server
+
+```bash
+npm run dev
+```
+
+Open `http://localhost:3000`.
+
+## 6. Verify the Current User Flow
+
+### If `APP_ACCESS_CODE` is enabled
+
+1. Open `/`
+2. Enter the app access code on `/access`
+3. The app redirects to `/workspace`
+
+### Workspace onboarding
+
+1. Choose `Create new key` to create a fresh workspace
+2. Or choose `Use existing key` to recover an existing workspace with its recovery key
+
+### Generation unlock
+
+1. If generation is locked, the dashboard and `/new` will show disabled generation actions
+2. Enter the one-time article access code from the admin
+3. Generation is unlocked for the current browser session
+
+## Required Environment Variables
+
+- `GEMINI_API_KEY`
+- `BLOB_READ_WRITE_TOKEN`
+- `DATABASE_URL`
+
+## Optional Environment Variables
+
+- `APP_ACCESS_CODE`
+- `GENERATE_ACCESS_CODE`
 
 ## Troubleshooting
 
-### "GEMINI_API_KEY is not set"
-Make sure you've added the environment variable in the project settings (Vars tab).
+### `GEMINI_API_KEY` is not set
 
-### "BLOB_READ_WRITE_TOKEN is not set"
-Make sure `.env.local` contains the Blob token. `.env.vercel.local` is not loaded automatically by `pnpm dev`.
+Add it to `.env.local` or pull your Vercel environment again.
 
-### Database errors
-Try deleting `prisma/dev.db` and restarting the dev server.
+### `BLOB_READ_WRITE_TOKEN` is not set
 
-### Build fails on Vercel
-Run `pnpm install` locally to update `pnpm-lock.yaml`, then push the changes.
+Add it to `.env.local`. `next dev` does not load `.env.vercel.local` automatically.
 
-## Next Steps
+### Prisma migration errors
 
-1. **Customize themes** in `lib/config.ts` to add your own color schemes
-2. **Upgrade to PostgreSQL** - Update `prisma/schema.prisma` provider and deploy to production
-3. **Add authentication** - Use Supabase Auth or Auth.js for user accounts
-4. **Deploy to Vercel** - Push to GitHub and deploy with one click
+Check that `DATABASE_URL` points to a reachable database, then rerun:
 
-For more details, see `README.md` and `GETTING_STARTED.md`.
+```bash
+npx prisma migrate dev
+```
+
+### Users can enter the app but cannot generate
+
+That is expected when `GENERATE_ACCESS_CODE` is enabled and the browser has not been unlocked yet. Issue a fresh invite code with:
+
+```bash
+npm run generate-access:create
+```
+
+### A previously unlocked user is suddenly blocked from generating
+
+Most likely `GENERATE_ACCESS_CODE` was rotated. Mint a new invite code and have the user unlock again.

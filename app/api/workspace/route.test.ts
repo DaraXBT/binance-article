@@ -36,6 +36,9 @@ describe('/api/workspace routes', () => {
       workspaceId: null,
       accessKeyPrefix: null,
       recoveryKey: null,
+      generateAccessEnabled: false,
+      hasGenerationAccess: false,
+      generationAccessInvalidReason: null,
     });
 
     const { GET } = await import('@/app/api/workspace/route');
@@ -48,6 +51,9 @@ describe('/api/workspace routes', () => {
       workspaceId: null,
       accessKeyPrefix: null,
       recoveryKey: null,
+      generateAccessEnabled: false,
+      hasGenerationAccess: false,
+      generationAccessInvalidReason: null,
     });
   });
 

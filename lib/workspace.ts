@@ -2,7 +2,11 @@ import { cookies } from 'next/headers';
 import { createHash, randomBytes } from 'node:crypto';
 
 import prisma from '@/lib/prisma';
-import { isGenerateAccessEnabled } from '@/lib/generate-access';
+import {
+  getCurrentGenerateAccessState,
+  type GenerateAccessInvalidReason,
+  isGenerateAccessEnabled,
+} from '@/lib/generate-access';
 import { getSessionId } from '@/lib/session';
 import { AppError } from '@/server/http/errors';
 import { logEvent } from '@/server/http/log';
@@ -21,6 +25,8 @@ export interface WorkspaceBootstrap {
   accessKeyPrefix: string | null;
   recoveryKey: string | null;
   generateAccessEnabled: boolean;
+  hasGenerationAccess: boolean;
+  generationAccessInvalidReason: GenerateAccessInvalidReason | null;
 }
 
 function createRecoveryAccessKey() {
@@ -181,8 +187,15 @@ export async function getWorkspaceBootstrap(): Promise<WorkspaceBootstrap> {
       accessKeyPrefix: null,
       recoveryKey: null,
       generateAccessEnabled: isGenerateAccessEnabled(),
+      hasGenerationAccess: false,
+      generationAccessInvalidReason: isGenerateAccessEnabled() ? 'missing' : null,
     };
   }
+
+  const generationAccess = await getCurrentGenerateAccessState({
+    workspaceId: existingSession.workspace.id,
+    sessionId,
+  });
 
   return {
     hasWorkspace: true,
@@ -190,6 +203,8 @@ export async function getWorkspaceBootstrap(): Promise<WorkspaceBootstrap> {
     accessKeyPrefix: existingSession.workspace.accessKeyPrefix,
     recoveryKey: await consumePendingWorkspaceRecoveryKey(),
     generateAccessEnabled: isGenerateAccessEnabled(),
+    hasGenerationAccess: generationAccess.hasAccess,
+    generationAccessInvalidReason: generationAccess.invalidReason,
   };
 }
 

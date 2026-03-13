@@ -34,6 +34,16 @@ const prismaMock = {
   $transaction: vi.fn(),
 };
 
+const generateAccessMock = {
+  isGenerateAccessEnabled: vi.fn(() => false),
+  getCurrentGenerateAccessState: vi.fn(async () => ({
+    enabled: false,
+    hasAccess: true,
+    invalidReason: null,
+    grantId: null,
+  })),
+};
+
 vi.mock('next/headers', () => ({
   cookies: cookiesMock,
 }));
@@ -45,6 +55,7 @@ vi.mock('@/lib/session', () => ({
 vi.mock('@/lib/prisma', () => ({
   default: prismaMock,
 }));
+vi.mock('@/lib/generate-access', () => generateAccessMock);
 
 describe('workspace helpers', () => {
   beforeEach(() => {
@@ -76,6 +87,8 @@ describe('workspace helpers', () => {
       accessKeyPrefix: null,
       recoveryKey: null,
       generateAccessEnabled: false,
+      hasGenerationAccess: false,
+      generationAccessInvalidReason: null,
     });
     expect(prismaMock.workspace.create).not.toHaveBeenCalled();
   });
@@ -106,6 +119,8 @@ describe('workspace helpers', () => {
       accessKeyPrefix: 'dwk_created',
       recoveryKey: created.recoveryKey,
       generateAccessEnabled: false,
+      hasGenerationAccess: true,
+      generationAccessInvalidReason: null,
     });
     expect(secondBootstrap).toEqual({
       hasWorkspace: true,
@@ -113,6 +128,8 @@ describe('workspace helpers', () => {
       accessKeyPrefix: 'dwk_created',
       recoveryKey: null,
       generateAccessEnabled: false,
+      hasGenerationAccess: true,
+      generationAccessInvalidReason: null,
     });
   });
 
@@ -130,6 +147,8 @@ describe('workspace helpers', () => {
       accessKeyPrefix: null,
       recoveryKey: null,
       generateAccessEnabled: false,
+      hasGenerationAccess: false,
+      generationAccessInvalidReason: null,
     });
   });
 

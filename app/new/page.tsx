@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -27,14 +27,22 @@ export default function NewDeckPage() {
   const searchParams = useSearchParams();
   const mode = searchParams.get('mode') || 'text'; // 'url', 'prompt', or 'text'
   const { messages } = useLanguage();
-  const { data: workspace } = useWorkspace();
+  const { data: workspace, refetch: refetchWorkspace } = useWorkspace();
   const [currentStep, setCurrentStep] = useState(0);
+  const [hasGenerationAccess, setHasGenerationAccess] = useState(
+    workspace?.hasGenerationAccess ?? false
+  );
   const [formData, setFormData] = useState<WizardFormData>({
     title: '',
     articleContent: '',
     slideCount: 1,
     illustrationStyle: 'pixel-art',
   });
+  const generationLocked = Boolean(workspace?.generateAccessEnabled && !hasGenerationAccess);
+
+  useEffect(() => {
+    setHasGenerationAccess(workspace?.hasGenerationAccess ?? false);
+  }, [workspace?.hasGenerationAccess]);
 
   const steps: WizardStep[] = [
     {
@@ -93,6 +101,16 @@ export default function NewDeckPage() {
     setFormData((prev) => ({ ...prev, ...updates }));
   };
 
+  const handleGenerationUnlock = () => {
+    setHasGenerationAccess(true);
+    void refetchWorkspace();
+  };
+
+  const handleGenerationAccessLost = () => {
+    setHasGenerationAccess(false);
+    void refetchWorkspace();
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/10">
       <div className="mx-auto w-full px-4 py-8">
@@ -125,7 +143,14 @@ export default function NewDeckPage() {
           {currentStep === 0 && (
             <>
               {mode === 'url' && <UrlStep formData={formData} onUpdate={updateFormData} />}
-              {mode === 'prompt' && <PromptStep formData={formData} onUpdate={updateFormData} generateAccessEnabled={workspace?.generateAccessEnabled} />}
+              {mode === 'prompt' && (
+                <PromptStep
+                  formData={formData}
+                  onUpdate={updateFormData}
+                  generationLocked={generationLocked}
+                  onUnlock={handleGenerationUnlock}
+                />
+              )}
               {mode === 'text' && <ContentStep formData={formData} onUpdate={updateFormData} />}
             </>
           )}
@@ -133,7 +158,13 @@ export default function NewDeckPage() {
             <StyleStep formData={formData} onUpdate={updateFormData} />
           )}
           {currentStep === 2 && (
-            <GenerateStep formData={formData} mode={mode as any} generateAccessEnabled={workspace?.generateAccessEnabled} />
+            <GenerateStep
+              formData={formData}
+              mode={mode as any}
+              generationLocked={generationLocked}
+              onUnlock={handleGenerationUnlock}
+              onGenerationAccessLost={handleGenerationAccessLost}
+            />
           )}
         </div>
 

@@ -39,6 +39,8 @@ const messages = {
     promptPlaceholder: 'Add your own instructions or let AI suggest them.',
     promptHintEmpty: 'Enter a topic first, then ask AI for a suggestion.',
     promptHintReady: 'You can refine the prompt before generating.',
+    generationLockedHint: 'Generation is locked for this browser.',
+    generationLockedBanner: 'Generation stays locked until this browser is unlocked.',
     aiSuggest: 'AI Suggest',
     aiSuggestLoading: 'Suggesting...',
     slideCountLabel: 'Slides',
@@ -207,12 +209,18 @@ let workspaceData:
       workspaceId: string | null;
       accessKeyPrefix: string | null;
       recoveryKey: string | null;
+      generateAccessEnabled: boolean;
+      hasGenerationAccess: boolean;
+      generationAccessInvalidReason: string | null;
     }
   | undefined = {
   hasWorkspace: true,
   workspaceId: 'workspace-1',
   accessKeyPrefix: 'dwk_test',
   recoveryKey: null,
+  generateAccessEnabled: false,
+  hasGenerationAccess: true,
+  generationAccessInvalidReason: null,
 };
 let workspaceIsLoading = false;
 let workspaceError: Error | null = null;
@@ -242,6 +250,9 @@ describe('DashboardHome', () => {
       workspaceId: 'workspace-1',
       accessKeyPrefix: 'dwk_test',
       recoveryKey: null,
+      generateAccessEnabled: false,
+      hasGenerationAccess: true,
+      generationAccessInvalidReason: null,
     };
     workspaceIsLoading = false;
     workspaceError = null;
@@ -300,6 +311,9 @@ describe('DashboardHome', () => {
       workspaceId: null,
       accessKeyPrefix: null,
       recoveryKey: null,
+      generateAccessEnabled: false,
+      hasGenerationAccess: false,
+      generationAccessInvalidReason: null,
     };
 
     const { DashboardHome } = await import('@/components/home/dashboard-home');
@@ -335,6 +349,9 @@ describe('DashboardHome', () => {
       workspaceId: 'workspace-1',
       accessKeyPrefix: 'dwk_test',
       recoveryKey: 'dwk_secret_123',
+      generateAccessEnabled: false,
+      hasGenerationAccess: true,
+      generationAccessInvalidReason: null,
     };
 
     const { DashboardHome } = await import('@/components/home/dashboard-home');
@@ -349,6 +366,25 @@ describe('DashboardHome', () => {
     const html = renderToStaticMarkup(React.createElement(DashboardHome));
 
     expect(html).not.toContain('data-testid="recovery-key-dialog"');
+  });
+
+  it('shows locked generation messaging and disables generate actions until unlocked', async () => {
+    workspaceData = {
+      hasWorkspace: true,
+      workspaceId: 'workspace-1',
+      accessKeyPrefix: 'dwk_test',
+      recoveryKey: null,
+      generateAccessEnabled: true,
+      hasGenerationAccess: false,
+      generationAccessInvalidReason: 'missing',
+    };
+
+    const { DashboardHome } = await import('@/components/home/dashboard-home');
+    render(React.createElement(DashboardHome));
+
+    expect(screen.getByText(messages.dashboard.generationLockedBanner)).toBeTruthy();
+    expect(screen.getByRole('button', { name: messages.dashboard.aiSuggest }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: messages.dashboard.generateAction }).hasAttribute('disabled')).toBe(true);
   });
 
   it('exports a helper that returns the AI suggest glow classes for idle and non-idle states', async () => {

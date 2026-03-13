@@ -42,6 +42,12 @@ enum AssetFormat {
   png
 }
 
+enum GenerationAccessGrantStatus {
+  active
+  consumed
+  revoked
+}
+
 model Workspace {
   id              String             @id @default(cuid())
   accessKeyHash   String             @unique
@@ -49,6 +55,7 @@ model Workspace {
   sessions        WorkspaceSession[]
   decks           DeckProject[]
   jobRuns         JobRun[]
+  generationAccessGrants GenerationAccessGrant[]
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 
@@ -184,4 +191,23 @@ model RateLimitBucket {
   updatedAt DateTime @updatedAt
 
   @@index([resetAt])
+}
+
+model GenerationAccessGrant {
+  id               String                    @id @default(cuid())
+  codeHash         String                    @unique
+  codePrefix       String
+  status           GenerationAccessGrantStatus @default(active)
+  boundWorkspaceId String?
+  boundWorkspace   Workspace?                @relation(fields: [boundWorkspaceId], references: [id], onDelete: SetNull)
+  boundSessionId   String?
+  consumedAt       DateTime?
+  envCodeHash      String
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  @@index([codePrefix])
+  @@index([boundWorkspaceId])
+  @@index([boundSessionId])
+  @@index([status, envCodeHash])
 }

@@ -42,12 +42,12 @@ const en = {
   },
   generateAccess: {
     title: 'Generation Access Required',
-    description: 'Enter the generation code to create articles. This helps manage API costs.',
-    codeLabel: 'Generation Code',
-    codePlaceholder: 'Enter generation code',
+    description: 'Enter the article access code from the admin to unlock generation in this browser session.',
+    codeLabel: 'Article Access Code',
+    codePlaceholder: 'Enter article access code',
     submit: 'Unlock Generation',
     submitting: 'Checking...',
-    invalidCode: 'Invalid generation code',
+    invalidCode: 'Invalid article access code',
   },
   theme: {
     ariaLabel: 'Toggle theme',
@@ -85,6 +85,10 @@ const en = {
     promptPlaceholder: 'Add your own instructions or let AI suggest them.',
     promptHintEmpty: 'Enter a topic first, then ask AI for a suggestion.',
     promptHintReady: 'You can refine the prompt before generating.',
+    generationLockedHint:
+      'Generation is locked for this browser. Unlock with the latest article access code to continue.',
+    generationLockedBanner:
+      'You can prepare the prompt here, but generation stays locked until you unlock this browser with the latest article access code.',
     aiSuggest: 'AI Suggest',
     aiSuggestLoading: 'Suggesting...',
     slideCountLabel: 'Slides',
@@ -165,6 +169,9 @@ const en = {
       generatingBlogAndX: 'Generating blog & X posts',
       deckReady: 'Your Article is Ready!',
       generatingDeck: 'Generating Your Article',
+      generationLockedTitle: 'Generation Locked',
+      generationLockedDescription:
+        'This browser must be unlocked with the latest article access code before we can spend tokens to generate your article.',
       readyDescription: 'Slides, images, and captions are all set. Redirecting...',
       readyWithWarningsDescription:
         'The article is ready, but some images still need attention. Redirecting so you can retry them.',
@@ -203,6 +210,10 @@ const en = {
         'Click AI Suggest to auto-generate instructions from your prompt, or write your own.',
       promptHintEmpty:
         'Enter your prompt, then click AI Suggest to auto-generate.',
+      generationLockedBanner:
+        'Prompt drafting is available, but AI generation is locked until this browser is unlocked with the latest article access code.',
+      generationLockedHint:
+        'Unlock generation with the latest article access code before using AI Suggest.',
     },
   },
   deckPage: {
@@ -398,12 +409,12 @@ const km: typeof en = {
   },
   generateAccess: {
     title: 'ត្រូវការកូដបង្កើតអត្ថបទ',
-    description: 'បញ្ចូលកូដបង្កើតអត្ថបទ ដើម្បីបង្កើតអត្ថបទ។ នេះជួយគ្រប់គ្រងការចំណាយ API។',
-    codeLabel: 'កូដបង្កើត',
-    codePlaceholder: 'បញ្ចូលកូដបង្កើត',
+    description: 'បញ្ចូលកូដចូលប្រើអត្ថបទពី admin ដើម្បីដោះសោការ​បង្កើត​សម្រាប់ browser session នេះ។',
+    codeLabel: 'កូដចូលប្រើអត្ថបទ',
+    codePlaceholder: 'បញ្ចូលកូដចូលប្រើអត្ថបទ',
     submit: 'ដោះសោការបង្កើត',
     submitting: 'កំពុងពិនិត្យ...',
-    invalidCode: 'កូដបង្កើតមិនត្រឹមត្រូវ',
+    invalidCode: 'កូដចូលប្រើអត្ថបទមិនត្រឹមត្រូវ',
   },
   theme: {
     ariaLabel: 'ប្ដូររូបរាង',
@@ -441,6 +452,10 @@ const km: typeof en = {
     promptPlaceholder: 'បន្ថែមសេចក្ដីណែនាំរបស់អ្នក ឬឲ្យ AI ជួយណែនាំ។',
     promptHintEmpty: 'សូមបញ្ចូលប្រធានបទជាមុនសិន បន្ទាប់មកស្នើឲ្យ AI ជួយណែនាំ។',
     promptHintReady: 'អ្នកអាចកែសម្រួល prompt មុនពេលបង្កើត។',
+    generationLockedHint:
+      'ការបង្កើតត្រូវបានចាក់សោសម្រាប់ browser នេះ។ សូមដោះសោដោយប្រើកូដចូលប្រើអត្ថបទចុងក្រោយ ដើម្បីបន្ត។',
+    generationLockedBanner:
+      'អ្នកអាចរៀបចំ prompt នៅទីនេះបាន ប៉ុន្តែការបង្កើតនឹងនៅតែចាក់សោរហូតដល់ browser នេះត្រូវបានដោះសោដោយកូដចូលប្រើអត្ថបទចុងក្រោយ។',
     aiSuggest: 'AI Suggest',
     aiSuggestLoading: 'កំពុងណែនាំ...',
     slideCountLabel: 'ស្លាយ',
@@ -521,6 +536,9 @@ const km: typeof en = {
       generatingBlogAndX: 'កំពុងបង្កើតអត្ថបទ Blog និង X',
       deckReady: 'អត្ថបទរបស់អ្នករួចរាល់ហើយ!',
       generatingDeck: 'កំពុងបង្កើតអត្ថបទរបស់អ្នក',
+      generationLockedTitle: 'ការបង្កើតត្រូវបានចាក់សោ',
+      generationLockedDescription:
+        'browser នេះត្រូវតែដោះសោដោយកូដចូលប្រើអត្ថបទចុងក្រោយ មុនពេលយើងចំណាយ token ដើម្បីបង្កើតអត្ថបទរបស់អ្នក។',
       readyDescription: 'ស្លាយ រូបភាព និង captions រួចរាល់ទាំងអស់។ កំពុងបញ្ជូនបន្ត...',
       readyWithWarningsDescription:
         'អត្ថបទរួចរាល់ហើយ ប៉ុន្តែរូបភាពខ្លះនៅតែមានបញ្ហា។ កំពុងបញ្ជូនបន្ត ដើម្បីឲ្យអ្នកសាកល្បងម្ដងទៀតបាន។',
@@ -559,6 +577,10 @@ const km: typeof en = {
         'Click AI Suggest to auto-generate instructions from your prompt, or write your own.',
       promptHintEmpty:
         'Enter your prompt, then click AI Suggest to auto-generate.',
+      generationLockedBanner:
+        'អ្នកអាចតែង prompt បាន ប៉ុន្តែការបង្កើតដោយ AI ត្រូវបានចាក់សោរហូតដល់ browser នេះត្រូវបានដោះសោដោយកូដចូលប្រើអត្ថបទចុងក្រោយ។',
+      generationLockedHint:
+        'សូមដោះសោការ​បង្កើតដោយប្រើកូដចូលប្រើអត្ថបទចុងក្រោយ មុនពេលប្រើ AI Suggest។',
     },
   },
   deckPage: {
@@ -797,6 +819,10 @@ const id: typeof en = {
     promptPlaceholder: 'Tambahkan instruksi Anda sendiri atau biarkan AI menyarankan.',
     promptHintEmpty: 'Masukkan topik terlebih dahulu, lalu minta saran dari AI.',
     promptHintReady: 'Anda dapat menyempurnakan prompt sebelum menghasilkan.',
+    generationLockedHint:
+      'Generation is locked for this browser. Unlock with the latest article access code to continue.',
+    generationLockedBanner:
+      'You can prepare the prompt here, but generation stays locked until you unlock this browser with the latest article access code.',
     aiSuggest: 'AI Suggest',
     aiSuggestLoading: 'Menyarankan...',
     slideCountLabel: 'Slide',
@@ -877,6 +903,9 @@ const id: typeof en = {
       generatingBlogAndX: 'Menghasilkan postingan blog & X',
       deckReady: 'Artikel Anda Siap!',
       generatingDeck: 'Menghasilkan Artikel Anda',
+      generationLockedTitle: 'Generation Locked',
+      generationLockedDescription:
+        'This browser must be unlocked with the latest article access code before we can spend tokens to generate your article.',
       readyDescription: 'Slide, gambar, dan teks keterangan sudah siap. Mengalihkan...',
       readyWithWarningsDescription:
         'Artikel sudah siap, tetapi beberapa gambar masih perlu perhatian. Mengalihkan agar Anda dapat mencoba lagi.',
@@ -915,6 +944,10 @@ const id: typeof en = {
         'Klik AI Suggest untuk menghasilkan instruksi otomatis dari prompt Anda, atau tulis sendiri.',
       promptHintEmpty:
         'Masukkan prompt Anda, lalu klik AI Suggest untuk menghasilkan secara otomatis.',
+      generationLockedBanner:
+        'Prompt drafting is available, but AI generation is locked until this browser is unlocked with the latest article access code.',
+      generationLockedHint:
+        'Unlock generation with the latest article access code before using AI Suggest.',
     },
   },
   deckPage: {
@@ -1153,6 +1186,10 @@ const lo: typeof en = {
     promptPlaceholder: 'ເພີ່ມຄຳແນະນຳຂອງທ່ານເອງ ຫຼື ໃຫ້ AI ແນະນຳ.',
     promptHintEmpty: 'ປ້ອນຫົວຂໍ້ກ່ອນ, ຈາກນັ້ນໃຫ້ AI ແນະນຳ.',
     promptHintReady: 'ທ່ານສາມາດປັບປ່ຽນຄຳແນະນຳກ່ອນສ້າງ.',
+    generationLockedHint:
+      'Generation is locked for this browser. Unlock with the latest article access code to continue.',
+    generationLockedBanner:
+      'You can prepare the prompt here, but generation stays locked until you unlock this browser with the latest article access code.',
     aiSuggest: 'AI ແນະນຳ',
     aiSuggestLoading: 'ກຳລັງແນະນຳ...',
     slideCountLabel: 'ສະໄລ້',
@@ -1233,6 +1270,9 @@ const lo: typeof en = {
       generatingBlogAndX: 'ກຳລັງສ້າງບົດບລ໊ອກ ແລະ ໂພສ X',
       deckReady: 'ບົດຄວາມຂອງທ່ານພ້ອມແລ້ວ!',
       generatingDeck: 'ກຳລັງສ້າງບົດຄວາມຂອງທ່ານ',
+      generationLockedTitle: 'Generation Locked',
+      generationLockedDescription:
+        'This browser must be unlocked with the latest article access code before we can spend tokens to generate your article.',
       readyDescription: 'ສະໄລ້, ຮູບພາບ, ແລະ ຄຳບັນຍາຍພ້ອມແລ້ວ. ກຳລັງປ່ຽນເສັ້ນທາງ...',
       readyWithWarningsDescription:
         'ບົດຄວາມພ້ອມແລ້ວ, ແຕ່ບາງຮູບພາບຍັງຕ້ອງການຄວາມສົນໃຈ. ກຳລັງປ່ຽນເສັ້ນທາງເພື່ອໃຫ້ທ່ານລອງອີກ.',
@@ -1271,6 +1311,10 @@ const lo: typeof en = {
         'ກົດ AI ແນະນຳ ເພື່ອສ້າງຄຳແນະນຳອັດຕະໂນມັດຈາກຫົວຂໍ້ຂອງທ່ານ, ຫຼື ຂຽນເອງ.',
       promptHintEmpty:
         'ປ້ອນຫົວຂໍ້ຂອງທ່ານ, ຈາກນັ້ນກົດ AI ແນະນຳ ເພື່ອສ້າງອັດຕະໂນມັດ.',
+      generationLockedBanner:
+        'Prompt drafting is available, but AI generation is locked until this browser is unlocked with the latest article access code.',
+      generationLockedHint:
+        'Unlock generation with the latest article access code before using AI Suggest.',
     },
   },
   deckPage: {
@@ -1509,6 +1553,10 @@ const my: typeof en = {
     promptPlaceholder: 'သင့်ကိုယ်ပိုင် ညွှန်ကြားချက်များ ထည့်ပါ သို့မဟုတ် AI ကို အကြံပြုခိုင်းပါ။',
     promptHintEmpty: 'ခေါင်းစဉ်တစ်ခု အရင်ထည့်ပါ၊ ထို့နောက် AI ကို အကြံပြုခိုင်းပါ။',
     promptHintReady: 'ထုတ်လုပ်မတိုင်မီ ညွှန်ကြားချက်ကို ပြင်ဆင်နိုင်သည်။',
+    generationLockedHint:
+      'Generation is locked for this browser. Unlock with the latest article access code to continue.',
+    generationLockedBanner:
+      'You can prepare the prompt here, but generation stays locked until you unlock this browser with the latest article access code.',
     aiSuggest: 'AI အကြံပြု',
     aiSuggestLoading: 'အကြံပြုနေသည်...',
     slideCountLabel: 'ဆလိုက်',
@@ -1589,6 +1637,9 @@ const my: typeof en = {
       generatingBlogAndX: 'Blog နှင့် X ပို့စ်များ ထုတ်လုပ်နေသည်',
       deckReady: 'သင့်ဆောင်းပါး အဆင်သင့်ဖြစ်ပါပြီ!',
       generatingDeck: 'သင့်ဆောင်းပါး ထုတ်လုပ်နေသည်',
+      generationLockedTitle: 'Generation Locked',
+      generationLockedDescription:
+        'This browser must be unlocked with the latest article access code before we can spend tokens to generate your article.',
       readyDescription: 'ဆလိုက်များ၊ ပုံများနှင့် ခေါင်းစီးများ အားလုံး အဆင်သင့်ဖြစ်ပါပြီ။ ပြန်ညွှန်းနေသည်...',
       readyWithWarningsDescription:
         'ဆောင်းပါး အဆင်သင့်ဖြစ်ပါပြီ၊ သို့သော် ပုံအချို့ ပြန်ကြည့်ရန် လိုအပ်သည်။ ထပ်စမ်းနိုင်ရန် ပြန်ညွှန်းနေသည်...',
@@ -1627,6 +1678,10 @@ const my: typeof en = {
         'သင့်ညွှန်ကြားချက်မှ ညွှန်ကြားချက်များ အလိုအလျောက် ထုတ်လုပ်ရန် AI အကြံပြုကို နှိပ်ပါ သို့မဟုတ် ကိုယ်တိုင်ရေးပါ။',
       promptHintEmpty:
         'သင့်ညွှန်ကြားချက်ကို ထည့်ပါ၊ ထို့နောက် AI အကြံပြုကို နှိပ်ပြီး အလိုအလျောက် ထုတ်လုပ်ပါ။',
+      generationLockedBanner:
+        'Prompt drafting is available, but AI generation is locked until this browser is unlocked with the latest article access code.',
+      generationLockedHint:
+        'Unlock generation with the latest article access code before using AI Suggest.',
     },
   },
   deckPage: {
@@ -1865,6 +1920,10 @@ const th: typeof en = {
     promptPlaceholder: 'เพิ่มคำแนะนำของคุณเองหรือให้ AI แนะนำ',
     promptHintEmpty: 'ใส่หัวข้อก่อน แล้วขอคำแนะนำจาก AI',
     promptHintReady: 'คุณสามารถปรับแต่งพรอมต์ก่อนสร้างได้',
+    generationLockedHint:
+      'Generation is locked for this browser. Unlock with the latest article access code to continue.',
+    generationLockedBanner:
+      'You can prepare the prompt here, but generation stays locked until you unlock this browser with the latest article access code.',
     aiSuggest: 'AI แนะนำ',
     aiSuggestLoading: 'กำลังแนะนำ...',
     slideCountLabel: 'สไลด์',
@@ -1945,6 +2004,9 @@ const th: typeof en = {
       generatingBlogAndX: 'กำลังสร้างโพสต์ Blog และ X',
       deckReady: 'บทความของคุณพร้อมแล้ว!',
       generatingDeck: 'กำลังสร้างบทความของคุณ',
+      generationLockedTitle: 'Generation Locked',
+      generationLockedDescription:
+        'This browser must be unlocked with the latest article access code before we can spend tokens to generate your article.',
       readyDescription: 'สไลด์ รูปภาพ และคำบรรยายพร้อมหมดแล้ว กำลังเปลี่ยนเส้นทาง...',
       readyWithWarningsDescription:
         'บทความพร้อมแล้ว แต่รูปภาพบางส่วนยังต้องแก้ไข กำลังเปลี่ยนเส้นทางเพื่อให้คุณลองใหม่',
@@ -1983,6 +2045,10 @@ const th: typeof en = {
         'คลิก AI แนะนำเพื่อสร้างคำแนะนำอัตโนมัติจากพรอมต์ของคุณ หรือเขียนเอง',
       promptHintEmpty:
         'ใส่พรอมต์ของคุณ แล้วคลิก AI แนะนำเพื่อสร้างอัตโนมัติ',
+      generationLockedBanner:
+        'Prompt drafting is available, but AI generation is locked until this browser is unlocked with the latest article access code.',
+      generationLockedHint:
+        'Unlock generation with the latest article access code before using AI Suggest.',
     },
   },
   deckPage: {
@@ -2221,6 +2287,10 @@ const fil: typeof en = {
     promptPlaceholder: 'Magdagdag ng sarili mong tagubilin o hayaan ang AI na magmungkahi.',
     promptHintEmpty: 'Maglagay muna ng paksa, pagkatapos ay humingi ng mungkahi sa AI.',
     promptHintReady: 'Maaari mong i-refine ang prompt bago bumuo.',
+    generationLockedHint:
+      'Generation is locked for this browser. Unlock with the latest article access code to continue.',
+    generationLockedBanner:
+      'You can prepare the prompt here, but generation stays locked until you unlock this browser with the latest article access code.',
     aiSuggest: 'Mungkahi ng AI',
     aiSuggestLoading: 'Nagmumungkahi...',
     slideCountLabel: 'Mga slide',
@@ -2301,6 +2371,9 @@ const fil: typeof en = {
       generatingBlogAndX: 'Bumubuo ng blog at X post',
       deckReady: 'Handa na ang Iyong Artikulo!',
       generatingDeck: 'Binubuo ang Iyong Artikulo',
+      generationLockedTitle: 'Generation Locked',
+      generationLockedDescription:
+        'This browser must be unlocked with the latest article access code before we can spend tokens to generate your article.',
       readyDescription: 'Handa na ang mga slide, larawan, at caption. Nire-redirect...',
       readyWithWarningsDescription:
         'Handa na ang artikulo, ngunit may ilang larawan pa na nangangailangan ng atensyon. Nire-redirect upang masubukan mo ulit ang mga ito.',
@@ -2339,6 +2412,10 @@ const fil: typeof en = {
         'I-click ang Mungkahi ng AI upang awtomatikong bumuo ng mga tagubilin mula sa iyong prompt, o sumulat ng sarili mo.',
       promptHintEmpty:
         'Ilagay ang iyong prompt, pagkatapos ay i-click ang Mungkahi ng AI upang awtomatikong bumuo.',
+      generationLockedBanner:
+        'Prompt drafting is available, but AI generation is locked until this browser is unlocked with the latest article access code.',
+      generationLockedHint:
+        'Unlock generation with the latest article access code before using AI Suggest.',
     },
   },
   deckPage: {

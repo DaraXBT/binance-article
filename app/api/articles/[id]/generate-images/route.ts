@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getCurrentRevisionContext } from '@/lib/db';
-import { isGenerateAccessEnabled, isValidGenerateAccessCode } from '@/lib/generate-access';
+import { getRequestGenerateAccessState, isGenerateAccessEnabled } from '@/lib/generate-access';
 import { GenerateImagesRequestSchema } from '@/lib/schemas';
+import { createGenerateAccessRequiredResponse } from '@/server/auth/generate-access-response';
 import { assertAllowedOrigin } from '@/server/auth/origin';
 import { startWorkflow } from '@/server/integrations/workflow-client';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
@@ -24,18 +25,21 @@ export async function POST(
     assertAllowedOrigin(request);
 
     const body = await request.json().catch(() => ({}));
+    const { sessionId, workspace } = await getCurrentWorkspace();
 
     if (isGenerateAccessEnabled()) {
-      const accessCode = typeof body?.accessCode === 'string' ? body.accessCode : '';
-      if (!accessCode || !(await isValidGenerateAccessCode(accessCode))) {
-        return NextResponse.json(
-          { error: 'Generation access code required.', code: 'GENERATE_ACCESS_REQUIRED' },
-          { status: 403, headers: withNoStoreHeaders() }
-        );
+      const accessState = await getRequestGenerateAccessState(request, {
+        workspaceId: workspace.id,
+        sessionId,
+      });
+
+      if (!accessState.hasAccess) {
+        return createGenerateAccessRequiredResponse({
+          reason: accessState.invalidReason,
+          clearCookie: accessState.invalidReason !== 'missing',
+        });
       }
     }
-
-    const { workspace } = await getCurrentWorkspace();
 
     const { allowed, resetAt } = await checkRateLimit(
       `gen-images:${workspace.id}`,

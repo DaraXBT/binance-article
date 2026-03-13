@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { GenerateAccessDialog } from '@/components/generate-access-dialog';
 import { useLanguage } from '@/components/language-provider';
 import { GenerateAccessError } from '@/lib/generate-access-error';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Circle, Loader2, AlertCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Circle, Loader2, Lock } from 'lucide-react';
 import { JobSummary } from '@/lib/schemas';
 
 interface GenerateStepProps {
@@ -17,7 +17,9 @@ interface GenerateStepProps {
     illustrationStyle: string;
   };
   mode: 'text' | 'url' | 'prompt';
-  generateAccessEnabled?: boolean;
+  generationLocked?: boolean;
+  onUnlock?: () => void;
+  onGenerationAccessLost?: () => void;
 }
 
 type Phase = 'idle' | 'awaiting-code' | 'creating' | 'generating-slides' | 'generating-images' | 'generating-captions' | 'complete' | 'error';
@@ -79,16 +81,21 @@ function extractTitleFromContent(content: string): string {
   return firstLine ? firstLine.trim().slice(0, 80) : 'Untitled';
 }
 
-export function GenerateStep({ formData, mode, generateAccessEnabled }: GenerateStepProps) {
+export function GenerateStep({
+  formData,
+  mode,
+  generationLocked = false,
+  onUnlock,
+  onGenerationAccessLost,
+}: GenerateStepProps) {
   const router = useRouter();
   const { messages } = useLanguage();
-  const [phase, setPhase] = useState<Phase>(generateAccessEnabled ? 'awaiting-code' : 'idle');
+  const [phase, setPhase] = useState<Phase>(generationLocked ? 'awaiting-code' : 'idle');
   const [error, setError] = useState('');
   const [imageProgress, setImageProgress] = useState({ current: 0, total: 0 });
   const [imageSummary, setImageSummary] = useState<ImageGenerationSummary | null>(null);
   const [jobProgress, setJobProgress] = useState(0);
-  const [showAccessDialog, setShowAccessDialog] = useState(!!generateAccessEnabled);
-  const accessCodeRef = useRef<string>('');
+  const [showAccessDialog, setShowAccessDialog] = useState(false);
 
   const phases: PhaseInfo[] = [
     { id: 'creating', label: messages.newDeck.generateView.creatingDeck },
@@ -116,6 +123,11 @@ export function GenerateStep({ formData, mode, generateAccessEnabled }: Generate
 
   const handleGenerate = useCallback(async () => {
     try {
+      if (generationLocked) {
+        setPhase('awaiting-code');
+        return;
+      }
+
       setPhase('creating');
       setError('');
       setImageSummary(null);
@@ -130,14 +142,13 @@ export function GenerateStep({ formData, mode, generateAccessEnabled }: Generate
           description: mode === 'url' ? formData.title : formData.articleContent.slice(0, 200),
           content: mode === 'url' ? formData.title : formData.articleContent,
           illustrationStyle: formData.illustrationStyle,
-          ...(accessCodeRef.current ? { accessCode: accessCodeRef.current } : {}),
         }),
       });
 
       if (!createRes.ok) {
         const errorData = await createRes.json().catch(() => null);
         if (GenerateAccessError.isGenerateAccessResponse(createRes.status, errorData)) {
-          accessCodeRef.current = '';
+          onGenerationAccessLost?.();
           setShowAccessDialog(true);
           setPhase('awaiting-code');
           return;
@@ -157,14 +168,13 @@ export function GenerateStep({ formData, mode, generateAccessEnabled }: Generate
           slideCount: formData.slideCount,
           illustrationStyle: formData.illustrationStyle,
           mode: mode, // Tell the backend what mode we are performing
-          ...(accessCodeRef.current ? { accessCode: accessCodeRef.current } : {}),
         }),
       });
 
       if (!generateRes.ok) {
         const errorData = await generateRes.json().catch(() => null);
         if (GenerateAccessError.isGenerateAccessResponse(generateRes.status, errorData)) {
-          accessCodeRef.current = '';
+          onGenerationAccessLost?.();
           setShowAccessDialog(true);
           setPhase('awaiting-code');
           return;
@@ -208,7 +218,6 @@ export function GenerateStep({ formData, mode, generateAccessEnabled }: Generate
         total: resolvedImageSummary?.total || jobResult?.slideCount || formData.slideCount,
       });
 
-      accessCodeRef.current = '';
       setPhase('complete');
 
       // Redirect after a short delay
@@ -222,13 +231,22 @@ export function GenerateStep({ formData, mode, generateAccessEnabled }: Generate
       setPhase('error');
       setError(message);
     }
-  }, [formData, messages, mode, router]);
+  }, [formData, generationLocked, messages, mode, onGenerationAccessLost, router]);
 
   useEffect(() => {
     if (phase === 'idle') {
       void handleGenerate();
     }
   }, [handleGenerate, phase]);
+
+  useEffect(() => {
+    if (generationLocked) {
+      setPhase((current) => (current === 'complete' ? current : 'awaiting-code'));
+      return;
+    }
+
+    setPhase((current) => (current === 'awaiting-code' ? 'idle' : current));
+  }, [generationLocked]);
 
   const progress = (() => {
     if (phase === 'generating-slides' || phase === 'generating-images' || phase === 'generating-captions') {
@@ -251,6 +269,8 @@ export function GenerateStep({ formData, mode, generateAccessEnabled }: Generate
         <h2 className="text-2xl font-semibold mb-2">
           {phase === 'complete'
             ? `🎉 ${messages.newDeck.generateView.deckReady}`
+            : phase === 'awaiting-code'
+              ? messages.newDeck.generateView.generationLockedTitle
             : messages.newDeck.generateView.generatingDeck}
         </h2>
         <p className="text-muted-foreground">
@@ -258,11 +278,39 @@ export function GenerateStep({ formData, mode, generateAccessEnabled }: Generate
             ? hasImageWarnings
               ? messages.newDeck.generateView.readyWithWarningsDescription
               : messages.newDeck.generateView.readyDescription
+            : phase === 'awaiting-code'
+              ? messages.newDeck.generateView.generationLockedDescription
             : messages.newDeck.generateView.workingDescription}
         </p>
       </div>
 
-      {phase === 'error' ? (
+      {phase === 'awaiting-code' ? (
+        <div className="space-y-4">
+          <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-4 text-amber-900">
+            <div className="flex items-start gap-3">
+              <Lock className="mt-0.5 h-5 w-5 shrink-0" />
+              <div>
+                <p className="text-sm font-medium">
+                  {messages.newDeck.generateView.generationLockedTitle}
+                </p>
+                <p className="mt-1 text-sm text-amber-900/80">
+                  {messages.newDeck.generateView.generationLockedDescription}
+                </p>
+              </div>
+            </div>
+          </div>
+          <Button
+            type="button"
+            onClick={() => setShowAccessDialog(true)}
+            variant="outline"
+            size="sm"
+            className="gap-2"
+          >
+            <Lock className="h-4 w-4" />
+            {messages.generateAccess.submit}
+          </Button>
+        </div>
+      ) : phase === 'error' ? (
         <div className="space-y-4">
           <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
@@ -370,8 +418,8 @@ export function GenerateStep({ formData, mode, generateAccessEnabled }: Generate
       <GenerateAccessDialog
         open={showAccessDialog}
         onOpenChange={setShowAccessDialog}
-        onSuccess={(code) => {
-          accessCodeRef.current = code;
+        onSuccess={() => {
+          onUnlock?.();
           setShowAccessDialog(false);
           setPhase('idle');
         }}

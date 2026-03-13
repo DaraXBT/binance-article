@@ -30,7 +30,25 @@ const rateLimitMock = {
   })),
 };
 
+const generateAccessMock = {
+  isGenerateAccessEnabled: vi.fn<() => boolean>(() => false),
+  getRequestGenerateAccessState: vi.fn<
+    () => Promise<{
+      enabled: boolean;
+      hasAccess: boolean;
+      invalidReason: string | null;
+      grantId: string | null;
+    }>
+  >(async () => ({
+    enabled: false,
+    hasAccess: true,
+    invalidReason: null,
+    grantId: null,
+  })),
+};
+
 vi.mock('@/lib/db', () => dbMock);
+vi.mock('@/lib/generate-access', () => generateAccessMock);
 vi.mock('@/server/modules/workspace/service', () => workspaceMock);
 vi.mock('@/server/modules/jobs/service', () => jobServiceMock);
 vi.mock('@/server/integrations/workflow-client', () => workflowClientMock);
@@ -42,6 +60,13 @@ vi.mock('@/workflows/article-jobs', () => ({
 describe('POST /api/articles/[id]/generate-images', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    generateAccessMock.isGenerateAccessEnabled.mockReturnValue(false);
+    generateAccessMock.getRequestGenerateAccessState.mockResolvedValue({
+      enabled: false,
+      hasAccess: true,
+      invalidReason: null,
+      grantId: null,
+    });
     rateLimitMock.checkRateLimit.mockResolvedValue({
       allowed: true,
       remaining: 9,
@@ -119,5 +144,33 @@ describe('POST /api/articles/[id]/generate-images', () => {
     );
 
     expect(response.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it('returns 403 when retrying images without generation access', async () => {
+    generateAccessMock.isGenerateAccessEnabled.mockReturnValue(true);
+    generateAccessMock.getRequestGenerateAccessState.mockResolvedValue({
+      enabled: true,
+      hasAccess: false,
+      invalidReason: 'missing',
+      grantId: null,
+    });
+
+    const { POST } = await import('@/app/api/articles/[id]/generate-images/route');
+    const response = await POST(
+      new Request('http://localhost/api/articles/deck-1/generate-images', {
+        method: 'POST',
+        body: JSON.stringify({ illustrationStyle: 'pixel-art' }),
+      }) as never,
+      { params: Promise.resolve({ id: 'deck-1' }) }
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body).toEqual(
+      expect.objectContaining({
+        code: 'GENERATE_ACCESS_REQUIRED',
+      })
+    );
+    expect(jobServiceMock.createJobRun).not.toHaveBeenCalled();
   });
 });

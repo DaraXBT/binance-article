@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 interface GenerateAccessDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: (code: string) => void;
+  onSuccess: () => void;
 }
 
 export function GenerateAccessDialog({ open, onOpenChange, onSuccess }: GenerateAccessDialogProps) {
@@ -45,11 +45,10 @@ export function GenerateAccessDialog({ open, onOpenChange, onSuccess }: Generate
         return;
       }
 
-      const validatedCode = code;
       setCode('');
       setError(null);
       onOpenChange(false);
-      onSuccess(validatedCode);
+      onSuccess();
     } catch {
       setError(messages.generateAccess.invalidCode);
     } finally {
