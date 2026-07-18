@@ -299,7 +299,7 @@ async function applyStructuralFormatting(
   }
 }
 
-// Replaces each BSCODEPH_N placeholder paragraph with a native multiCode node.
+// Replaces each namespaced code placeholder paragraph with a native multiCode node.
 // HTML cannot express multiCode (its `blocks` attr parses from HTML as a string,
 // not an array), so this must go through TipTap insertContentAt with JSON.
 async function insertCodeBlocks(
@@ -859,7 +859,7 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
       await applyStructuralFormatting(cdp, sessionId, editorSel, blocks);
     }
 
-    // Replace BSCODEPH_N placeholders with native multiCode nodes. Runs even
+    // Replace namespaced code placeholders with native multiCode nodes. Runs even
     // when contentInserted is false (manual-paste path) — the placeholders may
     // still be present as text, matching how the image loop behaves.
     if (parsed.codeBlocks.length > 0) {

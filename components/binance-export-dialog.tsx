@@ -172,8 +172,18 @@ export function BinanceExportDialog({ open, onOpenChange, deck }: BinanceExportD
     title,
     markdown,
     coverSlideId,
-    slides: deck.slides,
+    slides: deck.slides.map((slide, index) => ({
+      ...slide,
+      imagePath: slide.imageUrl ? getSlideImagePath(index, inferImageMimeType(slide.imageUrl)) : null,
+    })),
   }), [coverSlideId, deck.slides, markdown, title]);
+  const contentWarnings = useMemo(() => assembleBinanceArticle({
+    intro: deck.captions?.blogIntro,
+    sections: deck.captions?.blogSections,
+    tags: deck.captions?.blogTags,
+    slides: deck.slides.map(toExportSlide),
+  }).warnings, [deck.captions, deck.slides]);
+  const warnings = [...new Set([...contentWarnings, ...issues.warnings])];
   const coverSlide = deck.slides.find((slide) => slide.id === coverSlideId) ?? null;
   const coverPreviewUrl = getPreviewAssetUrl(deck.id, coverSlide?.imageUrl ?? null);
   const normalizedTags = normalizeBinanceTags(deck.captions?.blogTags);
@@ -284,9 +294,9 @@ export function BinanceExportDialog({ open, onOpenChange, deck }: BinanceExportD
                 {issues.errors.map((error) => <p key={error}>{error}</p>)}
               </div>
             ) : null}
-            {issues.warnings.length > 0 ? (
+            {warnings.length > 0 ? (
               <div className="space-y-1 border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm">
-                {issues.warnings.map((warning) => <p key={warning}>{warning}</p>)}
+                {warnings.map((warning) => <p key={warning}>{warning}</p>)}
               </div>
             ) : null}
             {downloadError ? <p role="alert" className="text-sm text-destructive">{downloadError}</p> : null}

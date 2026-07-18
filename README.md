@@ -86,6 +86,7 @@ From an article studio, choose **Binance Square**. Review and edit the generated
 The project-local publishing skill is pinned at `.agents/skills/baoyu-post-to-binance-square`. On a machine with Chrome, Bun, and an active Binance login, validate the bundle before opening the browser:
 
 ```bash
+bun --cwd .agents/skills/baoyu-post-to-binance-square/scripts install --frozen-lockfile
 bun .agents/skills/baoyu-post-to-binance-square/scripts/main.ts \
   --bundle ~/Downloads/article-binance-square.zip --dry-run
 bun .agents/skills/baoyu-post-to-binance-square/scripts/main.ts \

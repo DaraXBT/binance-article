@@ -16,7 +16,7 @@
     "generate-access:create": "node scripts/create-generate-access-grant.mjs"
   },
   "dependencies": {
-    "@google/genai": "^1.44.0",
+    "@google/genai": "^1.52.0",
     "@hookform/resolvers": "^5.2.2",
     "@prisma/client": "^6.19.3",
     "@radix-ui/react-accordion": "^1.2.12",
@@ -94,7 +94,8 @@
     "vitest": "^4.1.10"
   },
   "overrides": {
-    "protobufjs": "7.5.5",
+    "protobufjs": "7.6.5",
+    "ws": "8.21.1",
     "shell-quote": "1.10.0",
     "@vercel/blob": {
       "undici": "6.27.0"

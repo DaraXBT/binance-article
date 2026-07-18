@@ -74,6 +74,6 @@ editor.chain().focus()
 
 `md-to-html.ts` keeps the `&#x...;` character references that `remark-stringify` emits around CJK-adjacent emphasis — decoding them before `marked` parses the markdown would make `**bold**` next to CJK render as literal asterisks. The browser decodes these entities when the HTML enters the editor, so any code that matches generated text against the live editor's `textContent` must decode entities first (see `decodeHtmlEntities` in `scripts/binance-article.ts`).
 
-## `BSIMGPH_N` / `BSCODEPH_N` placeholders
+## Namespaced image/code placeholders
 
-After `setContent`, placeholders survive as text nodes inside `<p>` elements. The image insertion loop uses `TreeWalker` to find and replace `BSIMGPH_N`; the code-block loop finds `BSCODEPH_N` paragraphs via `doc.descendants` and swaps them for `multiCode` nodes.
+After `setContent`, placeholders survive as text nodes inside `<p>` elements. The image insertion loop uses `TreeWalker` to find and replace the fresh random image tokens; the code-block loop finds the corresponding namespaced paragraphs via `doc.descendants` and swaps them for `multiCode` nodes. A random namespace prevents author text from being mistaken for an automation token.

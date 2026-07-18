@@ -1,8 +1,11 @@
 ---
 name: baoyu-post-to-binance-square
-description: Posts content and articles to Binance Square (https://www.binance.com/en/square). Supports regular posts with images and long-form Markdown articles. Uses real Chrome with CDP to automate the browser. Use when the user asks to "post to Binance Square", "publish to Binance Square", "share on Binance Square", "write a Binance Square article", or "发布到币安广场".
-version: 1.3.0
+description: Posts content and articles to Binance Square (https://www.binance.com/en/square). Supports regular posts, long-form Markdown, and validated xarticle ZIP bundles with a review-confirm-publish boundary through real Chrome CDP. Use whenever the user asks to post, export, prepare, review, or publish to Binance Square, mentions a Binance article bundle, or says "发布到币安广场".
 metadata:
+  version: 1.3.0
+  upstream:
+    repository: https://github.com/DaraXBT/baoyu-skills
+    commit: a37d82f6105f696d511ba11e36e6372fbb0c1644
   openclaw:
     homepage: https://github.com/JimLiu/baoyu-skills#baoyu-post-to-binance-square
     requires:
@@ -38,6 +41,7 @@ Specific mentions of a concrete tool in this skill are examples — other runtim
 2. Script path = `{baseDir}/scripts/<script-name>.ts`
 3. Replace all `{baseDir}` in this document with the actual path
 4. Resolve `${BUN_X}` runtime: if `bun` installed → `bun`; if `npx` available → `npx -y bun`; else suggest installing bun
+5. If `{baseDir}/scripts/node_modules` is missing, run `${BUN_X} install --frozen-lockfile` from `{baseDir}/scripts` before invoking the publisher
 
 **Script Reference**:
 | Script | Purpose |
@@ -58,6 +62,7 @@ Specific mentions of a concrete tool in this skill are examples — other runtim
 
 - Google Chrome or Chromium
 - `bun` runtime
+- Skill dependencies installed with `bun install --frozen-lockfile` from `scripts/`
 - First run: log in to Binance manually in the opened Chrome window (session saved in shared profile)
 
 ## Pre-flight Check (Optional)
@@ -118,6 +123,8 @@ ${BUN_X} {baseDir}/scripts/main.ts --publish-draft <draft-id>
 The publisher reattaches only to the recorded Binance editor tab, checks title/body/assets again, uses scoped article-editor selectors, and reports success only after a canonical published URL or a recognized success state. It never launches a replacement tab for the publish step and never kills unrelated Chrome processes.
 
 Bundle limits are deliberately bounded: 100 MiB compressed/extracted total, 32 entries, 20 images, 10 MiB per image, 1 MiB Markdown, and 256 KiB manifest. ZIP paths must be relative, listed in the manifest, non-symlink, and match verified image signatures and SHA-256 hashes.
+
+Bundle Markdown uses only canonical inline image destinations (`![alt](images/file.ext)`). Each listed image path must appear exactly once; remote, absolute, resource-loading raw HTML, reference/wiki, escaped, Mermaid-generated, or image-like code/alt destinations are rejected before any browser or filesystem image resolution. Plain formatting tags such as `<u>` remain allowed. Mermaid fences remain available in direct article preview, but the reviewed bundle flow rejects them until their generated PNG is explicitly included in the manifest.
 
 ## Post Type Selection
 

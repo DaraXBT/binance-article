@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 export interface CompositionReport {
   titleMatches: boolean;
   bodyMatches: boolean;
@@ -70,7 +72,7 @@ export function evaluatePublishEvidence(input: PublishEvidenceInput): PublishEvi
 }
 
 export function createPlaceholderNamespace(): string {
-  const random = crypto.randomUUID().replace(/-/g, '').slice(0, 16).toUpperCase();
+  const random = randomUUID().replace(/-/g, '').slice(0, 16).toUpperCase();
   return `BS_${random}_`;
 }
 

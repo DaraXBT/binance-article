@@ -61,6 +61,7 @@ describe('BinanceExportDialog', () => {
     expect((screen.getByLabelText('Article Markdown') as HTMLTextAreaElement).value).toContain('## Opening');
     expect((screen.getByLabelText('Use Opening as cover') as HTMLInputElement).checked).toBe(true);
     expect(screen.getByText(/Slide 2 has no generated image/)).toBeTruthy();
+    expect(screen.getByText(/Slide 2 uses slide content because its blog section is missing/)).toBeTruthy();
   });
 
   it('updates validation as the user edits the title and Markdown', () => {

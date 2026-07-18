@@ -1,11 +1,16 @@
 import JSZip from 'jszip';
 import { z } from 'zod';
 
+import { getMarkdownImageReferenceErrors } from '../.agents/skills/baoyu-post-to-binance-square/scripts/markdown-image-references';
+
 export const BINANCE_ARTICLE_MAX_CHARACTERS = 100_000;
 export const BINANCE_TITLE_MAX_CHARACTERS = 200;
 export const BINANCE_MAX_IMAGES = 20;
 export const BINANCE_COVER_WIDTH = 1_000;
 export const BINANCE_COVER_HEIGHT = 400;
+export const BINANCE_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+export const BINANCE_MAX_BUNDLE_BYTES = 100 * 1024 * 1024;
+const BINANCE_MAX_MANIFEST_BYTES = 256 * 1024;
 
 const SUPPORTED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 const SAFE_BUNDLE_PATH = /^(?:article\.md|images\/[A-Za-z0-9][A-Za-z0-9._-]*\.(?:jpg|jpeg|png|webp))$/;
@@ -13,7 +18,7 @@ const SAFE_BUNDLE_PATH = /^(?:article\.md|images\/[A-Za-z0-9][A-Za-z0-9._-]*\.(?
 export const BinanceBundleFileSchema = z.object({
   path: z.string().regex(SAFE_BUNDLE_PATH, 'Bundle path is unsafe'),
   mimeType: z.enum(SUPPORTED_IMAGE_MIME_TYPES).or(z.literal('text/markdown')),
-  bytes: z.number().int().nonnegative(),
+  bytes: z.number().int().nonnegative().max(BINANCE_MAX_BUNDLE_BYTES),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
 });
 
@@ -23,6 +28,7 @@ export const BinanceBundleImageSchema = BinanceBundleFileSchema.extend({
   order: z.number().int().min(0).max(BINANCE_MAX_IMAGES - 1),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
+  bytes: z.number().int().nonnegative().max(BINANCE_MAX_IMAGE_BYTES),
 });
 
 export const BinanceBundleManifestSchema = z.object({
@@ -34,6 +40,7 @@ export const BinanceBundleManifestSchema = z.object({
   markdown: BinanceBundleFileSchema.extend({
     path: z.literal('article.md'),
     mimeType: z.literal('text/markdown'),
+    bytes: z.number().int().nonnegative().max(BINANCE_ARTICLE_MAX_CHARACTERS * 4),
   }),
   cover: BinanceBundleImageSchema.extend({
     path: z.literal('images/cover.jpg'),
@@ -85,7 +92,12 @@ export type BinanceExportValidationInput = {
   title: string;
   markdown: string;
   coverSlideId: string | null;
-  slides: readonly { id: string; imageUrl?: string | null; imageStatus?: string | null }[];
+  slides: readonly {
+    id: string;
+    imageUrl?: string | null;
+    imageStatus?: string | null;
+    imagePath?: string | null;
+  }[];
 };
 
 export type BinaryInput = Uint8Array | ArrayBuffer | Blob;
@@ -122,6 +134,10 @@ export type CreatedBinanceBundle = {
 
 function cleanHeading(value: string): string {
   return value.replace(/^#+\s*/, '').replace(/[\r\n]+/g, ' ').trim() || 'Untitled section';
+}
+
+function cleanImageAlt(value: string): string {
+  return cleanHeading(value).replace(/[\[\]]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function fallbackSlideBody(slide: BinanceExportSlide): string {
@@ -195,7 +211,7 @@ export function assembleBinanceArticle(input: BinanceExportInput): {
     }
 
     if (slide.imagePath) {
-      block.push(`![${cleanHeading(slide.title)}](${slide.imagePath})`);
+      block.push(`![${cleanImageAlt(slide.title)}](${slide.imagePath})`);
     } else {
       warnings.push(`Slide ${index + 1} has no generated image and will be exported as text only.`);
     }
@@ -280,14 +296,18 @@ export function getBinanceExportIssues(input: BinanceExportValidationInput): Bin
   }
 
   const cover = input.slides.find((slide) => slide.id === input.coverSlideId);
-  if (!cover?.imageUrl || cover.imageStatus === 'failed' || cover.imageStatus === 'pending') {
+  if (!cover?.imageUrl || cover.imageStatus !== 'generated') {
     errors.push('Choose a generated slide image for the 5:2 cover.');
   }
+  const expectedImagePaths: string[] = [];
   for (const [index, slide] of input.slides.entries()) {
-    if (!slide.imageUrl || slide.imageStatus === 'failed' || slide.imageStatus === 'pending') {
-      warnings.push(`Slide ${index + 1} has no generated image and will be omitted from the bundle.`);
+    if (!slide.imageUrl || slide.imageStatus !== 'generated') {
+      warnings.push(`Slide ${index + 1} has no generated image and will be exported as text only.`);
+    } else if (slide.imagePath) {
+      expectedImagePaths.push(slide.imagePath);
     }
   }
+  errors.push(...getMarkdownImageReferenceErrors(markdown, expectedImagePaths, 'Article Markdown'));
   return { errors, warnings };
 }
 
@@ -297,6 +317,9 @@ export async function createBinanceBundle(input: CreateBinanceBundleInput): Prom
   if (!title) throw new Error('A Binance article title is required.');
   if (title.length > BINANCE_TITLE_MAX_CHARACTERS) throw new Error('Binance article title is too long.');
   if (!input.markdown.trim()) throw new Error('Article Markdown cannot be empty.');
+  if ([...input.markdown].length > BINANCE_ARTICLE_MAX_CHARACTERS) {
+    throw new Error('Article Markdown exceeds Binance\'s 100,000-character limit.');
+  }
   if (markdownBytes.byteLength > BINANCE_ARTICLE_MAX_CHARACTERS * 4) {
     throw new Error('Article Markdown exceeds the export size limit.');
   }
@@ -306,6 +329,7 @@ export async function createBinanceBundle(input: CreateBinanceBundleInput): Prom
   if (input.images.length > BINANCE_MAX_IMAGES) throw new Error(`A maximum of ${BINANCE_MAX_IMAGES} images is supported.`);
 
   const coverBytes = await asBytes(input.cover.bytes);
+  if (coverBytes.byteLength > BINANCE_MAX_IMAGE_BYTES) throw new Error('Cover image exceeds the 10 MiB limit.');
   if (sniffImageMimeType(coverBytes) !== 'image/jpeg') throw new Error('Cover image is not a valid JPEG.');
   const imageFiles = [] as Array<BinanceBundleManifest['images'][number] & { bytesValue: Uint8Array }>;
   const seenPaths = new Set<string>();
@@ -316,10 +340,17 @@ export async function createBinanceBundle(input: CreateBinanceBundleInput): Prom
     if (seenPaths.has(image.path)) throw new Error(`Duplicate image path: ${image.path}`);
     seenPaths.add(image.path);
     const bytes = await asBytes(image.bytes);
+    if (bytes.byteLength > BINANCE_MAX_IMAGE_BYTES) throw new Error(`${image.path} exceeds the 10 MiB image limit.`);
     const actualMime = sniffImageMimeType(bytes);
     if (actualMime !== image.mimeType) throw new Error(`Image MIME mismatch for ${image.path}.`);
     imageFiles.push({ ...image, bytes: bytes.byteLength, sha256: await sha256(bytes), bytesValue: bytes });
   }
+  const markdownImageErrors = getMarkdownImageReferenceErrors(
+    input.markdown,
+    imageFiles.map((image) => image.path),
+    'Article Markdown',
+  );
+  if (markdownImageErrors[0]) throw new Error(markdownImageErrors[0]);
 
   const manifestWithoutHashes = {
     schemaVersion: 1 as const,
@@ -345,9 +376,14 @@ export async function createBinanceBundle(input: CreateBinanceBundleInput): Prom
     images: imageFiles.map(({ bytesValue: _bytesValue, ...image }) => image),
   };
   const manifest = BinanceBundleManifestSchema.parse(manifestWithoutHashes);
+  const manifestBytes = new TextEncoder().encode(JSON.stringify(manifest, null, 2));
+  if (manifestBytes.byteLength > BINANCE_MAX_MANIFEST_BYTES) throw new Error('Bundle manifest exceeds the export size limit.');
+  const extractedBytes = markdownBytes.byteLength + coverBytes.byteLength + manifestBytes.byteLength +
+    imageFiles.reduce((total, image) => total + image.bytesValue.byteLength, 0);
+  if (extractedBytes > BINANCE_MAX_BUNDLE_BYTES) throw new Error('Bundle exceeds the 100 MiB extracted size limit.');
   const zip = new JSZip();
   zip.file('article.md', markdownBytes);
-  zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+  zip.file('manifest.json', manifestBytes);
   zip.file('images/cover.jpg', coverBytes);
   for (const image of imageFiles) zip.file(image.path, image.bytesValue);
   const bytes = await zip.generateAsync({
@@ -355,5 +391,6 @@ export async function createBinanceBundle(input: CreateBinanceBundleInput): Prom
     compression: 'DEFLATE',
     compressionOptions: { level: 6 },
   });
+  if (bytes.byteLength > BINANCE_MAX_BUNDLE_BYTES) throw new Error('Bundle exceeds the 100 MiB compressed size limit.');
   return { bytes, manifest };
 }

@@ -373,6 +373,17 @@ test('parseMarkdown leaves image syntax inside code fences untouched', async (t)
   assert.doesNotMatch(result.codeBlocks[0]?.content ?? '', /BSIMGPH/);
 });
 
+test('parseMarkdown removes unsafe link protocols while preserving the label', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'md-link-safety-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const file = path.join(root, 'article.md');
+  await fs.writeFile(file, '[Unsafe link](javascript:alert(1)) and [safe link](https://example.com).');
+  const parsed = await parseMarkdown(file);
+  assert.doesNotMatch(parsed.html, /javascript:/i);
+  assert.match(parsed.html, /Unsafe link/);
+  assert.match(parsed.html, /href="https:\/\/example\.com"/);
+});
+
 test('parseMarkdown unquotes CJK-quoted frontmatter values', async (t) => {
   const root = await makeTempDir('bs-md-to-html-cjk-quotes-');
   t.after(() => fs.rm(root, { recursive: true, force: true }));

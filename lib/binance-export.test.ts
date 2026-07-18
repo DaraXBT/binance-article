@@ -73,6 +73,13 @@ describe('assembleBinanceArticle', () => {
     expect(result.warnings).toContain('Slide 2 uses slide content because its blog section is missing.');
   });
 
+  it('normalizes bracketed slide titles into publisher-safe image alt text', () => {
+    const result = assembleBinanceArticle({
+      slides: [{ id: 'slide-1', title: 'BTC [Spot] setup', imagePath: 'images/01-slide.png' }],
+    });
+    expect(result.markdown).toContain('![BTC Spot setup](images/01-slide.png)');
+  });
+
   it('warns about missing optional images without emitting broken Markdown', () => {
     const result = assembleBinanceArticle({
       intro: '',
@@ -142,6 +149,89 @@ describe('getBinanceExportIssues', () => {
     ]));
     expect(issues.errors.some((message) => message.includes('100,000'))).toBe(true);
   });
+
+  it('blocks export if edited Markdown drops a bundled image reference', () => {
+    const issues = getBinanceExportIssues({
+      title: 'Valid title',
+      markdown: 'Body without the image.',
+      coverSlideId: 'slide-1',
+      slides: [{
+        id: 'slide-1',
+        imageUrl: 'https://example.com/slide.png',
+        imageStatus: 'generated',
+        imagePath: 'images/01-slide.png',
+      }],
+    });
+    expect(issues.errors).toContain(
+      'Article Markdown must reference the bundled image images/01-slide.png exactly once.'
+    );
+  });
+
+  it('accepts generated Markdown whose image destinations exactly match the export set', () => {
+    const issues = getBinanceExportIssues({
+      title: 'Valid title',
+      markdown: '## Slide\n\n![Slide](images/01-slide.png)',
+      coverSlideId: 'slide-1',
+      slides: [{
+        id: 'slide-1',
+        imageUrl: 'https://example.com/slide.png',
+        imageStatus: 'generated',
+        imagePath: 'images/01-slide.png',
+      }],
+    });
+    expect(issues.errors).toEqual([]);
+  });
+
+  it.each([
+    {
+      name: 'a listed path hidden in image alt text with a remote destination',
+      markdown: '![images/01-slide.png](https://example.invalid/private.png)',
+      error: /unbundled or unsafe.*https:/i,
+    },
+    {
+      name: 'a listed path hidden in code',
+      markdown: '`images/01-slide.png`',
+      error: /must reference the bundled image/i,
+    },
+    {
+      name: 'an extra remote image destination',
+      markdown: '![Slide](images/01-slide.png)\n\n![Remote](https://example.invalid/remote.png)',
+      error: /unbundled or unsafe.*https:/i,
+    },
+    {
+      name: 'an extra absolute image destination',
+      markdown: '![Slide](images/01-slide.png)\n\n![Secret](/Users/alice/secret.png)',
+      error: /unbundled or unsafe.*\/Users\/alice/i,
+    },
+    {
+      name: 'a raw HTML image source',
+      markdown: '![Slide](images/01-slide.png)\n\n<img src="https://example.invalid/raw.png">',
+      error: /raw HTML image/i,
+    },
+    {
+      name: 'a resource-loading raw HTML tag',
+      markdown: '![Slide](images/01-slide.png)\n\n<iframe src="http://127.0.0.1/private"></iframe>',
+      error: /unsupported raw HTML/i,
+    },
+    {
+      name: 'a Mermaid block that would generate an unmanifested image',
+      markdown: '![Slide](images/01-slide.png)\n\n```mermaid\ngraph TD\nA --> B\n```',
+      error: /cannot contain Mermaid blocks/i,
+    },
+  ])('rejects $name', ({ markdown, error }) => {
+    const issues = getBinanceExportIssues({
+      title: 'Valid title',
+      markdown,
+      coverSlideId: 'slide-1',
+      slides: [{
+        id: 'slide-1',
+        imageUrl: 'https://example.com/slide.png',
+        imageStatus: 'generated',
+        imagePath: 'images/01-slide.png',
+      }],
+    });
+    expect(issues.errors.some((message) => error.test(message))).toBe(true);
+  });
 });
 
 describe('createBinanceBundle', () => {
@@ -181,5 +271,71 @@ describe('createBinanceBundle', () => {
     expect(manifest.markdown.sha256).toMatch(/^[a-f0-9]{64}$/);
     expect(manifest.cover.sha256).toMatch(/^[a-f0-9]{64}$/);
     expect(manifest.images[0]?.sha256).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it('rejects a direct bundle request whose Markdown points at an unbundled image', async () => {
+    await expect(createBinanceBundle({
+      articleId: 'article-123',
+      title: 'Unsafe Binance export',
+      markdown: '![images/01-slide.png](/Users/alice/secret.png)',
+      cover: {
+        sourceSlideId: 'slide-1',
+        bytes: JPEG_BYTES,
+        mimeType: 'image/jpeg',
+        width: 1000,
+        height: 400,
+      },
+      images: [{
+        slideId: 'slide-1',
+        order: 0,
+        path: 'images/01-slide.png',
+        bytes: PNG_BYTES,
+        mimeType: 'image/png',
+        width: 1600,
+        height: 900,
+      }],
+    })).rejects.toThrow(/inside code|unbundled or unsafe/i);
+  });
+
+  it('enforces Binance character limits for direct bundle creation', async () => {
+    await expect(createBinanceBundle({
+      articleId: 'article-123',
+      title: 'Oversized Binance export',
+      markdown: 'a'.repeat(BINANCE_ARTICLE_MAX_CHARACTERS + 1),
+      cover: {
+        sourceSlideId: 'slide-1',
+        bytes: JPEG_BYTES,
+        mimeType: 'image/jpeg',
+        width: 1000,
+        height: 400,
+      },
+      images: [],
+    })).rejects.toThrow(/100,000-character limit/i);
+  });
+
+  it('rejects body images above the publisher per-image limit', async () => {
+    const oversizedImage = new Uint8Array((10 * 1024 * 1024) + 1);
+    oversizedImage.set(PNG_BYTES);
+    await expect(createBinanceBundle({
+      articleId: 'article-123',
+      title: 'Oversized image export',
+      markdown: '![Slide](images/01-slide.png)',
+      cover: {
+        sourceSlideId: 'slide-1',
+        bytes: JPEG_BYTES,
+        mimeType: 'image/jpeg',
+        width: 1000,
+        height: 400,
+      },
+      images: [{
+        slideId: 'slide-1',
+        order: 0,
+        path: 'images/01-slide.png',
+        bytes: oversizedImage,
+        mimeType: 'image/png',
+        width: 1600,
+        height: 900,
+      }],
+    })).rejects.toThrow(/10 MiB image limit/i);
   });
 });

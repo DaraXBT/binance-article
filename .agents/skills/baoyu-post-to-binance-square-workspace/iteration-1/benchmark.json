@@ -4,7 +4,7 @@
     "skill_path": "/Users/macbookpro/Documents/Coding/binance-article/.agents/skills/baoyu-post-to-binance-square",
     "executor_model": "deterministic-cli",
     "analyzer_model": "deterministic-assertions",
-    "timestamp": "2026-07-18T14:29:46.062Z",
+    "timestamp": "2026-07-18T15:29:06.805Z",
     "evals_run": [
       1,
       2,
@@ -23,7 +23,7 @@
         "passed": 3,
         "failed": 0,
         "total": 3,
-        "time_seconds": 0.106400042,
+        "time_seconds": 0.13280825000000002,
         "tokens": 0,
         "tool_calls": 1,
         "errors": 0
@@ -57,7 +57,7 @@
         "passed": 0,
         "failed": 3,
         "total": 3,
-        "time_seconds": 0.014836792000000003,
+        "time_seconds": 0.017816457999999997,
         "tokens": 0,
         "tool_calls": 1,
         "errors": 0
@@ -91,7 +91,7 @@
         "passed": 3,
         "failed": 0,
         "total": 3,
-        "time_seconds": 0.08163474999999999,
+        "time_seconds": 0.09054983299999998,
         "tokens": 0,
         "tool_calls": 1,
         "errors": 0
@@ -125,7 +125,7 @@
         "passed": 0,
         "failed": 3,
         "total": 3,
-        "time_seconds": 0.01248245799999998,
+        "time_seconds": 0.013203292000000005,
         "tokens": 0,
         "tool_calls": 1,
         "errors": 0
@@ -159,7 +159,7 @@
         "passed": 3,
         "failed": 0,
         "total": 3,
-        "time_seconds": 0.08033512500000001,
+        "time_seconds": 0.08762929200000003,
         "tokens": 0,
         "tool_calls": 1,
         "errors": 0
@@ -193,7 +193,7 @@
         "passed": 0,
         "failed": 3,
         "total": 3,
-        "time_seconds": 0.012568874999999964,
+        "time_seconds": 0.01312020799999999,
         "tokens": 0,
         "tool_calls": 1,
         "errors": 0
@@ -227,10 +227,10 @@
         "max": 1
       },
       "time_seconds": {
-        "mean": 0.089456639,
-        "stddev": 0.01199253754633725,
-        "min": 0.08033512500000001,
-        "max": 0.106400042
+        "mean": 0.10366245833333333,
+        "stddev": 0.020643647430314934,
+        "min": 0.08762929200000003,
+        "max": 0.13280825000000002
       },
       "tokens": {
         "mean": 0,
@@ -247,10 +247,10 @@
         "max": 0
       },
       "time_seconds": {
-        "mean": 0.013296041666666649,
-        "stddev": 0.0010900460744764817,
-        "min": 0.01248245799999998,
-        "max": 0.014836792000000003
+        "mean": 0.01471331933333333,
+        "stddev": 0.002194512539067288,
+        "min": 0.01312020799999999,
+        "max": 0.017816457999999997
       },
       "tokens": {
         "mean": 0,
@@ -261,7 +261,7 @@
     },
     "delta": {
       "pass_rate": "+1.00",
-      "time_seconds": "0.076",
+      "time_seconds": "0.089",
       "tokens": "+0"
     }
   },

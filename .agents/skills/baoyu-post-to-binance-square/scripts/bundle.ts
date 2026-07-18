@@ -1,9 +1,11 @@
 import { createHash } from 'node:crypto';
+import { constants as fsConstants } from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
 import { Unzip, UnzipInflate, UnzipPassThrough } from 'fflate';
+import { getMarkdownImageReferenceErrors } from './markdown-image-references.js';
 
 export const BUNDLE_LIMITS = {
   maxArchiveBytes: 100 * 1024 * 1024,
@@ -19,6 +21,7 @@ export const BUNDLE_LIMITS = {
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const IMAGE_PATH_PATTERN = /^images\/[A-Za-z0-9][A-Za-z0-9._-]*\.(?:jpg|jpeg|png|webp)$/;
 const BINANCE_HOST_PATTERN = /(^|\.)binance\.com$/i;
+const NO_FOLLOW_FLAG = process.platform === 'win32' ? 0 : (fsConstants.O_NOFOLLOW ?? 0);
 
 export type BundleImageMime = 'image/jpeg' | 'image/png' | 'image/webp';
 
@@ -356,13 +359,65 @@ function verifyFile(entries: Map<string, Uint8Array>, metadata: BundleFileMetada
   return bytes;
 }
 
+async function readRegularFileBounded(
+  filePath: string,
+  maxBytes: number,
+  label: string,
+  oversizeMessage = `${label} exceeds its extracted size limit.`,
+): Promise<Uint8Array> {
+  let handle: Awaited<ReturnType<typeof fs.open>> | undefined;
+  try {
+    handle = await fs.open(filePath, fsConstants.O_RDONLY | NO_FOLLOW_FLAG);
+    const stat = await handle.stat();
+    if (!stat.isFile()) throw new BundleValidationError(`${label} is not a regular file.`);
+    if (stat.size > maxBytes) throw new BundleValidationError(oversizeMessage);
+
+    // Read through the opened descriptor into a bounded buffer. This keeps a
+    // post-stat replacement from turning a checked small file into an
+    // unbounded allocation or a symlink read (O_NOFOLLOW on POSIX).
+    const buffer = new Uint8Array(maxBytes + 1);
+    let offset = 0;
+    while (offset < buffer.byteLength) {
+      const result = await handle.read(buffer, offset, buffer.byteLength - offset, null);
+      if (result.bytesRead === 0) break;
+      offset += result.bytesRead;
+    }
+    if (offset > maxBytes) throw new BundleValidationError(oversizeMessage);
+    if (offset !== stat.size) {
+      throw new BundleValidationError(`${label} changed while it was being read.`);
+    }
+    return buffer.slice(0, offset);
+  } catch (error) {
+    if (error instanceof BundleValidationError) throw error;
+    throw new BundleValidationError(`${label} could not be read safely.`);
+  } finally {
+    await handle?.close().catch(() => undefined);
+  }
+}
+
+function validateMarkdownImages(markdown: string, manifest: BundleManifestV1, label: string): void {
+  const errors = getMarkdownImageReferenceErrors(
+    markdown,
+    manifest.images.map((image) => image.path),
+    label,
+  );
+  if (errors[0]) {
+    throw new BundleValidationError(errors[0]);
+  }
+}
+
 export async function validateBundleArchive(bundlePath: string): Promise<ValidatedBundle> {
-  const stat = await fs.stat(bundlePath).catch(() => null);
-  if (!stat?.isFile()) throw new BundleValidationError('Bundle ZIP was not found.');
-  if (stat.size <= 0 || stat.size > BUNDLE_LIMITS.maxArchiveBytes) {
+  const linkStat = await fs.lstat(bundlePath).catch(() => null);
+  if (!linkStat?.isFile() || linkStat.isSymbolicLink()) throw new BundleValidationError('Bundle ZIP was not found.');
+  const archive = await readRegularFileBounded(
+    bundlePath,
+    BUNDLE_LIMITS.maxArchiveBytes,
+    'Bundle ZIP',
+    'Bundle ZIP exceeds the compressed size limit.',
+  );
+  if (archive.byteLength <= 0 || archive.byteLength > BUNDLE_LIMITS.maxArchiveBytes) {
     throw new BundleValidationError('Bundle ZIP exceeds the compressed size limit.');
   }
-  const archive = new Uint8Array(await fs.readFile(bundlePath));
   const entries = unzipBounded(archive);
   const manifestBytes = entries.get('manifest.json');
   if (!manifestBytes) throw new BundleValidationError('manifest.json is missing.');
@@ -394,12 +449,15 @@ export async function validateBundleArchive(bundlePath: string): Promise<Validat
   if ([...markdown].length > BUNDLE_LIMITS.maxArticleCharacters) {
     throw new BundleValidationError('article.md exceeds Binance\'s 100,000-character limit.');
   }
+  validateMarkdownImages(markdown, manifest, 'article.md');
   return { manifest, markdown, entries };
 }
 
 async function readExtractedEntries(root: string): Promise<Map<string, Uint8Array>> {
   const entries = new Map<string, Uint8Array>();
   const resolvedRoot = path.resolve(root);
+  let totalBytes = 0;
+  let fileCount = 0;
   async function visit(directory: string, relativeDirectory = ''): Promise<void> {
     const children = await fs.readdir(directory, { withFileTypes: true });
     for (const child of children) {
@@ -415,7 +473,22 @@ async function readExtractedEntries(root: string): Promise<Map<string, Uint8Arra
         if (relativePath !== 'images') throw new BundleValidationError(`Unexpected extracted directory: ${relativePath}.`);
         await visit(absolutePath, relativePath);
       } else if (stat.isFile()) {
-        entries.set(safePath, new Uint8Array(await fs.readFile(absolutePath)));
+        fileCount += 1;
+        if (fileCount > BUNDLE_LIMITS.maxEntries) throw new BundleValidationError('Extracted bundle contains too many entries.');
+        const fileLimit = safePath === 'manifest.json'
+          ? BUNDLE_LIMITS.maxManifestBytes
+          : safePath === 'article.md'
+            ? BUNDLE_LIMITS.maxMarkdownBytes
+            : BUNDLE_LIMITS.maxImageBytes;
+        if (stat.size > fileLimit) throw new BundleValidationError(`${safePath} exceeds its extracted size limit.`);
+        totalBytes += stat.size;
+        if (totalBytes > BUNDLE_LIMITS.maxTotalBytes) throw new BundleValidationError('Extracted bundle exceeds the total size limit.');
+        const bytes = await readRegularFileBounded(absolutePath, fileLimit, safePath);
+        totalBytes -= stat.size;
+        totalBytes += bytes.byteLength;
+        if (totalBytes > BUNDLE_LIMITS.maxTotalBytes) throw new BundleValidationError('Extracted bundle exceeds the total size limit.');
+        if (bytes.byteLength !== stat.size) throw new BundleValidationError(`${safePath} changed while it was being read.`);
+        entries.set(safePath, bytes);
       } else {
         throw new BundleValidationError(`Unsupported extracted entry: ${relativePath}.`);
       }
@@ -448,6 +521,7 @@ export async function validateExtractedBundle(bundleDir: string): Promise<Valida
   if (!markdown.trim() || [...markdown].length > BUNDLE_LIMITS.maxArticleCharacters) {
     throw new BundleValidationError('Extracted article.md is empty or exceeds Binance limits.');
   }
+  validateMarkdownImages(markdown, manifest, 'Extracted article.md');
   return { manifest, markdown, entries };
 }
 

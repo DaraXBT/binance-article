@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -15,6 +14,7 @@ import remarkStringify from 'remark-stringify';
 
 import { preprocessMermaidInMarkdown, replaceMarkdownImagesWithPlaceholders, resolveImagePath } from 'baoyu-md';
 import { closeRenderer, renderMermaidToPng } from 'baoyu-chrome-cdp/mermaid';
+import { createPlaceholderNamespace } from './publish-safety.js';
 
 interface ImageInfo {
   placeholder: string;
@@ -202,6 +202,13 @@ function escapeHtml(text: string): string {
     .replace(/'/g, '&#39;');
 }
 
+function isSafeLinkHref(href: string): boolean {
+  const value = href.trim();
+  if (!value || /[\u0000-\u001f\u007f]/u.test(value)) return false;
+  if (/^(?:https?:|mailto:)/iu.test(value)) return true;
+  return value.startsWith('#') || (/^\/(?!\/)/u.test(value));
+}
+
 // Escapes text for HTML while keeping existing &#x...;/&name; character
 // references intact (decoding or double-escaping them would break the
 // CJK-adjacent emphasis fix from preprocessCjkMarkdown).
@@ -296,7 +303,7 @@ function convertInlineTags(tokens: unknown[], opts: InlineTagOptions): void {
 
 // Fenced code blocks must be invisible to replaceMarkdownImagesWithPlaceholders
 // (which scans raw markdown) — otherwise image syntax inside a fence is rewritten
-// into a BSIMGPH placeholder, corrupting the user's literal code.
+// into an image placeholder, corrupting the user's literal code.
 function maskFencedBlocks(markdown: string, namespace: string): { masked: string; blocks: Map<string, string> } {
   const lines = markdown.split('\n');
   const out: string[] = [];
@@ -384,7 +391,7 @@ function convertMarkdownToHtml(
       return '<blockquote>' + this.parser.parse(tokens) + '</blockquote>';
     },
 
-    // Code fences become BSCODEPH_N placeholder paragraphs; binance-article.ts
+    // Code fences become namespaced placeholder paragraphs; binance-article.ts
     // replaces them with native multiCode nodes via TipTap insertContentAt
     // (multiCode's `blocks` attr cannot round-trip through HTML — it parses as
     // a string instead of an array).
@@ -420,6 +427,7 @@ function convertMarkdownToHtml(
 
       const plainLabel = label.replace(/<[^>]*>/g, '').trim();
       if (/^[a-z][a-z0-9._-]*$/.test(plainLabel)) return '';
+      if (!isSafeLinkHref(href)) return label;
 
       const titleAttr = title ? ' title="' + escapeHtml(title) + '"' : '';
       // nosec: href and title are HTML-escaped; label comes from the trusted renderer
@@ -472,7 +480,7 @@ export async function parseMarkdown(
   // being mistaken for an automation token during image/code replacement.
   let placeholderNamespace = '';
   do {
-    placeholderNamespace = `BS_${randomUUID().replace(/-/g, '').slice(0, 16).toUpperCase()}_`;
+    placeholderNamespace = createPlaceholderNamespace();
   } while (body.includes(placeholderNamespace));
 
   let title = stripWrappingQuotes(options?.title ?? '') || pickFirstString(frontmatter, ['title']) || '';

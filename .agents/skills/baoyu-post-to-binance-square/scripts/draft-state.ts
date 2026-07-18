@@ -148,6 +148,9 @@ export async function readDraftState(
   const now = options.now ?? new Date();
   if (Date.parse(state.expiresAt) <= now.getTime()) {
     await fs.rm(statePath, { force: true }).catch(() => undefined);
+    if (isDraftBundlePathSafe(state.bundleDir, options.cacheRoot)) {
+      await fs.rm(state.bundleDir, { recursive: true, force: true }).catch(() => undefined);
+    }
     throw new Error(`Draft ${id} has expired.`);
   }
   return state;
