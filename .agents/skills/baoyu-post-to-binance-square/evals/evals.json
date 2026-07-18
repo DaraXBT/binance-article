@@ -1,0 +1,38 @@
+{
+  "skill_name": "baoyu-post-to-binance-square",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Validate evals/files/standard.zip for Binance Square without opening Chrome or publishing anything. Report the title, body character count, image count, and whether it is safe to prepare.",
+      "expected_output": "A successful offline dry-run report for the standard xarticle bundle.",
+      "files": ["evals/files/standard.zip"],
+      "expectations": [
+        "Uses the bundle dry-run interface and does not open Chrome",
+        "Reports title Standard article and one body image",
+        "Reports the bundle as valid without claiming it was published"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Dry-run evals/files/rich.zip. Confirm that the versioned manifest, cover, Markdown, image signature, byte counts, and hashes are accepted, but do not compose or publish.",
+      "expected_output": "A successful offline validation of a rich Markdown bundle.",
+      "files": ["evals/files/rich.zip"],
+      "expectations": [
+        "Uses offline dry-run validation",
+        "Reports Rich Markdown article with one body image",
+        "Does not open Chrome, create publishable draft state, or claim publication"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Dry-run evals/files/malicious-traversal.zip and explain whether it can be used. Do not extract unsafe content and do not open Chrome.",
+      "expected_output": "A hard failure identifying the traversal path as unsafe.",
+      "files": ["evals/files/malicious-traversal.zip"],
+      "expectations": [
+        "Rejects the archive before browser automation",
+        "Identifies an unsafe traversal path",
+        "Does not extract cookies.json outside a controlled directory"
+      ]
+    }
+  ]
+}

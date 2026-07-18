@@ -1,0 +1,56 @@
+{
+  "expectations": [
+    {
+      "text": "Uses offline dry-run validation",
+      "passed": true,
+      "evidence": "Dry-run returned valid JSON: {\n  \"valid\": true,\n  \"articleId\": \"eval-rich-markdown-article\",\n  \"title\": \"Rich Markdown article\",\n  \"characterCount\": 273,\n  \"imageCount\": 1,\n  \"coverPath\": \"images/cover.jpg\",\n  \"warnings\": []\n}"
+    },
+    {
+      "text": "Reports Rich Markdown article with one body image",
+      "passed": true,
+      "evidence": "Dry-run returned valid JSON: {\n  \"valid\": true,\n  \"articleId\": \"eval-rich-markdown-article\",\n  \"title\": \"Rich Markdown article\",\n  \"characterCount\": 273,\n  \"imageCount\": 1,\n  \"coverPath\": \"images/cover.jpg\",\n  \"warnings\": []\n}"
+    },
+    {
+      "text": "Does not open Chrome, create publishable draft state, or claim publication",
+      "passed": true,
+      "evidence": "Dry-run returned valid JSON: {\n  \"valid\": true,\n  \"articleId\": \"eval-rich-markdown-article\",\n  \"title\": \"Rich Markdown article\",\n  \"characterCount\": 273,\n  \"imageCount\": 1,\n  \"coverPath\": \"images/cover.jpg\",\n  \"warnings\": []\n}"
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "total": 3,
+    "pass_rate": 1
+  },
+  "execution_metrics": {
+    "tool_calls": {
+      "command": 1
+    },
+    "total_tool_calls": 1,
+    "total_steps": 1,
+    "errors_encountered": 0,
+    "output_chars": 199,
+    "transcript_chars": 199
+  },
+  "timing": {
+    "executor_duration_seconds": 0.08163474999999999,
+    "total_duration_seconds": 0.08163474999999999
+  },
+  "claims": [
+    {
+      "claim": "The bundle was validated offline.",
+      "type": "process",
+      "verified": true,
+      "evidence": "Dry-run returned valid JSON: {\n  \"valid\": true,\n  \"articleId\": \"eval-rich-markdown-article\",\n  \"title\": \"Rich Markdown article\",\n  \"characterCount\": 273,\n  \"imageCount\": 1,\n  \"coverPath\": \"images/cover.jpg\",\n  \"warnings\": []\n}"
+    }
+  ],
+  "user_notes_summary": {
+    "uncertainties": [],
+    "needs_review": [],
+    "workarounds": []
+  },
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "The assertions distinguish validation, browser safety, and result accuracy."
+  }
+}

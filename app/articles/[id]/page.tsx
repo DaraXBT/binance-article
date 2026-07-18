@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
-import { ChevronLeft, Loader2, Lock, Trash2 } from 'lucide-react';
+import { ChevronLeft, Download, Loader2, Lock, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { CaptionViewer } from '@/components/caption-viewer';
+import { BinanceExportDialog } from '@/components/binance-export-dialog';
 import { GenerateAccessDialog } from '@/components/generate-access-dialog';
 import { GenerateAccessError } from '@/lib/generate-access-error';
 import { LanguageToggle } from '@/components/language-toggle';
@@ -109,6 +110,7 @@ export default function DeckPage({ params }: DeckPageProps) {
   const [editorError, setEditorError] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<'slides' | 'editor' | 'preview'>('slides');
   const [showAccessDialog, setShowAccessDialog] = useState(false);
+  const [showBinanceExport, setShowBinanceExport] = useState(false);
   const { data: workspace, refetch: refetchWorkspace } = useWorkspace();
   const [hasGenerationAccess, setHasGenerationAccess] = useState(
     workspace?.hasGenerationAccess ?? false
@@ -385,6 +387,18 @@ export default function DeckPage({ params }: DeckPageProps) {
                 {messages.generateAccess.submit}
               </Button>
             ) : null}
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-2"
+              onClick={() => setShowBinanceExport(true)}
+              disabled={slides.length === 0}
+              aria-label="Export to Binance Square"
+              data-testid="open-binance-export"
+            >
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Binance Square</span>
+            </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
@@ -558,6 +572,11 @@ export default function DeckPage({ params }: DeckPageProps) {
           setShowAccessDialog(false);
           retryFailedImages.mutate();
         }}
+      />
+      <BinanceExportDialog
+        open={showBinanceExport}
+        onOpenChange={setShowBinanceExport}
+        deck={deck}
       />
     </>
   );

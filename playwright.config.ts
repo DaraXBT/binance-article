@@ -11,11 +11,11 @@ export default defineConfig({
     baseURL: process.env.BASE_URL || 'http://localhost:3000',
     trace: 'on-first-retry',
   },
-  webServer: process.env.CI
+  webServer: process.env.BASE_URL
     ? undefined
     : {
         command: 'npm run dev',
         url: 'http://localhost:3000',
-        reuseExistingServer: true,
+        reuseExistingServer: !process.env.CI,
       },
 });

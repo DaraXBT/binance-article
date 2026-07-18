@@ -42,34 +42,34 @@ test('parseMarkdown preserves mixed markdown and Obsidian wikilink image order',
   const result = await parseMarkdown(markdownPath, { tempDir });
 
   assert.deepEqual(
-    result.contentImages.map(({ placeholder, originalPath, alt, localPath }) => ({
-      placeholder,
+    result.contentImages.map(({ originalPath, alt, localPath }) => ({
       originalPath,
       alt,
       localPath,
     })),
     [
       {
-        placeholder: 'BSIMGPH_1',
         originalPath: 'a.png',
         alt: '',
         localPath: path.join(articleDir, 'a.png'),
       },
       {
-        placeholder: 'BSIMGPH_2',
         originalPath: 'b.jpg',
         alt: 'B alt',
         localPath: path.join(articleDir, 'b.jpg'),
       },
       {
-        placeholder: 'BSIMGPH_3',
         originalPath: 'c.webp',
         alt: 'C alt',
         localPath: path.join(attachmentsDir, 'c.webp'),
       },
     ],
   );
-  assert.match(result.html, /BSIMGPH_1[\s\S]*BSIMGPH_2[\s\S]*BSIMGPH_3/);
+  assert.match(result.contentImages[0]?.placeholder ?? '', /^BS_[A-F0-9]{16}_IMG_1$/);
+  assert.match(result.contentImages[1]?.placeholder ?? '', /^BS_[A-F0-9]{16}_IMG_2$/);
+  assert.match(result.contentImages[2]?.placeholder ?? '', /^BS_[A-F0-9]{16}_IMG_3$/);
+  const imageNamespace = result.contentImages[0]!.placeholder.replace(/IMG_1$/, '');
+  assert.match(result.html, new RegExp(`${imageNamespace}IMG_1[\\s\\S]*${imageNamespace}IMG_2[\\s\\S]*${imageNamespace}IMG_3`));
   assert.match(result.html, /!\[\[note\]\]/);
 });
 
@@ -234,12 +234,14 @@ test('parseMarkdown extracts code fences as BSCODEPH placeholders with multiCode
 
   const result = await parseMarkdown(markdownPath, { tempDir });
 
-  assert.match(result.html, /<p>BSCODEPH_1<\/p>/);
-  assert.match(result.html, /<p>BSCODEPH_2<\/p>/);
+  assert.match(result.codeBlocks[0]?.placeholder ?? '', /^BS_[A-F0-9]{16}_CODE_1$/);
+  assert.match(result.codeBlocks[1]?.placeholder ?? '', /^BS_[A-F0-9]{16}_CODE_2$/);
+  assert.match(result.html, new RegExp(`<p>${result.codeBlocks[0]!.placeholder}<\\/p>`));
+  assert.match(result.html, new RegExp(`<p>${result.codeBlocks[1]!.placeholder}<\\/p>`));
   assert.doesNotMatch(result.html, /<blockquote>\s*<strong>\[/);
   assert.deepEqual(result.codeBlocks, [
-    { placeholder: 'BSCODEPH_1', language: 'javascript', content: 'const x = 1;\nconsole.log(x);' },
-    { placeholder: 'BSCODEPH_2', language: 'plaintext', content: 'plain text block' },
+    { placeholder: result.codeBlocks[0]!.placeholder, language: 'javascript', content: 'const x = 1;\nconsole.log(x);' },
+    { placeholder: result.codeBlocks[1]!.placeholder, language: 'plaintext', content: 'plain text block' },
   ]);
 });
 

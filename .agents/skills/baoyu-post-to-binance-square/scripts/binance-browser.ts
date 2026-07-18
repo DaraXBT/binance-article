@@ -18,6 +18,7 @@ import {
   waitForBinanceSessionPersistence,
   waitForChromeDebugPort,
 } from './binance-utils.js';
+import { evaluatePublishEvidence } from './publish-safety.js';
 
 interface BinanceBrowserOptions {
   text?: string;
@@ -170,6 +171,11 @@ export async function postToBinanceSquare(options: BinanceBrowserOptions): Promi
 
     if (submit) {
       console.log('[binance-browser] Submitting post...');
+      const beforeUrlResult = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+        expression: 'window.location.href',
+        returnByValue: true,
+      }, { sessionId });
+      const beforeUrl = beforeUrlResult.result.value;
       const submitSel = await waitForAnySelector(cdp, sessionId, BS_SELECTORS.publishButton, 10_000);
       let submitted = false;
       if (submitSel) {
@@ -181,10 +187,13 @@ export async function postToBinanceSquare(options: BinanceBrowserOptions): Promi
         const byText = await cdp.send<{ result: { value: boolean } }>('Runtime.evaluate', {
           expression: `(() => {
             const isVisible = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
-            const btn = Array.from(document.querySelectorAll('button'))
-              .filter(isVisible)
-              .find(b => /^(publish|post|发布)$/i.test((b.textContent || '').trim()) && !b.disabled);
-            if (btn) { btn.click(); return true; }
+            const roots = Array.from(document.querySelectorAll('[data-testid*="compose" i], [role="dialog"], .bn-modal'));
+            for (const root of roots) {
+              const btn = Array.from(root.querySelectorAll('button'))
+                .filter(isVisible)
+                .find(b => /^(publish|post|发布)$/i.test((b.textContent || '').trim()) && !b.disabled);
+              if (btn) { btn.click(); return true; }
+            }
             return false;
           })()`,
           returnByValue: true,
@@ -192,8 +201,25 @@ export async function postToBinanceSquare(options: BinanceBrowserOptions): Promi
         submitted = byText.result.value;
       }
       if (submitted) {
-        await sleep(2000);
-        console.log('[binance-browser] Post submitted!');
+        const started = Date.now();
+        let verified = false;
+        let reason = '';
+        while (Date.now() - started < 15_000) {
+          await sleep(750);
+          const afterResult = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+            expression: `(() => JSON.stringify({
+              url: window.location.href,
+              successToast: /(published successfully|post published|发布成功|已发布)/i.test(document.body?.innerText || ''),
+              editorVisible: Boolean(document.querySelector(${JSON.stringify(activeEditorSel)})),
+            }))()`,
+            returnByValue: true,
+          }, { sessionId });
+          const after = JSON.parse(afterResult.result.value) as { url: string; successToast: boolean; editorVisible: boolean };
+          const evidence = evaluatePublishEvidence({ beforeUrl, afterUrl: after.url, successToast: after.successToast, editorVisible: after.editorVisible });
+          if (evidence.verified) { verified = true; reason = evidence.reason; break; }
+        }
+        if (!verified) throw new Error('Post was clicked, but Binance did not expose a verifiable success state.');
+        console.log(`[binance-browser] Verified post: ${reason}`);
       } else {
         console.warn('[binance-browser] Publish button not found. Please submit manually.');
       }

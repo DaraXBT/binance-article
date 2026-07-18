@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BinanceExportDialog } from './binance-export-dialog';
 import type { DeckDetailResponse } from '@/lib/schemas';
@@ -49,15 +49,17 @@ describe('BinanceExportDialog', () => {
     vi.restoreAllMocks();
   });
 
+  afterEach(() => {
+    cleanup();
+  });
+
   it('prefills an editable Binance article and selects the first generated image as cover', () => {
     render(<BinanceExportDialog open onOpenChange={() => undefined} deck={deck} />);
 
     expect(screen.getByRole('heading', { name: 'Export to Binance Square' })).toBeTruthy();
-    expect(screen.getByLabelText('Article title')).toHaveValue('Binance-ready title');
-    expect(screen.getByLabelText('Article Markdown')).toHaveValue(
-      expect.stringContaining('## Opening')
-    );
-    expect(screen.getByLabelText('Use Opening as cover')).toBeChecked();
+    expect((screen.getByLabelText('Article title') as HTMLInputElement).value).toBe('Binance-ready title');
+    expect((screen.getByLabelText('Article Markdown') as HTMLTextAreaElement).value).toContain('## Opening');
+    expect((screen.getByLabelText('Use Opening as cover') as HTMLInputElement).checked).toBe(true);
     expect(screen.getByText(/Slide 2 has no generated image/)).toBeTruthy();
   });
 
@@ -69,7 +71,7 @@ describe('BinanceExportDialog', () => {
 
     expect(screen.getByText('A Binance article title is required.')).toBeTruthy();
     expect(screen.getByText('Article Markdown cannot be empty.')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Download Binance bundle' })).toBeDisabled();
+    expect((screen.getByRole('button', { name: 'Download Binance bundle' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('blocks export when no generated cover image is available', () => {
@@ -81,6 +83,6 @@ describe('BinanceExportDialog', () => {
     render(<BinanceExportDialog open onOpenChange={() => undefined} deck={withoutImages} />);
 
     expect(screen.getByText('Choose a generated slide image for the 5:2 cover.')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Download Binance bundle' })).toBeDisabled();
+    expect((screen.getByRole('button', { name: 'Download Binance bundle' }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

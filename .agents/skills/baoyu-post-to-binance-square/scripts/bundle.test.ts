@@ -1,11 +1,18 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
+
+import { zipSync } from 'fflate';
 
 import {
   BUNDLE_LIMITS,
   BundleManifestSchema,
   validateBundleEntrySet,
   validateBundlePath,
+  validateBundleArchive,
   validateImageSignature,
 } from './bundle.ts';
 
@@ -79,3 +86,52 @@ test('validateBundleEntrySet rejects unlisted files and excessive image counts',
   assert.throws(() => BundleManifestSchema.parse(tooMany), /array|image/i);
 });
 
+function sha256(bytes: Uint8Array): string {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+test('validateBundleArchive round-trips a valid ZIP and verifies every hash', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bs-valid-bundle-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const markdown = new TextEncoder().encode('Intro\n\n## Slide\n\n![Slide](images/01-slide.png)');
+  const validManifest = {
+    ...manifest(),
+    markdown: { ...manifest().markdown, bytes: markdown.byteLength, sha256: sha256(markdown) },
+    cover: { ...manifest().cover, bytes: JPEG.byteLength, sha256: sha256(JPEG) },
+    images: [{ ...manifest().images[0], bytes: PNG.byteLength, sha256: sha256(PNG) }],
+  };
+  const archive = zipSync({
+    'article.md': markdown,
+    'manifest.json': new TextEncoder().encode(JSON.stringify(validManifest)),
+    'images/cover.jpg': JPEG,
+    'images/01-slide.png': PNG,
+  });
+  const bundlePath = path.join(root, 'bundle.zip');
+  await fs.writeFile(bundlePath, archive);
+
+  const result = await validateBundleArchive(bundlePath);
+  assert.equal(result.manifest.title, 'Bundle title');
+  assert.equal(result.markdown, new TextDecoder().decode(markdown));
+  assert.equal(result.entries.size, 4);
+});
+
+test('validateBundleArchive rejects ZIP traversal and symbolic-link entries', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bs-hostile-bundle-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+
+  const traversalPath = path.join(root, 'traversal.zip');
+  await fs.writeFile(traversalPath, zipSync({ '../secret.txt': new Uint8Array([1]) }));
+  await assert.rejects(validateBundleArchive(traversalPath), /unsafe.*path/i);
+
+  const symlink = zipSync({ 'images/link.png': PNG });
+  const view = new DataView(symlink.buffer, symlink.byteOffset, symlink.byteLength);
+  for (let offset = 0; offset + 46 <= symlink.length; offset += 1) {
+    if (view.getUint32(offset, true) === 0x02014b50) {
+      view.setUint32(offset + 38, 0o120777 << 16, true);
+      break;
+    }
+  }
+  const symlinkPath = path.join(root, 'symlink.zip');
+  await fs.writeFile(symlinkPath, symlink);
+  await assert.rejects(validateBundleArchive(symlinkPath), /symbolic link/i);
+});

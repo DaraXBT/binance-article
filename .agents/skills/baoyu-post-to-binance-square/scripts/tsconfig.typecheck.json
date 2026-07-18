@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "baoyu-md": ["types/baoyu-md.d.ts"],
+      "front-matter": ["types/front-matter.d.ts"]
+    }
+  },
+  "include": ["*.ts", "types/*.d.ts"],
+  "exclude": ["node_modules"]
+}

@@ -1,0 +1,10 @@
+{
+  "eval_id": 2,
+  "eval_name": "rich-markdown-bundle",
+  "prompt": "Dry-run evals/files/rich.zip. Confirm that the versioned manifest, cover, Markdown, image signature, byte counts, and hashes are accepted, but do not compose or publish.",
+  "assertions": [
+    "Uses offline dry-run validation",
+    "Reports Rich Markdown article with one body image",
+    "Does not open Chrome, create publishable draft state, or claim publication"
+  ]
+}

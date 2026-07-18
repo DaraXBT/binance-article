@@ -1,0 +1,9 @@
+{
+  "valid": true,
+  "articleId": "eval-rich-markdown-article",
+  "title": "Rich Markdown article",
+  "characterCount": 273,
+  "imageCount": 1,
+  "coverPath": "images/cover.jpg",
+  "warnings": []
+}

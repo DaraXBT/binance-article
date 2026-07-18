@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -296,7 +297,7 @@ function convertInlineTags(tokens: unknown[], opts: InlineTagOptions): void {
 // Fenced code blocks must be invisible to replaceMarkdownImagesWithPlaceholders
 // (which scans raw markdown) — otherwise image syntax inside a fence is rewritten
 // into a BSIMGPH placeholder, corrupting the user's literal code.
-function maskFencedBlocks(markdown: string): { masked: string; blocks: Map<string, string> } {
+function maskFencedBlocks(markdown: string, namespace: string): { masked: string; blocks: Map<string, string> } {
   const lines = markdown.split('\n');
   const out: string[] = [];
   const blocks = new Map<string, string>();
@@ -311,7 +312,7 @@ function maskFencedBlocks(markdown: string): { masked: string; blocks: Map<strin
       let j = i + 1;
       while (j < lines.length && !closeRe.test(lines[j]!)) j++;
       const end = j < lines.length ? j : lines.length - 1;
-      const key = 'BSFENCEMASK_' + (blocks.size + 1);
+      const key = `${namespace}FENCE_${blocks.size + 1}`;
       blocks.set(key, lines.slice(i, end + 1).join('\n'));
       out.push(key);
       i = end + 1;
@@ -350,7 +351,7 @@ function preprocessCjkMarkdown(markdown: string): string {
 
 function convertMarkdownToHtml(
   markdown: string,
-  options?: { hashtags?: boolean; coinTags?: boolean },
+  options?: { hashtags?: boolean; coinTags?: boolean; placeholderNamespace?: string },
 ): { html: string; totalBlocks: number; codeBlocks: CodeBlockInfo[] } {
   const inlineTagOptions: InlineTagOptions = {
     hashtags: options?.hashtags ?? true,
@@ -391,7 +392,7 @@ function convertMarkdownToHtml(
       const rawLang = (lang.split(/\s+/)[0] ?? '').toLowerCase();
       const language = LANG_ALIASES[rawLang] ?? rawLang ?? '';
       const source = text.replace(/\n$/, '');
-      const placeholder = 'BSCODEPH_' + (codeBlocks.length + 1);
+      const placeholder = `${options?.placeholderNamespace ?? 'BS_FALLBACK_'}CODE_${codeBlocks.length + 1}`;
       codeBlocks.push({ placeholder, language: language || 'plaintext', content: source });
       return '<p>' + placeholder + '</p>';
     },
@@ -467,6 +468,13 @@ export async function parseMarkdown(
 
   const { frontmatter, body } = parseFrontmatter(content);
 
+  // A random namespace prevents a user's literal placeholder-looking text from
+  // being mistaken for an automation token during image/code replacement.
+  let placeholderNamespace = '';
+  do {
+    placeholderNamespace = `BS_${randomUUID().replace(/-/g, '').slice(0, 16).toUpperCase()}_`;
+  } while (body.includes(placeholderNamespace));
+
   let title = stripWrappingQuotes(options?.title ?? '') || pickFirstString(frontmatter, ['title']) || '';
   if (!title) {
     title = extractTitleFromMarkdown(body);
@@ -514,15 +522,16 @@ export async function parseMarkdown(
     );
   }
 
-  const { masked, blocks: fenceBlocks } = maskFencedBlocks(mermaidProcessedBody);
+  const { masked, blocks: fenceBlocks } = maskFencedBlocks(mermaidProcessedBody, placeholderNamespace);
   const { images, markdown: rewrittenBody } = replaceMarkdownImagesWithPlaceholders(
     masked,
-    'BSIMGPH_',
+    `${placeholderNamespace}IMG_`,
   );
   const restoredBody = restoreFencedBlocks(rewrittenBody, fenceBlocks);
   const { html, totalBlocks, codeBlocks } = convertMarkdownToHtml(restoredBody, {
     hashtags: options?.hashtags,
     coinTags: options?.coinTags,
+    placeholderNamespace,
   });
 
   const htmlLines = html.split('\n');

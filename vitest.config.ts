@@ -9,6 +9,8 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    exclude: ['e2e/**', 'node_modules/**'],
+    // The project-local Binance skill owns its Bun/node:test suite. Keep it
+    // out of the app's Vitest run (and avoid traversing its private install).
+    exclude: ['e2e/**', 'node_modules/**', '.agents/**'],
   },
 });

@@ -9,6 +9,7 @@ xArticle is a private article-to-slides workspace built with Next.js, Prisma, an
 - Lock token-spending generation behind one-time invite codes bound to a single browser session
 - Retry failed image generation from the article page
 - Produce blog and X/Twitter captions together with the slide output
+- Export an editable, cover-ready Binance Square article bundle for local browser publishing
 
 ## Access Model
 
@@ -78,6 +79,28 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+## Binance Square Publishing
+
+From an article studio, choose **Binance Square**. Review and edit the generated title and Markdown, choose a slide for the 5:2 cover, adjust its focal point, and download the ZIP bundle. The app downloads slide assets through the authorized same-origin asset route; Binance credentials never enter the app or bundle.
+
+The project-local publishing skill is pinned at `.agents/skills/baoyu-post-to-binance-square`. On a machine with Chrome, Bun, and an active Binance login, validate the bundle before opening the browser:
+
+```bash
+bun .agents/skills/baoyu-post-to-binance-square/scripts/main.ts \
+  --bundle ~/Downloads/article-binance-square.zip --dry-run
+bun .agents/skills/baoyu-post-to-binance-square/scripts/main.ts \
+  --bundle ~/Downloads/article-binance-square.zip
+```
+
+The second command composes a draft and leaves Chrome open. Review the live Binance editor, then ask for fresh confirmation before running the printed command:
+
+```bash
+bun .agents/skills/baoyu-post-to-binance-square/scripts/main.ts \
+  --publish-draft <draft-id>
+```
+
+Draft state is local, contains no cookies or workspace keys, and expires after 15 minutes. The publisher rechecks the title, body, assets, editor tab, and Binance success state; an ambiguous click is reported as unverified rather than successful. Direct article `--submit` is intentionally disabled.
+
 ## User Flow
 
 If `APP_ACCESS_CODE` is enabled:
@@ -104,6 +127,7 @@ When you want to allow a user to generate:
 
 ```bash
 npm run generate-access:create
+npm run test:e2e
 ```
 
 3. Send the printed `gac_...` code to the user

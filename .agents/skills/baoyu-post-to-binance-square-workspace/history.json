@@ -1,0 +1,21 @@
+{
+  "started_at": "2026-07-18T14:29:46.062Z",
+  "skill_name": "baoyu-post-to-binance-square",
+  "current_best": "v1.3.0",
+  "iterations": [
+    {
+      "version": "v1.0.0",
+      "parent": null,
+      "expectation_pass_rate": 0,
+      "grading_result": "baseline",
+      "is_current_best": false
+    },
+    {
+      "version": "v1.3.0",
+      "parent": "v1.0.0",
+      "expectation_pass_rate": 1,
+      "grading_result": "won",
+      "is_current_best": true
+    }
+  ]
+}

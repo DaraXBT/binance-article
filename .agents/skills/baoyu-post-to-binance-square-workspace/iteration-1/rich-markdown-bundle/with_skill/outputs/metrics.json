@@ -1,0 +1,10 @@
+{
+  "tool_calls": {
+    "command": 1
+  },
+  "total_tool_calls": 1,
+  "total_steps": 1,
+  "errors_encountered": 0,
+  "output_chars": 199,
+  "transcript_chars": 199
+}

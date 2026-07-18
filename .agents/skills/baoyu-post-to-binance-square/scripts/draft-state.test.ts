@@ -6,6 +6,7 @@ import test from 'node:test';
 
 import {
   createDraftState,
+  isDraftBundlePathSafe,
   readDraftState,
   removeDraftState,
   validateDraftForPublish,
@@ -57,7 +58,12 @@ test('expired, URL-mismatched, and content-mismatched drafts cannot publish', as
     /expired/i,
   );
 
-  const state = await readDraftState(created.id, { cacheRoot, now: new Date(NOW.getTime() + 1_000) });
+  const fresh = await createDraftState({
+    cacheRoot, now: NOW, profileDir: '/tmp/profile', debugPort: 9222, targetId: 'target',
+    editorUrl: 'https://www.binance.com/en/square/creator-center/article/editor',
+    titleHash: 'a'.repeat(64), bodyHash: 'b'.repeat(64), assetHashes: [], bundleDir: '/tmp/bundle',
+  });
+  const state = await readDraftState(fresh.id, { cacheRoot, now: new Date(NOW.getTime() + 1_000) });
   assert.throws(() => validateDraftForPublish(state, {
     editorUrl: 'https://example.com/phishing', titleHash: state.titleHash,
     bodyHash: state.bodyHash, assetHashes: state.assetHashes,
@@ -67,7 +73,12 @@ test('expired, URL-mismatched, and content-mismatched drafts cannot publish', as
     bodyHash: state.bodyHash, assetHashes: state.assetHashes,
   }), /changed|mismatch/i);
 
-  await removeDraftState(created.id, { cacheRoot });
-  await assert.rejects(readDraftState(created.id, { cacheRoot, now: NOW }), /not found/i);
+  await removeDraftState(fresh.id, { cacheRoot });
+  await assert.rejects(readDraftState(fresh.id, { cacheRoot, now: NOW }), /not found/i);
 });
 
+test('draft publishing accepts only bundle directories below the cache root', () => {
+  assert.equal(isDraftBundlePathSafe('/tmp/cache/bundles/bundle-abc', '/tmp/cache'), true);
+  assert.equal(isDraftBundlePathSafe('/tmp/cache/bundles/../secrets', '/tmp/cache'), false);
+  assert.equal(isDraftBundlePathSafe('/tmp/other/bundle', '/tmp/cache'), false);
+});

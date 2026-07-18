@@ -1,0 +1,56 @@
+{
+  "expectations": [
+    {
+      "text": "Uses the bundle dry-run interface and does not open Chrome",
+      "passed": true,
+      "evidence": "Dry-run returned valid JSON: {\n  \"valid\": true,\n  \"articleId\": \"eval-standard-article\",\n  \"title\": \"Standard article\",\n  \"characterCount\": 91,\n  \"imageCount\": 1,\n  \"coverPath\": \"images/cover.jpg\",\n  \"warnings\": []\n}"
+    },
+    {
+      "text": "Reports title Standard article and one body image",
+      "passed": true,
+      "evidence": "Dry-run returned valid JSON: {\n  \"valid\": true,\n  \"articleId\": \"eval-standard-article\",\n  \"title\": \"Standard article\",\n  \"characterCount\": 91,\n  \"imageCount\": 1,\n  \"coverPath\": \"images/cover.jpg\",\n  \"warnings\": []\n}"
+    },
+    {
+      "text": "Reports the bundle as valid without claiming it was published",
+      "passed": true,
+      "evidence": "Dry-run returned valid JSON: {\n  \"valid\": true,\n  \"articleId\": \"eval-standard-article\",\n  \"title\": \"Standard article\",\n  \"characterCount\": 91,\n  \"imageCount\": 1,\n  \"coverPath\": \"images/cover.jpg\",\n  \"warnings\": []\n}"
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "total": 3,
+    "pass_rate": 1
+  },
+  "execution_metrics": {
+    "tool_calls": {
+      "command": 1
+    },
+    "total_tool_calls": 1,
+    "total_steps": 1,
+    "errors_encountered": 0,
+    "output_chars": 188,
+    "transcript_chars": 188
+  },
+  "timing": {
+    "executor_duration_seconds": 0.106400042,
+    "total_duration_seconds": 0.106400042
+  },
+  "claims": [
+    {
+      "claim": "The bundle was validated offline.",
+      "type": "process",
+      "verified": true,
+      "evidence": "Dry-run returned valid JSON: {\n  \"valid\": true,\n  \"articleId\": \"eval-standard-article\",\n  \"title\": \"Standard article\",\n  \"characterCount\": 91,\n  \"imageCount\": 1,\n  \"coverPath\": \"images/cover.jpg\",\n  \"warnings\": []\n}"
+    }
+  ],
+  "user_notes_summary": {
+    "uncertainties": [],
+    "needs_review": [],
+    "workarounds": []
+  },
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "The assertions distinguish validation, browser safety, and result accuracy."
+  }
+}

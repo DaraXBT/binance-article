@@ -1,9 +1,11 @@
 import fs from 'node:fs';
+import { sha256Text } from './bundle.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
 import { parseMarkdown } from './md-to-html.js';
+import { assertCompositionReady } from './publish-safety.js';
 import {
   BS_CREATOR_CENTER_URL,
   BS_SELECTORS,
@@ -12,7 +14,6 @@ import {
   dismissCookieConsent,
   findExistingChromeDebugPort,
   getDefaultProfileDir,
-  gracefulKillChrome,
   launchChrome,
   openPageSession,
   pasteFromClipboard,
@@ -23,7 +24,18 @@ import {
   waitForChromeDebugPort,
 } from './binance-utils.js';
 
-interface ArticleOptions {
+export interface ArticleCompositionContext {
+  debugPort: number;
+  targetId: string;
+  editorUrl: string;
+  titleText: string;
+  bodyText: string;
+  titleHash: string;
+  bodyHash: string;
+  imageCount: number;
+}
+
+export interface ArticleOptions {
   markdownPath: string;
   coverImage?: string;
   title?: string;
@@ -32,6 +44,7 @@ interface ArticleOptions {
   chromePath?: string;
   hashtags?: boolean;
   coinTags?: boolean;
+  onComposed?: (context: ArticleCompositionContext) => Promise<void>;
 }
 
 interface CodeBlockInfo {
@@ -296,7 +309,7 @@ async function insertCodeBlocks(
   codeBlocks: CodeBlockInfo[],
 ): Promise<void> {
   const getPlaceholderIndex = (placeholder: string): number => {
-    const match = placeholder.match(/BSCODEPH_(\d+)/);
+    const match = placeholder.match(/CODE_(\d+)$/);
     return match ? Number(match[1]) : Number.POSITIVE_INFINITY;
   };
   const sorted = [...codeBlocks].sort(
@@ -428,6 +441,10 @@ async function uploadCoverImage(cdp: CdpConnection, sessionId: string, imagePath
 
 export async function publishArticle(options: ArticleOptions): Promise<void> {
   const { markdownPath, submit = false, profileDir = getDefaultProfileDir() } = options;
+
+  if (submit) {
+    throw new Error('Immediate article publishing is disabled. Prepare the draft first, then use --publish-draft after fresh confirmation.');
+  }
 
   console.log('[binance-article] Parsing markdown...');
   const parsed = await parseMarkdown(markdownPath, {
@@ -869,7 +886,7 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
       }
 
       const getPlaceholderIndex = (placeholder: string): number => {
-        const match = placeholder.match(/BSIMGPH_(\d+)/);
+        const match = placeholder.match(/IMG_(\d+)$/);
         return match ? Number(match[1]) : Number.POSITIVE_INFINITY;
       };
       const sortedImages = [...parsed.contentImages].sort(
@@ -1041,64 +1058,60 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
       console.log('[binance-article] All images processed.');
     }
 
-    // Post-composition verification (images + code placeholders)
-    if (parsed.contentImages.length > 0 || parsed.codeBlocks.length > 0) {
-      console.log('[binance-article] Running post-composition verification...');
-      const finalContent = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
-        expression: `document.querySelector(${JSON.stringify(editorSel)})?.innerText || ''`,
+    // Post-composition verification is a hard gate. A warning is not enough:
+    // publishing a partially composed article is worse than stopping for review.
+    console.log('[binance-article] Running post-composition verification...');
+    const finalContent = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+      expression: `document.querySelector(${JSON.stringify(editorSel)})?.innerText || ''`,
+      returnByValue: true,
+    }, { sessionId });
+    const titleValue = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+      expression: `(() => { const el = document.querySelector(${JSON.stringify(activeTitleSel)}); return el?.value || el?.textContent || ''; })()`,
+      returnByValue: true,
+    }, { sessionId });
+
+    const remainingPlaceholders: string[] = [];
+    for (const ph of [
+      ...parsed.contentImages.map((img) => img.placeholder),
+      ...parsed.codeBlocks.map((cb) => cb.placeholder),
+    ]) {
+      if (finalContent.result.value.includes(ph)) remainingPlaceholders.push(ph);
+    }
+
+    const finalImgCount = await cdp.send<{ result: { value: number } }>('Runtime.evaluate', {
+      expression: `document.querySelector(${JSON.stringify(editorSel)})?.querySelectorAll('img').length || 0`,
+      returnByValue: true,
+    }, { sessionId });
+    let multiCodeCount = 0;
+    if (parsed.codeBlocks.length > 0) {
+      const mcRes = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+        expression: fiberWalkJS('setContent', `
+          let c = 0;
+          editor.view.state.doc.descendants((n) => { if (n.type.name === 'multiCode') c++; });
+          return JSON.stringify({ok:true, count: c});
+        `),
         returnByValue: true,
       }, { sessionId });
-
-      const remainingPlaceholders: string[] = [];
-      for (const ph of [
-        ...parsed.contentImages.map((img) => img.placeholder),
-        ...parsed.codeBlocks.map((cb) => cb.placeholder),
-      ]) {
-        const regex = new RegExp(ph + '(?!\\d)');
-        if (regex.test(finalContent.result.value)) {
-          remainingPlaceholders.push(ph);
-        }
-      }
-
-      const finalImgCount = await cdp.send<{ result: { value: number } }>('Runtime.evaluate', {
-        expression: `document.querySelector(${JSON.stringify(editorSel)})?.querySelectorAll('img').length || 0`,
-        returnByValue: true,
-      }, { sessionId });
-
-      const expectedCount = parsed.contentImages.length;
-      const actualCount = finalImgCount.result.value;
-
-      // Positive assertion: count actual multiCode nodes (absence of BSCODEPH_
-      // text is not enough — a fully-failed insertion also has no placeholders)
-      let multiCodeCount = -1;
-      if (parsed.codeBlocks.length > 0) {
-        const mcRes = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
-          expression: fiberWalkJS('setContent', `
-            let c = 0;
-            editor.view.state.doc.descendants((n) => { if (n.type.name === 'multiCode') c++; });
-            return JSON.stringify({ok:true, count: c});
-          `),
-          returnByValue: true,
-        }, { sessionId });
-        try { multiCodeCount = JSON.parse(mcRes.result.value).count ?? -1; } catch {}
-      }
-      const codeShortfall = multiCodeCount >= 0 && multiCodeCount < parsed.codeBlocks.length;
-
-      if (remainingPlaceholders.length > 0 || actualCount < expectedCount || codeShortfall) {
-        console.warn('[binance-article] POST-COMPOSITION CHECK FAILED:');
-        if (remainingPlaceholders.length > 0) {
-          console.warn(`[binance-article]   Remaining placeholders: ${remainingPlaceholders.join(', ')}`);
-        }
-        if (actualCount < expectedCount) {
-          console.warn(`[binance-article]   Image count: expected ${expectedCount}, found ${actualCount}`);
-        }
-        if (codeShortfall) {
-          console.warn(`[binance-article]   Code blocks: expected ${parsed.codeBlocks.length}, found ${multiCodeCount} multiCode node(s) (plain-text fallback may have been used)`);
-        }
-        console.warn('[binance-article]   Please check the article before publishing.');
-      } else {
-        console.log(`[binance-article] Verification passed: ${actualCount} image(s), ${parsed.codeBlocks.length > 0 ? `${multiCodeCount} code block(s), ` : ''}no remaining placeholders.`);
-      }
+      try { multiCodeCount = JSON.parse(mcRes.result.value).count ?? 0; } catch { multiCodeCount = 0; }
+    }
+    const expectedText = htmlToText(parsed.html);
+    const bodyMatches = finalContent.result.value.trim().length > 0 &&
+      (expectedText.length < 40 || finalContent.result.value.includes(expectedText.slice(0, 40)));
+    const report = {
+      titleMatches: titleValue.result.value.trim() === parsed.title.trim(),
+      bodyMatches,
+      expectedImages: parsed.contentImages.length,
+      actualImages: finalImgCount.result.value,
+      remainingPlaceholders,
+      expectedCodeBlocks: parsed.codeBlocks.length,
+      actualCodeBlocks: multiCodeCount,
+    };
+    try {
+      assertCompositionReady(report);
+      console.log(`[binance-article] Verification passed: ${report.actualImages} image(s), ${report.actualCodeBlocks} code block(s), no remaining placeholders.`);
+    } catch (error) {
+      console.error(`[binance-article] ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
     }
 
     // Blur editor to trigger save
@@ -1111,29 +1124,36 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
     }, { sessionId });
     await sleep(1500);
 
-    if (submit) {
-      console.log('[binance-article] Publishing...');
-      const pubSelSel = BS_SELECTORS.articlePublishButton;
-      await cdp.send('Runtime.evaluate', {
-        expression: `(() => {
-          const selectors = ${JSON.stringify(pubSelSel)};
-          for (const sel of selectors) {
-            const el = document.querySelector(sel);
-            if (el && !el.disabled) { el.click(); return true; }
-          }
-          const isVisible = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
-          const btn = Array.from(document.querySelectorAll('button'))
-            .filter(isVisible)
-            .find(b => /^(publish|post|发布)$/i.test((b.textContent || '').trim()) && !b.disabled);
-          if (btn) { btn.click(); return true; }
-          return false;
-        })()`,
-      }, { sessionId });
-      await sleep(3000);
-      console.log('[binance-article] Article published!');
-    } else {
-      console.log('[binance-article] Article composed (draft mode). Browser remains open for review.');
+    const preparedSnapshot = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+      expression: `(() => {
+        const title = document.querySelector(${JSON.stringify(activeTitleSel)});
+        const body = document.querySelector(${JSON.stringify(editorSel)});
+        return JSON.stringify({
+          editorUrl: window.location.href,
+          titleText: title?.value || title?.textContent || '',
+          bodyText: body?.innerText || '',
+          imageCount: body?.querySelectorAll('img').length || 0,
+        });
+      })()`,
+      returnByValue: true,
+    }, { sessionId });
+    const prepared = JSON.parse(preparedSnapshot.result.value) as {
+      editorUrl: string;
+      titleText: string;
+      bodyText: string;
+      imageCount: number;
+    };
+    if (options.onComposed) {
+      await options.onComposed({
+        ...prepared,
+        debugPort: port,
+        targetId: page.targetId,
+        titleHash: sha256Text(prepared.titleText.trim()),
+        bodyHash: sha256Text(prepared.bodyText.trim()),
+      });
     }
+
+    console.log('[binance-article] Article composed (draft mode). Browser remains open for review.');
 
   } finally {
     if (cdp) cdp.close();
@@ -1149,7 +1169,7 @@ Usage:
 Options:
   --title <title>       Override title
   --cover <image>       Override cover image
-  --submit              Actually publish (default: draft only)
+  --submit              Rejected for article mode; use the bundle two-stage flow
   --profile <dir>       Chrome profile directory
   --chrome-path <path>  Override Chrome executable path
   --no-hashtags         Keep #tags as plain text (skip native hashtag nodes)
@@ -1165,7 +1185,7 @@ Markdown frontmatter:
 Example:
   npx -y bun binance-article.ts article.md
   npx -y bun binance-article.ts article.md --cover ./hero.png
-  npx -y bun binance-article.ts article.md --submit
+  npx -y bun main.ts --bundle ./article-binance-square.zip
 `);
   process.exit(0);
 }

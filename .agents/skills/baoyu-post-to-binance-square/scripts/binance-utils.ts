@@ -35,14 +35,13 @@ export const BS_SELECTORS = {
     'div[contenteditable="true"]',
   ],
   publishButton: [
-    'button[data-testid="publish-btn"]',
-    'button[data-testid="post-btn"]',
-    'button[data-testid="submit-btn"]',
-    'button[aria-label*="publish" i]',
-    'button[aria-label*="post" i]',
-    'button[type="submit"]',
-    'button[class*="publish"]',
-    'button[class*="submit"]',
+    'button[data-testid="square-publish-btn"]',
+    'button[data-testid="square-post-btn"]',
+    '[role="dialog"] button[data-testid="publish-btn"]',
+    '[data-testid*="compose" i] button[data-testid="post-btn"]',
+    'button[aria-label="Publish"]',
+    'button[aria-label="Post"]',
+    '[data-role="square-publish"]',
   ],
   articleTitleInput: [
     '.article-editor textarea',
@@ -78,11 +77,14 @@ export const BS_SELECTORS = {
     'div[contenteditable="true"]',
   ],
   articlePublishButton: [
-    'button[data-testid="publish-btn"]',
-    'button[data-testid="submit-btn"]',
-    'button[aria-label*="publish" i]',
-    'button[class*="publish"]',
-    'button[type="submit"]',
+    'button[data-testid="article-publish-btn"]',
+    '[data-testid="article-editor-publish"] button',
+    '.editor-container button[data-testid="publish-btn"]',
+    '.article-editor button[data-testid="publish-btn"]',
+    '.editor-container button[data-testid="submit-btn"]',
+    'button[aria-label="Publish article"]',
+    'button[aria-label="发布文章"]',
+    '[data-role="article-publish"]',
   ],
   coverUploadButton: [
     'span.rc-upload button',
@@ -179,7 +181,7 @@ export function getDefaultProfileDir(): string {
 }
 
 export function findChromeExecutable(candidates: PlatformCandidates): string | null {
-  return findChromeExecutableBase({ candidates, envNames: ['BS_CHROME_PATH'] });
+  return findChromeExecutableBase({ candidates, envNames: ['BS_CHROME_PATH'] }) ?? null;
 }
 
 export async function getFreePort(): Promise<number> {

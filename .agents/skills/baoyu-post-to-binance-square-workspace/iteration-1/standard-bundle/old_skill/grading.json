@@ -1,0 +1,56 @@
+{
+  "expectations": [
+    {
+      "text": "Uses the bundle dry-run interface and does not open Chrome",
+      "passed": false,
+      "evidence": "The v1.0 baseline help has no --bundle or --dry-run interface, so it cannot perform this offline validation."
+    },
+    {
+      "text": "Reports title Standard article and one body image",
+      "passed": false,
+      "evidence": "The v1.0 baseline help has no --bundle or --dry-run interface, so it cannot perform this offline validation."
+    },
+    {
+      "text": "Reports the bundle as valid without claiming it was published",
+      "passed": false,
+      "evidence": "The v1.0 baseline help has no --bundle or --dry-run interface, so it cannot perform this offline validation."
+    }
+  ],
+  "summary": {
+    "passed": 0,
+    "failed": 3,
+    "total": 3,
+    "pass_rate": 0
+  },
+  "execution_metrics": {
+    "tool_calls": {
+      "command": 1
+    },
+    "total_tool_calls": 1,
+    "total_steps": 1,
+    "errors_encountered": 0,
+    "output_chars": 1121,
+    "transcript_chars": 1121
+  },
+  "timing": {
+    "executor_duration_seconds": 0.014836792000000003,
+    "total_duration_seconds": 0.014836792000000003
+  },
+  "claims": [
+    {
+      "claim": "The baseline supports bundle dry-run validation.",
+      "type": "process",
+      "verified": false,
+      "evidence": "The v1.0 baseline help has no --bundle or --dry-run interface, so it cannot perform this offline validation."
+    }
+  ],
+  "user_notes_summary": {
+    "uncertainties": [],
+    "needs_review": [],
+    "workarounds": []
+  },
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "The assertions distinguish validation, browser safety, and result accuracy."
+  }
+}

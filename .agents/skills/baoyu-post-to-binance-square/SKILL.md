@@ -1,7 +1,7 @@
 ---
 name: baoyu-post-to-binance-square
 description: Posts content and articles to Binance Square (https://www.binance.com/en/square). Supports regular posts with images and long-form Markdown articles. Uses real Chrome with CDP to automate the browser. Use when the user asks to "post to Binance Square", "publish to Binance Square", "share on Binance Square", "write a Binance Square article", or "发布到币安广场".
-version: 1.2.0
+version: 1.3.0
 metadata:
   openclaw:
     homepage: https://github.com/JimLiu/baoyu-skills#baoyu-post-to-binance-square
@@ -14,6 +14,8 @@ metadata:
 # Post to Binance Square
 
 Posts text, images, and long-form Markdown articles to Binance Square via real Chrome browser (bypasses anti-bot detection).
+
+This project-local copy is pinned to upstream commit `a37d82f6105f696d511ba11e36e6372fbb0c1644` and adds a validated export-bundle workflow. Keep bundles and draft state local; never upload them or print cookies, workspace keys, or CDP credentials.
 
 ## User Input Tools
 
@@ -44,10 +46,13 @@ Specific mentions of a concrete tool in this skill are examples — other runtim
 | `scripts/binance-browser.ts` | Regular posts (text + images) |
 | `scripts/binance-article.ts` | Long-form article publishing (Markdown) |
 | `scripts/binance-utils.ts` | Shared Chrome/CDP utilities and DOM selectors |
-| `scripts/md-to-html.ts` | Markdown → HTML conversion: h2/h3 mapping, image/code placeholders, #tag/$COIN spans, table degrade |
+| `scripts/md-to-html.ts` | Markdown → HTML conversion: h2/h3 mapping, collision-resistant image/code placeholders, #tag/$COIN spans, table degrade |
 | `scripts/copy-to-clipboard.ts` | Copy image/HTML to system clipboard |
 | `scripts/paste-from-clipboard.ts` | Send real Cmd+V/Ctrl+V keystroke |
 | `scripts/check-paste-permissions.ts` | Pre-flight environment check |
+| `scripts/bundle.ts` | ZIP validation, bounded extraction, hashes, and manifest checks |
+| `scripts/bundle-publisher.ts` | Two-stage prepare/review/publish flow |
+| `scripts/draft-state.ts` | Expiring local draft state |
 
 ## Prerequisites
 
@@ -93,7 +98,26 @@ If none found, use defaults.
 
 ## Publish Safety
 
-Never pass `--submit` or click Publish/Post without the user's explicit final confirmation in the current conversation. The default flow composes a draft and leaves the browser open so the user reviews and publishes manually. This applies to both regular posts and articles.
+Never click Publish/Post without the user's explicit final confirmation in the current conversation. For generated article bundles, use the two-stage flow below. Preparation may open Chrome and compose a draft, but it must leave the browser open and return an expiring draft ID. Ask the user to review the live Binance editor; only then run `--publish-draft <id>`. If the editor changed, the draft expired, or success is ambiguous, stop and report the issue.
+
+## Browser-generated Article Bundles (recommended)
+
+The xarticle app exports a ZIP containing `article.md`, `manifest.json`, a 5:2 JPEG cover, and ordered slide images. Validate the archive before opening Chrome:
+
+```bash
+${BUN_X} {baseDir}/scripts/main.ts --bundle ./article-binance-square.zip --dry-run
+${BUN_X} {baseDir}/scripts/main.ts --bundle ./article-binance-square.zip
+```
+
+The second command composes a draft and prints a short-lived ID. Tell the user exactly what was prepared and ask for fresh confirmation. After confirmation, publish only that ID:
+
+```bash
+${BUN_X} {baseDir}/scripts/main.ts --publish-draft <draft-id>
+```
+
+The publisher reattaches only to the recorded Binance editor tab, checks title/body/assets again, uses scoped article-editor selectors, and reports success only after a canonical published URL or a recognized success state. It never launches a replacement tab for the publish step and never kills unrelated Chrome processes.
+
+Bundle limits are deliberately bounded: 100 MiB compressed/extracted total, 32 entries, 20 images, 10 MiB per image, 1 MiB Markdown, and 256 KiB manifest. ZIP paths must be relative, listed in the manifest, non-symlink, and match verified image signatures and SHA-256 hashes.
 
 ## Post Type Selection
 
@@ -129,17 +153,16 @@ ${BUN_X} {baseDir}/scripts/main.ts "BTC ATH!" --tag bitcoin --tag crypto --submi
 ## Long-form Articles
 
 Publishes a Markdown file as a Binance Square article. The script:
-1. Parses the Markdown into HTML with `BSIMGPH_N` placeholders for images and `BSCODEPH_N` placeholders for code fences
+1. Parses Markdown into HTML with a fresh random placeholder namespace for images and code fences
 2. Opens Chrome to Binance Square and navigates to the article editor
 3. Fills in the title from frontmatter or the first H1 heading
 4. Injects HTML via `editor.commands.setContent()` accessed through React fiber (Method 0 — preserves all block formatting). Falls back to clipboard paste methods if fiber is unavailable.
-5. Replaces each `BSCODEPH_N` placeholder with a native `multiCode` code-block node via TipTap `insertContentAt` (falls back to plain text if the node insert fails — the post-composition check reports the shortfall)
+5. Replaces each code placeholder with a native `multiCode` code-block node via TipTap `insertContentAt` (falls back to plain text if the node insert fails — the hard post-composition check reports the shortfall)
 6. Inserts each image by selecting its placeholder and pasting via clipboard
 
 ```bash
 ${BUN_X} {baseDir}/scripts/main.ts --article article.md
 ${BUN_X} {baseDir}/scripts/main.ts --article article.md --cover ./hero.png
-${BUN_X} {baseDir}/scripts/main.ts --article article.md --submit
 ```
 
 **Parameters**:
@@ -148,7 +171,7 @@ ${BUN_X} {baseDir}/scripts/main.ts --article article.md --submit
 | `--article <file>` | Markdown file path |
 | `--cover <path>` | Cover image (overrides frontmatter) |
 | `--title <text>` | Override title |
-| `--submit` | Auto-publish (default: draft/preview) |
+| `--submit` | Disabled for article mode; use the bundle two-stage flow |
 | `--profile <dir>` | Custom Chrome profile directory |
 | `--chrome-path <path>` | Override Chrome executable path |
 | `--no-hashtags` | Keep `#tags` as plain text (default: converted to native hashtag nodes) |
@@ -178,9 +201,9 @@ cover_image: /path/to/cover.jpg
 ---
 ```
 
-**Post-composition check**: After all code blocks and images are inserted the script verifies that no `BSIMGPH_`/`BSCODEPH_` placeholders remain and the image count matches. If the check fails, alert the user with specific issues before they publish.
+**Post-composition check**: After all code blocks and images are inserted the script verifies that no generated placeholders remain, the title/body match, and image/code counts match. Any failure is a hard stop.
 
-**Publish safety**: Do not use `--submit` or click Publish unless the user explicitly confirms the final public publish action.
+**Publish safety**: Direct article `--submit` is rejected. Use `--bundle`, obtain fresh confirmation after browser review, and then use `--publish-draft`.
 
 ---
 
@@ -192,13 +215,7 @@ The editor's `transformPastedHTML` hook strips all block structure during paste 
 
 ## Chrome Debug Port Error
 
-If a script fails with `Chrome debug port not ready` or `Unable to connect`, kill existing Chrome CDP instances and retry:
-
-```bash
-pkill -f "Chrome.*remote-debugging-port" 2>/dev/null; pkill -f "Chromium.*remote-debugging-port" 2>/dev/null; sleep 2
-```
-
-Do this automatically on error — kill Chrome CDP instances and retry without asking the user.
+If a script fails with `Chrome debug port not ready` or `Unable to connect`, inspect the configured profile and existing CDP port. Do not kill processes automatically: an existing session may belong to the user or another skill. Ask the user to close a stale session or provide `BAOYU_CHROME_PROFILE_DIR`/`BS_BROWSER_DEBUG_PORT` explicitly.
 
 ---
 
@@ -216,6 +233,6 @@ The script tries multiple fallback selectors automatically, so most updates will
 ## Notes
 
 - First run: manual login required (session persists in shared Chrome profile). The scripts auto-accept Binance's cookie-consent banner on cold launches
-- Scripts only fill content into the browser; user reviews before publishing unless `--submit` is passed (see **Publish Safety**)
+- Article bundle scripts always stop for browser review and require a separate `--publish-draft` command (see **Publish Safety**)
 - Cross-platform: macOS, Linux, Windows (paste keystroke uses platform-appropriate method)
 - Chrome profile is shared with other `baoyu-post-to-*` skills via `BAOYU_CHROME_PROFILE_DIR` env var or default path

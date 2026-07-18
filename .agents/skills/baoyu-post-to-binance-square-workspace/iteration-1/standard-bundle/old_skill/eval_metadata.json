@@ -1,0 +1,10 @@
+{
+  "eval_id": 1,
+  "eval_name": "standard-bundle",
+  "prompt": "Validate evals/files/standard.zip for Binance Square without opening Chrome or publishing anything. Report the title, body character count, image count, and whether it is safe to prepare.",
+  "assertions": [
+    "Uses the bundle dry-run interface and does not open Chrome",
+    "Reports title Standard article and one body image",
+    "Reports the bundle as valid without claiming it was published"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "valid": true,
+  "articleId": "eval-standard-article",
+  "title": "Standard article",
+  "characterCount": 91,
+  "imageCount": 1,
+  "coverPath": "images/cover.jpg",
+  "warnings": []
+}
