@@ -14,6 +14,7 @@ export const PublisherCommandStateSchema = z.object({
     'succeeded',
     'failed',
     'cancelled',
+    'expired',
     'outcome_unknown',
   ]),
   revision: RevisionSchema,
@@ -48,6 +49,7 @@ const PublisherCommandEventSchema = z.discriminatedUnion('type', [
     failureReason: z.string().trim().min(1).max(500),
   }).strict(),
   z.object({ type: z.literal('cancel'), revision: RevisionSchema }).strict(),
+  z.object({ type: z.literal('expire'), revision: RevisionSchema }).strict(),
 ]);
 
 export type PublisherCommandState = z.infer<typeof PublisherCommandStateSchema>;
@@ -57,6 +59,7 @@ const TERMINAL_STATES = new Set<PublisherCommandState['state']>([
   'succeeded',
   'failed',
   'cancelled',
+  'expired',
   'outcome_unknown',
 ]);
 
@@ -105,7 +108,9 @@ export function transitionPublisherCommand(
   if (TERMINAL_STATES.has(command.state)) {
     throw new Error(`Publisher command is already in terminal state ${command.state}.`);
   }
-  if (!Number.isFinite(command.expiresAt.getTime()) || command.expiresAt.getTime() <= now.getTime()) {
+  if (!Number.isFinite(command.expiresAt.getTime()) || (
+    command.expiresAt.getTime() <= now.getTime() && event.type !== 'expire'
+  )) {
     throw new Error('Publisher command has expired.');
   }
   if (event.revision !== command.revision) {
@@ -157,5 +162,11 @@ export function transitionPublisherCommand(
 
     case 'cancel':
       return { ...command, state: 'cancelled' };
+
+    case 'expire':
+      if (command.state === 'publishing') {
+        throw new Error('Publishing commands must resolve to a publish result or outcome_unknown.');
+      }
+      return { ...command, state: 'expired' };
   }
 }

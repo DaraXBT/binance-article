@@ -4,6 +4,7 @@ export const TELEGRAM_APPROVAL_LIFETIME_MS = 2 * 60 * 1000;
 
 const IdentifierSchema = z.string().trim().min(1).max(200);
 const RevisionSchema = z.number().int().nonnegative().safe();
+const RecipeHashSchema = z.string().regex(/^[a-f0-9]{64}$/);
 const TelegramChatTypeSchema = z.enum(['private', 'group', 'supergroup', 'channel']);
 
 export const TelegramWebhookAuthorizationInputSchema = z.object({
@@ -58,11 +59,13 @@ export function authorizeTelegramWebhook(
 
 export const PublishApprovalSchema = z.object({
   id: IdentifierSchema,
-  state: z.enum(['pending', 'confirmation_required', 'approved', 'cancelled']),
+  state: z.enum(['pending', 'confirmation_required', 'approved', 'cancelled', 'expired']),
   userId: IdentifierSchema,
   telegramUserId: IdentifierSchema,
+  commandId: IdentifierSchema,
   draftId: IdentifierSchema,
   revision: RevisionSchema,
+  recipeHash: RecipeHashSchema,
   expiresAt: z.date(),
 }).strict();
 
@@ -70,16 +73,27 @@ export const PublishApprovalEventSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('request_confirmation'),
     telegramUserId: IdentifierSchema,
+    commandId: IdentifierSchema,
     draftId: IdentifierSchema,
     revision: RevisionSchema,
+    recipeHash: RecipeHashSchema,
     chatType: TelegramChatTypeSchema,
   }).strict(),
   z.object({
     type: z.literal('confirm_publish'),
     telegramUserId: IdentifierSchema,
+    commandId: IdentifierSchema,
     draftId: IdentifierSchema,
     revision: RevisionSchema,
+    recipeHash: RecipeHashSchema,
     chatType: TelegramChatTypeSchema,
+  }).strict(),
+  z.object({
+    type: z.literal('expire'),
+    commandId: IdentifierSchema,
+    draftId: IdentifierSchema,
+    revision: RevisionSchema,
+    recipeHash: RecipeHashSchema,
   }).strict(),
 ]);
 
@@ -97,16 +111,25 @@ export function advancePublishApproval(
   if (!(now instanceof Date) || !Number.isFinite(now.getTime())) {
     throw new TypeError('Publish approval transition requires a valid current time.');
   }
-  if (approval.state === 'approved' || approval.state === 'cancelled') {
+  if (approval.state === 'approved' || approval.state === 'cancelled' || approval.state === 'expired') {
     throw new Error('Publish approval callback was already processed.');
   }
-  if (!Number.isFinite(approval.expiresAt.getTime()) || approval.expiresAt.getTime() <= now.getTime()) {
-    throw new Error('Publish approval has expired.');
-  }
-  if (event.chatType !== 'private') throw new Error('Publish approval requires a private Telegram chat.');
-  if (event.telegramUserId !== approval.telegramUserId) throw new Error('Publish approval identity does not match.');
+  if (!Number.isFinite(approval.expiresAt.getTime())) throw new Error('Publish approval has expired.');
+  if (event.commandId !== approval.commandId) throw new Error('Publish approval command does not match.');
   if (event.draftId !== approval.draftId) throw new Error('Publish approval draft does not match.');
   if (event.revision !== approval.revision) throw new Error('Publish approval revision is stale.');
+  if (event.recipeHash !== approval.recipeHash) throw new Error('Publish approval recipe does not match.');
+
+  if (event.type === 'expire') {
+    if (approval.expiresAt.getTime() > now.getTime()) {
+      throw new Error('Publish approval has not expired.');
+    }
+    return { ...approval, state: 'expired' };
+  }
+
+  if (approval.expiresAt.getTime() <= now.getTime()) throw new Error('Publish approval has expired.');
+  if (event.chatType !== 'private') throw new Error('Publish approval requires a private Telegram chat.');
+  if (event.telegramUserId !== approval.telegramUserId) throw new Error('Publish approval identity does not match.');
 
   if (approval.state === 'pending' && event.type === 'request_confirmation') {
     return { ...approval, state: 'confirmation_required' };
