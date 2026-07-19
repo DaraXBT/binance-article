@@ -25,6 +25,7 @@ describe('request authorization', () => {
     const getSession = vi.fn(async () => session());
 
     await expect(authorizeRequest(request, { getSession })).resolves.toEqual({
+      sessionId: 'session_1',
       id: 'user_1',
       email: 'user@example.com',
       name: 'User',

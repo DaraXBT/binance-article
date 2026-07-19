@@ -27,6 +27,9 @@ describe('legacy workspace claim repository', () => {
     expect(captured[0]?.text).toMatch(/INSERT INTO "WorkspaceMember"/);
     expect(captured[0]?.text).toMatch(/'owner'::"WorkspaceMemberRole"/);
     expect(captured[0]?.text).toMatch(/NOT EXISTS[\s\S]*"WorkspaceMember"/);
+    expect(captured[0]?.text).toMatch(
+      /actor_membership[\s\S]*actor_membership\."userId"/,
+    );
     expect(captured[0]?.text).toMatch(/UPDATE "Workspace"[\s\S]*"legacyClaimExpiresAt" = NULL/);
     expect(captured[0]?.text).toMatch(/DELETE FROM "WorkspaceSession"/);
     expect(captured[0]?.text).toMatch(/INSERT INTO "AuditEvent"/);

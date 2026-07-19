@@ -9,6 +9,7 @@ const legacySql = readFileSync(`${root}drizzle/0000_legacy_baseline.sql`, 'utf8'
 const cloudSql = readFileSync(`${root}drizzle/0001_cloud_identity_publishing.sql`, 'utf8');
 const approvalGuardsSql = readFileSync(`${root}drizzle/0003_publish_approval_guards.sql`, 'utf8');
 const legacyClaimSql = readFileSync(`${root}drizzle/0004_legacy_workspace_claim.sql`, 'utf8');
+const singleWorkspaceSql = readFileSync(`${root}drizzle/0005_single_user_workspace.sql`, 'utf8');
 
 describe('Neon migration history', () => {
   it('has a clean legacy baseline instead of replaying the historical Prisma repair chain', () => {
@@ -81,6 +82,12 @@ describe('Neon migration history', () => {
     expect(legacyClaimSql).not.toMatch(/DEFAULT[\s\S]*INTERVAL '30 days'/);
     expect(legacyClaimSql).toMatch(
       /CREATE UNIQUE INDEX "WorkspaceMember_workspaceId_owner_key"[\s\S]*WHERE "role" = 'owner'/,
+    );
+  });
+
+  it('enforces the private-beta invariant of one workspace per account', () => {
+    expect(singleWorkspaceSql).toMatch(
+      /CREATE UNIQUE INDEX "WorkspaceMember_userId_single_workspace_key"[\s\S]*\("userId"\)/,
     );
   });
 });
