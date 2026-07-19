@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { createArticleAssetReference } from '@/lib/article-assets';
-import { AppError } from '@/server/http/errors';
+import { AppError } from '@/server/http/app-error';
 
 const MAX_ARTICLE_ASSET_BYTES = 10 * 1024 * 1024;
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,199}$/);

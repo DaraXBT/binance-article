@@ -1,7 +1,7 @@
 import type { GeneratedDeckResponse } from '@/lib/gemini';
 import type { DeckStatus } from '@/lib/schemas';
 import { getRuntimeDatabase } from '@/server/db/runtime';
-import { AppError } from '@/server/http/errors';
+import { AppError } from '@/server/http/app-error';
 import { getLatestDeckJob, serializeJobRun } from '@/server/modules/jobs/service';
 
 import {

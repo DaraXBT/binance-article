@@ -1,4 +1,4 @@
-import { AppError } from '@/server/http/errors';
+import { AppError } from '@/server/http/app-error';
 import { logEvent } from '@/server/http/log';
 
 const MAX_REDIRECTS = 3;
