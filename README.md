@@ -1,224 +1,68 @@
 # xArticle
 
-xArticle is a private article-to-slides workspace built with Next.js, Prisma, and Gemini. Users can enter the app with an optional app access code, attach or recover a workspace, and then generate articles only after unlocking generation with a one-time article access code.
+xArticle is an invite-only article workspace with reviewed Binance Square publishing. The web app manages articles, assets, approvals, and device commands. A local companion uses the user's existing Chrome/Binance login and performs the final publish only after explicit approval.
 
-## What It Does
+## Trust boundaries
 
-- Generate article-backed slide decks from free text, prompts, or URLs
-- Keep work scoped to a browser-attached workspace with a recovery key
-- Lock token-spending generation behind one-time invite codes bound to a single browser session
-- Retry failed image generation from the article page
-- Produce blog and X/Twitter captions together with the slide output
-- Export an editable, cover-ready Binance Square article bundle for local browser publishing
+| Location | Stored data |
+|---|---|
+| Better Auth + Neon PostgreSQL | Users, sessions, workspace membership, article metadata/content, quotas, audit events, publication recipes, command status, and hashes of one-time secrets |
+| Private Cloudflare R2 | Article images and generated assets; no public `r2.dev` URLs |
+| User's operating-system keyring | Opaque publisher-device bearer token |
+| User's computer only | Binance cookies, Chrome profile/CDP state, local drafts/journal, prepared bundles, and local file paths |
+| Telegram | Linked identity and bounded article/device/publication metadata only |
 
-## Access Model
+Binance credentials never enter the web app, Neon, R2, Telegram, logs, or exports. Ambiguous post-click outcomes become terminal `outcome_unknown` and are never retried.
 
-xArticle now has three separate access layers:
+## Account and workspace model
 
-1. `APP_ACCESS_CODE` (optional)
-   - Gates entry to the app at `/access`
-   - If unset, the app is publicly reachable
+- Enrollment is invitation-only through Google.
+- Returning users can use Google or a Telegram identity explicitly linked from account settings.
+- Suspended or revoked users are rejected on every request.
+- The private beta enforces one workspace membership per account and one owner per workspace.
+- New workspaces are account-owned and do not issue recovery secrets.
+- Pre-account workspaces can be claimed once with their old `dwk_...` key during the database-stamped 30-day migration window. A successful claim consumes the window and deletes legacy browser sessions.
 
-2. Workspace recovery key
-   - Lets a user choose `Create new key` or `Use existing key`
-   - Controls which workspace the browser is attached to
+## Binance publishing flow
 
-3. Generation access invite code
-   - Unlocks AI generation for the current browser session
-   - Uses one-time DB-backed grants
-   - The first workspace/browser session that uses a code owns it
-   - If `GENERATE_ACCESS_CODE` changes, all existing generation unlocks become invalid on the next protected request
+1. An authenticated member prepares an immutable, revision-bound recipe in the web app.
+2. A paired local companion claims the command and verifies every private asset by MIME type, length, magic bytes, and SHA-256.
+3. The companion prepares the existing Binance Square skill locally and reports `awaiting_review`.
+4. The user approves the exact revision through the web UI or linked Telegram account.
+5. Immediately before the one allowed click, the companion revalidates the editor and calls the server's begin transition.
+6. Success requires a canonical Binance Square URL. Any uncertain post-click state is terminal and cannot be retried.
 
-## Requirements
+Manual bundle export remains available through `.agents/skills/baoyu-post-to-binance-square`.
 
-- Recent Node.js LTS
-- npm
-- `GEMINI_API_KEY`
-- `BLOB_READ_WRITE_TOKEN`
-- Database configured through `DATABASE_URL`
+## Local development
 
-## Local Setup
-
-1. Install dependencies
+Requirements: Node.js 22+, npm, Bun for the companion, PostgreSQL/Neon, and Chrome for local publishing.
 
 ```bash
 npm install
-```
-
-2. Create `.env.local`
-
-```bash
-GEMINI_API_KEY=your_gemini_api_key
-BLOB_READ_WRITE_TOKEN=your_vercel_blob_token
-DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/xarticle?schema=public"
-
-# Optional app entry gate
-APP_ACCESS_CODE=ANGEL
-
-# Optional generation gate rotation secret
-GENERATE_ACCESS_CODE=admin-rotation-secret
-```
-
-3. Apply migrations and generate Prisma client
-
-```bash
-npx prisma migrate dev
-```
-
-4. If generation access is enabled, mint a one-time article access code for a tester
-
-```bash
-npm run generate-access:create
-```
-
-5. Start the app
-
-```bash
+cp .env.example .env.local
 npm run dev
 ```
 
-Open `http://localhost:3000`.
-
-## Binance Square Publishing
-
-From an article studio, choose **Binance Square**. Review and edit the generated title and Markdown, choose a slide for the 5:2 cover, adjust its focal point, and download the ZIP bundle. The app downloads slide assets through the authorized same-origin asset route; Binance credentials never enter the app or bundle.
-
-The project-local publishing skill is pinned at `.agents/skills/baoyu-post-to-binance-square`. On a machine with Chrome, Bun, and an active Binance login, validate the bundle before opening the browser:
+Useful verification commands:
 
 ```bash
-bun --cwd .agents/skills/baoyu-post-to-binance-square/scripts install --frozen-lockfile
-bun .agents/skills/baoyu-post-to-binance-square/scripts/main.ts \
-  --bundle ~/Downloads/article-binance-square.zip --dry-run
-bun .agents/skills/baoyu-post-to-binance-square/scripts/main.ts \
-  --bundle ~/Downloads/article-binance-square.zip
-```
-
-The second command composes a draft and leaves Chrome open. Review the live Binance editor, then ask for fresh confirmation before running the printed command:
-
-```bash
-bun .agents/skills/baoyu-post-to-binance-square/scripts/main.ts \
-  --publish-draft <draft-id>
-```
-
-Draft state is local, contains no cookies or workspace keys, and expires after 15 minutes. The publisher rechecks the title, body, assets, editor tab, and Binance success state; an ambiguous click is reported as unverified rather than successful. Direct article `--submit` is intentionally disabled.
-
-## User Flow
-
-If `APP_ACCESS_CODE` is enabled:
-
-1. Open `/`
-2. Enter the app access code on `/access`
-3. You will be redirected to `/workspace`
-
-Then:
-
-1. Choose `Create new key` to make a new workspace, or `Use existing key` to recover one
-2. After the workspace is attached, open the dashboard
-3. If generation is locked, unlock it once with the latest article access code from the admin
-4. Generate from the homepage, `/new`, or retry failed images from an article page
-
-## Admin Workflow for Generation Access
-
-`GENERATE_ACCESS_CODE` is not given directly to users. It acts as a rotation secret for invite issuance.
-
-When you want to allow a user to generate:
-
-1. Set or update `GENERATE_ACCESS_CODE` in the environment
-2. Issue a one-time invite code:
-
-```bash
-npm run generate-access:create
-npm run test:e2e
-```
-
-3. Send the printed `gac_...` code to the user
-
-Optional: provide your own code instead of generating a random one
-
-```bash
-npm run generate-access:create -- gac_custom_code_here
-```
-
-Rotation behavior:
-
-- Change `GENERATE_ACCESS_CODE`
-- Mint new invite codes
-- Old generation unlocks will stop working on the next protected request
-
-## Main Routes
-
-### Pages
-
-- `/` - dashboard
-- `/workspace` - dashboard alias used after app-access login
-- `/access` - app-level access gate
-- `/new` - article creation wizard
-- `/articles/[id]` - article studio, editor, preview, captions
-
-### APIs
-
-- `POST /api/access` - validate app access code and set app cookie
-- `GET /api/workspace` - bootstrap workspace and generation lock state
-- `POST /api/workspace` - create a new workspace for the current browser session
-- `POST /api/workspace/recover` - recover an existing workspace using its recovery key
-- `POST /api/generate-access` - consume a one-time generation invite and set generation cookie
-- `POST /api/articles` - create an article shell
-- `POST /api/articles/generate-prompt` - generate AI prompt suggestions
-- `POST /api/articles/[id]/generate` - start article generation
-- `POST /api/articles/[id]/generate-images` - retry article image generation
-- `GET /api/jobs/[jobId]` - poll workflow progress
-
-## Useful Commands
-
-```bash
-npm run dev
-npm run build
-npm run test
+npm test
 npm run typecheck
-npm run prisma:generate
-npm run db:migrate:deploy
-npm run generate-access:create
+npm run lint
+MIGRATION_DATABASE_URL='postgresql://localhost/binance_article' npm run db:check
+npm run telegram:dry-run
+
+cd publisher-companion
+bun install --frozen-lockfile
+bun test
+bun run typecheck
 ```
 
-## Project Structure
+Database migrations are an explicit operator action and are never run by an application build:
 
-```text
-app/
-  access/                  app entry gate
-  articles/[id]/           article studio
-  api/                     API routes
-  new/                     article wizard
-  page.tsx                 dashboard
-  workspace/page.tsx       dashboard alias
-
-components/
-  access/                  app access UI
-  home/                    dashboard
-  workspace/               workspace onboarding and recovery
-
-lib/
-  db.ts                    article persistence helpers
-  generate-access.ts       generation access exports
-  hooks.ts                 React Query hooks
-  schemas.ts               Zod schemas
-  workspace.ts             workspace bootstrap and recovery helpers
-
-server/
-  auth/                    cookies and access helpers
-  modules/                 workspace, articles, jobs
-
-prisma/
-  schema.prisma            DB schema
-  migrations/              schema history
-
-scripts/
-  create-generate-access-grant.mjs
-  setup-db.sh
+```bash
+MIGRATION_DATABASE_URL='postgresql://...' npm run db:migrate:deploy
 ```
 
-## Docs
-
-- [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md)
-- [GETTING_STARTED.md](./GETTING_STARTED.md)
-- [docs/generation-access.md](./docs/generation-access.md)
-- [docs/vercel-waf-config.md](./docs/vercel-waf-config.md)
+Do not point migration commands at production until the generated SQL has been reviewed and backed up. See [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md) and [GETTING_STARTED.md](./GETTING_STARTED.md).

@@ -1,124 +1,75 @@
 # xArticle Setup Instructions
 
-## 1. Install Dependencies
+## 1. Install
 
 ```bash
 npm install
 ```
 
-## 2. Configure Environment Variables
+Use Node.js 22 or newer. Install Bun separately for `publisher-companion`.
 
-Create `.env.local` and set the runtime values the app needs.
+## 2. Configure local environment
 
-```bash
-GEMINI_API_KEY=your_gemini_api_key
-BLOB_READ_WRITE_TOKEN=your_vercel_blob_token
-DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/xarticle?schema=public"
-```
+Copy `.env.example` to `.env.local`. At minimum configure:
 
-Optional private-access controls:
+- `DATABASE_URL`: PostgreSQL/Neon runtime URL with TLS for remote hosts.
+- `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL`.
+- Google OAuth client ID and secret.
+- Gemini credentials while the generation provider is enabled.
+- Private asset storage credentials/bindings for the selected runtime.
 
-```bash
-# Optional: require users to pass through /access first
-APP_ACCESS_CODE=ANGEL
+Telegram is optional. If enabled, configure its OAuth client, bot token, webhook secret, and separate Worker environment. Never reuse a production database superuser for the Telegram Worker.
 
-# Optional: enable generation unlock flow and invite-code rotation
-GENERATE_ACCESS_CODE=admin-rotation-secret
-```
+Store production secrets in Cloudflare secret bindings. Do not commit `.env*`, print tokens, or bundle local environment files into Worker output.
 
-Notes:
+## 3. Database
 
-- `APP_ACCESS_CODE` protects entry into the app.
-- `GENERATE_ACCESS_CODE` does not go directly to end users. It is the admin rotation secret used when issuing one-time article access codes.
-
-## 3. Run Prisma Migrations
+Use a separate least-privileged runtime role and migration role. Review migrations, back up deployed data, then apply with the dedicated URL:
 
 ```bash
-npx prisma migrate dev
+MIGRATION_DATABASE_URL='postgresql://...' npm run db:check
+MIGRATION_DATABASE_URL='postgresql://...' npm run db:migrate:deploy
 ```
 
-If you are using a pre-provisioned environment, you can also deploy existing migrations:
+The legacy workspace migration stamps only then-unowned workspaces with a 30-day claim deadline. New workspaces receive no claim deadline. Do not edit that deadline per request or extend it with an environment variable.
+
+## 4. Better Auth and invitations
+
+Configure the Google callback URL for the deployment origin. Bootstrap the first owner through the controlled operator procedure, then create invitations from the owner administration surface. The application limits the private beta to ten active users plus pending invitations.
+
+## 5. Cloudflare resources
+
+- Deploy the web application as an OpenNext Worker.
+- Bind a private `ARTICLE_ASSETS` R2 bucket; do not enable `r2.dev`.
+- Deploy Telegram as a separate Worker with only its required secrets.
+- Keep migrations outside build and deployment bundles.
+- Run the compressed bundle-size gates before deployment.
+
+No deployment or live migration is performed by repository verification commands.
+
+## 6. Local publisher companion
 
 ```bash
-npm run db:migrate:deploy
+cd publisher-companion
+bun install --frozen-lockfile
+printf '%s\n' "$PAIRING_CODE" | bun run src/main.ts pair --api https://your-app.example
+bun run src/main.ts run
 ```
 
-## 4. Generate an Article Access Code for a User
+Pass the one-time pairing code through the hidden prompt or stdin, never argv. The companion refuses plaintext token storage, uses one process lock, verifies downloaded assets, and never retries a Binance publish click.
 
-Only needed when `GENERATE_ACCESS_CODE` is set.
+## 7. Verify before release
 
 ```bash
-npm run generate-access:create
+npm test
+npm run typecheck
+npm run lint
+MIGRATION_DATABASE_URL='postgresql://localhost/binance_article' npm run db:check
+npm run telegram:dry-run
+
+cd publisher-companion
+bun test
+bun run typecheck
 ```
 
-This prints a one-time `gac_...` code. Give that code to the user. The first workspace/browser session that uses it will own it.
-
-If you rotate `GENERATE_ACCESS_CODE`, old generation unlocks stop working and you must mint new invite codes.
-
-## 5. Start the Development Server
-
-```bash
-npm run dev
-```
-
-Open `http://localhost:3000`.
-
-## 6. Verify the Current User Flow
-
-### If `APP_ACCESS_CODE` is enabled
-
-1. Open `/`
-2. Enter the app access code on `/access`
-3. The app redirects to `/workspace`
-
-### Workspace onboarding
-
-1. Choose `Create new key` to create a fresh workspace
-2. Or choose `Use existing key` to recover an existing workspace with its recovery key
-
-### Generation unlock
-
-1. If generation is locked, the dashboard and `/new` will show disabled generation actions
-2. Enter the one-time article access code from the admin
-3. Generation is unlocked for the current browser session
-
-## Required Environment Variables
-
-- `GEMINI_API_KEY`
-- `BLOB_READ_WRITE_TOKEN`
-- `DATABASE_URL`
-
-## Optional Environment Variables
-
-- `APP_ACCESS_CODE`
-- `GENERATE_ACCESS_CODE`
-
-## Troubleshooting
-
-### `GEMINI_API_KEY` is not set
-
-Add it to `.env.local` or pull your Vercel environment again.
-
-### `BLOB_READ_WRITE_TOKEN` is not set
-
-Add it to `.env.local`. `next dev` does not load `.env.vercel.local` automatically.
-
-### Prisma migration errors
-
-Check that `DATABASE_URL` points to a reachable database, then rerun:
-
-```bash
-npx prisma migrate dev
-```
-
-### Users can enter the app but cannot generate
-
-That is expected when `GENERATE_ACCESS_CODE` is enabled and the browser has not been unlocked yet. Issue a fresh invite code with:
-
-```bash
-npm run generate-access:create
-```
-
-### A previously unlocked user is suddenly blocked from generating
-
-Most likely `GENERATE_ACCESS_CODE` was rotated. Mint a new invite code and have the user unlock again.
+Use a clean checkout for OpenNext builds because `.env*` files can be embedded in Worker code. Do not run the Cloudflare build from a checkout containing local secret files.

@@ -38,6 +38,10 @@ const deckFixture = {
 };
 
 test('downloads a reviewed Binance bundle from the article studio', async ({ page }) => {
+  test.skip(
+    process.env.E2E_AUTHENTICATED !== '1',
+    'Set E2E_AUTHENTICATED=1 and E2E_STORAGE_STATE to a private test-account session.',
+  );
   await page.route('**/api/workspace', async (route) => {
     await route.fulfill({
       status: 200,
@@ -61,17 +65,6 @@ test('downloads a reviewed Binance bundle from the article studio', async ({ pag
   });
 
   await page.goto('/articles/e2e-binance-export');
-  if (page.url().includes('/access')) {
-    const accessCode = process.env.TEST_ACCESS_CODE;
-    if (!accessCode) {
-      test.skip(true, 'This deployment requires an app access code; configure TEST_ACCESS_CODE for this E2E.');
-    }
-    await page.locator('#app-access-code').fill(accessCode!);
-    await page.getByRole('button', { name: /continue|submit|access/i }).click();
-    await page.waitForURL(/\/workspace|\/$/);
-    await page.goto('/articles/e2e-binance-export');
-  }
-
   await expect(page.getByRole('button', { name: /Binance Square/i })).toBeVisible();
   await page.getByRole('button', { name: /Binance Square/i }).click();
   await expect(page.getByRole('heading', { name: 'Export to Binance Square' })).toBeVisible();

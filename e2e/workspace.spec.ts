@@ -1,55 +1,32 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
-test.describe('Workspace', () => {
-  test('creates a workspace and shows recovery key', async ({ page }) => {
-    await page.goto('/');
-    await expect(page).toHaveURL(/\/access/);
-
-    // Authenticate with access code
-    const codeInput = page.getByRole('textbox');
-    await codeInput.fill(process.env.TEST_ACCESS_CODE || 'test-code');
-    await page.getByRole('button', { name: /enter|submit|access/i }).click();
-
-    // Should redirect to home after access
-    await page.waitForURL('/', { timeout: 10_000 });
-
-    // Create workspace — look for onboarding or workspace creation prompt
-    const createButton = page.getByRole('button', { name: /create|get started|new workspace/i });
-    if (await createButton.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await createButton.click();
-    }
-
-    // Recovery key should be displayed after workspace creation
-    const recoveryKey = page.getByText(/dwk_/);
-    if (await recoveryKey.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      const keyText = await recoveryKey.textContent();
-      expect(keyText).toMatch(/^dwk_/);
+test.describe('Account workspace security', () => {
+  test('redirects a logged-out private page to Google/Telegram login', async ({ browser, baseURL }) => {
+    const context = await browser.newContext({ storageState: undefined });
+    try {
+      const page = await context.newPage();
+      await page.goto(`${baseURL ?? 'http://localhost:3000'}/new`);
+      await expect(page).toHaveURL(/\/login\?callbackURL=/);
+      await expect(page.getByRole('heading', { name: /sign in/i })).toBeVisible();
+    } finally {
+      await context.close();
     }
   });
 
-  test('recovers workspace with recovery key via API', async ({ request }) => {
-    // Create workspace via API
-    const createRes = await request.post('/api/workspace');
-    expect(createRes.status()).toBe(201);
-    const { recoveryKey, workspaceId } = await createRes.json();
-    expect(recoveryKey).toMatch(/^dwk_/);
-    expect(workspaceId).toBeTruthy();
-
-    // Recover using the key
-    const recoverRes = await request.post('/api/workspace/recover', {
-      data: { accessKey: recoveryKey },
+  test('rejects logged-out workspace creation and legacy claims', async ({ playwright, baseURL }) => {
+    const request = await playwright.request.newContext({
+      baseURL: baseURL ?? 'http://localhost:3000',
     });
-    expect(recoverRes.status()).toBe(200);
-    const recovered = await recoverRes.json();
-    expect(recovered.workspaceId).toBe(workspaceId);
-  });
+    try {
+      const createResponse = await request.post('/api/workspace');
+      expect(createResponse.status()).toBe(401);
 
-  test('rejects invalid recovery key', async ({ request }) => {
-    const res = await request.post('/api/workspace/recover', {
-      data: { accessKey: 'dwk_invalid_key_that_does_not_exist' },
-    });
-    expect(res.status()).toBe(400);
-    const body = await res.json();
-    expect(body.code).toBe('INVALID_ACCESS_KEY');
+      const claimResponse = await request.post('/api/workspace/recover', {
+        data: { accessKey: `dwk_${'a'.repeat(36)}` },
+      });
+      expect(claimResponse.status()).toBe(401);
+    } finally {
+      await request.dispose();
+    }
   });
 });

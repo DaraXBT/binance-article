@@ -9,6 +9,7 @@ export default defineConfig({
   reporter: process.env.CI ? 'github' : 'html',
   use: {
     baseURL: process.env.BASE_URL || 'http://localhost:3000',
+    storageState: process.env.E2E_STORAGE_STATE || undefined,
     trace: 'on-first-retry',
   },
   webServer: process.env.BASE_URL

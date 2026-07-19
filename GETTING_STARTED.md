@@ -1,127 +1,47 @@
 # xArticle Getting Started
 
-This guide is for a tester or end user using a running xArticle instance.
+## Join and sign in
 
-## Entry Flow
+1. Open the private invitation link from the owner.
+2. Enroll with the invited Google account.
+3. Sign in with Google on later visits.
+4. Optionally link Telegram from `/settings/connections`; Telegram cannot create an account.
 
-### If the app is protected
+Private pages redirect logged-out visitors to `/login`. Suspended and revoked accounts remain disabled even if an old browser session or publisher-device token still exists.
 
-1. Open `/`
-2. Enter the app access code on `/access`
-3. After success, you will land on `/workspace`
+## Create or claim a workspace
 
-### Workspace choice
+New users choose **Create workspace**. The workspace is attached to the account immediately; there is no new recovery key to save.
 
-On the workspace screen you will see two choices:
+Users migrating an older browser-based workspace may choose **Recover existing workspace** and enter its original `dwk_...` key. This is a one-time claim available only during the 30-day migration window. Unknown, expired, and already-used keys all return the same response.
 
-- `Create new key`
-  - Creates a new workspace for this browser
-  - Shows a one-time recovery key
-- `Use existing key`
-  - Reconnects this browser to an existing workspace using its recovery key
+## Create an article
 
-Save the recovery key if you create a new workspace. That is how you reconnect from another browser later.
+From the dashboard or `/new`:
 
-## Dashboard Flow
+1. Enter source text, a topic prompt, or a URL.
+2. Select slide count and illustration style.
+3. If generation locking is enabled, enter the one-time generation grant from the owner.
+4. Start generation and wait for the background job.
+5. Review and edit slides, captions, and images in `/articles/[id]`.
 
-After a workspace is attached, you will reach the dashboard.
+Generation grants bind to the verified account session and workspace. They do not replace account authentication.
 
-From there you can:
+## Publish to Binance Square
 
-- Draft an article prompt directly on the homepage
-- Open `/new` for the guided article flow
-- Open existing articles from the sidebar
+1. Install and pair the local publisher companion using the one-time code shown by the web app.
+2. Keep Chrome open with Binance already signed in.
+3. Prepare the Binance publication from the article studio.
+4. Review the exact title, body, cover, images, device, and revision.
+5. Approve from the web app or a linked private Telegram chat.
+6. Let the companion perform the single final click.
 
-## Generation Lock Flow
+The companion stores its device token in the operating-system keyring. Binance cookies, Chrome data, and local drafts remain on that computer. If Binance's result is ambiguous, the command ends as `outcome_unknown`; create a new reviewed command only after checking Binance manually.
 
-If the admin enabled generation locking:
+## Common issues
 
-- The dashboard still opens normally
-- AI generation actions are visible but disabled
-- You must unlock the browser with the latest article access code from the admin
-
-Once unlocked, the same browser session can:
-
-- Generate from the homepage
-- Generate from `/new`
-- Retry failed images from an article page
-
-If the admin rotates the generation secret, the browser will lose generation access on the next protected request and must be unlocked again with a fresh code.
-
-## Create an Article from the Dashboard
-
-1. Enter or paste your topic/prompt into the homepage composer
-2. Optionally use `AI Suggest`
-3. Choose slide count and illustration style
-4. Click `Generate article`
-
-You will be taken to the article page after generation starts.
-
-## Create an Article from `/new`
-
-`/new` supports multiple creation modes.
-
-### Prompt mode
-
-Use it when you want AI to help shape the article instructions before generation.
-
-### Text mode
-
-Use it when you already have article content.
-
-### URL mode
-
-Use it when you want xArticle to fetch and process a webpage as the source.
-
-In all cases:
-
-1. Fill in the source content
-2. Choose illustration style and slide count
-3. Open the generate step
-4. Unlock generation if needed
-5. Wait for the workflow to finish
-
-## Article Page
-
-On `/articles/[id]` you can:
-
-- Review generated slides
-- Edit titles, bullets, notes, and order
-- Preview the current slide
-- Review blog and X captions
-- Retry failed images
-- Delete the article
-
-If generation locking is enabled, `Retry Failed Images` also requires the browser to be unlocked.
-
-## What the Three Keys Mean
-
-### App access code
-
-- Gets you into the app
-- Shared gate at `/access`
-
-### Workspace recovery key
-
-- Reattaches a browser to a workspace
-- Chosen through `Create new key` or `Use existing key`
-
-### Article access code
-
-- Unlocks token-spending generation for this browser session
-- Provided by the admin
-- One-time and browser/session-bound
-
-## Common Problems
-
-### I can open the dashboard but cannot generate
-
-The browser has not been unlocked for generation yet, or the admin rotated the generation secret.
-
-### My old article access code no longer works
-
-The admin likely rotated `GENERATE_ACCESS_CODE`. Request a new invite code.
-
-### I lost my workspace after opening a new browser
-
-Recover it with the saved workspace recovery key.
+- **Login is rejected:** use the invited Google account or a Telegram identity previously linked to it.
+- **Account disabled:** contact the owner; old sessions and paired devices cannot bypass suspension.
+- **Generation locked:** request a fresh one-time generation grant.
+- **Legacy key unavailable:** the key is malformed, expired, already consumed, or belongs to a workspace that was already claimed.
+- **Publisher asks to pair again:** the device token was revoked or its account/membership is no longer active.
