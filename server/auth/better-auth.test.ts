@@ -48,6 +48,9 @@ describe('Better Auth factory', () => {
       baseURL: environment.baseUrl,
       session: expect.objectContaining({ expiresIn: 60 * 60 * 24 * 7 }),
       account: expect.objectContaining({ encryptOAuthTokens: true }),
+      advanced: expect.objectContaining({
+        ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] },
+      }),
       socialProviders: {
         google: expect.objectContaining({
           clientId: environment.googleClientId,
