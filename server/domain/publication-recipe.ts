@@ -12,7 +12,6 @@ const IdentifierSchema = z.string().regex(IDENTIFIER_PATTERN);
 
 export const PublicationAssetV1Schema = z.object({
   id: IdentifierSchema,
-  role: z.enum(['cover', 'body']),
   mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
   sizeBytes: z.number().int().min(1).max(MAX_IMAGE_BYTES),
   sha256: z.string().regex(SHA256_PATTERN),
@@ -68,39 +67,24 @@ export const PublicationRecipeV1Schema = z.object({
         path: ['orderedAssetIds', index],
         message: `Ordered asset ID ${assetId} has no metadata.`,
       });
-    } else if (asset.role !== 'body') {
-      context.addIssue({
-        code: 'custom',
-        path: ['orderedAssetIds', index],
-        message: 'The cover asset cannot appear in the body asset order.',
-      });
     }
   }
 
   const coverAsset = assetsById.get(recipe.cover.assetId);
-  if (!coverAsset || coverAsset.role !== 'cover') {
+  if (!coverAsset) {
     context.addIssue({
       code: 'custom',
       path: ['cover', 'assetId'],
-      message: 'Cover metadata is missing or does not have the cover role.',
+      message: 'Cover metadata is missing.',
     });
   }
 
-  const coverAssets = recipe.assets.filter((asset) => asset.role === 'cover');
-  if (coverAssets.length !== 1 || coverAssets[0]?.id !== recipe.cover.assetId) {
+  const usedAssetIds = new Set([...orderedIds, recipe.cover.assetId]);
+  if (recipe.assets.some((asset) => !usedAssetIds.has(asset.id))) {
     context.addIssue({
       code: 'custom',
       path: ['assets'],
-      message: 'Recipe must contain exactly one matching cover asset.',
-    });
-  }
-
-  const bodyAssetIds = recipe.assets.filter((asset) => asset.role === 'body').map((asset) => asset.id);
-  if (bodyAssetIds.length !== orderedIds.size || bodyAssetIds.some((assetId) => !orderedIds.has(assetId))) {
-    context.addIssue({
-      code: 'custom',
-      path: ['orderedAssetIds'],
-      message: 'Every body asset must appear exactly once in the body asset order.',
+      message: 'Every asset must be used by the cover or article body.',
     });
   }
 
