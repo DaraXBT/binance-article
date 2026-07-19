@@ -90,4 +90,25 @@ describe('publisher companion API client', () => {
     const response = await client.downloadAsset('command_1', 'asset_1');
     expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([1, 2, 3]);
   });
+
+  it('sends only fixed publisher transition payloads to command endpoints', async () => {
+    const requests: Array<{ url: string; body: unknown }> = [];
+    const client = new PublisherApiClient({
+      baseUrl: 'https://articles.example.com',
+      getDeviceToken: async () => 'A'.repeat(43),
+      fetchImpl: async (request, init) => {
+        requests.push({
+          url: String(request),
+          body: init?.body ? JSON.parse(String(init.body)) : null,
+        });
+        return Response.json({ state: 'cancelled' });
+      },
+    });
+
+    await client.abortCommand('command_1', 3, 'EDITOR_COMPOSITION_FAILED');
+    expect(requests[0]).toEqual({
+      url: 'https://articles.example.com/api/publisher/commands/command_1/abort',
+      body: { revision: 3, reasonCode: 'EDITOR_COMPOSITION_FAILED' },
+    });
+  });
 });
