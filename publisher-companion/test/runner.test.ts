@@ -99,4 +99,37 @@ describe('publisher companion runner', () => {
     expect(h.api.abortCommand).toHaveBeenCalledWith('command_1', 3, 'EDITOR_COMPOSITION_FAILED');
     expect(JSON.stringify(h.api.abortCommand.mock.calls)).not.toContain('/private/chrome');
   });
+
+  it('aborts when final editor revalidation fails before the begin hook', async () => {
+    const h = await harness();
+    h.adapter.publish.mockRejectedValueOnce(new Error('editor content changed'));
+    await expect(runPublisherOnce({
+      ...h, now: () => new Date('2026-07-19T00:00:00.000Z'), sleep: async () => undefined,
+    })).resolves.toEqual({ outcome: 'cancelled', commandId: 'command_1' });
+    expect(h.api.beginPublish).not.toHaveBeenCalled();
+    expect(h.api.abortCommand).toHaveBeenCalledWith('command_1', 3, 'EDITOR_COMPOSITION_FAILED');
+    expect(h.api.reportResult).not.toHaveBeenCalled();
+  });
+
+  it('resolves an ambiguous begin response through status and never retries a click', async () => {
+    const h = await harness();
+    const recipeHash = await hashPublicationRecipe(recipe);
+    const states = ['awaiting_review', 'awaiting_approval', 'approved', 'publishing'] as const;
+    let index = 0;
+    h.api.getCommandStatus.mockImplementation(async () => ({
+      id: 'command_1', state: states[index++] ?? 'publishing', revision: 3,
+      recipeHash, expiresAt: recipe.expiresAt,
+    }));
+    h.api.beginPublish.mockRejectedValueOnce(new Error('response lost'));
+    h.api.abortCommand.mockRejectedValueOnce(new Error('already publishing'));
+
+    await expect(runPublisherOnce({
+      ...h, now: () => new Date('2026-07-19T00:00:00.000Z'), sleep: async () => undefined,
+    })).resolves.toEqual({ outcome: 'outcome_unknown', commandId: 'command_1' });
+    expect(h.api.abortCommand).toHaveBeenCalledOnce();
+    expect(h.api.reportResult).toHaveBeenCalledWith('command_1', 3, {
+      outcome: 'outcome_unknown', failureReason: 'OUTCOME_UNVERIFIED',
+    });
+    expect(h.order.filter((item) => item === 'click')).toHaveLength(0);
+  });
 });
