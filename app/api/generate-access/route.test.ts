@@ -1,22 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const rateLimitMock = {
-  checkRateLimit: async () => ({
+  consumeAtomicRateLimit: vi.fn(async () => ({
     allowed: true,
     remaining: 4,
-    resetAt: Date.now() + 60_000,
-  }),
-};
-
-const workspaceMock = {
-  getCurrentWorkspace: vi.fn(async () => ({
-    sessionId: 'session-1',
-    workspace: {
-      id: 'workspace-1',
-      accessKeyPrefix: 'dwk_test',
-    },
+    resetAt: new Date(Date.now() + 60_000),
   })),
 };
+
+const authMock = {
+  requireActiveUser: vi.fn(async () => ({ id: 'user-1', sessionId: 'session-1' })),
+};
+const workspaceMock = {
+  requireActorWorkspace: vi.fn(async () => ({ id: 'workspace-1' })),
+};
+const runtimeMock = { getRuntimeDatabase: vi.fn(() => ({ db: true })) };
+const bodyMock = { readBoundedJson: vi.fn(async () => ({ code: 'gac_valid_code' })) };
 
 const generateAccessMock = {
   isGenerateAccessEnabled: vi.fn<() => boolean>(() => true),
@@ -34,8 +33,11 @@ const generateAccessMock = {
   }),
 };
 
-vi.mock('@/server/http/rate-limit', () => rateLimitMock);
-vi.mock('@/server/modules/workspace/service', () => workspaceMock);
+vi.mock('@/server/http/atomic-rate-limit', () => rateLimitMock);
+vi.mock('@/server/auth/authorization', () => authMock);
+vi.mock('@/server/modules/workspace/membership', () => workspaceMock);
+vi.mock('@/server/db/runtime', () => runtimeMock);
+vi.mock('@/server/http/request-body', () => bodyMock);
 vi.mock('@/lib/generate-access', () => generateAccessMock);
 
 describe('/api/generate-access', () => {
@@ -46,6 +48,12 @@ describe('/api/generate-access', () => {
       ok: true,
       grantId: 'grant-1',
     });
+    authMock.requireActiveUser.mockResolvedValue({ id: 'user-1', sessionId: 'session-1' });
+    workspaceMock.requireActorWorkspace.mockResolvedValue({ id: 'workspace-1' });
+    bodyMock.readBoundedJson.mockResolvedValue({ code: 'gac_valid_code' });
+    rateLimitMock.consumeAtomicRateLimit.mockResolvedValue({
+      allowed: true, remaining: 4, resetAt: new Date(Date.now() + 60_000),
+    });
   });
 
   afterEach(() => {
@@ -55,9 +63,10 @@ describe('/api/generate-access', () => {
   it('accepts a valid invite code and sets the generation access cookie', async () => {
     const { POST } = await import('@/app/api/generate-access/route');
     const response = await POST(
-      new Request('http://localhost/api/generate-access', {
+      new Request('https://articles.example.com/api/generate-access', {
         method: 'POST',
-        body: JSON.stringify({ code: 'gac_valid_code' }),
+        headers: { origin: 'https://articles.example.com' },
+        body: '{}',
       }) as never
     );
 
@@ -69,6 +78,9 @@ describe('/api/generate-access', () => {
       sessionId: 'session-1',
     });
     expect(response.headers.get('set-cookie')).toContain('deckforge_generate_access');
+    expect(rateLimitMock.consumeAtomicRateLimit).toHaveBeenCalledWith(expect.objectContaining({
+      database: { db: true }, key: 'generate-access:user-1', limit: 5,
+    }));
   });
 
   it('rejects an invalid invite code', async () => {
@@ -79,9 +91,10 @@ describe('/api/generate-access', () => {
 
     const { POST } = await import('@/app/api/generate-access/route');
     const response = await POST(
-      new Request('http://localhost/api/generate-access', {
+      new Request('https://articles.example.com/api/generate-access', {
         method: 'POST',
-        body: JSON.stringify({ code: 'gac_wrong' }),
+        headers: { origin: 'https://articles.example.com' },
+        body: '{}',
       }) as never
     );
     const body = await response.json();
@@ -103,9 +116,10 @@ describe('/api/generate-access', () => {
 
     const { POST } = await import('@/app/api/generate-access/route');
     const response = await POST(
-      new Request('http://localhost/api/generate-access', {
+      new Request('https://articles.example.com/api/generate-access', {
         method: 'POST',
-        body: JSON.stringify({ code: 'gac_old' }),
+        headers: { origin: 'https://articles.example.com' },
+        body: '{}',
       }) as never
     );
     const body = await response.json();
@@ -116,5 +130,19 @@ describe('/api/generate-access', () => {
       code: 'INVALID_GENERATE_CODE',
       reason: 'rotated',
     });
+  });
+
+  it('authenticates before parsing or rate-limiting a generation code', async () => {
+    const { AppError } = await import('@/server/http/errors');
+    authMock.requireActiveUser.mockRejectedValueOnce(new AppError({
+      code: 'AUTH_REQUIRED', message: 'Authentication is required.', status: 401,
+    }));
+    const { POST } = await import('@/app/api/generate-access/route');
+    const response = await POST(new Request('https://articles.example.com/api/generate-access', {
+      method: 'POST', headers: { origin: 'https://articles.example.com' }, body: '{}',
+    }) as never);
+    expect(response.status).toBe(401);
+    expect(bodyMock.readBoundedJson).not.toHaveBeenCalled();
+    expect(rateLimitMock.consumeAtomicRateLimit).not.toHaveBeenCalled();
   });
 });
