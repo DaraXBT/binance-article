@@ -67,7 +67,7 @@ describe('Cloudflare web Worker deployment configuration', () => {
     );
 
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toContain('Build and deploy OpenNext applications');
+    expect(result.stdout).toContain('Build an OpenNext Cloudflare worker');
   });
 
   it('keeps generated Worker output out of version control and initializes local dev context', () => {

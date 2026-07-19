@@ -9,6 +9,8 @@ node_modules/
 .env*.local
 .DS_Store
 .vercel
+.open-next/
+.wrangler/
 prisma/dev.db
 test-results/
 playwright-report/
