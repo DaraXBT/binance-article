@@ -120,6 +120,9 @@ describe('Cloudflare web Worker deployment configuration', () => {
     expect(packageJson.scripts['workflow:dev']).toContain(
       'wrangler dev --config wrangler.workflow.jsonc',
     );
+    expect(packageJson.scripts['workflow:typecheck']).toBe(
+      'tsc -p tsconfig.workflow.json --noEmit',
+    );
     expect(packageJson.scripts['workflow:dry-run']).toContain(
       'wrangler deploy --config wrangler.workflow.jsonc --dry-run',
     );
