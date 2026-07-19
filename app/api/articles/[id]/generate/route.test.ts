@@ -61,9 +61,6 @@ vi.mock('@/server/auth/article-authorization', () => articleAuthorizationMock);
 vi.mock('@/server/modules/jobs/service', () => jobServiceMock);
 vi.mock('@/server/integrations/workflow-client', () => workflowClientMock);
 vi.mock('@/server/http/atomic-rate-limit', () => rateLimitMock);
-vi.mock('@/workflows/article-jobs', () => ({
-  handleArticleGenerationJob: vi.fn(),
-}));
 
 describe('POST /api/articles/[id]/generate', () => {
   beforeEach(() => {
@@ -121,6 +118,10 @@ describe('POST /api/articles/[id]/generate', () => {
         kind: 'generate',
       })
     );
+    expect(workflowClientMock.startWorkflow).toHaveBeenCalledWith({
+      jobId: 'job-1', kind: 'generate',
+    });
+    expect(jobServiceMock.attachWorkflowRunId).toHaveBeenCalledWith('job-1', 'run-1');
   });
 
   it('returns 403 when generation access is enabled but not unlocked', async () => {

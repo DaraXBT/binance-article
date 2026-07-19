@@ -52,6 +52,55 @@ describe('Cloudflare web Worker deployment configuration', () => {
     expect(configSource).not.toMatch(/r2\.dev|access[_-]?key|secret[_-]?access/i);
   });
 
+  it('binds the web Worker to a separately deployed idempotent article Workflow', () => {
+    const config = JSON.parse(readProjectFile('wrangler.jsonc')) as {
+      workflows: Array<Record<string, unknown>>;
+    };
+    expect(config.workflows).toEqual([{
+      binding: 'ARTICLE_JOBS',
+      name: 'binance-article-jobs',
+      class_name: 'ArticleJobsWorkflow',
+      script_name: 'binance-article-workflows',
+    }]);
+  });
+
+  it('configures a non-public Workflow Worker with only required bindings and secrets', () => {
+    const source = readProjectFile('wrangler.workflow.jsonc');
+    const config = JSON.parse(source) as {
+      name: string;
+      main: string;
+      compatibility_date: string;
+      compatibility_flags: string[];
+      workflows: Array<Record<string, unknown>>;
+      r2_buckets: Array<Record<string, unknown>>;
+      secrets: { required: string[] };
+      routes?: unknown;
+    };
+    expect(config).toMatchObject({
+      name: 'binance-article-workflows',
+      main: 'workers/article-workflow/index.ts',
+    });
+    expect(config.compatibility_date >= '2025-04-01').toBe(true);
+    expect(config.compatibility_flags).toContain('nodejs_compat');
+    expect(config.workflows).toEqual([{
+      binding: 'ARTICLE_JOBS',
+      name: 'binance-article-jobs',
+      class_name: 'ArticleJobsWorkflow',
+    }]);
+    expect(config.r2_buckets).toContainEqual({
+      binding: 'ARTICLE_ASSETS', bucket_name: 'binance-article-assets',
+    });
+    expect(config.secrets.required).toEqual(['DATABASE_URL', 'GEMINI_API_KEY']);
+    expect(config.routes).toBeUndefined();
+    expect(source).not.toMatch(/r2\.dev|access[_-]?key|secret[_-]?access/i);
+
+    const workerSource = readProjectFile('workers/article-workflow/index.ts');
+    expect(workerSource).toContain("from 'cloudflare:workers'");
+    expect(workerSource).toMatch(/class ArticleJobsWorkflow extends WorkflowEntrypoint/);
+    expect(workerSource).toMatch(/step\.do\([\s\S]*retries[\s\S]*timeout/);
+    expect(workerSource).not.toMatch(/\bfetch\s*\(/);
+  });
+
   it('provides build, local preview, dry-run, and compressed bundle gate scripts', () => {
     const packageJson = JSON.parse(readProjectFile('package.json')) as {
       scripts: Record<string, string>;
@@ -67,6 +116,12 @@ describe('Cloudflare web Worker deployment configuration', () => {
     expect(packageJson.scripts['cloudflare:dry-run']).toContain('wrangler deploy --dry-run');
     expect(packageJson.scripts['cloudflare:bundle-check']).toContain(
       'scripts/check-worker-bundle-size.mjs',
+    );
+    expect(packageJson.scripts['workflow:dev']).toContain(
+      'wrangler dev --config wrangler.workflow.jsonc',
+    );
+    expect(packageJson.scripts['workflow:dry-run']).toContain(
+      'wrangler deploy --config wrangler.workflow.jsonc --dry-run',
     );
     expect(packageJson.scripts['cloudflare:bundle-check']).toContain('.wrangler/dry-run');
     expect(packageJson.scripts['cloudflare:build']).not.toContain('cloudflare:bundle-check');

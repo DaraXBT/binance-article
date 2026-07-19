@@ -61,9 +61,6 @@ vi.mock('@/server/auth/article-authorization', () => articleAuthorizationMock);
 vi.mock('@/server/modules/jobs/service', () => jobServiceMock);
 vi.mock('@/server/integrations/workflow-client', () => workflowClientMock);
 vi.mock('@/server/http/atomic-rate-limit', () => rateLimitMock);
-vi.mock('@/workflows/article-jobs', () => ({
-  handleArticleImageRetryJob: vi.fn(),
-}));
 
 describe('POST /api/articles/[id]/generate-images', () => {
   beforeEach(() => {
@@ -116,6 +113,10 @@ describe('POST /api/articles/[id]/generate-images', () => {
         kind: 'generate_images',
       })
     );
+    expect(workflowClientMock.startWorkflow).toHaveBeenCalledWith({
+      jobId: 'job-1', kind: 'generate_images',
+    });
+    expect(jobServiceMock.attachWorkflowRunId).toHaveBeenCalledWith('job-1', 'run-1');
   });
 
   it('passes failed mode through to the job payload', async () => {
