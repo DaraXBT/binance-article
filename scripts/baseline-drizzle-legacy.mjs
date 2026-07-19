@@ -185,15 +185,15 @@ async function main() {
       array_to_json(
         array_agg(attribute.attname ORDER BY key_column.ordinality)
       ) AS "columns"
-    FROM pg_constraint constraint
-    JOIN pg_class source ON source.oid = constraint.conrelid
+    FROM pg_constraint AS reviewed_constraint
+    JOIN pg_class source ON source.oid = reviewed_constraint.conrelid
     JOIN pg_namespace namespace ON namespace.oid = source.relnamespace
-    JOIN LATERAL unnest(constraint.conkey) WITH ORDINALITY
+    JOIN LATERAL unnest(reviewed_constraint.conkey) WITH ORDINALITY
       AS key_column(attnum, ordinality) ON TRUE
     JOIN pg_attribute attribute
       ON attribute.attrelid = source.oid AND attribute.attnum = key_column.attnum
-    WHERE namespace.nspname = 'public' AND constraint.contype = 'p'
-    GROUP BY constraint.oid, source.relname
+    WHERE namespace.nspname = 'public' AND reviewed_constraint.contype = 'p'
+    GROUP BY reviewed_constraint.oid, source.relname
   `;
   const expectedPrimaryKeys = expectedTables.map((table) => ({
     tableName: table.name,
@@ -220,13 +220,16 @@ async function main() {
       array_to_json(
         array_agg(target_attribute.attname ORDER BY key_column.ordinality)
       ) AS "columnsTo",
-      constraint.confdeltype AS "deleteAction",
-      constraint.confupdtype AS "updateAction"
-    FROM pg_constraint constraint
-    JOIN pg_class source ON source.oid = constraint.conrelid
+      reviewed_constraint.confdeltype AS "deleteAction",
+      reviewed_constraint.confupdtype AS "updateAction"
+    FROM pg_constraint AS reviewed_constraint
+    JOIN pg_class source ON source.oid = reviewed_constraint.conrelid
     JOIN pg_namespace namespace ON namespace.oid = source.relnamespace
-    JOIN pg_class target ON target.oid = constraint.confrelid
-    JOIN LATERAL unnest(constraint.conkey, constraint.confkey) WITH ORDINALITY
+    JOIN pg_class target ON target.oid = reviewed_constraint.confrelid
+    JOIN LATERAL unnest(
+      reviewed_constraint.conkey,
+      reviewed_constraint.confkey
+    ) WITH ORDINALITY
       AS key_column(source_attnum, target_attnum, ordinality) ON TRUE
     JOIN pg_attribute source_attribute
       ON source_attribute.attrelid = source.oid
@@ -234,13 +237,13 @@ async function main() {
     JOIN pg_attribute target_attribute
       ON target_attribute.attrelid = target.oid
       AND target_attribute.attnum = key_column.target_attnum
-    WHERE namespace.nspname = 'public' AND constraint.contype = 'f'
+    WHERE namespace.nspname = 'public' AND reviewed_constraint.contype = 'f'
     GROUP BY
-      constraint.oid,
+      reviewed_constraint.oid,
       source.relname,
       target.relname,
-      constraint.confdeltype,
-      constraint.confupdtype
+      reviewed_constraint.confdeltype,
+      reviewed_constraint.confupdtype
   `;
   const expectedForeignKeys = expectedTables.flatMap((table) =>
     Object.values(table.foreignKeys)
