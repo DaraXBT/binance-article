@@ -162,5 +162,70 @@ export function createPublisherCommandRepository(
       `;
       return Boolean(rows[0]);
     },
+
+    async loadStatus({ deviceId, commandId }) {
+      const rows = await database.$client`
+        SELECT "id", "draftId", "deviceId", "state", "revision", "recipeHash", "expiresAt"
+        FROM "PublisherCommand"
+        WHERE "id" = ${commandId}
+          AND "deviceId" = ${deviceId}
+        LIMIT 1
+      `;
+      return (rows[0] as PublisherCommandRecord | undefined) ?? null;
+    },
+
+    async abort(input) {
+      const rows = await database.$client`
+        WITH candidate AS (
+          SELECT command."id", command."draftId"
+          FROM "PublisherCommand" command
+          INNER JOIN "BinancePublicationDraft" draft ON draft."id" = command."draftId"
+          WHERE command."id" = ${input.commandId}
+            AND command."deviceId" = ${input.deviceId}
+            AND command."revision" = ${input.revision}
+            AND command."expiresAt" > ${input.now}
+            AND command."state" <> 'publishing'::"PublisherCommandState"
+            AND command."state" IN (
+              'claimed'::"PublisherCommandState",
+              'awaiting_review'::"PublisherCommandState",
+              'awaiting_approval'::"PublisherCommandState",
+              'approved'::"PublisherCommandState"
+            )
+          FOR UPDATE OF command, draft
+        ), updated_command AS (
+          UPDATE "PublisherCommand" command
+          SET
+            "state" = 'cancelled'::"PublisherCommandState",
+            "failureReason" = ${input.reasonCode},
+            "completedAt" = ${input.now},
+            "updatedAt" = ${input.now}
+          FROM candidate
+          WHERE command."id" = candidate."id"
+          RETURNING command."id", command."draftId"
+        ), updated_draft AS (
+          UPDATE "BinancePublicationDraft" draft
+          SET "status" = 'cancelled'::"PublicationDraftStatus", "updatedAt" = ${input.now}
+          FROM updated_command
+          WHERE draft."id" = updated_command."draftId"
+          RETURNING draft."id"
+        ), updated_approval AS (
+          UPDATE "PublishApproval" approval
+          SET
+            "state" = 'cancelled'::"PublishApprovalState",
+            "consumedAt" = ${input.now},
+            "updatedAt" = ${input.now}
+          FROM updated_command
+          WHERE approval."commandId" = updated_command."id"
+            AND approval."state" IN (
+              'pending'::"PublishApprovalState",
+              'confirmation_required'::"PublishApprovalState"
+            )
+          RETURNING approval."id"
+        )
+        SELECT updated_command."id" FROM updated_command
+        INNER JOIN updated_draft ON true
+      `;
+      return Boolean(rows[0]);
+    },
   };
 }

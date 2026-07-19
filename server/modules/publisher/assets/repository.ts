@@ -21,6 +21,8 @@ export function createPublisherAssetRepository(
           AND asset."deletedAt" IS NULL
         WHERE command."id" = ${commandId}
           AND command."deviceId" = ${deviceId}
+          AND command."expiresAt" > now()
+          AND draft."expiresAt" > now()
           AND command."state" IN (
             'claimed'::"PublisherCommandState",
             'awaiting_review'::"PublisherCommandState",

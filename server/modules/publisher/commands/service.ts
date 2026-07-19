@@ -10,6 +10,14 @@ import { AppError } from '@/server/http/errors';
 
 const IdentifierSchema = z.string().trim().min(1).max(200);
 const RevisionSchema = z.number().int().positive().safe();
+const AbortReasonSchema = z.enum([
+  'ASSET_INTEGRITY_FAILED',
+  'EDITOR_COMPOSITION_FAILED',
+  'EDITOR_CLOSED',
+  'RECIPE_INVALID',
+  'DEVICE_SHUTDOWN',
+  'USER_CANCELLED',
+]);
 
 type CommandState =
   | 'queued'
@@ -52,6 +60,17 @@ export interface PublisherCommandRepository {
     now: Date;
     publishedUrl?: string;
     failureReason?: string;
+  }): Promise<boolean>;
+  loadStatus(input: {
+    deviceId: string;
+    commandId: string;
+  }): Promise<PublisherCommandRecord | null>;
+  abort(input: {
+    commandId: string;
+    deviceId: string;
+    revision: number;
+    reasonCode: z.infer<typeof AbortReasonSchema>;
+    now: Date;
   }): Promise<boolean>;
 }
 
@@ -198,4 +217,57 @@ export async function reportPublishResult(input: {
     to: input.outcome,
     now,
   });
+}
+
+const EXPIRABLE_STATES = new Set<CommandState>([
+  'queued',
+  'claimed',
+  'awaiting_review',
+  'awaiting_approval',
+  'approved',
+]);
+
+export async function getPublisherCommandStatus(input: {
+  repository: PublisherCommandRepository;
+  deviceId: string;
+  commandId: string;
+  now?: Date;
+}) {
+  const deviceId = IdentifierSchema.parse(input.deviceId);
+  const commandId = IdentifierSchema.parse(input.commandId);
+  const command = await input.repository.loadStatus({ deviceId, commandId });
+  if (!command || command.deviceId !== deviceId) {
+    throw commandError('PUBLISHER_COMMAND_NOT_FOUND', 'Publisher command not found.', 404);
+  }
+  const now = input.now ?? new Date();
+  const state = command.expiresAt.getTime() <= now.getTime() && EXPIRABLE_STATES.has(command.state)
+    ? 'expired'
+    : command.state;
+  return {
+    id: command.id,
+    state,
+    revision: command.revision,
+    recipeHash: command.recipeHash,
+    expiresAt: command.expiresAt,
+  };
+}
+
+export async function abortPublisherCommand(input: {
+  repository: PublisherCommandRepository;
+  deviceId: string;
+  commandId: string;
+  revision: number;
+  reasonCode: unknown;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const aborted = await input.repository.abort({
+    deviceId: IdentifierSchema.parse(input.deviceId),
+    commandId: IdentifierSchema.parse(input.commandId),
+    revision: RevisionSchema.parse(input.revision),
+    reasonCode: AbortReasonSchema.parse(input.reasonCode),
+    now,
+  });
+  if (!aborted) throw commandError('PUBLISHER_COMMAND_STALE', 'Publisher command state changed.');
+  return { state: 'cancelled' as const };
 }
