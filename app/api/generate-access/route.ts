@@ -4,10 +4,13 @@ import {
   grantGenerateAccess,
   isGenerateAccessEnabled,
 } from '@/lib/generate-access';
+import { requireActiveUser } from '@/server/auth/authorization';
 import { assertAllowedOrigin } from '@/server/auth/origin';
+import { getRuntimeDatabase } from '@/server/db/runtime';
+import { consumeAtomicRateLimit } from '@/server/http/atomic-rate-limit';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
-import { checkRateLimit } from '@/server/http/rate-limit';
-import { getCurrentWorkspace } from '@/server/modules/workspace/service';
+import { readBoundedJson } from '@/server/http/request-body';
+import { requireActorWorkspace } from '@/server/modules/workspace/membership';
 
 const RATE_LIMIT = 5;
 const RATE_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
@@ -15,13 +18,29 @@ const RATE_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 export async function POST(request: NextRequest) {
   try {
     assertAllowedOrigin(request);
+    const actor = await requireActiveUser(request);
+    const body = await readBoundedJson(request, 1_024);
+    const code = typeof body === 'object' && body !== null &&
+      typeof (body as { code?: unknown }).code === 'string'
+      ? (body as { code: string }).code
+      : '';
 
-    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-    const { allowed, resetAt } = await checkRateLimit(
-      `generate-access:${clientIp}`,
-      RATE_LIMIT,
-      RATE_WINDOW_MS
-    );
+    if (!isGenerateAccessEnabled()) {
+      return NextResponse.json(
+        { success: true, enabled: false },
+        { headers: withNoStoreHeaders() },
+      );
+    }
+
+    const now = new Date();
+    const database = getRuntimeDatabase();
+    const { allowed, resetAt } = await consumeAtomicRateLimit({
+      database,
+      key: `generate-access:${actor.id}`,
+      limit: RATE_LIMIT,
+      windowMs: RATE_WINDOW_MS,
+      now,
+    });
 
     if (!allowed) {
       return NextResponse.json(
@@ -30,29 +49,17 @@ export async function POST(request: NextRequest) {
           status: 429,
           headers: {
             ...withNoStoreHeaders(),
-            'Retry-After': String(Math.ceil((resetAt - Date.now()) / 1000)),
+            'Retry-After': String(Math.max(1, Math.ceil((resetAt.getTime() - now.getTime()) / 1000))),
           },
         }
       );
     }
 
-    const body = await request.json();
-    const code = typeof body?.code === 'string' ? body.code : '';
-
-    if (!isGenerateAccessEnabled()) {
-      return NextResponse.json(
-        { success: true, enabled: false },
-        {
-          headers: withNoStoreHeaders(),
-        }
-      );
-    }
-
-    const { sessionId, workspace } = await getCurrentWorkspace();
+    const workspace = await requireActorWorkspace(database, actor.id);
     const result = await consumeGenerateAccessGrant({
       code,
       workspaceId: workspace.id,
-      sessionId,
+      sessionId: actor.sessionId,
     });
 
     if (!result.ok) {
@@ -78,7 +85,7 @@ export async function POST(request: NextRequest) {
     return errorResponse(error, {
       code: 'GENERATE_ACCESS_FAILED',
       message: 'The generation access request could not be completed.',
-      status: 400,
+      status: 500,
     });
   }
 }

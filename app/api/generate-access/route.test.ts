@@ -16,6 +16,7 @@ const workspaceMock = {
 };
 const runtimeMock = { getRuntimeDatabase: vi.fn(() => ({ db: true })) };
 const bodyMock = { readBoundedJson: vi.fn(async () => ({ code: 'gac_valid_code' })) };
+const originMock = { assertAllowedOrigin: vi.fn() };
 
 const generateAccessMock = {
   isGenerateAccessEnabled: vi.fn<() => boolean>(() => true),
@@ -38,6 +39,7 @@ vi.mock('@/server/auth/authorization', () => authMock);
 vi.mock('@/server/modules/workspace/membership', () => workspaceMock);
 vi.mock('@/server/db/runtime', () => runtimeMock);
 vi.mock('@/server/http/request-body', () => bodyMock);
+vi.mock('@/server/auth/origin', () => originMock);
 vi.mock('@/lib/generate-access', () => generateAccessMock);
 
 describe('/api/generate-access', () => {

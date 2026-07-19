@@ -3,21 +3,24 @@ import { createDeckProject, listDeckProjects } from '@/lib/db';
 import { getRequestGenerateAccessState, isGenerateAccessEnabled } from '@/lib/generate-access';
 import { CreateDeckProjectSchema } from '@/lib/schemas';
 import { createGenerateAccessRequiredResponse } from '@/server/auth/generate-access-response';
-import { getCurrentWorkspace } from '@/server/modules/workspace/service';
+import { requireActiveUser } from '@/server/auth/authorization';
+import { getRuntimeDatabase } from '@/server/db/runtime';
 import { assertAllowedOrigin } from '@/server/auth/origin';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
+import { readBoundedJson } from '@/server/http/request-body';
+import { requireActorWorkspace } from '@/server/modules/workspace/membership';
 
 export async function POST(request: NextRequest) {
   try {
     assertAllowedOrigin(request);
-
-    const body = await request.json();
-    const { sessionId, workspace } = await getCurrentWorkspace();
+    const actor = await requireActiveUser(request);
+    const workspace = await requireActorWorkspace(getRuntimeDatabase(), actor.id);
+    const body = await readBoundedJson(request, 64_000);
 
     if (isGenerateAccessEnabled()) {
       const accessState = await getRequestGenerateAccessState(request, {
         workspaceId: workspace.id,
-        sessionId,
+        sessionId: actor.sessionId,
       });
 
       if (!accessState.hasAccess) {
@@ -48,9 +51,10 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const { workspace } = await getCurrentWorkspace();
+    const actor = await requireActiveUser(request);
+    const workspace = await requireActorWorkspace(getRuntimeDatabase(), actor.id);
     const decks = await listDeckProjects(workspace.id, 20);
     return NextResponse.json(decks, {
       headers: withNoStoreHeaders(),
