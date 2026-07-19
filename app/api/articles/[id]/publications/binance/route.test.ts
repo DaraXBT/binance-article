@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   assertAllowedOrigin: vi.fn(),
   database: { db: true },
   getRuntimeDatabase: vi.fn(),
-  resolveArticleWorkspace: vi.fn(async () => 'workspace_1'),
+  resolveArticleWorkspace: vi.fn(async (): Promise<string | null> => 'workspace_1'),
   repository: { repository: true },
   createRepository: vi.fn(),
   getBinanceDraft: vi.fn(async () => ({ id: 'draft_1', revision: 2 })),
