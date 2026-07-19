@@ -202,10 +202,10 @@ describe('fetchArticleSourceText', () => {
 
     const [url, request] = fetchMock.mock.calls[0];
     expect(String(url)).toBe(PUBLIC_URL);
-    expect(request).toMatchObject({
-      redirect: 'manual',
-      credentials: 'omit',
-    });
+    expect(request).toMatchObject({ redirect: 'manual' });
+    // Cloudflare Workers have no ambient browser cookie jar and their
+    // RequestInit intentionally does not expose the browser-only credentials field.
+    expect(request).not.toHaveProperty('credentials');
     const headers = new Headers(request?.headers);
     expect(headers.has('authorization')).toBe(false);
     expect(headers.has('cookie')).toBe(false);
