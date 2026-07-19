@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "BinancePublicationDraft_workspaceId_articleId_key" ON "BinancePublicationDraft" USING btree ("workspaceId","articleId");

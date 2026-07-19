@@ -227,6 +227,7 @@ export const binancePublicationDraft = pgTable('BinancePublicationDraft', {
 }, (table) => [
   index('BinancePublicationDraft_workspaceId_updatedAt_idx').on(table.workspaceId, table.updatedAt),
   index('BinancePublicationDraft_articleId_revision_idx').on(table.articleId, table.revision),
+  uniqueIndex('BinancePublicationDraft_workspaceId_articleId_key').on(table.workspaceId, table.articleId),
   index('BinancePublicationDraft_status_expiresAt_idx').on(table.status, table.expiresAt),
   uniqueIndex('BinancePublicationDraft_id_revision_key').on(table.id, table.revision),
   check('BinancePublicationDraft_revision_positive_check', sql`${table.revision} > 0`),
