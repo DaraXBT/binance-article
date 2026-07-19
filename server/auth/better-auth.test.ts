@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const betterAuthMock = vi.fn((options: unknown) => ({ options, handler: vi.fn() }));
-const drizzleAdapterMock = vi.fn(() => ({ adapter: 'drizzle' }));
-const genericOAuthMock = vi.fn((options: unknown) => ({ plugin: 'generic-oauth', options }));
+const { betterAuthMock, drizzleAdapterMock, genericOAuthMock } = vi.hoisted(() => ({
+  betterAuthMock: vi.fn((options: unknown) => ({ options, handler: vi.fn() })),
+  drizzleAdapterMock: vi.fn(() => ({ adapter: 'drizzle' })),
+  genericOAuthMock: vi.fn((options: unknown) => ({ plugin: 'generic-oauth', options })),
+}));
 
 vi.mock('better-auth', () => ({ betterAuth: betterAuthMock }));
 vi.mock('@better-auth/drizzle-adapter', () => ({ drizzleAdapter: drizzleAdapterMock }));
