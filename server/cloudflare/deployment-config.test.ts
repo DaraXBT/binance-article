@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 import { describe, expect, it } from 'vitest';
 
@@ -47,12 +48,26 @@ describe('Cloudflare web Worker deployment configuration', () => {
     };
 
     expect(packageJson.scripts['cloudflare:build']).toContain('opennextjs-cloudflare build');
+    expect(packageJson.scripts['cloudflare:build']).toMatch(
+      /^node scripts\/check-cloudflare-build-env\.mjs && /,
+    );
     expect(packageJson.scripts['cloudflare:preview']).toContain('wrangler dev');
     expect(packageJson.scripts['cloudflare:dry-run']).toContain('wrangler deploy --dry-run');
     expect(packageJson.scripts['cloudflare:bundle-check']).toContain(
       'scripts/check-worker-bundle-size.mjs',
     );
     expect(packageJson.scripts['cloudflare:dry-run']).not.toMatch(/\bdeploy\b(?! --dry-run)/);
+  });
+
+  it('can start the pinned OpenNext CLI with the installed dependency graph', () => {
+    const result = spawnSync(
+      resolve(process.cwd(), 'node_modules/.bin/opennextjs-cloudflare'),
+      ['--help'],
+      { encoding: 'utf8' },
+    );
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain('Build and deploy OpenNext applications');
   });
 
   it('keeps generated Worker output out of version control and initializes local dev context', () => {
