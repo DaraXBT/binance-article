@@ -80,7 +80,7 @@ describe('Neon migration history', () => {
     expect(legacyClaimSql).toMatch(/WHERE NOT EXISTS[\s\S]*"WorkspaceMember"/);
     expect(legacyClaimSql).not.toMatch(/DEFAULT[\s\S]*INTERVAL '30 days'/);
     expect(legacyClaimSql).toMatch(
-      /CREATE UNIQUE INDEX "WorkspaceMember_single_owner_key"[\s\S]*WHERE "role" = 'owner'/,
+      /CREATE UNIQUE INDEX "WorkspaceMember_workspaceId_owner_key"[\s\S]*WHERE "role" = 'owner'/,
     );
   });
 });

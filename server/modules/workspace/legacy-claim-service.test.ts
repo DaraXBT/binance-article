@@ -5,10 +5,7 @@ import { claimLegacyWorkspace } from './legacy-claim-service';
 const now = new Date('2026-07-20T00:00:00.000Z');
 const recoveryKey = `dwk_${'a'.repeat(36)}`;
 
-function repository(result: { id: string; accessKeyPrefix: string } | null = {
-  id: 'workspace_1',
-  accessKeyPrefix: 'dwk_aaaaaaaa',
-}) {
+function repository(result: { id: string } | null = { id: 'workspace_1' }) {
   return { claimByRecoveryHash: vi.fn(async () => result) };
 }
 
@@ -20,11 +17,12 @@ describe('legacy workspace account claim', () => {
       actorUserId: 'user_1',
       recoveryKey,
       now,
-    })).resolves.toEqual({ id: 'workspace_1', accessKeyPrefix: 'dwk_aaaaaaaa' });
+    })).resolves.toEqual({ id: 'workspace_1' });
 
     expect(repo.claimByRecoveryHash).toHaveBeenCalledWith({
       actorUserId: 'user_1',
       accessKeyHash: 'c2746e09fb8afc014ee50930dfa8ea5d2931d1704edc2b66d90cb67b7ba24656',
+      auditEventId: expect.any(String),
       now,
     });
     expect(JSON.stringify(repo.claimByRecoveryHash.mock.calls)).not.toContain(recoveryKey);
@@ -40,9 +38,9 @@ describe('legacy workspace account claim', () => {
         recoveryKey: key,
         now,
       })).rejects.toMatchObject({
-        code: 'LEGACY_WORKSPACE_CLAIM_INVALID',
-        message: 'The recovery key is invalid or unavailable.',
-        status: 400,
+        code: 'LEGACY_WORKSPACE_UNAVAILABLE',
+        message: 'The recovery key is invalid or no longer available.',
+        status: 404,
       });
     }
   });
@@ -54,9 +52,9 @@ describe('legacy workspace account claim', () => {
       recoveryKey,
       now,
     })).rejects.toMatchObject({
-      code: 'LEGACY_WORKSPACE_CLAIM_INVALID',
-      message: 'The recovery key is invalid or unavailable.',
-      status: 400,
+      code: 'LEGACY_WORKSPACE_UNAVAILABLE',
+      message: 'The recovery key is invalid or no longer available.',
+      status: 404,
     });
   });
 });

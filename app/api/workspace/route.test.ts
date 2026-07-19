@@ -3,11 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   requireActiveUser: vi.fn(async () => ({ id: 'user_1', status: 'active' })),
   assertAllowedOrigin: vi.fn(),
+  readBoundedJson: vi.fn(async () => ({ accessKey: `dwk_${'a'.repeat(36)}` })),
+  consumeAtomicRateLimit: vi.fn(async () => ({
+    allowed: true,
+    remaining: 4,
+    resetAt: new Date('2026-07-19T00:15:00.000Z'),
+  })),
   getRuntimeDatabase: vi.fn(() => ({ db: true })),
   createLegacyClaimRepository: vi.fn(() => ({ repository: true })),
-  claimLegacyWorkspace: vi.fn(async () => ({
-    id: 'workspace-2', accessKeyPrefix: 'dwk_abcdef',
-  })),
+  claimLegacyWorkspace: vi.fn(async () => ({ id: 'workspace-2' })),
 }));
 
 const workspaceMock = vi.hoisted(() => ({
@@ -29,6 +33,10 @@ vi.mock('@/server/auth/origin', () => ({
   assertAllowedOrigin: mocks.assertAllowedOrigin,
 }));
 vi.mock('@/server/http/rate-limit', () => rateLimitMock);
+vi.mock('@/server/http/request-body', () => ({ readBoundedJson: mocks.readBoundedJson }));
+vi.mock('@/server/http/atomic-rate-limit', () => ({
+  consumeAtomicRateLimit: mocks.consumeAtomicRateLimit,
+}));
 vi.mock('@/server/db/runtime', () => ({ getRuntimeDatabase: mocks.getRuntimeDatabase }));
 vi.mock('@/server/modules/workspace/legacy-claim-repository', () => ({
   createLegacyWorkspaceClaimRepository: mocks.createLegacyClaimRepository,
@@ -41,10 +49,14 @@ describe('/api/workspace routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireActiveUser.mockResolvedValue({ id: 'user_1', status: 'active' });
-    mocks.createLegacyClaimRepository.mockReturnValue({ repository: true });
-    mocks.claimLegacyWorkspace.mockResolvedValue({
-      id: 'workspace-2', accessKeyPrefix: 'dwk_abcdef',
+    mocks.readBoundedJson.mockResolvedValue({ accessKey: `dwk_${'a'.repeat(36)}` });
+    mocks.consumeAtomicRateLimit.mockResolvedValue({
+      allowed: true,
+      remaining: 4,
+      resetAt: new Date('2026-07-19T00:15:00.000Z'),
     });
+    mocks.createLegacyClaimRepository.mockReturnValue({ repository: true });
+    mocks.claimLegacyWorkspace.mockResolvedValue({ id: 'workspace-2' });
     rateLimitMock.checkRateLimit.mockResolvedValue({
       allowed: true,
       remaining: 4,
@@ -130,9 +142,13 @@ describe('/api/workspace routes', () => {
     expect(response.status).toBe(200);
     expect(mocks.assertAllowedOrigin).toHaveBeenCalledWith(request);
     expect(mocks.requireActiveUser).toHaveBeenCalledWith(request);
-    expect(rateLimitMock.checkRateLimit).toHaveBeenCalledWith(
-      'legacy-workspace-claim:user_1', 5, 15 * 60 * 1_000,
-    );
+    expect(mocks.consumeAtomicRateLimit).toHaveBeenCalledWith({
+      database: { db: true },
+      key: 'legacy-workspace-claim:user_1',
+      limit: 5,
+      windowMs: 15 * 60 * 1_000,
+      now: expect.any(Date),
+    });
     expect(mocks.claimLegacyWorkspace).toHaveBeenCalledWith(expect.objectContaining({
       repository: { repository: true },
       actorUserId: 'user_1',
@@ -141,16 +157,15 @@ describe('/api/workspace routes', () => {
     expect(body).toEqual({
       success: true,
       workspaceId: 'workspace-2',
-      accessKeyPrefix: 'dwk_abcdef',
     });
     expect(response.headers.get('cache-control')).toBe('no-store');
   });
 
   it('rejects rate-limited attempts before reading or hashing another recovery key', async () => {
-    rateLimitMock.checkRateLimit.mockResolvedValue({
+    mocks.consumeAtomicRateLimit.mockResolvedValue({
       allowed: false,
       remaining: 0,
-      resetAt: Date.now() + 60_000,
+      resetAt: new Date(Date.now() + 60_000),
     });
     const { POST } = await import('@/app/api/workspace/recover/route');
     const response = await POST(
@@ -165,5 +180,23 @@ describe('/api/workspace routes', () => {
     expect(response.status).toBe(429);
     expect(body).toMatchObject({ code: 'RATE_LIMITED' });
     expect(mocks.claimLegacyWorkspace).not.toHaveBeenCalled();
+    expect(response.headers.get('retry-after')).toMatch(/^\d+$/);
+  });
+
+  it('authenticates before reading a recovery key or opening the database', async () => {
+    const { AppError } = await import('@/server/http/errors');
+    mocks.requireActiveUser.mockRejectedValueOnce(new AppError({
+      code: 'AUTH_REQUIRED', message: 'Authentication is required.', status: 401,
+    }));
+    const { POST } = await import('@/app/api/workspace/recover/route');
+    const response = await POST(new Request('https://articles.example.com/api/workspace/recover', {
+      method: 'POST',
+      headers: { origin: 'https://articles.example.com' },
+      body: JSON.stringify({ accessKey: `dwk_${'c'.repeat(36)}` }),
+    }) as never);
+
+    expect(response.status).toBe(401);
+    expect(mocks.readBoundedJson).not.toHaveBeenCalled();
+    expect(mocks.getRuntimeDatabase).not.toHaveBeenCalled();
   });
 });
