@@ -90,4 +90,20 @@ Legacy Prisma-era databases must first pass the guarded
 `npm run db:baseline:legacy` procedure. Archived Prisma SQL is historical
 evidence only; `drizzle/` is the sole forward migration history.
 
+If the baseline audit finds the reviewed Prisma-era JSON columns stored as
+`text`, create and verify a restorable backup before running the one-time,
+transactional repair. The command validates the exact legacy table set, JSON
+syntax and top-level shapes before acquiring short-lived table locks and
+converting only those four columns:
+
+```bash
+ALLOW_LEGACY_JSON_REPAIR=1 \
+CONFIRM_LEGACY_JSON_REPAIR_BACKUP=1 \
+MIGRATION_DATABASE_URL='postgresql://...' \
+npm run db:repair:legacy-json
+```
+
+Run the guarded baseline only after this repair succeeds. Both commands are
+explicit operator actions and are never part of an application build.
+
 Do not point migration commands at production until the generated SQL has been reviewed and backed up. See [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md) and [GETTING_STARTED.md](./GETTING_STARTED.md).

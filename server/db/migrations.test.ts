@@ -132,7 +132,7 @@ describe('Neon migration history', () => {
     expect(baselineScript).toMatch(/is_nullable/i);
     expect(baselineScript).toMatch(/column_default/i);
     expect(baselineScript).toMatch(/pg_constraint/i);
-    expect(baselineScript).toMatch(/pg_indexes/i);
+    expect(baselineScript).toMatch(/pg_index/i);
     expect(baselineScript).toMatch(/RenderJob/);
   });
 

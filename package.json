@@ -16,6 +16,7 @@
     "db:generate": "drizzle-kit generate --dialect postgresql --schema ./server/db/schema --out ./drizzle",
     "db:check": "drizzle-kit check --config drizzle.config.ts",
     "db:migrate:deploy": "drizzle-kit migrate --config drizzle.config.ts",
+    "db:repair:legacy-json": "node scripts/repair-legacy-json-columns.mjs",
     "db:baseline:legacy": "node scripts/baseline-drizzle-legacy.mjs",
     "owner-bootstrap:create": "node scripts/bootstrap-owner-invitation.mjs",
     "generate-access:create": "node scripts/create-generate-access-grant.mjs",

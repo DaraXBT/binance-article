@@ -141,9 +141,24 @@ async function main() {
     }
 
     const indexes = await db`
-      SELECT indexname AS "indexName", indexdef AS "indexDefinition"
-      FROM pg_indexes
-      WHERE schemaname = 'public' AND tablename = ${tableName}
+      SELECT
+        index_relation.relname AS "indexName",
+        indexed.indisunique AS "isUnique",
+        array_to_json(
+          array_agg(index_column.attname ORDER BY key_column.ordinality)
+        ) AS "columns"
+      FROM pg_index indexed
+      JOIN pg_class table_relation ON table_relation.oid = indexed.indrelid
+      JOIN pg_namespace namespace ON namespace.oid = table_relation.relnamespace
+      JOIN pg_class index_relation ON index_relation.oid = indexed.indexrelid
+      JOIN LATERAL unnest(indexed.indkey) WITH ORDINALITY
+        AS key_column(attnum, ordinality)
+        ON key_column.ordinality <= indexed.indnkeyatts
+      JOIN pg_attribute index_column
+        ON index_column.attrelid = table_relation.oid
+        AND index_column.attnum = key_column.attnum
+      WHERE namespace.nspname = 'public' AND table_relation.relname = ${tableName}
+      GROUP BY indexed.indexrelid, index_relation.relname, indexed.indisunique
     `;
     const expectedIndexNames = [
       `${tableName}_pkey`,
@@ -155,15 +170,10 @@ async function main() {
 
     for (const expectedIndex of Object.values(expectedTable.indexes)) {
       const actualIndex = indexes.find((index) => index.indexName === expectedIndex.name);
-      const definition = actualIndex?.indexDefinition ?? '';
-      const isUnique = /^CREATE UNIQUE INDEX/i.test(definition);
-      const columnPositions = expectedIndex.columns.map((column) =>
-        definition.indexOf(`"${column.expression}"`)
-      );
-      const columnsArePresentInOrder = columnPositions.every(
-        (position, index) => position >= 0 && (index === 0 || position > columnPositions[index - 1]),
-      );
-      if (isUnique !== expectedIndex.isUnique || !columnsArePresentInOrder) {
+      const expectedColumns = expectedIndex.columns.map((column) => column.expression);
+      const columnsMatch = actualIndex?.columns.length === expectedColumns.length &&
+        actualIndex.columns.every((column, index) => column === expectedColumns[index]);
+      if (actualIndex?.isUnique !== expectedIndex.isUnique || !columnsMatch) {
         throw new Error(`Legacy index ${expectedIndex.name} does not match the reviewed baseline.`);
       }
     }
@@ -172,7 +182,9 @@ async function main() {
   const primaryKeys = await db`
     SELECT
       source.relname AS "tableName",
-      array_agg(attribute.attname ORDER BY key_column.ordinality) AS "columns"
+      array_to_json(
+        array_agg(attribute.attname ORDER BY key_column.ordinality)
+      ) AS "columns"
     FROM pg_constraint constraint
     JOIN pg_class source ON source.oid = constraint.conrelid
     JOIN pg_namespace namespace ON namespace.oid = source.relnamespace
@@ -202,8 +214,12 @@ async function main() {
     SELECT
       source.relname AS "tableFrom",
       target.relname AS "tableTo",
-      array_agg(source_attribute.attname ORDER BY key_column.ordinality) AS "columnsFrom",
-      array_agg(target_attribute.attname ORDER BY key_column.ordinality) AS "columnsTo",
+      array_to_json(
+        array_agg(source_attribute.attname ORDER BY key_column.ordinality)
+      ) AS "columnsFrom",
+      array_to_json(
+        array_agg(target_attribute.attname ORDER BY key_column.ordinality)
+      ) AS "columnsTo",
       constraint.confdeltype AS "deleteAction",
       constraint.confupdtype AS "updateAction"
     FROM pg_constraint constraint
