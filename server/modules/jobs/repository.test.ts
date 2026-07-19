@@ -96,6 +96,6 @@ describe('Neon job repository', () => {
     await repository.attachWorkflowRunId({ jobId: 'job_1', runId: 'run_1', now });
 
     expect(queries[0]?.text).toMatch(/"runId" IS NULL OR "runId" =/);
-    expect(queries[0]?.text).toMatch(/"status" = 'queued'/);
+    expect(queries[0]?.text).toMatch(/"status" IN \('queued', 'running'\)/);
   });
 });
