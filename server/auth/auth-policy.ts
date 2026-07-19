@@ -110,6 +110,7 @@ export function buildAuthPolicy(environment: AuthEnvironment) {
       scopes: ['openid', 'profile'],
       pkce: true,
       disableImplicitSignUp: true,
+      disableSignUp: true,
     },
   };
 }
