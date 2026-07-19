@@ -10,6 +10,11 @@ const cloudSql = readFileSync(`${root}drizzle/0001_cloud_identity_publishing.sql
 const approvalGuardsSql = readFileSync(`${root}drizzle/0003_publish_approval_guards.sql`, 'utf8');
 const legacyClaimSql = readFileSync(`${root}drizzle/0004_legacy_workspace_claim.sql`, 'utf8');
 const singleWorkspaceSql = readFileSync(`${root}drizzle/0005_single_user_workspace.sql`, 'utf8');
+const normalizeLegacyForeignKeysSql = readFileSync(
+  `${root}drizzle/0006_normalize_legacy_foreign_keys.sql`,
+  'utf8',
+);
+const baselineScript = readFileSync(`${root}scripts/baseline-drizzle-legacy.mjs`, 'utf8');
 
 describe('Neon migration history', () => {
   it('has a clean legacy baseline instead of replaying the historical Prisma repair chain', () => {
@@ -89,5 +94,42 @@ describe('Neon migration history', () => {
     expect(singleWorkspaceSql).toMatch(
       /CREATE UNIQUE INDEX "WorkspaceMember_userId_single_workspace_key"[\s\S]*\("userId"\)/,
     );
+  });
+
+  it('conditionally converges every historical Prisma foreign-key name', () => {
+    const renames = [
+      ['WorkspaceSession', 'WorkspaceSession_workspaceId_fkey', 'WorkspaceSession_workspaceId_Workspace_id_fk'],
+      ['DeckProject', 'DeckProject_workspaceId_fkey', 'DeckProject_workspaceId_Workspace_id_fk'],
+      ['Slide', 'Slide_deckId_fkey', 'Slide_deckId_DeckProject_id_fk'],
+      ['CaptionPackage', 'CaptionPackage_deckId_fkey', 'CaptionPackage_deckId_DeckProject_id_fk'],
+      ['RenderAsset', 'RenderAsset_deckId_fkey', 'RenderAsset_deckId_DeckProject_id_fk'],
+      ['RenderAsset', 'RenderAsset_jobId_fkey', 'RenderAsset_jobId_JobRun_id_fk'],
+      ['JobRun', 'JobRun_deckId_fkey', 'JobRun_deckId_DeckProject_id_fk'],
+      ['JobRun', 'JobRun_workspaceId_fkey', 'JobRun_workspaceId_Workspace_id_fk'],
+      [
+        'GenerationAccessGrant',
+        'GenerationAccessGrant_boundWorkspaceId_fkey',
+        'GenerationAccessGrant_boundWorkspaceId_Workspace_id_fk',
+      ],
+    ];
+
+    expect(normalizeLegacyForeignKeysSql).toMatch(/DO\s+\$\$/i);
+    expect(normalizeLegacyForeignKeysSql).toMatch(/pg_constraint/i);
+    for (const [table, legacyName, drizzleName] of renames) {
+      expect(normalizeLegacyForeignKeysSql).toContain(table);
+      expect(normalizeLegacyForeignKeysSql).toContain(legacyName);
+      expect(normalizeLegacyForeignKeysSql).toContain(drizzleName);
+    }
+    expect(normalizeLegacyForeignKeysSql).toMatch(/legacy[\s\S]*IS NOT NULL/i);
+    expect(normalizeLegacyForeignKeysSql).toMatch(/target[\s\S]*IS NULL/i);
+  });
+
+  it('verifies baseline structure beyond column-name sets before stamping history', () => {
+    expect(baselineScript).toMatch(/data_type/i);
+    expect(baselineScript).toMatch(/is_nullable/i);
+    expect(baselineScript).toMatch(/column_default/i);
+    expect(baselineScript).toMatch(/pg_constraint/i);
+    expect(baselineScript).toMatch(/pg_indexes/i);
+    expect(baselineScript).toMatch(/RenderJob/);
   });
 });
