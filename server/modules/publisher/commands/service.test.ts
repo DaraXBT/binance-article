@@ -6,6 +6,8 @@ import {
   beginDevicePublish,
   claimNextPublisherCommand,
   loadPublisherRecipe,
+  getPublisherCommandStatus,
+  abortPublisherCommand,
   reportEditorReady,
   reportPublishResult,
 } from './service';
@@ -34,6 +36,8 @@ function repository(overrides: Record<string, unknown> = {}) {
       revision: 3, recipeHash: 'a'.repeat(64), expiresAt: new Date('2026-07-19T00:15:00.000Z'),
     })),
     loadRecipe: vi.fn(async () => null),
+    loadStatus: vi.fn(async () => null),
+    abort: vi.fn(async () => true),
     compareAndSwap: vi.fn(async () => true),
     ...overrides,
   };
@@ -126,5 +130,52 @@ describe('publisher command service', () => {
       outcome: 'succeeded', publishedUrl: 'https://evil.example/post/123', now,
     })).rejects.toThrow(/Binance/i);
     expect(repo.compareAndSwap).not.toHaveBeenCalled();
+  });
+
+  it('returns metadata-only status to the exact assigned device and derives expiry safely', async () => {
+    const repo = repository({
+      loadStatus: vi.fn(async () => ({
+        id: 'command_1', draftId: 'draft_1', deviceId: 'device_1', state: 'approved' as const,
+        revision: 3, recipeHash: 'a'.repeat(64), expiresAt: new Date('2026-07-19T00:15:00Z'),
+      })),
+    });
+    await expect(getPublisherCommandStatus({
+      repository: repo, deviceId: 'device_1', commandId: 'command_1', now,
+    })).resolves.toEqual({
+      id: 'command_1', state: 'approved', revision: 3,
+      recipeHash: 'a'.repeat(64), expiresAt: new Date('2026-07-19T00:15:00Z'),
+    });
+
+    await expect(getPublisherCommandStatus({
+      repository: repository({
+        loadStatus: vi.fn(async () => ({
+          id: 'command_1', draftId: 'draft_1', deviceId: 'device_1', state: 'awaiting_review' as const,
+          revision: 3, recipeHash: 'a'.repeat(64), expiresAt: now,
+        })),
+      }),
+      deviceId: 'device_1', commandId: 'command_1', now,
+    })).resolves.toMatchObject({ state: 'expired' });
+  });
+
+  it('aborts only pre-click states with a fixed safe reason code', async () => {
+    const repo = repository();
+    await expect(abortPublisherCommand({
+      repository: repo,
+      deviceId: 'device_1',
+      commandId: 'command_1',
+      revision: 3,
+      reasonCode: 'EDITOR_COMPOSITION_FAILED',
+      now,
+    })).resolves.toEqual({ state: 'cancelled' });
+    expect(repo.abort).toHaveBeenCalledWith({
+      deviceId: 'device_1', commandId: 'command_1', revision: 3,
+      reasonCode: 'EDITOR_COMPOSITION_FAILED', now,
+    });
+    await expect(abortPublisherCommand({
+      repository: repo,
+      deviceId: 'device_1', commandId: 'command_1', revision: 3,
+      reasonCode: '/Users/alice/private/chrome-profile',
+      now,
+    })).rejects.toThrow();
   });
 });

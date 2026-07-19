@@ -44,4 +44,28 @@ describe('publisher command repository', () => {
     expect(captured[0]?.text).toMatch(/UPDATE "PublisherCommand"/);
     expect(captured[0]?.text).toMatch(/UPDATE "BinancePublicationDraft"/);
   });
+
+  it('loads status by exact assigned device without recipe or credential data', async () => {
+    const { client, captured } = clientReturning([{
+      id: 'command_1', draftId: 'draft_1', deviceId: 'device_1', state: 'approved',
+      revision: 3, recipeHash: 'a'.repeat(64), expiresAt: new Date(),
+    }]);
+    const repository = createPublisherCommandRepository({ $client: client } as never);
+    await repository.loadStatus({ deviceId: 'device_1', commandId: 'command_1' });
+    expect(captured[0].text).toMatch(/"deviceId" = \?/);
+    expect(captured[0].text).not.toMatch(/markdown|r2Key|tokenHash|failureReason/i);
+  });
+
+  it('atomically aborts command, draft, and any open approval before publishing', async () => {
+    const { client, captured } = clientReturning([{ id: 'command_1' }]);
+    const repository = createPublisherCommandRepository({ $client: client } as never);
+    await expect(repository.abort({
+      deviceId: 'device_1', commandId: 'command_1', revision: 3,
+      reasonCode: 'EDITOR_COMPOSITION_FAILED', now: new Date(),
+    })).resolves.toBe(true);
+    expect(captured[0].text).toMatch(/UPDATE "PublisherCommand"/);
+    expect(captured[0].text).toMatch(/UPDATE "BinancePublicationDraft"/);
+    expect(captured[0].text).toMatch(/UPDATE "PublishApproval"/);
+    expect(captured[0].text).toMatch(/'publishing'/);
+  });
 });
