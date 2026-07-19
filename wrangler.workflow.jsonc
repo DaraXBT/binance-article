@@ -1,26 +1,20 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "binance-article-web",
-  "main": ".open-next/worker.js",
+  "name": "binance-article-workflows",
+  "main": "workers/article-workflow/index.ts",
   "compatibility_date": "2026-07-19",
   "compatibility_flags": [
     "nodejs_compat",
     "global_fetch_strictly_public"
   ],
   "minify": true,
-  "assets": {
-    "binding": "ASSETS",
-    "directory": ".open-next/assets"
+  "observability": {
+    "enabled": true
   },
   "secrets": {
     "required": [
       "DATABASE_URL",
-      "BETTER_AUTH_SECRET",
-      "BETTER_AUTH_URL",
-      "GOOGLE_CLIENT_ID",
-      "GOOGLE_CLIENT_SECRET",
-      "TELEGRAM_CLIENT_ID",
-      "TELEGRAM_CLIENT_SECRET"
+      "GEMINI_API_KEY"
     ]
   },
   "r2_buckets": [
@@ -33,8 +27,7 @@
     {
       "binding": "ARTICLE_JOBS",
       "name": "binance-article-jobs",
-      "class_name": "ArticleJobsWorkflow",
-      "script_name": "binance-article-workflows"
+      "class_name": "ArticleJobsWorkflow"
     }
   ]
 }

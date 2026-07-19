@@ -11,7 +11,6 @@ import { consumeAtomicRateLimit } from '@/server/http/atomic-rate-limit';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
 import { readBoundedJson } from '@/server/http/request-body';
 import { attachWorkflowRunId, createJobRun } from '@/server/modules/jobs/service';
-import { handleArticleGenerationJob } from '@/workflows/article-jobs';
 
 export const maxDuration = 60;
 
@@ -79,7 +78,7 @@ export async function POST(
       },
     });
 
-    const run = await startWorkflow(handleArticleGenerationJob, [job.id]);
+    const run = await startWorkflow({ jobId: job.id, kind: 'generate' });
     await attachWorkflowRunId(job.id, run.runId);
 
     return NextResponse.json(

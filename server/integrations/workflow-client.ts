@@ -1,26 +1,31 @@
-import { waitUntil } from '@vercel/functions';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
-export async function startWorkflow<TArgs extends unknown[]>(
-  handler: (...args: TArgs) => Promise<unknown>,
-  args: TArgs
-) {
-  const runId = crypto.randomUUID();
+import {
+  ArticleWorkflowPayloadSchema,
+  type ArticleWorkflowPayload,
+} from '@/server/domain/article-workflow';
 
-  const promise = handler(...args).catch((error) => {
-    console.error(
-      JSON.stringify({
-        level: 'error',
-        event: 'workflow.background.failed',
-        runId,
-        error: error instanceof Error ? error.message : String(error),
-        timestamp: new Date().toISOString(),
-      })
-    );
-  });
+interface ArticleWorkflowBinding {
+  createBatch(batch: Array<{
+    id: string;
+    params: ArticleWorkflowPayload;
+  }>): Promise<Array<{ id: string }>>;
+}
 
-  if (process.env.VERCEL) {
-    waitUntil(promise);
+declare global {
+  interface CloudflareEnv {
+    ARTICLE_JOBS?: ArticleWorkflowBinding;
   }
+}
 
-  return { runId };
+export async function startWorkflow(input: ArticleWorkflowPayload) {
+  const payload = ArticleWorkflowPayloadSchema.parse(input);
+  const workflow = getCloudflareContext().env.ARTICLE_JOBS;
+  if (!workflow) throw new Error('ARTICLE_JOBS Workflow binding is required.');
+
+  await workflow.createBatch([{
+    id: payload.jobId,
+    params: payload,
+  }]);
+  return { runId: payload.jobId };
 }

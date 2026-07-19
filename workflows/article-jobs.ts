@@ -1,6 +1,3 @@
-import { DeckStatus, type Prisma } from '@prisma/client';
-import { FatalError } from 'workflow';
-
 import { generateDeckWithGemini, normalizeGeminiError } from '@/lib/gemini';
 import {
   assertImagePipelineReady,
@@ -30,6 +27,8 @@ import { type DeckGenerateRequest } from '@/lib/schemas';
 type ImageGenerationMode = 'missing' | 'failed';
 type ImageErrorType = 'quota_exceeded' | 'configuration' | 'unknown';
 type AggregateImageErrorType = ImageErrorType | 'mixed';
+
+export class NonRetryableArticleJobError extends Error {}
 
 type GeneratedSlideResult = {
   slideId: string;
@@ -163,7 +162,7 @@ async function generateImagesForDeck(input: {
   const deck = await listSlidesForImageGeneration(input.deckId, input.workspaceId);
 
   if (!deck) {
-    throw new FatalError('Article not found.');
+    throw new NonRetryableArticleJobError('Article not found.');
   }
 
   const targetSlides = deck.slides.filter((slide) => shouldProcessSlide(slide, input.mode));
@@ -285,17 +284,15 @@ async function generateImagesForDeck(input: {
 }
 
 export async function handleArticleGenerationJob(jobId: string) {
-  'use workflow';
-
   const job = await getJobRunById(jobId);
 
   if (!job || !isRecord(job.payload)) {
-    throw new FatalError('Job payload not found.');
+    throw new NonRetryableArticleJobError('Job payload not found.');
   }
 
   await markJobRunning(jobId);
   await appendJobLog(jobId, 'Started article generation workflow.');
-  await markDeckStatus(job.deckId, job.workspaceId, DeckStatus.generating);
+  await markDeckStatus(job.deckId, job.workspaceId, 'generating');
 
   logEvent('info', 'workflow.article_generation.start', { jobId, deckId: job.deckId });
 
@@ -363,25 +360,23 @@ export async function handleArticleGenerationJob(jobId: string) {
   } catch (error) {
     if (error instanceof AppError) {
       logEvent('error', 'workflow.article_generation.failed', { jobId, deckId: job.deckId, code: error.code, message: error.message });
-      await markDeckStatus(job.deckId, job.workspaceId, DeckStatus.failed);
+      await markDeckStatus(job.deckId, job.workspaceId, 'failed');
       await failJobRun(jobId, error.code, error.message);
       return;
     }
 
     const normalized = normalizeGeminiError(error, 'Failed to generate the article.');
     logEvent('error', 'workflow.article_generation.failed', { jobId, deckId: job.deckId, code: normalized.providerStatus || `GEMINI_${normalized.statusCode}`, message: normalized.message });
-    await markDeckStatus(job.deckId, job.workspaceId, DeckStatus.failed);
+    await markDeckStatus(job.deckId, job.workspaceId, 'failed');
     await failJobRun(jobId, normalized.providerStatus || `GEMINI_${normalized.statusCode}`, normalized.message);
   }
 }
 
 export async function handleArticleImageRetryJob(jobId: string) {
-  'use workflow';
-
   const job = await getJobRunById(jobId);
 
   if (!job || !isRecord(job.payload)) {
-    throw new FatalError('Job payload not found.');
+    throw new NonRetryableArticleJobError('Job payload not found.');
   }
 
   await markJobRunning(jobId);
@@ -410,12 +405,12 @@ export async function handleArticleImageRetryJob(jobId: string) {
         imageSummary.errorSummary?.type || 'IMAGE_GENERATION_FAILED',
         imageSummary.errorSummary?.message || 'Image generation failed.',
         'failed',
-        imageSummary as Prisma.InputJsonValue
+        imageSummary
       );
       return;
     }
 
-    await completeJobRun(jobId, imageSummary as Prisma.InputJsonValue);
+    await completeJobRun(jobId, imageSummary);
 
     logEvent('info', 'workflow.image_retry.complete', {
       jobId,

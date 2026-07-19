@@ -24,6 +24,9 @@
     "cloudflare:bundle-check": "node scripts/check-worker-bundle-size.mjs .wrangler/dry-run",
     "cloudflare:preview": "npm run cloudflare:build && wrangler dev",
     "cloudflare:dry-run": "npm run cloudflare:build && wrangler deploy --dry-run --outdir .wrangler/dry-run && node scripts/check-worker-bundle-size.mjs .wrangler/dry-run",
+    "workflow:dev": "wrangler dev --config wrangler.workflow.jsonc",
+    "workflow:typecheck": "tsc -p tsconfig.workflow.json --noEmit",
+    "workflow:dry-run": "wrangler deploy --config wrangler.workflow.jsonc --dry-run --outdir .wrangler/workflow-dry-run && node scripts/check-worker-bundle-size.mjs .wrangler/workflow-dry-run",
     "telegram:dev": "wrangler dev --config wrangler.telegram.jsonc",
     "telegram:dry-run": "wrangler deploy --config wrangler.telegram.jsonc --dry-run --outdir .wrangler/telegram-dry-run && node scripts/check-worker-bundle-size.mjs .wrangler/telegram-dry-run"
   },

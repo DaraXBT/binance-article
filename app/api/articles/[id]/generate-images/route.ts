@@ -11,7 +11,6 @@ import { consumeAtomicRateLimit } from '@/server/http/atomic-rate-limit';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
 import { readBoundedJson } from '@/server/http/request-body';
 import { attachWorkflowRunId, createJobRun } from '@/server/modules/jobs/service';
-import { handleArticleImageRetryJob } from '@/workflows/article-jobs';
 
 export const maxDuration = 30;
 
@@ -77,7 +76,7 @@ export async function POST(
       },
     });
 
-    const run = await startWorkflow(handleArticleImageRetryJob, [job.id]);
+    const run = await startWorkflow({ jobId: job.id, kind: 'generate_images' });
     await attachWorkflowRunId(job.id, run.runId);
 
     return NextResponse.json(
