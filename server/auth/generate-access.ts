@@ -1,8 +1,9 @@
 import { cookies } from 'next/headers';
-import { createHash, randomBytes } from 'node:crypto';
 import type { NextRequest, NextResponse } from 'next/server';
 
-import prisma from '@/lib/prisma';
+import { getRuntimeDatabase } from '@/server/db/runtime';
+
+import { createGenerationAccessGrantRepository } from './generate-access-repository';
 
 export const GENERATE_ACCESS_COOKIE_NAME = 'deckforge_generate_access';
 
@@ -31,8 +32,21 @@ export type ConsumeGenerateAccessGrantResult =
   | { ok: true; grantId: string }
   | { ok: false; reason: GenerateAccessGrantFailureReason };
 
-function hashValue(value: string) {
-  return createHash('sha256').update(value).digest('hex');
+async function hashValue(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(
+    new Uint8Array(digest),
+    (byte) => byte.toString(16).padStart(2, '0'),
+  ).join('');
+}
+
+function equalStringsConstantTime(left: string, right: string): boolean {
+  if (left.length !== right.length) return false;
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+  return difference === 0;
 }
 
 function buildState(
@@ -66,15 +80,14 @@ async function resolveGenerateAccessState({
     return buildState(true, false, 'missing', null);
   }
 
-  const grant = await prisma.generationAccessGrant.findUnique({
-    where: { id: grantId },
-  });
+  const repository = createGenerationAccessGrantRepository(getRuntimeDatabase());
+  const grant = await repository.findById(grantId);
 
   if (!grant) {
     return buildState(true, false, 'invalid', null);
   }
 
-  if (grant.envCodeHash !== getConfiguredGenerateAccessCodeHash()) {
+  if (grant.envCodeHash !== await getConfiguredGenerateAccessCodeHash()) {
     return buildState(true, false, 'rotated', grant.id);
   }
 
@@ -93,7 +106,7 @@ async function resolveGenerateAccessState({
   return buildState(true, true, null, grant.id);
 }
 
-export function hashGenerateAccessCode(value: string) {
+export async function hashGenerateAccessCode(value: string) {
   return hashValue(value.trim());
 }
 
@@ -101,9 +114,9 @@ export function getConfiguredGenerateAccessCode() {
   return process.env.GENERATE_ACCESS_CODE?.trim() ?? '';
 }
 
-export function getConfiguredGenerateAccessCodeHash() {
+export async function getConfiguredGenerateAccessCodeHash() {
   const configured = getConfiguredGenerateAccessCode();
-  return configured ? hashValue(configured) : '';
+  return configured ? await hashValue(configured) : '';
 }
 
 export function isGenerateAccessEnabled() {
@@ -117,11 +130,17 @@ export async function isValidGenerateAccessCode(input: string) {
     return false;
   }
 
-  return hashGenerateAccessCode(input) === hashValue(configured);
+  const [inputHash, configuredHash] = await Promise.all([
+    hashGenerateAccessCode(input),
+    hashValue(configured),
+  ]);
+  return equalStringsConstantTime(inputHash, configuredHash);
 }
 
 export function createGenerateAccessCode() {
-  return `gac_${randomBytes(18).toString('hex')}`;
+  const bytes = crypto.getRandomValues(new Uint8Array(18));
+  const value = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `gac_${value}`;
 }
 
 export function getGenerateAccessCodePrefix(code: string) {
@@ -217,17 +236,16 @@ export async function consumeGenerateAccessGrant({
     return { ok: false, reason: 'invalid_code' };
   }
 
-  const grant = await prisma.generationAccessGrant.findUnique({
-    where: {
-      codeHash: hashGenerateAccessCode(trimmedCode),
-    },
-  });
+  const repository = createGenerationAccessGrantRepository(getRuntimeDatabase());
+  const grant = await repository.findByCodeHash(
+    await hashGenerateAccessCode(trimmedCode),
+  );
 
   if (!grant) {
     return { ok: false, reason: 'invalid_code' };
   }
 
-  const currentEnvCodeHash = getConfiguredGenerateAccessCodeHash();
+  const currentEnvCodeHash = await getConfiguredGenerateAccessCodeHash();
 
   if (!currentEnvCodeHash || grant.envCodeHash !== currentEnvCodeHash) {
     return { ok: false, reason: 'rotated' };
@@ -248,32 +266,19 @@ export async function consumeGenerateAccessGrant({
     return { ok: false, reason: 'already_used' };
   }
 
-  const consumedAt = new Date();
-  const updated = await prisma.generationAccessGrant.updateMany({
-    where: {
-      id: grant.id,
-      status: 'active',
-      boundWorkspaceId: null,
-      boundSessionId: null,
-      envCodeHash: currentEnvCodeHash,
-    },
-    data: {
-      status: 'consumed',
-      boundWorkspaceId: workspaceId,
-      boundSessionId: sessionId,
-      consumedAt,
-    },
+  const consumed = await repository.consumeUnbound({
+    grantId: grant.id,
+    workspaceId,
+    sessionId,
+    envCodeHash: currentEnvCodeHash,
+    now: new Date(),
   });
 
-  if (updated.count === 1) {
+  if (consumed) {
     return { ok: true, grantId: grant.id };
   }
 
-  const reboundGrant = await prisma.generationAccessGrant.findUnique({
-    where: {
-      id: grant.id,
-    },
-  });
+  const reboundGrant = await repository.findById(grant.id);
 
   if (
     reboundGrant &&
