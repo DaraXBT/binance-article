@@ -5,14 +5,17 @@
   "scripts": {
     "dev": "next dev",
     "prisma:generate": "node scripts/run-with-default-database-url.mjs prisma generate",
-    "build": "npm run prisma:generate && node scripts/migrate-if-database.mjs && next build",
+    "build": "npm run prisma:generate && next build",
     "postinstall": "npm run prisma:generate",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "npm run prisma:generate && tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "db:migrate:deploy": "node scripts/run-with-default-database-url.mjs prisma migrate deploy",
+    "db:generate": "drizzle-kit generate --dialect postgresql --schema ./server/db/schema --out ./drizzle",
+    "db:check": "drizzle-kit check --config drizzle.config.ts",
+    "db:migrate:deploy": "drizzle-kit migrate --config drizzle.config.ts",
+    "db:baseline:legacy": "node scripts/baseline-drizzle-legacy.mjs",
     "generate-access:create": "node scripts/create-generate-access-grant.mjs"
   },
   "dependencies": {
