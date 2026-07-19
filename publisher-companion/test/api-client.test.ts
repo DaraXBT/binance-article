@@ -74,4 +74,20 @@ describe('publisher companion API client', () => {
       expect(String(error)).not.toContain('sensitive server detail');
     }
   });
+
+  it('downloads an asset with identity encoding so integrity covers the stored bytes', async () => {
+    const fetchImpl = mock(async (request: string | URL | Request, init?: RequestInit) => {
+      expect(String(request)).toContain('/api/publisher/commands/command_1/assets/asset_1');
+      expect(new Headers(init?.headers).get('accept-encoding')).toBe('identity');
+      return new Response(new Uint8Array([1, 2, 3]));
+    });
+    const client = new PublisherApiClient({
+      baseUrl: 'https://articles.example.com',
+      getDeviceToken: async () => 'A'.repeat(43),
+      fetchImpl,
+    });
+
+    const response = await client.downloadAsset('command_1', 'asset_1');
+    expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([1, 2, 3]);
+  });
 });
