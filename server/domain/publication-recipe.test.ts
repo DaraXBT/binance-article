@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   PUBLICATION_DRAFT_LIFETIME_MS,
   PublicationRecipeV1Schema,
+  canonicalizePublicationRecipe,
+  hashPublicationRecipe,
   validatePublicationRecipe,
 } from './publication-recipe';
 
@@ -54,6 +56,45 @@ describe('PublicationRecipeV1', () => {
 
   it('accepts a complete unexpired recipe for its exact revision', () => {
     expect(validatePublicationRecipe(validRecipe(), { now, expectedRevision: 4 })).toEqual(validRecipe());
+  });
+
+  it('produces a deterministic canonical hash for device revalidation', async () => {
+    const recipe = validRecipe();
+    const reorderedInput = {
+      markdown: recipe.markdown,
+      title: recipe.title,
+      expiresAt: recipe.expiresAt,
+      revision: recipe.revision,
+      articleId: recipe.articleId,
+      draftId: recipe.draftId,
+      version: recipe.version,
+      assets: recipe.assets.map((asset) => ({
+        sha256: asset.sha256,
+        sizeBytes: asset.sizeBytes,
+        mimeType: asset.mimeType,
+        role: asset.role,
+        id: asset.id,
+      })),
+      orderedAssetIds: recipe.orderedAssetIds,
+      cover: {
+        targetHeight: recipe.cover.targetHeight,
+        targetWidth: recipe.cover.targetWidth,
+        focalY: recipe.cover.focalY,
+        focalX: recipe.cover.focalX,
+        assetId: recipe.cover.assetId,
+      },
+    };
+
+    expect(canonicalizePublicationRecipe(reorderedInput)).toBe(canonicalizePublicationRecipe(recipe));
+    await expect(hashPublicationRecipe(reorderedInput)).resolves.toBe(await hashPublicationRecipe(recipe));
+    await expect(hashPublicationRecipe(recipe)).resolves.toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it('changes the recipe hash when publication content or revision changes', async () => {
+    const recipe = validRecipe();
+    expect(await hashPublicationRecipe({ ...recipe, revision: 5 })).not.toBe(await hashPublicationRecipe(recipe));
+    expect(await hashPublicationRecipe({ ...recipe, markdown: `${recipe.markdown}\nchanged` }))
+      .not.toBe(await hashPublicationRecipe(recipe));
   });
 
   it('rejects expired or stale recipes', () => {
