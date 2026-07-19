@@ -1,6 +1,7 @@
-import { type JobKind, type JobRun, type JobStatus, Prisma } from '@prisma/client';
+import type { JobKind, JobStatus } from '@/lib/schemas';
+import { getRuntimeDatabase } from '@/server/db/runtime';
 
-import prisma from '@/server/integrations/prisma';
+import { createJobRepository, type JobRunRecord } from './repository';
 
 export type JobLogLevel = 'info' | 'warn' | 'error' | 'success';
 
@@ -11,24 +12,21 @@ export type JobLogEntry = {
   meta?: Record<string, unknown>;
 };
 
+function repository() {
+  return createJobRepository(getRuntimeDatabase());
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
 function toLogEntry(value: unknown): JobLogEntry | null {
-  if (!isRecord(value)) {
-    return null;
-  }
+  if (!isRecord(value)) return null;
+  if (typeof value.timestamp !== 'string' || typeof value.message !== 'string') return null;
 
-  if (typeof value.timestamp !== 'string' || typeof value.message !== 'string') {
-    return null;
-  }
-
-  const level =
-    value.level === 'warn' || value.level === 'error' || value.level === 'success'
-      ? value.level
-      : 'info';
-
+  const level = value.level === 'warn' || value.level === 'error' || value.level === 'success'
+    ? value.level
+    : 'info';
   return {
     timestamp: value.timestamp,
     message: value.message,
@@ -37,15 +35,23 @@ function toLogEntry(value: unknown): JobLogEntry | null {
   };
 }
 
-export function readJobLogs(logs: Prisma.JsonValue | null | undefined): JobLogEntry[] {
-  if (!Array.isArray(logs)) {
-    return [];
-  }
-
-  return logs.map((entry) => toLogEntry(entry)).filter((entry): entry is JobLogEntry => entry !== null);
+function createLog(
+  message: string,
+  level: JobLogLevel,
+  now: Date,
+  meta?: Record<string, unknown>,
+): JobLogEntry {
+  return meta
+    ? { timestamp: now.toISOString(), message, level, meta }
+    : { timestamp: now.toISOString(), message, level };
 }
 
-export function serializeJobRun(job: JobRun) {
+export function readJobLogs(logs: unknown): JobLogEntry[] {
+  if (!Array.isArray(logs)) return [];
+  return logs.map(toLogEntry).filter((entry): entry is JobLogEntry => entry !== null);
+}
+
+export function serializeJobRun(job: JobRunRecord) {
   return {
     id: job.id,
     deckId: job.deckId,
@@ -66,154 +72,106 @@ export function serializeJobRun(job: JobRun) {
   };
 }
 
-export async function createJobRun(input: {
+export function createJobRun(input: {
   deckId: string;
   workspaceId: string;
   kind: JobKind;
   articleRevisionId: string;
-  payload?: Prisma.InputJsonValue;
+  payload?: unknown;
 }) {
-  return prisma.jobRun.create({
-    data: {
-      deckId: input.deckId,
-      workspaceId: input.workspaceId,
-      kind: input.kind,
-      status: 'queued',
-      progress: 0,
-      articleRevisionId: input.articleRevisionId,
-      payload: input.payload,
-      logs: [],
-    },
+  const now = new Date();
+  return repository().create({
+    id: crypto.randomUUID(),
+    deckId: input.deckId,
+    workspaceId: input.workspaceId,
+    kind: input.kind,
+    status: 'queued',
+    progress: 0,
+    articleRevisionId: input.articleRevisionId,
+    payload: input.payload,
+    logs: [],
+    now,
   });
 }
 
-export async function attachWorkflowRunId(jobId: string, runId: string) {
-  return prisma.jobRun.update({
-    where: { id: jobId },
-    data: { runId },
-  });
+export function attachWorkflowRunId(jobId: string, runId: string) {
+  return repository().attachWorkflowRunId({ jobId, runId, now: new Date() });
 }
 
-export async function getJobRun(jobId: string, workspaceId: string) {
-  return prisma.jobRun.findFirst({
-    where: {
-      id: jobId,
-      workspaceId,
-    },
-  });
+export function getJobRun(jobId: string, workspaceId: string) {
+  return repository().findForWorkspace(jobId, workspaceId);
 }
 
-export async function getJobRunById(jobId: string) {
-  return prisma.jobRun.findUnique({
-    where: { id: jobId },
-  });
+export function getJobRunById(jobId: string) {
+  return repository().findById(jobId);
 }
 
-export async function getLatestDeckJob(deckId: string, workspaceId: string) {
-  return prisma.jobRun.findFirst({
-    where: {
-      deckId,
-      workspaceId,
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-  });
+export function getLatestDeckJob(deckId: string, workspaceId: string) {
+  return repository().findLatestForDeck(deckId, workspaceId);
 }
 
-async function updateLogs(jobId: string, logs: JobLogEntry[]) {
-  return prisma.jobRun.update({
-    where: { id: jobId },
-    data: {
-      logs: logs as Prisma.InputJsonValue,
-    },
-  });
-}
-
-export async function appendJobLog(
+export function appendJobLog(
   jobId: string,
   message: string,
   level: JobLogLevel = 'info',
-  meta?: Record<string, unknown>
+  meta?: Record<string, unknown>,
 ) {
-  const job = await prisma.jobRun.findUnique({
-    where: { id: jobId },
-    select: { logs: true },
-  });
-
-  const logs = readJobLogs(job?.logs).concat({
-    timestamp: new Date().toISOString(),
-    message,
-    level,
-    meta,
-  });
-
-  await updateLogs(jobId, logs);
-}
-
-export async function markJobRunning(jobId: string) {
-  return prisma.jobRun.update({
-    where: { id: jobId },
-    data: {
-      status: 'running',
-      startedAt: new Date(),
-    },
+  const now = new Date();
+  return repository().appendLog({
+    jobId,
+    log: createLog(message, level, now, meta),
+    now,
   });
 }
 
-export async function markJobProgress(
+export function markJobRunning(jobId: string) {
+  return repository().markRunning({ jobId, now: new Date() });
+}
+
+export function markJobProgress(
   jobId: string,
   progress: number,
   logMessage?: string,
-  meta?: Record<string, unknown>
+  meta?: Record<string, unknown>,
 ) {
-  await prisma.jobRun.update({
-    where: { id: jobId },
-    data: {
-      progress: Math.max(0, Math.min(100, Math.round(progress))),
-    },
+  const now = new Date();
+  return repository().markProgress({
+    jobId,
+    progress: Math.max(0, Math.min(100, Math.round(progress))),
+    log: logMessage ? createLog(logMessage, 'info', now, meta) : undefined,
+    now,
   });
-
-  if (logMessage) {
-    await appendJobLog(jobId, logMessage, 'info', meta);
-  }
 }
 
-export async function completeJobRun(
+export function completeJobRun(
   jobId: string,
-  result?: Prisma.InputJsonValue,
-  logMessage = 'Job completed successfully.'
+  result?: unknown,
+  logMessage = 'Job completed successfully.',
 ) {
-  await prisma.jobRun.update({
-    where: { id: jobId },
-    data: {
-      status: 'completed',
-      progress: 100,
-      result,
-      completedAt: new Date(),
-    },
+  const now = new Date();
+  return repository().complete({
+    jobId,
+    result,
+    log: createLog(logMessage, 'success', now),
+    now,
   });
-
-  await appendJobLog(jobId, logMessage, 'success');
 }
 
-export async function failJobRun(
+export function failJobRun(
   jobId: string,
   code: string,
   message: string,
-  status: JobStatus = 'failed',
-  result?: Prisma.InputJsonValue
+  status: Extract<JobStatus, 'failed' | 'cancelled'> = 'failed',
+  result?: unknown,
 ) {
-  await prisma.jobRun.update({
-    where: { id: jobId },
-    data: {
-      status,
-      errorCode: code,
-      errorMessage: message,
-      result,
-      completedAt: new Date(),
-    },
+  const now = new Date();
+  return repository().fail({
+    jobId,
+    code,
+    message,
+    status,
+    result,
+    log: createLog(message, 'error', now),
+    now,
   });
-
-  await appendJobLog(jobId, message, 'error');
 }

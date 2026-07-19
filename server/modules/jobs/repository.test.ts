@@ -83,8 +83,8 @@ describe('Neon job repository', () => {
     await repository.findForWorkspace('job_1', 'workspace_1');
     await repository.findLatestForDeck('deck_1', 'workspace_1');
 
-    expect(queries[0]?.text).toMatch(/WHERE "id" = .+ AND "workspaceId" =/s);
-    expect(queries[1]?.text).toMatch(/WHERE "deckId" = .+ AND "workspaceId" =/s);
+    expect(queries[0]?.text).toMatch(/WHERE "id" = [\s\S]+ AND "workspaceId" =/);
+    expect(queries[1]?.text).toMatch(/WHERE "deckId" = [\s\S]+ AND "workspaceId" =/);
     expect(queries[1]?.text).toMatch(/ORDER BY "createdAt" DESC, "id" DESC/);
   });
 
