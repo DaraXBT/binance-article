@@ -26,8 +26,11 @@ function capturingClient(defaultRows: unknown[] = [deckRow()]) {
 
 describe('Neon article repository', () => {
   it('creates explicit records and lists only one workspace deterministically', async () => {
-    const { queries, query } = capturingClient();
-    const client = query();
+    const { queries } = capturingClient();
+    const client = vi.fn(async (strings: TemplateStringsArray, ...values: unknown[]) => {
+      queries.push({ text: strings.join('?'), values });
+      return queries.length === 1 ? [deckRow()] : [{ ...deckRow(), slideCount: 0 }];
+    });
     const repository = createArticleRepository({ $client: client } as never);
     const now = new Date('2026-07-19T12:00:00.000Z');
 
@@ -169,5 +172,33 @@ describe('Neon article repository', () => {
     expect(captured[1]?.text).toMatch(/jsonb_to_recordset/);
     expect(captured[1]?.text).toMatch(/\+ 1000/);
     expect(captured[2]?.text).toMatch(/SET "order" = requested\."order"/);
+    expect(captured[1]?.text).toMatch(/"DeckProject"[\s\S]*"workspaceId"/);
+    expect(captured[2]?.text).toMatch(/"DeckProject"[\s\S]*"workspaceId"/);
+    expect(captured[1]?.values).toContain('workspace_1');
+    expect(captured[2]?.values).toContain('workspace_1');
+  });
+
+  it('repeats the workspace guard in every slide deletion normalization write', async () => {
+    const captured: Array<{ text: string; values: unknown[] }> = [];
+    const transaction = vi.fn(async (
+      build: (query: (strings: TemplateStringsArray, ...values: unknown[]) => unknown) => unknown[],
+    ) => {
+      const built = build((strings, ...values) => {
+        captured.push({ text: strings.join('?'), values });
+        return { text: strings.join('?'), values };
+      });
+      return built.map((_, index) => index === 0 ? [{ id: 'deck_1' }] : []);
+    });
+    const repository = createArticleRepository({ $client: { transaction } } as never);
+
+    await repository.deleteSlide({
+      workspaceId: 'workspace_1', deckId: 'deck_1', slideId: 'missing_slide',
+      now: new Date('2026-07-19T12:00:00.000Z'),
+    });
+
+    for (const query of captured.slice(1)) {
+      expect(query.text).toMatch(/"DeckProject"[\s\S]*"workspaceId"/);
+      expect(query.values).toContain('workspace_1');
+    }
   });
 });
