@@ -8,6 +8,41 @@ export const GenerateRequestSchema = z.object({
   slideCount: z.number().int().min(1).max(15).default(1),
   illustrationStyle: IllustrationStyleSchema.default('pixel-art'),
   mode: z.enum(['text', 'url', 'prompt']).optional().default('text'),
+}).transform((request, context) => {
+  if (request.mode !== 'url') return request;
+
+  if (request.articleContent.length > 2_048) {
+    context.addIssue({
+      code: 'custom',
+      message: 'The source URL is too long.',
+      path: ['articleContent'],
+    });
+    return z.NEVER;
+  }
+
+  let sourceUrl: URL;
+  try {
+    sourceUrl = new URL(request.articleContent);
+  } catch {
+    context.addIssue({
+      code: 'custom',
+      message: 'The source URL is invalid.',
+      path: ['articleContent'],
+    });
+    return z.NEVER;
+  }
+
+  if (sourceUrl.protocol !== 'https:' || sourceUrl.username || sourceUrl.password) {
+    context.addIssue({
+      code: 'custom',
+      message: 'The source URL must use HTTPS without embedded credentials.',
+      path: ['articleContent'],
+    });
+    return z.NEVER;
+  }
+
+  sourceUrl.hash = '';
+  return { ...request, articleContent: sourceUrl.href };
 });
 
 export type DeckGenerateRequest = z.infer<typeof GenerateRequestSchema>;
