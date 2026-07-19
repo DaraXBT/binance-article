@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "start": "bun run src/main.ts run",
+    "pair": "bun run src/main.ts pair",
     "test": "bun test",
     "typecheck": "bunx tsc --noEmit"
   },
