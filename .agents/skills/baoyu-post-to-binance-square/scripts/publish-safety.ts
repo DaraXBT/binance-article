@@ -38,6 +38,7 @@ export interface PublishEvidenceInput {
 export interface PublishEvidence {
   verified: boolean;
   reason: string;
+  publishedUrl?: string;
 }
 
 function isBinanceUrl(value: string): boolean {
@@ -63,7 +64,11 @@ export function evaluatePublishEvidence(input: PublishEvidenceInput): PublishEvi
     return { verified: false, reason: 'The browser did not remain on a Binance page.' };
   }
   if (isPublishedUrl(input.afterUrl) && input.afterUrl !== input.beforeUrl) {
-    return { verified: true, reason: 'Binance navigated to a canonical published article URL.' };
+    return {
+      verified: true,
+      reason: 'Binance navigated to a canonical published article URL.',
+      publishedUrl: input.afterUrl,
+    };
   }
   if (input.successToast && !input.editorVisible) {
     return { verified: true, reason: 'Binance displayed a success state and closed the editor.' };

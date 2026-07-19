@@ -11,6 +11,7 @@ import {
   createDraftState,
   getDraftCacheRoot,
   isDraftBundlePathSafe,
+  markDraftAttempted,
   readDraftState,
   removeDraftState,
   validateDraftForPublish,
@@ -43,6 +44,27 @@ export interface DryRunResult {
   imageCount: number;
   coverPath: string;
   warnings: string[];
+}
+
+export class PublishOutcomeUnknownError extends Error {
+  readonly code = 'PUBLISH_OUTCOME_UNKNOWN';
+
+  constructor() {
+    super('Publish was clicked, but Binance did not expose a verifiable success state.');
+    this.name = 'PublishOutcomeUnknownError';
+  }
+}
+
+export async function executePublishClickBoundary(input: {
+  validate: () => void | Promise<void>;
+  markAttempted: () => void | Promise<void>;
+  beforeClick?: () => void | Promise<void>;
+  click: () => boolean | Promise<boolean>;
+}): Promise<void> {
+  await input.validate();
+  await input.markAttempted();
+  await input.beforeClick?.();
+  if (!await input.click()) throw new Error('The scoped Binance Publish button was not found.');
 }
 
 function assetHashes(manifest: BundleManifestV1): string[] {
@@ -184,8 +206,8 @@ async function clickScopedPublishButton(cdp: CdpConnection, sessionId: string): 
 
 export async function publishPreparedDraft(
   draftId: string,
-  options: { profileDir?: string } = {},
-): Promise<{ verified: true; reason: string }> {
+  options: { profileDir?: string; beforeClick?: () => void | Promise<void> } = {},
+): Promise<{ verified: true; reason: string; publishedUrl?: string }> {
   const state = await readDraftState(draftId);
   if (!isDraftBundlePathSafe(state.bundleDir)) {
     throw new Error('Prepared bundle is outside the local draft cache.');
@@ -204,27 +226,32 @@ export async function publishPreparedDraft(
   let sessionId: string | null = null;
   try {
     sessionId = await attachToDraftTarget(cdp, state.targetId);
-    const titleSelector = await resolveSelector(cdp, sessionId, BS_SELECTORS.articleTitleInput);
-    const editorSelector = await resolveSelector(cdp, sessionId, BS_SELECTORS.articleEditor);
+    const activeSessionId = sessionId;
+    const titleSelector = await resolveSelector(cdp, activeSessionId, BS_SELECTORS.articleTitleInput);
+    const editorSelector = await resolveSelector(cdp, activeSessionId, BS_SELECTORS.articleEditor);
     if (!titleSelector || !editorSelector) throw new Error('The prepared Binance editor is no longer open.');
-    const before = await readEditorSnapshot(cdp, sessionId, titleSelector, editorSelector);
-    validateDraftForPublish(state, {
-      editorUrl: before.url,
-      titleHash: sha256Text(normalizeEditorText(before.title)),
-      bodyHash: sha256Text(normalizeEditorText(before.body)),
-      assetHashes: expectedAssets,
+    const before = await readEditorSnapshot(cdp, activeSessionId, titleSelector, editorSelector);
+    await executePublishClickBoundary({
+      validate: () => {
+        validateDraftForPublish(state, {
+          editorUrl: before.url,
+          titleHash: sha256Text(normalizeEditorText(before.title)),
+          bodyHash: sha256Text(normalizeEditorText(before.body)),
+          assetHashes: expectedAssets,
+        });
+        if (before.imageCount !== extracted.manifest.images.length) {
+          throw new Error(`The reviewed editor has ${before.imageCount} body images; expected ${extracted.manifest.images.length}.`);
+        }
+      },
+      markAttempted: async () => { await markDraftAttempted(draftId); },
+      beforeClick: options.beforeClick,
+      click: () => clickScopedPublishButton(cdp, activeSessionId),
     });
-    if (before.imageCount !== extracted.manifest.images.length) {
-      throw new Error(`The reviewed editor has ${before.imageCount} body images; expected ${extracted.manifest.images.length}.`);
-    }
-    if (!(await clickScopedPublishButton(cdp, sessionId))) {
-      throw new Error('The scoped Binance Publish button was not found.');
-    }
 
     const started = Date.now();
     while (Date.now() - started < 20_000) {
       await sleep(750);
-      const after = await readEditorSnapshot(cdp, sessionId, titleSelector, editorSelector);
+      const after = await readEditorSnapshot(cdp, activeSessionId, titleSelector, editorSelector);
       const evidence = evaluatePublishEvidence({
         beforeUrl: before.url,
         afterUrl: after.url,
@@ -234,10 +261,14 @@ export async function publishPreparedDraft(
       if (evidence.verified) {
         await removeDraftState(draftId);
         await fs.rm(state.bundleDir, { recursive: true, force: true }).catch(() => undefined);
-        return { verified: true, reason: evidence.reason };
+        return {
+          verified: true,
+          reason: evidence.reason,
+          ...(evidence.publishedUrl ? { publishedUrl: evidence.publishedUrl } : {}),
+        };
       }
     }
-    throw new Error('Publish was clicked, but Binance did not expose a verifiable success state.');
+    throw new PublishOutcomeUnknownError();
   } finally {
     cdp.close();
   }

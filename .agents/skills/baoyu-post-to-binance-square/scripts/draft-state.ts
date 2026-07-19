@@ -21,6 +21,7 @@ export interface DraftState {
   bodyHash: string;
   assetHashes: string[];
   bundleDir: string;
+  attemptedAt?: string;
   statePath?: string;
 }
 
@@ -59,6 +60,10 @@ function statePathFor(id: string, cacheRoot?: string): string {
   return path.join(draftsRoot(cacheRoot), `${id}.json`);
 }
 
+function attemptMarkerPathFor(id: string, cacheRoot?: string): string {
+  return `${statePathFor(id, cacheRoot)}.attempted`;
+}
+
 function assertHash(value: string, label: string): void {
   if (!/^[a-f0-9]{64}$/.test(value)) throw new Error(`${label} must be a SHA-256 hash.`);
 }
@@ -82,6 +87,11 @@ function assertStateShape(value: unknown): DraftState {
   }
   for (const hash of state.assetHashes as string[]) assertHash(hash, 'assetHash');
   if (!Number.isFinite(Date.parse(String(state.expiresAt)))) throw new Error('Draft expiry is invalid.');
+  if (state.attemptedAt !== undefined && (
+    typeof state.attemptedAt !== 'string' || !Number.isFinite(Date.parse(state.attemptedAt))
+  )) {
+    throw new Error('Draft attempted timestamp is invalid.');
+  }
   return {
     version: 1,
     id: state.id,
@@ -95,6 +105,7 @@ function assertStateShape(value: unknown): DraftState {
     bodyHash: String(state.bodyHash),
     assetHashes: [...(state.assetHashes as string[])],
     bundleDir: String(state.bundleDir),
+    ...(state.attemptedAt ? { attemptedAt: String(state.attemptedAt) } : {}),
   };
 }
 
@@ -148,6 +159,7 @@ export async function readDraftState(
   const now = options.now ?? new Date();
   if (Date.parse(state.expiresAt) <= now.getTime()) {
     await fs.rm(statePath, { force: true }).catch(() => undefined);
+    await fs.rm(attemptMarkerPathFor(id, options.cacheRoot), { force: true }).catch(() => undefined);
     if (isDraftBundlePathSafe(state.bundleDir, options.cacheRoot)) {
       await fs.rm(state.bundleDir, { recursive: true, force: true }).catch(() => undefined);
     }
@@ -160,6 +172,7 @@ export function validateDraftForPublish(
   state: DraftState,
   current: { editorUrl: string; titleHash: string; bodyHash: string; assetHashes: string[] },
 ): void {
+  if (state.attemptedAt) throw new Error('Draft publication was already attempted.');
   if (!isBinanceEditorUrl(current.editorUrl)) throw new Error('Current tab is not a Binance article editor.');
   if (current.editorUrl.split('#')[0] !== state.editorUrl.split('#')[0]) {
     throw new Error('Current editor URL does not match the prepared draft.');
@@ -173,8 +186,41 @@ export function validateDraftForPublish(
   }
 }
 
+export async function markDraftAttempted(
+  id: string,
+  options: { cacheRoot?: string; now?: Date } = {},
+): Promise<DraftState> {
+  const state = await readDraftState(id, options);
+  if (state.attemptedAt) throw new Error('Draft publication was already attempted.');
+  const now = options.now ?? new Date();
+  const markerPath = attemptMarkerPathFor(id, options.cacheRoot);
+  try {
+    await fs.writeFile(markerPath, `${now.toISOString()}\n`, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+  } catch {
+    throw new Error('Draft publication was already attempted.');
+  }
+
+  const updated: DraftState = { ...state, attemptedAt: now.toISOString() };
+  const statePath = statePathFor(id, options.cacheRoot);
+  const temporaryPath = `${statePath}.${randomBytes(8).toString('hex')}.tmp`;
+  try {
+    await fs.writeFile(temporaryPath, `${JSON.stringify(updated, null, 2)}\n`, {
+      encoding: 'utf8', mode: 0o600, flag: 'wx',
+    });
+    await fs.rename(temporaryPath, statePath);
+    await fs.chmod(statePath, 0o600).catch(() => undefined);
+  } catch {
+    await fs.rm(temporaryPath, { force: true }).catch(() => undefined);
+    throw new Error('Draft attempted state could not be persisted safely.');
+  }
+  return updated;
+}
+
 export async function removeDraftState(id: string, options: { cacheRoot?: string } = {}): Promise<void> {
-  await fs.rm(statePathFor(id, options.cacheRoot), { force: true });
+  await Promise.all([
+    fs.rm(statePathFor(id, options.cacheRoot), { force: true }),
+    fs.rm(attemptMarkerPathFor(id, options.cacheRoot), { force: true }),
+  ]);
 }
 
 export function getDraftCacheRoot(): string {
