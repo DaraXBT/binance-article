@@ -77,6 +77,7 @@ describe('legacy JSON column repair', () => {
     const sql = queries.map((query) => query.strings.join('$value')).join('\n');
 
     expect(options).toMatchObject({ isolationLevel: 'Serializable' });
+    expect(queries.flatMap((query) => query.values)).toEqual([]);
     expect(sql).toMatch(/SET LOCAL lock_timeout/i);
     expect(sql).toMatch(/SET LOCAL statement_timeout/i);
     expect(sql).toMatch(/pg_advisory_xact_lock/i);
@@ -97,21 +98,22 @@ describe('legacy JSON column repair', () => {
     for (const cloudTable of ['user', 'Invitation', 'WorkspaceMember', 'PublisherDevice']) {
       expect(sql).toContain(cloudTable);
     }
+    expect(sql).toMatch(/table_name\s+NOT IN/i);
     expect(sql).toMatch(/information_schema\.columns/i);
     expect(sql).toMatch(/pg_input_is_valid/i);
     expect(sql).toMatch(/jsonb_typeof[\s\S]*array/i);
     expect(sql).toMatch(/jsonb_typeof[\s\S]*object/i);
     expect(sql).toMatch(
-      /ALTER TABLE "Slide" ALTER COLUMN "bullets" TYPE jsonb USING "bullets"::jsonb/i,
+      /ALTER TABLE "Slide"\s+ALTER COLUMN "bullets" TYPE jsonb USING "bullets"::jsonb/i,
     );
     expect(sql).toMatch(
-      /ALTER TABLE "CaptionPackage" ALTER COLUMN "blogSections" TYPE jsonb USING "blogSections"::jsonb/i,
+      /ALTER TABLE "CaptionPackage"\s+ALTER COLUMN "blogSections" TYPE jsonb USING "blogSections"::jsonb/i,
     );
     expect(sql).toMatch(
-      /ALTER TABLE "CaptionPackage" ALTER COLUMN "blogTags" TYPE jsonb USING "blogTags"::jsonb/i,
+      /ALTER TABLE "CaptionPackage"\s+ALTER COLUMN "blogTags" TYPE jsonb USING "blogTags"::jsonb/i,
     );
     expect(sql).toMatch(
-      /ALTER TABLE "DeckProject" ALTER COLUMN "customTheme" TYPE jsonb USING "customTheme"::jsonb/i,
+      /ALTER TABLE "DeckProject"\s+ALTER COLUMN "customTheme" TYPE jsonb USING "customTheme"::jsonb/i,
     );
     expect(sql).not.toMatch(/DROP\s+(?:TABLE|COLUMN)|DELETE\s+FROM|TRUNCATE/i);
   });
