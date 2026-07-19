@@ -16,7 +16,7 @@ const recipe = {
 async function harness() {
   const order: string[] = [];
   const recipeHash = await hashPublicationRecipe(recipe);
-  const statuses = ['awaiting_review', 'awaiting_approval', 'approved'] as const;
+  const statuses = ['awaiting_review', 'awaiting_approval', 'approved', 'publishing'] as const;
   let statusIndex = 0;
   const api = {
     claimCommand: mock(async () => ({
@@ -126,7 +126,7 @@ describe('publisher companion runner', () => {
     await expect(runPublisherOnce({
       ...h, now: () => new Date('2026-07-19T00:00:00.000Z'), sleep: async () => undefined,
     })).resolves.toEqual({ outcome: 'outcome_unknown', commandId: 'command_1' });
-    expect(h.api.abortCommand).toHaveBeenCalledOnce();
+    expect(h.api.abortCommand).toHaveBeenCalledTimes(1);
     expect(h.api.reportResult).toHaveBeenCalledWith('command_1', 3, {
       outcome: 'outcome_unknown', failureReason: 'OUTCOME_UNVERIFIED',
     });

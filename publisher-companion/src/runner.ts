@@ -142,7 +142,7 @@ export async function runPublisherOnce(input: {
     await input.api.reportResult(command.id, command.revision, result);
     return { outcome: result.outcome, commandId: command.id };
   } catch {
-    if (began || stage === 'publish') {
+    if (began) {
       await input.api.reportResult(command.id, command.revision, {
         outcome: 'outcome_unknown',
         failureReason: 'OUTCOME_UNVERIFIED',
@@ -152,8 +152,23 @@ export async function runPublisherOnce(input: {
     const reasonCode: PublisherAbortReason = stage === 'assets'
       ? 'ASSET_INTEGRITY_FAILED'
       : 'EDITOR_COMPOSITION_FAILED';
-    await input.api.abortCommand(command.id, command.revision, reasonCode).catch(() => undefined);
-    return { outcome: 'cancelled', commandId: command.id };
+    try {
+      await input.api.abortCommand(command.id, command.revision, reasonCode);
+      return { outcome: 'cancelled', commandId: command.id };
+    } catch {
+      const status = await input.api.getCommandStatus(command.id).catch(() => null);
+      if (status?.state === 'publishing') {
+        await input.api.reportResult(command.id, command.revision, {
+          outcome: 'outcome_unknown',
+          failureReason: 'OUTCOME_UNVERIFIED',
+        }).catch(() => undefined);
+        return { outcome: 'outcome_unknown', commandId: command.id };
+      }
+      if (status && ['cancelled', 'expired', 'failed', 'outcome_unknown', 'succeeded'].includes(status.state)) {
+        return { outcome: status.state, commandId: command.id };
+      }
+      return { outcome: 'local_failure', commandId: command.id };
+    }
   } finally {
     if (bundlePath) await input.workspace.removeBundle(bundlePath).catch(() => undefined);
   }
