@@ -87,6 +87,7 @@ describe('Better Auth security policy', () => {
       scopes: ['openid', 'profile'],
       pkce: true,
       disableImplicitSignUp: true,
+      disableSignUp: true,
     });
     expect(policy.telegram.scopes).not.toContain('phone');
   });
