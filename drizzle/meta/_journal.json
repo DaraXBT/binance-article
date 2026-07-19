@@ -36,6 +36,13 @@
       "when": 1784443761538,
       "tag": "0004_legacy_workspace_claim",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784444281201,
+      "tag": "0005_single_user_workspace",
+      "breakpoints": true
     }
   ]
 }

@@ -23,7 +23,7 @@ const SessionResponseSchema = z.object({
 export type AuthenticatedActor = Pick<
   z.infer<typeof ActorSchema>,
   'id' | 'email' | 'name' | 'status' | 'role'
->;
+> & { sessionId: string };
 
 export interface AuthorizeRequestOptions {
   getSession(input: { headers: Headers }): Promise<unknown>;
@@ -61,7 +61,7 @@ export async function authorizeRequest(
     });
   }
 
-  return { id, email, name, status, role };
+  return { sessionId: result.data.session.id, id, email, name, status, role };
 }
 
 export function requireActiveUser(

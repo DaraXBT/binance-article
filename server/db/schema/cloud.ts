@@ -119,7 +119,7 @@ export const workspaceMember = pgTable('WorkspaceMember', {
   uniqueIndex('WorkspaceMember_workspaceId_owner_key')
     .on(table.workspaceId)
     .where(sql`${table.role} = 'owner'`),
-  index('WorkspaceMember_userId_idx').on(table.userId),
+  uniqueIndex('WorkspaceMember_userId_single_workspace_key').on(table.userId),
 ]);
 
 export const userQuota = pgTable('UserQuota', {

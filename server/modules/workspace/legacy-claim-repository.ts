@@ -32,6 +32,10 @@ export function createLegacyWorkspaceClaimRepository(
               SELECT 1 FROM "WorkspaceMember" AS member
               WHERE member."workspaceId" = candidate."id"
             )
+            AND NOT EXISTS (
+              SELECT 1 FROM "WorkspaceMember" AS actor_membership
+              WHERE actor_membership."userId" = ${input.actorUserId}
+            )
           ON CONFLICT DO NOTHING
           RETURNING "workspaceId"
         ), consumed_workspace AS (
