@@ -15,9 +15,17 @@ const workspaceMock = {
     },
   })),
 };
+const articleAuthorizationMock = {
+  authorizeArticleRequest: vi.fn(async () => ({
+    actor: { id: 'user-1', sessionId: 'session-1' },
+    database: { db: true },
+    workspaceId: 'workspace-1',
+  })),
+};
 
 vi.mock('@/lib/db', () => dbMock);
 vi.mock('@/server/modules/workspace/service', () => workspaceMock);
+vi.mock('@/server/auth/article-authorization', () => articleAuthorizationMock);
 
 describe('GET/PATCH/DELETE /api/articles/[id]', () => {
   beforeEach(() => {

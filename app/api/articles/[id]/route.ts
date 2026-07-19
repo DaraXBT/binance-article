@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteDeckProject, getDeckWithAssets, updateDeckProject } from '@/lib/db';
 import { UpdateDeckProjectSchema } from '@/lib/schemas';
-import { getCurrentWorkspace } from '@/server/modules/workspace/service';
+import { authorizeArticleRequest } from '@/server/auth/article-authorization';
 import { assertAllowedOrigin } from '@/server/auth/origin';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
+import { readBoundedJson } from '@/server/http/request-body';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { workspace } = await getCurrentWorkspace();
     const deckId = (await params).id;
-    const deck = await getDeckWithAssets(deckId, workspace.id);
+    const { workspaceId } = await authorizeArticleRequest(request, deckId);
+    const deck = await getDeckWithAssets(deckId, workspaceId);
 
     if (!deck) {
       return NextResponse.json(
@@ -39,12 +40,12 @@ export async function PATCH(
 ) {
   try {
     assertAllowedOrigin(request);
-    const { workspace } = await getCurrentWorkspace();
     const deckId = (await params).id;
-    const body = await request.json();
+    const { workspaceId } = await authorizeArticleRequest(request, deckId);
+    const body = await readBoundedJson(request, 64_000);
     const data = UpdateDeckProjectSchema.parse(body);
 
-    const deck = await updateDeckProject(deckId, workspace.id, data);
+    const deck = await updateDeckProject(deckId, workspaceId, data);
     return NextResponse.json(deck, {
       headers: withNoStoreHeaders(),
     });
@@ -63,10 +64,10 @@ export async function DELETE(
 ) {
   try {
     assertAllowedOrigin(request);
-    const { workspace } = await getCurrentWorkspace();
     const deckId = (await params).id;
+    const { workspaceId } = await authorizeArticleRequest(request, deckId);
 
-    await deleteDeckProject(deckId, workspace.id);
+    await deleteDeckProject(deckId, workspaceId);
 
     return NextResponse.json(
       { success: true },

@@ -7,9 +7,9 @@ import {
 } from '@/lib/article-assets';
 import { getDeckWithAssets } from '@/lib/db';
 import { getBlobToken } from '@/lib/image-gen';
+import { authorizeArticleRequest } from '@/server/auth/article-authorization';
 import { errorResponse } from '@/server/http/errors';
 import { logEvent } from '@/server/http/log';
-import { getCurrentWorkspace } from '@/server/modules/workspace/service';
 
 function buildContentDisposition(filename: string, download: boolean) {
   const safeFilename = filename
@@ -26,14 +26,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string; filename: string }> }
 ) {
   try {
-    const { workspace } = await getCurrentWorkspace();
     const { id: deckId, filename } = await params;
+    const { workspaceId } = await authorizeArticleRequest(request, deckId);
 
     if (!filename) {
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
     }
 
-    const deck = await getDeckWithAssets(deckId, workspace.id);
+    const deck = await getDeckWithAssets(deckId, workspaceId);
 
     if (!deck) {
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 });

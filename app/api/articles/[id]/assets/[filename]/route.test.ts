@@ -16,6 +16,9 @@ const workspaceMock = {
     },
   })),
 };
+const articleAuthorizationMock = {
+  authorizeArticleRequest: vi.fn(async () => ({ workspaceId: 'workspace-1' })),
+};
 
 const blobMock = {
   get: vi.fn(),
@@ -24,6 +27,7 @@ const blobMock = {
 vi.mock('@/lib/db', () => dbMock);
 vi.mock('@/lib/image-gen', () => imageGenMock);
 vi.mock('@/lib/workspace', () => workspaceMock);
+vi.mock('@/server/auth/article-authorization', () => articleAuthorizationMock);
 vi.mock('@vercel/blob', () => blobMock);
 
 function createBlobStream(bytes: number[]) {

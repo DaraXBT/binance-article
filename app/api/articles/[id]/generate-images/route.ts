@@ -3,13 +3,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentRevisionContext } from '@/lib/db';
 import { getRequestGenerateAccessState, isGenerateAccessEnabled } from '@/lib/generate-access';
 import { GenerateImagesRequestSchema } from '@/lib/schemas';
+import { authorizeArticleRequest } from '@/server/auth/article-authorization';
 import { createGenerateAccessRequiredResponse } from '@/server/auth/generate-access-response';
 import { assertAllowedOrigin } from '@/server/auth/origin';
 import { startWorkflow } from '@/server/integrations/workflow-client';
+import { consumeAtomicRateLimit } from '@/server/http/atomic-rate-limit';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
-import { checkRateLimit } from '@/server/http/rate-limit';
+import { readBoundedJson } from '@/server/http/request-body';
 import { attachWorkflowRunId, createJobRun } from '@/server/modules/jobs/service';
-import { getCurrentWorkspace } from '@/server/modules/workspace/service';
 import { handleArticleImageRetryJob } from '@/workflows/article-jobs';
 
 export const maxDuration = 30;
@@ -23,14 +24,14 @@ export async function POST(
 ) {
   try {
     assertAllowedOrigin(request);
-
-    const body = await request.json().catch(() => ({}));
-    const { sessionId, workspace } = await getCurrentWorkspace();
+    const deckId = (await params).id;
+    const { actor, database, workspaceId } = await authorizeArticleRequest(request, deckId);
+    const body = await readBoundedJson(request, 4_096);
 
     if (isGenerateAccessEnabled()) {
       const accessState = await getRequestGenerateAccessState(request, {
-        workspaceId: workspace.id,
-        sessionId,
+        workspaceId,
+        sessionId: actor.sessionId,
       });
 
       if (!accessState.hasAccess) {
@@ -41,11 +42,14 @@ export async function POST(
       }
     }
 
-    const { allowed, resetAt } = await checkRateLimit(
-      `gen-images:${workspace.id}`,
-      RATE_LIMIT,
-      RATE_WINDOW_MS
-    );
+    const now = new Date();
+    const { allowed, resetAt } = await consumeAtomicRateLimit({
+      database,
+      key: `gen-images:${actor.id}`,
+      limit: RATE_LIMIT,
+      windowMs: RATE_WINDOW_MS,
+      now,
+    });
 
     if (!allowed) {
       return NextResponse.json(
@@ -54,18 +58,17 @@ export async function POST(
           status: 429,
           headers: {
             ...withNoStoreHeaders(),
-            'Retry-After': String(Math.ceil((resetAt - Date.now()) / 1000)),
+            'Retry-After': String(Math.max(1, Math.ceil((resetAt.getTime() - now.getTime()) / 1000))),
           },
         }
       );
     }
-    const deckId = (await params).id;
     const validated = GenerateImagesRequestSchema.parse(body);
-    const revision = await getCurrentRevisionContext(deckId, workspace.id);
+    const revision = await getCurrentRevisionContext(deckId, workspaceId);
 
     const job = await createJobRun({
       deckId,
-      workspaceId: workspace.id,
+      workspaceId,
       kind: 'generate_images',
       articleRevisionId: revision.articleRevisionId,
       payload: {

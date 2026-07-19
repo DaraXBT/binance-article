@@ -13,9 +13,13 @@ const workspaceMock = {
     },
   })),
 };
+const articleAuthorizationMock = {
+  authorizeArticleRequest: vi.fn(async () => ({ workspaceId: 'workspace-1' })),
+};
 
 vi.mock('@/lib/db', () => dbMock);
 vi.mock('@/lib/workspace', () => workspaceMock);
+vi.mock('@/server/auth/article-authorization', () => articleAuthorizationMock);
 
 describe('POST /api/articles/[id]/reorder', () => {
   beforeEach(() => {

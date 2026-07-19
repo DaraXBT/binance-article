@@ -12,6 +12,13 @@ const workspaceMock = {
     },
   })),
 };
+const articleAuthorizationMock = {
+  authorizeArticleRequest: vi.fn(async () => ({
+    actor: { id: 'user-1', sessionId: 'session-1' },
+    database: { db: true },
+    workspaceId: 'workspace-1',
+  })),
+};
 
 const jobServiceMock = {
   createJobRun: vi.fn(),
@@ -23,10 +30,10 @@ const workflowClientMock = {
 };
 
 const rateLimitMock = {
-  checkRateLimit: vi.fn(async () => ({
+  consumeAtomicRateLimit: vi.fn(async () => ({
     allowed: true,
     remaining: 9,
-    resetAt: Date.now() + 60_000,
+    resetAt: new Date(Date.now() + 60_000),
   })),
 };
 
@@ -50,9 +57,10 @@ const generateAccessMock = {
 vi.mock('@/lib/db', () => dbMock);
 vi.mock('@/lib/generate-access', () => generateAccessMock);
 vi.mock('@/server/modules/workspace/service', () => workspaceMock);
+vi.mock('@/server/auth/article-authorization', () => articleAuthorizationMock);
 vi.mock('@/server/modules/jobs/service', () => jobServiceMock);
 vi.mock('@/server/integrations/workflow-client', () => workflowClientMock);
-vi.mock('@/server/http/rate-limit', () => rateLimitMock);
+vi.mock('@/server/http/atomic-rate-limit', () => rateLimitMock);
 vi.mock('@/workflows/article-jobs', () => ({
   handleArticleGenerationJob: vi.fn(),
 }));
@@ -67,10 +75,10 @@ describe('POST /api/articles/[id]/generate', () => {
       invalidReason: null,
       grantId: null,
     });
-    rateLimitMock.checkRateLimit.mockResolvedValue({
+    rateLimitMock.consumeAtomicRateLimit.mockResolvedValue({
       allowed: true,
       remaining: 9,
-      resetAt: Date.now() + 60_000,
+      resetAt: new Date(Date.now() + 60_000),
     });
     dbMock.beginGenerationRevision.mockResolvedValue({
       deck: { id: 'deck-1' },

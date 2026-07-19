@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UpdateSlideSchema } from '@/lib/schemas';
 import { updateSlide, deleteSlide } from '@/lib/db';
+import { authorizeArticleRequest } from '@/server/auth/article-authorization';
 import { assertAllowedOrigin } from '@/server/auth/origin';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
-import { getCurrentWorkspace } from '@/server/modules/workspace/service';
+import { readBoundedJson } from '@/server/http/request-body';
 
 export async function PATCH(
   request: NextRequest,
@@ -11,12 +12,12 @@ export async function PATCH(
 ) {
   try {
     assertAllowedOrigin(request);
-    const { workspace } = await getCurrentWorkspace();
     const { id: deckId, slideId } = await params;
-    const body = await request.json();
+    const { workspaceId } = await authorizeArticleRequest(request, deckId);
+    const body = await readBoundedJson(request, 8_192);
     const validated = UpdateSlideSchema.parse(body);
 
-    const slide = await updateSlide(workspace.id, deckId, slideId, validated);
+    const slide = await updateSlide(workspaceId, deckId, slideId, validated);
 
     return NextResponse.json(slide, {
       headers: withNoStoreHeaders(),
@@ -36,10 +37,10 @@ export async function DELETE(
 ) {
   try {
     assertAllowedOrigin(request);
-    const { workspace } = await getCurrentWorkspace();
     const { id: deckId, slideId } = await params;
+    const { workspaceId } = await authorizeArticleRequest(request, deckId);
 
-    await deleteSlide(workspace.id, deckId, slideId);
+    await deleteSlide(workspaceId, deckId, slideId);
 
     return NextResponse.json(
       { success: true },

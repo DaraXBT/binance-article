@@ -1,4 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+const articleAuthorizationMock = {
+  authorizeArticleRequest: vi.fn(async () => ({ workspaceId: 'workspace-1' })),
+};
+vi.mock('@/server/auth/article-authorization', () => articleAuthorizationMock);
 
 describe('POST /api/articles/[id]/render', () => {
   it('returns 501 because the production renderer is not implemented', async () => {
