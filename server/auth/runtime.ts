@@ -1,4 +1,4 @@
-import { createDatabase } from '@/server/db/client';
+import { getRuntimeDatabase } from '@/server/db/runtime';
 
 import { parseAuthEnvironment } from './auth-policy';
 import { createBetterAuth } from './better-auth';
@@ -10,11 +10,8 @@ type RuntimeEnvironment = Record<string, string | undefined>;
 let runtimeAuth: ReturnType<typeof createBetterAuth> | undefined;
 
 export function createRuntimeAuth(environment: RuntimeEnvironment) {
-  const databaseUrl = environment.DATABASE_URL?.trim();
-  if (!databaseUrl) throw new Error('DATABASE_URL is required.');
-
   const authEnvironment = parseAuthEnvironment(environment);
-  const database = createDatabase(databaseUrl);
+  const database = getRuntimeDatabase(environment);
   const repository = createDrizzleInvitationRepository(database);
   const enrollmentGate = createInvitationEnrollmentGate({ repository });
 

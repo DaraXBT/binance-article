@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  createDatabase: vi.fn(() => ({ database: true })),
+  getRuntimeDatabase: vi.fn((_environment?: Record<string, string | undefined>) => ({ database: true })),
   createRepository: vi.fn(() => ({ repository: true })),
   createGate: vi.fn(() => ({ gate: true })),
   createBetterAuth: vi.fn(() => ({ auth: true })),
 }));
 
-vi.mock('@/server/db/client', () => ({ createDatabase: mocks.createDatabase }));
+vi.mock('@/server/db/runtime', () => ({ getRuntimeDatabase: mocks.getRuntimeDatabase }));
 vi.mock('./invitation-repository', () => ({
   createDrizzleInvitationRepository: mocks.createRepository,
 }));
@@ -31,12 +31,16 @@ const env = {
 describe('auth runtime', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getRuntimeDatabase.mockImplementation((environment?: Record<string, string | undefined>) => {
+      if (!environment?.DATABASE_URL?.trim()) throw new Error('DATABASE_URL is required.');
+      return { database: true };
+    });
     resetRuntimeAuthForTests();
   });
 
   it('constructs Neon, invitation enforcement, and Better Auth from server environment', () => {
     expect(createRuntimeAuth(env)).toEqual({ auth: true });
-    expect(mocks.createDatabase).toHaveBeenCalledWith(env.DATABASE_URL);
+    expect(mocks.getRuntimeDatabase).toHaveBeenCalledWith(env);
     expect(mocks.createRepository).toHaveBeenCalledWith({ database: true });
     expect(mocks.createGate).toHaveBeenCalledWith({ repository: { repository: true } });
     expect(mocks.createBetterAuth).toHaveBeenCalledWith(expect.objectContaining({
