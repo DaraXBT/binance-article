@@ -32,6 +32,18 @@ describe('image generation provider boundary', () => {
     })).toThrow(/blocked/i);
   });
 
+  it('rejects inline data that is not a supported raster image', async () => {
+    const { parseImageGenerationResponse } = await import('@/lib/image-gen');
+    expect(() => parseImageGenerationResponse({
+      candidates: [{ content: { parts: [{
+        inlineData: {
+          data: Buffer.from('<svg onload="alert(1)" />').toString('base64'),
+          mimeType: 'image/svg+xml',
+        },
+      }] } }],
+    })).toThrow(/unsupported image type/i);
+  });
+
   it('requires only provider credentials and model configuration at preflight', async () => {
     process.env.GEMINI_API_KEY = 'test-key';
     process.env.GEMINI_IMAGE_MODEL = 'custom-image-model';
