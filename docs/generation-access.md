@@ -39,16 +39,20 @@ These are stored in the database as `GenerationAccessGrant` records and are:
 With `GENERATE_ACCESS_CODE` set:
 
 ```bash
-npm run generate-access:create
+OPERATOR_DATABASE_URL='postgresql://grant_issuer:...@.../app?sslmode=require' \
+  npm run generate-access:create
 ```
 
-This creates a new DB record and prints the raw invite code.
+This creates a Neon record and prints the raw invite code once, after the
+insert succeeds. Only its SHA-256 hash, prefix, rotation-secret hash, explicit
+ID, and timestamps are stored.
 
-You can also provide a code explicitly:
+Use a dedicated `OPERATOR_DATABASE_URL` role that can insert generation grants
+but cannot administer the whole database. The command accepts no custom code
+through argv because command-line values can leak through shell history and
+process listings.
 
-```bash
-npm run generate-access:create -- gac_custom_code_here
-```
+Do not put the operator URL into the web Worker's runtime environment.
 
 ## Rotation Workflow
 

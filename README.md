@@ -14,6 +14,25 @@ xArticle is an invite-only article workspace with reviewed Binance Square publis
 
 Binance credentials never enter the web app, Neon, R2, Telegram, logs, or exports. Ambiguous post-click outcomes become terminal `outcome_unknown` and are never retried.
 
+## Runtime architecture
+
+- The OpenNext web Worker is stateless. Better Auth sessions, membership,
+  articles, approvals, jobs, and audit metadata live in Neon PostgreSQL through
+  Drizzle.
+- Generated assets use opaque database references and a private R2 binding.
+  Authenticated routes proxy delivery; the bucket is never exposed through
+  `r2.dev`.
+- Article generation runs in a separate, non-public Cloudflare Workflow Worker.
+  Persisted job IDs are idempotency IDs, and bounded Gemini REST calls send the
+  API key only in the `x-goog-api-key` header.
+- Binance publication runs only in the local companion. Its opaque device token
+  is stored in the operating-system keyring; the browser's Binance session stays
+  in the user's local Chrome profile.
+
+This split lets the web and Workflow Workers scale independently while Neon is
+the transaction boundary and R2 is the private binary store. The current
+invite-only product policy still caps enrollment at ten active users.
+
 ## Account and workspace model
 
 - Enrollment is invitation-only through Google.
@@ -49,8 +68,10 @@ Useful verification commands:
 ```bash
 npm test
 npm run typecheck
+npm run workflow:typecheck
 npm run lint
 MIGRATION_DATABASE_URL='postgresql://localhost/binance_article' npm run db:check
+npm run workflow:dry-run
 npm run telegram:dry-run
 
 cd publisher-companion
@@ -64,5 +85,9 @@ Database migrations are an explicit operator action and are never run by an appl
 ```bash
 MIGRATION_DATABASE_URL='postgresql://...' npm run db:migrate:deploy
 ```
+
+Legacy Prisma-era databases must first pass the guarded
+`npm run db:baseline:legacy` procedure. Archived Prisma SQL is historical
+evidence only; `drizzle/` is the sole forward migration history.
 
 Do not point migration commands at production until the generated SQL has been reviewed and backed up. See [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md) and [GETTING_STARTED.md](./GETTING_STARTED.md).

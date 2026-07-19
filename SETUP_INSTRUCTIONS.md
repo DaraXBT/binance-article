@@ -41,6 +41,8 @@ Configure the Google callback URL for the deployment origin. Bootstrap the first
 
 - Deploy the web application as an OpenNext Worker.
 - Bind a private `ARTICLE_ASSETS` R2 bucket; do not enable `r2.dev`.
+- Deploy the non-public article Workflow Worker separately and bind it to the
+  web Worker by `script_name`.
 - Deploy Telegram as a separate Worker with only its required secrets.
 - Keep migrations outside build and deployment bundles.
 - Run the compressed bundle-size gates before deployment.
@@ -63,8 +65,10 @@ Pass the one-time pairing code through the hidden prompt or stdin, never argv. T
 ```bash
 npm test
 npm run typecheck
+npm run workflow:typecheck
 npm run lint
 MIGRATION_DATABASE_URL='postgresql://localhost/binance_article' npm run db:check
+npm run workflow:dry-run
 npm run telegram:dry-run
 
 cd publisher-companion
