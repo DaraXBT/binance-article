@@ -15,7 +15,29 @@ function routeFiles(directory: string): string[] {
   });
 }
 
+function conflictingDynamicSegments(directory: string): string[] {
+  const entries = readdirSync(directory, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory());
+  const dynamicSegments = entries
+    .map((entry) => entry.name.match(/^\[([^.[\]]+)\]$/)?.[1])
+    .filter((name): name is string => Boolean(name));
+  const conflicts = new Set(dynamicSegments).size > 1
+    ? [path.relative(root, directory)]
+    : [];
+
+  return [
+    ...conflicts,
+    ...entries.flatMap((entry) => (
+      conflictingDynamicSegments(path.join(directory, entry.name))
+    )),
+  ];
+}
+
 describe('API authorization inventory', () => {
+  it('uses one slug name for sibling dynamic route segments', () => {
+    expect(conflictingDynamicSegments(path.join(root, 'app/api'))).toEqual([]);
+  });
+
   it('classifies every route explicitly and no deleted route remains listed', () => {
     expect(Object.keys(API_ROUTE_POLICIES).sort()).toEqual(
       routeFiles(path.join(root, 'app/api')).sort(),
