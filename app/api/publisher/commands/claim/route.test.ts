@@ -8,7 +8,9 @@ const mocks = vi.hoisted(() => ({
   createDeviceRepository: vi.fn(),
   createCommandRepository: vi.fn(),
   authenticateDevice: vi.fn(async () => ({ id: 'device_1', status: 'active' })),
-  claimNext: vi.fn(async () => ({ id: 'command_1', state: 'claimed', revision: 3 })),
+  claimNext: vi.fn(async (): Promise<{ id: string; state: string; revision: number } | null> => ({
+    id: 'command_1', state: 'claimed', revision: 3,
+  })),
 }));
 mocks.getRuntimeDatabase.mockReturnValue(mocks.database);
 mocks.createDeviceRepository.mockReturnValue(mocks.deviceRepository);
