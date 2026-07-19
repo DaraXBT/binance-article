@@ -75,8 +75,9 @@ export class PublisherApiClient {
     method?: 'GET' | 'POST';
     body?: unknown;
     authenticated?: boolean;
+    headers?: HeadersInit;
   } = {}): Promise<Response> {
-    const headers = new Headers({ Accept: 'application/json' });
+    const headers = new Headers({ Accept: 'application/json', ...input.headers });
     if (input.authenticated !== false) {
       const token = SecretSchema.parse(await this.#getDeviceToken());
       headers.set('Authorization', `Bearer ${token}`);
@@ -144,5 +145,12 @@ export class PublisherApiClient {
       `/api/publisher/commands/${encodeURIComponent(IdentifierSchema.parse(commandId))}/status`,
     );
     return z.object({ command: CommandSchema }).strict().parse(await response.json()).command;
+  }
+
+  downloadAsset(commandId: string, assetId: string): Promise<Response> {
+    return this.#request(
+      `/api/publisher/commands/${encodeURIComponent(IdentifierSchema.parse(commandId))}/assets/${encodeURIComponent(IdentifierSchema.parse(assetId))}`,
+      { headers: { 'Accept-Encoding': 'identity' } },
+    );
   }
 }
