@@ -93,4 +93,12 @@ describe('Cloudflare web Worker deployment configuration', () => {
     expect(readProjectFile('next.config.mjs')).toContain('initOpenNextCloudflareForDev');
     expect(readProjectFile('open-next.config.ts')).toContain('defineCloudflareConfig');
   });
+
+  it('gives immutable Next static assets a one-year edge cache policy', () => {
+    expect(readProjectFile('public/_headers')).toBe([
+      '/_next/static/*',
+      '  Cache-Control: public,max-age=31536000,immutable',
+      '',
+    ].join('\n'));
+  });
 });
