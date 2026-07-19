@@ -1,5 +1,10 @@
 import { createDatabase, type AppDatabase } from '@/server/db/client';
 import { createTelegramMetadataRepository } from '@/server/modules/telegram/metadata-repository';
+import { createTelegramApprovalRepository } from '@/server/modules/telegram/approval-repository';
+import {
+  confirmTelegramPublish,
+  requestTelegramPublishConfirmation,
+} from '@/server/modules/telegram/approval-service';
 import { createTelegramUpdateRepository } from '@/server/modules/telegram/update-repository';
 import { handleTelegramWebhook } from '@/server/modules/telegram/update-service';
 
@@ -33,6 +38,22 @@ export default {
         botInfo: environment.botInfo,
         repository: createTelegramMetadataRepository(getDatabase()),
         appBaseUrl: environment.appBaseUrl,
+        approvalActions: {
+          requestConfirmation: ({ actorUserId, telegramUserId, commandId }) => (
+            requestTelegramPublishConfirmation({
+              repository: createTelegramApprovalRepository(getDatabase()),
+              actorUserId,
+              telegramUserId,
+              commandId,
+            })
+          ),
+          confirm: ({ actorUserId, telegramUserId, callbackToken }) => confirmTelegramPublish({
+            repository: createTelegramApprovalRepository(getDatabase()),
+            actorUserId,
+            telegramUserId,
+            callbackToken,
+          }),
+        },
       }),
     });
   },

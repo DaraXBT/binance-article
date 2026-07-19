@@ -315,11 +315,16 @@ export const publishApproval = pgTable('PublishApproval', {
   updatedAt: cloudTimestamp('updatedAt').defaultNow().notNull(),
 }, (table) => [
   uniqueIndex('PublishApproval_callbackTokenHash_key').on(table.callbackTokenHash),
+  uniqueIndex('PublishApproval_commandId_open_key')
+    .on(table.commandId)
+    .where(sql`${table.state} IN ('pending', 'confirmation_required')`),
   index('PublishApproval_commandId_state_idx').on(table.commandId, table.state),
   index('PublishApproval_userId_state_idx').on(table.userId, table.state),
   index('PublishApproval_state_expiresAt_idx').on(table.state, table.expiresAt),
   check('PublishApproval_callbackTokenHash_sha256_check', sql`${table.callbackTokenHash} ~ '^[a-f0-9]{64}$'`),
   check('PublishApproval_recipeHash_sha256_check', sql`${table.recipeHash} ~ '^[a-f0-9]{64}$'`),
+  check('PublishApproval_revision_positive_check', sql`${table.revision} > 0`),
+  check('PublishApproval_expiry_after_creation_check', sql`${table.expiresAt} > ${table.createdAt}`),
 ]);
 
 export const auditEvent = pgTable('AuditEvent', {

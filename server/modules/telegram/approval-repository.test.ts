@@ -27,7 +27,7 @@ describe('Telegram approval repository', () => {
     expect(captured[0].text).toMatch(/UPDATE "BinancePublicationDraft"/);
     expect(captured[0].text).toMatch(/INSERT INTO "PublishApproval"/);
     expect(captured[0].text).toMatch(/LEAST\(/);
-    expect(captured[0].text).toMatch(/'awaiting_review'.*'awaiting_approval'/s);
+    expect(captured[0].text).toMatch(/'awaiting_review'[\s\S]*'awaiting_approval'/);
     expect(captured[0].text).toMatch(/"providerId" = \?/);
     expect(captured[0].values).toContain('telegram');
     expect(captured[0].values).not.toContain(expect.stringMatching(/^[A-Za-z0-9_-]{43}$/));
@@ -44,7 +44,7 @@ describe('Telegram approval repository', () => {
     expect(captured[0].text).toMatch(/UPDATE "PublishApproval"/);
     expect(captured[0].text).toMatch(/UPDATE "PublisherCommand"/);
     expect(captured[0].text).toMatch(/UPDATE "BinancePublicationDraft"/);
-    expect(captured[0].text).toMatch(/'confirmation_required'.*'approved'/s);
+    expect(captured[0].text).toMatch(/'confirmation_required'[\s\S]*'approved'/);
   });
 
   it('expires approval, command, and draft atomically after the deadline', async () => {

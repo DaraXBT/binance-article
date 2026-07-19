@@ -10,7 +10,7 @@ const now = new Date('2026-07-19T00:00:00.000Z');
 describe('Telegram publish approval service', () => {
   it('returns a one-time callback token while persisting only its SHA-256 hash', async () => {
     const repository = {
-      requestConfirmation: vi.fn(async () => ({
+      requestConfirmation: vi.fn(async (_input: unknown) => ({
         commandId: '11111111-1111-4111-8111-111111111111',
         expiresAt: new Date('2026-07-19T00:02:00.000Z'),
       })),
@@ -44,7 +44,7 @@ describe('Telegram publish approval service', () => {
   it('confirms with the same linked actor and hashes the opaque callback token', async () => {
     const repository = {
       requestConfirmation: vi.fn(),
-      confirm: vi.fn(async () => ({ commandId: 'command_1' })),
+      confirm: vi.fn(async (_input: unknown) => ({ commandId: 'command_1' })),
       expire: vi.fn(),
     };
     const callbackToken = 'A'.repeat(43);
@@ -68,8 +68,8 @@ describe('Telegram publish approval service', () => {
   it('atomically expires an elapsed challenge and never approves it', async () => {
     const repository = {
       requestConfirmation: vi.fn(),
-      confirm: vi.fn(async () => null),
-      expire: vi.fn(async () => true),
+      confirm: vi.fn(async (_input: unknown) => null),
+      expire: vi.fn(async (_input: unknown) => true),
     };
 
     await expect(confirmTelegramPublish({

@@ -1,4 +1,4 @@
-import { Bot } from 'grammy';
+import { Bot, InlineKeyboard } from 'grammy';
 import type { UserFromGetMe } from 'grammy/types';
 
 import type { TelegramActor, TelegramUpdate } from '@/server/modules/telegram/update-service';
@@ -36,6 +36,25 @@ export interface TelegramMetadataRepository {
     pendingInvitations: number;
     activeDevices: number;
   }>;
+  listReviewReadyCommands?(userId: string): Promise<Array<{
+    id: string;
+    title: string;
+    revision: number;
+    expiresAt: Date;
+  }>>;
+}
+
+export interface TelegramApprovalActions {
+  requestConfirmation(input: {
+    actorUserId: string;
+    telegramUserId: string;
+    commandId: string;
+  }): Promise<{ callbackToken: string; expiresAt: Date }>;
+  confirm(input: {
+    actorUserId: string;
+    telegramUserId: string;
+    callbackToken: string;
+  }): Promise<{ commandId: string }>;
 }
 
 function clean(value: string, maxLength = 120): string {
@@ -119,12 +138,47 @@ export async function dispatchTelegramCommand(input: {
   }
 }
 
+export async function handleTelegramCallback(input: {
+  data: string;
+  actor: TelegramActor;
+  approvalActions: TelegramApprovalActions;
+}): Promise<{ text: string; callbackData: string | null }> {
+  const publish = input.data.match(
+    /^p:([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i,
+  );
+  if (publish) {
+    const challenge = await input.approvalActions.requestConfirmation({
+      actorUserId: input.actor.id,
+      telegramUserId: input.actor.telegramUserId,
+      commandId: publish[1],
+    });
+    const callbackData = `c:${challenge.callbackToken}`;
+    if (callbackData.length > 64) throw new Error('Telegram callback data is too long.');
+    return {
+      text: `Confirm Publish before ${challenge.expiresAt.toISOString()}. This action cannot be undone.`,
+      callbackData,
+    };
+  }
+
+  const confirmation = input.data.match(/^c:([A-Za-z0-9_-]{43})$/);
+  if (confirmation) {
+    await input.approvalActions.confirm({
+      actorUserId: input.actor.id,
+      telegramUserId: input.actor.telegramUserId,
+      callbackToken: confirmation[1],
+    });
+    return { text: 'Publishing approved for the paired device.', callbackData: null };
+  }
+  throw new Error('Telegram publish callback is invalid.');
+}
+
 export function createTelegramBot(input: {
   token: string;
   botInfo: TelegramBotInfo;
   actor: TelegramActor;
   repository: TelegramMetadataRepository;
   appBaseUrl: string;
+  approvalActions?: TelegramApprovalActions;
 }) {
   const botInfo: UserFromGetMe = {
     can_join_groups: false,
@@ -147,7 +201,39 @@ export function createTelegramBot(input: {
       appBaseUrl: input.appBaseUrl,
     });
     await context.reply(reply);
+    if (commandName(context.message.text) === 'status' && input.repository.listReviewReadyCommands) {
+      const commands = await input.repository.listReviewReadyCommands(input.actor.id);
+      for (const command of commands) {
+        const callbackData = `p:${command.id}`;
+        if (callbackData.length > 64) continue;
+        const keyboard = new InlineKeyboard().text('Publish', callbackData);
+        await context.reply(
+          `${clean(command.title)} — revision ${command.revision} — ready for review`,
+          { reply_markup: keyboard },
+        );
+      }
+    }
   });
+  if (input.approvalActions) {
+    bot.on('callback_query:data', async (context) => {
+      await context.answerCallbackQuery();
+      try {
+        const result = await handleTelegramCallback({
+          data: context.callbackQuery.data,
+          actor: input.actor,
+          approvalActions: input.approvalActions!,
+        });
+        if (result.callbackData) {
+          const keyboard = new InlineKeyboard().text('Confirm Publish', result.callbackData);
+          await context.reply(result.text, { reply_markup: keyboard });
+        } else {
+          await context.reply(result.text);
+        }
+      } catch {
+        await context.reply('This publish action is invalid or expired.');
+      }
+    });
+  }
   return bot;
 }
 
@@ -158,6 +244,7 @@ export async function executeTelegramUpdate(input: {
   botInfo: TelegramBotInfo;
   repository: TelegramMetadataRepository;
   appBaseUrl: string;
+  approvalActions?: TelegramApprovalActions;
 }) {
   const bot = createTelegramBot(input);
   await bot.handleUpdate(input.update as never);

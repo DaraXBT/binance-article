@@ -89,11 +89,12 @@ describe('metadata-only Telegram commands', () => {
       commandId: '11111111-1111-4111-8111-111111111111',
     });
     expect(first.callbackData).toBe(`c:${'A'.repeat(43)}`);
-    expect(first.callbackData.length).toBeLessThanOrEqual(64);
+    expect(first.callbackData).not.toBeNull();
+    expect(first.callbackData!.length).toBeLessThanOrEqual(64);
     expect(JSON.stringify(first)).not.toMatch(/[a-f0-9]{64}/);
 
     const second = await handleTelegramCallback({
-      data: first.callbackData, actor, approvalActions,
+      data: first.callbackData!, actor, approvalActions,
     });
     expect(approvalActions.confirm).toHaveBeenCalledWith({
       actorUserId: 'user_1', telegramUserId: '777', callbackToken: 'A'.repeat(43),

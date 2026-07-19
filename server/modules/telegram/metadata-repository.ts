@@ -94,5 +94,30 @@ export function createTelegramMetadataRepository(
         activeDevices: Number(row.activeDevices),
       };
     },
+
+    async listReviewReadyCommands(userId) {
+      const rows = await database.$client`
+        SELECT command."id", draft."title", command."revision", command."expiresAt"
+        FROM "PublisherCommand" command
+        INNER JOIN "BinancePublicationDraft" draft ON draft."id" = command."draftId"
+        INNER JOIN "PublisherDevice" device ON device."id" = command."deviceId"
+        WHERE device."userId" = ${userId}
+          AND device."status" = 'active'::"PublisherDeviceStatus"
+          AND command."state" = 'awaiting_review'::"PublisherCommandState"
+          AND command."expiresAt" > now()
+          AND draft."status" = 'review_ready'::"PublicationDraftStatus"
+          AND draft."revision" = command."revision"
+          AND draft."recipeHash" = command."recipeHash"
+          AND draft."expiresAt" > now()
+        ORDER BY command."createdAt" ASC
+        LIMIT 5
+      `;
+      return rows.map((row) => ({
+        id: String(row.id),
+        title: String(row.title),
+        revision: Number(row.revision),
+        expiresAt: asDate(row.expiresAt),
+      }));
+    },
   };
 }
