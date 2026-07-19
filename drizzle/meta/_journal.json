@@ -43,6 +43,13 @@
       "when": 1784444281201,
       "tag": "0005_single_user_workspace",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784450666509,
+      "tag": "0006_normalize_legacy_foreign_keys",
+      "breakpoints": true
     }
   ]
 }
