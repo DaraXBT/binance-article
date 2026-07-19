@@ -29,6 +29,13 @@
       "when": 1784441272964,
       "tag": "0003_publish_approval_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784443761538,
+      "tag": "0004_legacy_workspace_claim",
+      "breakpoints": true
     }
   ]
 }

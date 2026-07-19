@@ -116,6 +116,9 @@ export const workspaceMember = pgTable('WorkspaceMember', {
   updatedAt: cloudTimestamp('updatedAt').defaultNow().notNull(),
 }, (table) => [
   primaryKey({ name: 'WorkspaceMember_pkey', columns: [table.workspaceId, table.userId] }),
+  uniqueIndex('WorkspaceMember_workspaceId_owner_key')
+    .on(table.workspaceId)
+    .where(sql`${table.role} = 'owner'`),
   index('WorkspaceMember_userId_idx').on(table.userId),
 ]);
 

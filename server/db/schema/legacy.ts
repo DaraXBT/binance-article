@@ -38,6 +38,11 @@ export const workspace = pgTable('Workspace', {
   id: text('id').primaryKey(),
   accessKeyHash: text('accessKeyHash').notNull(),
   accessKeyPrefix: text('accessKeyPrefix').notNull(),
+  legacyClaimExpiresAt: timestamp('legacyClaimExpiresAt', {
+    mode: 'date',
+    precision: 3,
+    withTimezone: true,
+  }),
   createdAt: legacyTimestamp('createdAt').defaultNow().notNull(),
   updatedAt: legacyTimestamp('updatedAt').notNull(),
 }, (table) => [

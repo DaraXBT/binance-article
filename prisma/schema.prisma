@@ -52,6 +52,7 @@ model Workspace {
   id              String             @id @default(cuid())
   accessKeyHash   String             @unique
   accessKeyPrefix String
+  legacyClaimExpiresAt DateTime?     @db.Timestamptz(3)
   sessions        WorkspaceSession[]
   decks           DeckProject[]
   jobRuns         JobRun[]

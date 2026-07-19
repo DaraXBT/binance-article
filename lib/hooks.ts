@@ -43,7 +43,6 @@ export type WorkspaceCreateResult = {
 export type WorkspaceRecoveryResult = {
   success: true;
   workspaceId: string;
-  accessKeyPrefix: string;
 };
 
 export class ApiError extends Error {
