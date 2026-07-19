@@ -6,10 +6,13 @@ import { hashInvitationToken } from '@/server/domain/invitations';
 export const INVITATION_ENROLLMENT_COOKIE = 'xarticle_invitation';
 const INVITATION_ENROLLMENT_MAX_AGE_SECONDS = 15 * 60;
 
-const EnrollmentUserSchema = z.object({
-  id: z.string().trim().min(1).max(200),
+const EnrollmentCandidateSchema = z.object({
   email: z.string().trim().email().max(320),
 }).passthrough();
+
+const EnrollmentUserSchema = EnrollmentCandidateSchema.extend({
+  id: z.string().trim().min(1).max(200),
+});
 
 export interface InvitationEnrollmentRepository {
   reserve(input: {
@@ -78,30 +81,32 @@ export function createInvitationEnrollmentGate({
 
   return {
     async beforeUserCreate(userInput: unknown, context: unknown) {
-      const user = EnrollmentUserSchema.parse(userInput);
+      const user = EnrollmentCandidateSchema.parse(userInput);
       const request = assertGoogleEnrollmentRequest(context);
       const token = readCookie(request, INVITATION_ENROLLMENT_COOKIE);
       if (!token) throw enrollmentError();
+      const email = user.email.toLowerCase();
 
       const reservation = await repository.reserve({
         tokenHash: await hashInvitationToken(token),
-        email: user.email.toLowerCase(),
+        email,
         now: now(),
       });
       if (!reservation) throw enrollmentError('The invitation is invalid or expired.');
-      reservations.set(user.id, reservation.id);
+      reservations.set(email, reservation.id);
     },
 
     async afterUserCreate(userInput: unknown, context: unknown) {
       const user = EnrollmentUserSchema.parse(userInput);
       assertGoogleEnrollmentRequest(context);
-      const invitationId = reservations.get(user.id);
+      const email = user.email.toLowerCase();
+      const invitationId = reservations.get(email);
       if (!invitationId) throw enrollmentError('The invitation reservation is missing.');
 
       try {
         await repository.attachUser({ invitationId, userId: user.id, now: now() });
       } finally {
-        reservations.delete(user.id);
+        reservations.delete(email);
       }
     },
   };
