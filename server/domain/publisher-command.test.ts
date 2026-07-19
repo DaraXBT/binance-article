@@ -70,6 +70,24 @@ describe('publisher command state machine', () => {
     }, now)).toThrow(/Binance/i);
   });
 
+  it('records an ambiguous Binance result as terminal outcome_unknown', () => {
+    const publishing = { ...base, state: 'publishing' as const, assignedDeviceId: 'device_a' };
+    const unknown = transitionPublisherCommand(publishing, {
+      type: 'publish_outcome_unknown',
+      deviceId: 'device_a',
+      revision: 3,
+      failureReason: 'Editor closed before the success URL could be verified.',
+    }, now);
+
+    expect(unknown).toMatchObject({
+      state: 'outcome_unknown',
+      failureReason: 'Editor closed before the success URL could be verified.',
+    });
+    expect(() => transitionPublisherCommand(unknown, {
+      type: 'begin_publish', deviceId: 'device_a', revision: 3,
+    }, now)).toThrow(/terminal/i);
+  });
+
   it('fails closed for expired commands and terminal-state replays', () => {
     expect(() => transitionPublisherCommand(
       { ...base, expiresAt: now },
