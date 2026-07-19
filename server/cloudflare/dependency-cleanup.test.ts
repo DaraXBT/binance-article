@@ -50,6 +50,7 @@ describe('Cloudflare dependency cleanup', () => {
     expect(packageJson.scripts.typecheck).toBe('tsc --noEmit');
     expect(packageJson.scripts).not.toHaveProperty('prisma:generate');
     expect(packageJson.scripts).not.toHaveProperty('postinstall');
+    expect(projectFile('.npmrc')).toMatch(/^legacy-peer-deps=true$/m);
   });
 
   it('removes dead Prisma runtime islands and obsolete database scripts', () => {
