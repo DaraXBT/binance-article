@@ -91,6 +91,9 @@ export function createBetterAuth({
     advanced: {
       useSecureCookies: environment.secureCookies,
       defaultCookieAttributes: policy.cookieAttributes,
+      ipAddress: {
+        ipAddressHeaders: ['cf-connecting-ip'],
+      },
     },
     user: {
       additionalFields: {
