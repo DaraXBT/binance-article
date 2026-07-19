@@ -14,8 +14,7 @@ const entropy = Uint8Array.from({ length: 32 }, (_, index) => index);
 
 function repository(overrides: Record<string, unknown> = {}) {
   return {
-    countActiveUsersAndPendingInvitations: vi.fn(async () => 3),
-    insert: vi.fn(async () => undefined),
+    insertWithinCapacity: vi.fn(async () => 'created' as const),
     findPendingByHash: vi.fn(async () => ({
       id: 'invite_1',
       email: 'invited@example.com',
@@ -40,7 +39,7 @@ describe('admin invitation service', () => {
 
     expect(result.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(result.expiresAt).toEqual(new Date(now.getTime() + INVITATION_LIFETIME_MS));
-    expect(repo.insert).toHaveBeenCalledWith({
+    expect(repo.insertWithinCapacity).toHaveBeenCalledWith({
       id: 'invite_1',
       email: 'invited@example.com',
       tokenHash: await hashInvitationToken(result.token),
@@ -48,13 +47,13 @@ describe('admin invitation service', () => {
       createdByUserId: 'owner_1',
       expiresAt: result.expiresAt,
       now,
-    });
-    expect(JSON.stringify(repo.insert.mock.calls)).not.toContain(result.token);
+    }, MAX_ACTIVE_BETA_USERS);
+    expect(JSON.stringify(repo.insertWithinCapacity.mock.calls)).not.toContain(result.token);
   });
 
   it('enforces the ten-user global beta cap before creating another invitation', async () => {
     const repo = repository({
-      countActiveUsersAndPendingInvitations: vi.fn(async () => MAX_ACTIVE_BETA_USERS),
+      insertWithinCapacity: vi.fn(async () => 'cap_reached' as const),
     });
 
     await expect(createInvitation({
@@ -65,7 +64,7 @@ describe('admin invitation service', () => {
       entropy,
       id: 'invite_1',
     })).rejects.toMatchObject({ code: 'BETA_USER_CAP_REACHED', status: 409 });
-    expect(repo.insert).not.toHaveBeenCalled();
+    expect(repo.insertWithinCapacity).toHaveBeenCalledTimes(1);
   });
 
   it('normalizes and validates invitation email addresses', async () => {
