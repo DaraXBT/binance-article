@@ -7,6 +7,7 @@ import test from 'node:test';
 import {
   createDraftState,
   isDraftBundlePathSafe,
+  markDraftAttempted,
   readDraftState,
   removeDraftState,
   validateDraftForPublish,
@@ -81,4 +82,20 @@ test('draft publishing accepts only bundle directories below the cache root', ()
   assert.equal(isDraftBundlePathSafe('/tmp/cache/bundles/bundle-abc', '/tmp/cache'), true);
   assert.equal(isDraftBundlePathSafe('/tmp/cache/bundles/../secrets', '/tmp/cache'), false);
   assert.equal(isDraftBundlePathSafe('/tmp/other/bundle', '/tmp/cache'), false);
+});
+
+test('a durable attempted marker prevents every second publish attempt', async (t) => {
+  const cacheRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'bs-attempted-state-'));
+  t.after(() => fs.rm(cacheRoot, { recursive: true, force: true }));
+  const created = await createDraftState({
+    cacheRoot, now: NOW, profileDir: '/tmp/profile', debugPort: 9222, targetId: 'target',
+    editorUrl: 'https://www.binance.com/en/square/creator-center/article/editor',
+    titleHash: 'a'.repeat(64), bodyHash: 'b'.repeat(64), assetHashes: [],
+    bundleDir: path.join(cacheRoot, 'bundles', 'bundle-1'),
+  });
+
+  await markDraftAttempted(created.id, { cacheRoot, now: NOW });
+  const attempted = await readDraftState(created.id, { cacheRoot, now: NOW });
+  assert.equal(attempted.attemptedAt, NOW.toISOString());
+  await assert.rejects(markDraftAttempted(created.id, { cacheRoot, now: NOW }), /already.*attempted/i);
 });

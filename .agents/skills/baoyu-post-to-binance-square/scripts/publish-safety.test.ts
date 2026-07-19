@@ -41,12 +41,14 @@ test('composition failures block publication', () => {
 });
 
 test('publish success requires verifiable Binance evidence', () => {
-  assert.equal(evaluatePublishEvidence({
+  const canonical = evaluatePublishEvidence({
     beforeUrl: 'https://www.binance.com/en/square/creator-center/article/editor',
     afterUrl: 'https://www.binance.com/en/square/post/123456',
     successToast: false,
     editorVisible: false,
-  }).verified, true);
+  });
+  assert.equal(canonical.verified, true);
+  assert.equal(canonical.publishedUrl, 'https://www.binance.com/en/square/post/123456');
 
   assert.equal(evaluatePublishEvidence({
     beforeUrl: 'https://www.binance.com/en/square/creator-center/article/editor',
