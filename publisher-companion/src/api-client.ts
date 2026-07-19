@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { PublicationRecipeV1Schema } from '../../server/domain/publication-recipe';
+
 const SecretSchema = z.string().regex(/^[A-Za-z0-9_-]{20,256}$/);
 const IdentifierSchema = z.string().trim().min(1).max(200);
 const CommandStateSchema = z.enum([
@@ -17,6 +19,13 @@ const CommandSchema = z.object({
 }).strict();
 
 export type PublisherCommandMetadata = z.infer<typeof CommandSchema>;
+export type PublisherAbortReason =
+  | 'ASSET_INTEGRITY_FAILED'
+  | 'EDITOR_COMPOSITION_FAILED'
+  | 'EDITOR_CLOSED'
+  | 'RECIPE_INVALID'
+  | 'DEVICE_SHUTDOWN'
+  | 'USER_CANCELLED';
 type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
 export class PublisherApiError extends Error {
@@ -151,6 +160,66 @@ export class PublisherApiClient {
     return this.#request(
       `/api/publisher/commands/${encodeURIComponent(IdentifierSchema.parse(commandId))}/assets/${encodeURIComponent(IdentifierSchema.parse(assetId))}`,
       { headers: { 'Accept-Encoding': 'identity' } },
+    );
+  }
+
+  async getRecipe(commandId: string) {
+    const response = await this.#request(
+      `/api/publisher/commands/${encodeURIComponent(IdentifierSchema.parse(commandId))}/recipe`,
+    );
+    return z.object({ recipe: PublicationRecipeV1Schema }).strict().parse(await response.json()).recipe;
+  }
+
+  async reportEditorReady(commandId: string, revision: number): Promise<void> {
+    await this.#request(
+      `/api/publisher/commands/${encodeURIComponent(IdentifierSchema.parse(commandId))}/editor-ready`,
+      { method: 'POST', body: { revision: z.number().int().positive().parse(revision) } },
+    );
+  }
+
+  async beginPublish(commandId: string, revision: number): Promise<void> {
+    await this.#request(
+      `/api/publisher/commands/${encodeURIComponent(IdentifierSchema.parse(commandId))}/begin`,
+      { method: 'POST', body: { revision: z.number().int().positive().parse(revision) } },
+    );
+  }
+
+  async reportResult(
+    commandId: string,
+    revision: number,
+    result:
+      | { outcome: 'succeeded'; publishedUrl: string }
+      | { outcome: 'failed' | 'outcome_unknown'; failureReason: string },
+  ): Promise<void> {
+    await this.#request(
+      `/api/publisher/commands/${encodeURIComponent(IdentifierSchema.parse(commandId))}/result`,
+      {
+        method: 'POST',
+        body: {
+          revision: z.number().int().positive().parse(revision),
+          ...result,
+        },
+      },
+    );
+  }
+
+  async abortCommand(
+    commandId: string,
+    revision: number,
+    reasonCode: PublisherAbortReason,
+  ): Promise<void> {
+    await this.#request(
+      `/api/publisher/commands/${encodeURIComponent(IdentifierSchema.parse(commandId))}/abort`,
+      {
+        method: 'POST',
+        body: {
+          revision: z.number().int().positive().parse(revision),
+          reasonCode: z.enum([
+            'ASSET_INTEGRITY_FAILED', 'EDITOR_COMPOSITION_FAILED', 'EDITOR_CLOSED',
+            'RECIPE_INVALID', 'DEVICE_SHUTDOWN', 'USER_CANCELLED',
+          ]).parse(reasonCode),
+        },
+      },
     );
   }
 }

@@ -16,17 +16,18 @@ const recipe = {
 async function harness() {
   const order: string[] = [];
   const recipeHash = await hashPublicationRecipe(recipe);
-  const statuses = ['awaiting_review', 'awaiting_approval', 'approved'];
+  const statuses = ['awaiting_review', 'awaiting_approval', 'approved'] as const;
+  let statusIndex = 0;
   const api = {
     claimCommand: mock(async () => ({
-      id: 'command_1', draftId: 'draft_1', deviceId: 'device_1', state: 'claimed',
-      revision: 3, recipeHash, expiresAt: recipe.expiresAt,
+      id: 'command_1', draftId: 'draft_1', deviceId: 'device_1',
+      revision: 3, recipeHash, expiresAt: recipe.expiresAt, state: 'claimed' as const,
     })),
     getRecipe: mock(async () => recipe),
     downloadAsset: mock(async () => new Response()),
     reportEditorReady: mock(async () => { order.push('editor-ready'); }),
     getCommandStatus: mock(async () => ({
-      id: 'command_1', state: statuses.shift() ?? 'approved', revision: 3,
+      id: 'command_1', state: statuses[statusIndex++] ?? 'approved', revision: 3,
       recipeHash, expiresAt: recipe.expiresAt,
     })),
     beginPublish: mock(async () => { order.push('begin'); }),
@@ -37,7 +38,10 @@ async function harness() {
   };
   const adapter = {
     prepare: mock(async () => { order.push('prepare'); return { draftId: 'local_draft_1' }; }),
-    publish: mock(async (_draftId: string, options: { beforeClick: () => Promise<void> }) => {
+    publish: mock(async (
+      _draftId: string,
+      options: { beforeClick: () => Promise<void> },
+    ): Promise<{ verified: true; publishedUrl?: string }> => {
       order.push('revalidate');
       await options.beforeClick();
       order.push('click');
