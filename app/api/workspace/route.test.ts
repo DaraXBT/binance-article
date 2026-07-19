@@ -1,10 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const workspaceMock = {
+const mocks = vi.hoisted(() => ({
+  requireActiveUser: vi.fn(async () => ({ id: 'user_1', status: 'active' })),
+  assertAllowedOrigin: vi.fn(),
+  getRuntimeDatabase: vi.fn(() => ({ db: true })),
+  createLegacyClaimRepository: vi.fn(() => ({ repository: true })),
+  claimLegacyWorkspace: vi.fn(async () => ({
+    id: 'workspace-2', accessKeyPrefix: 'dwk_abcdef',
+  })),
+}));
+
+const workspaceMock = vi.hoisted(() => ({
   getWorkspaceBootstrap: vi.fn(),
   createWorkspaceForCurrentSession: vi.fn(),
-  recoverWorkspaceForCurrentSession: vi.fn(),
-};
+}));
 
 const rateLimitMock = {
   checkRateLimit: vi.fn(async () => ({
@@ -15,14 +24,27 @@ const rateLimitMock = {
 };
 
 vi.mock('@/server/modules/workspace/service', () => workspaceMock);
+vi.mock('@/server/auth/authorization', () => ({ requireActiveUser: mocks.requireActiveUser }));
 vi.mock('@/server/auth/origin', () => ({
-  assertAllowedOrigin: vi.fn(),
+  assertAllowedOrigin: mocks.assertAllowedOrigin,
 }));
 vi.mock('@/server/http/rate-limit', () => rateLimitMock);
+vi.mock('@/server/db/runtime', () => ({ getRuntimeDatabase: mocks.getRuntimeDatabase }));
+vi.mock('@/server/modules/workspace/legacy-claim-repository', () => ({
+  createLegacyWorkspaceClaimRepository: mocks.createLegacyClaimRepository,
+}));
+vi.mock('@/server/modules/workspace/legacy-claim-service', () => ({
+  claimLegacyWorkspace: mocks.claimLegacyWorkspace,
+}));
 
 describe('/api/workspace routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.requireActiveUser.mockResolvedValue({ id: 'user_1', status: 'active' });
+    mocks.createLegacyClaimRepository.mockReturnValue({ repository: true });
+    mocks.claimLegacyWorkspace.mockResolvedValue({
+      id: 'workspace-2', accessKeyPrefix: 'dwk_abcdef',
+    });
     rateLimitMock.checkRateLimit.mockResolvedValue({
       allowed: true,
       remaining: 4,
@@ -95,42 +117,53 @@ describe('/api/workspace routes', () => {
     });
   });
 
-  it('recovers a workspace for the current session', async () => {
-    workspaceMock.recoverWorkspaceForCurrentSession.mockResolvedValue({
-      id: 'workspace-2',
-      accessKeyPrefix: 'dwk_abcdef',
-    });
-
+  it('claims a legacy workspace only for an authenticated active account', async () => {
     const { POST } = await import('@/app/api/workspace/recover/route');
-    const response = await POST(
-      new Request('http://localhost/api/workspace/recover', {
-        method: 'POST',
-        body: JSON.stringify({ accessKey: 'dwk_abcdef123' }),
-      }) as never
-    );
+    const request = new Request('https://articles.example.com/api/workspace/recover', {
+      method: 'POST',
+      headers: { origin: 'https://articles.example.com' },
+      body: JSON.stringify({ accessKey: `dwk_${'a'.repeat(36)}` }),
+    });
+    const response = await POST(request as never);
     const body = await response.json();
 
     expect(response.status).toBe(200);
+    expect(mocks.assertAllowedOrigin).toHaveBeenCalledWith(request);
+    expect(mocks.requireActiveUser).toHaveBeenCalledWith(request);
+    expect(rateLimitMock.checkRateLimit).toHaveBeenCalledWith(
+      'legacy-workspace-claim:user_1', 5, 15 * 60 * 1_000,
+    );
+    expect(mocks.claimLegacyWorkspace).toHaveBeenCalledWith(expect.objectContaining({
+      repository: { repository: true },
+      actorUserId: 'user_1',
+      recoveryKey: `dwk_${'a'.repeat(36)}`,
+    }));
     expect(body).toEqual({
       success: true,
       workspaceId: 'workspace-2',
       accessKeyPrefix: 'dwk_abcdef',
     });
+    expect(response.headers.get('cache-control')).toBe('no-store');
   });
 
-  it('rejects an invalid access key without leaking workspace state', async () => {
-    workspaceMock.recoverWorkspaceForCurrentSession.mockResolvedValue(null);
-
+  it('rejects rate-limited attempts before reading or hashing another recovery key', async () => {
+    rateLimitMock.checkRateLimit.mockResolvedValue({
+      allowed: false,
+      remaining: 0,
+      resetAt: Date.now() + 60_000,
+    });
     const { POST } = await import('@/app/api/workspace/recover/route');
     const response = await POST(
-      new Request('http://localhost/api/workspace/recover', {
+      new Request('https://articles.example.com/api/workspace/recover', {
         method: 'POST',
-        body: JSON.stringify({ accessKey: 'invalid-key' }),
+        headers: { origin: 'https://articles.example.com' },
+        body: JSON.stringify({ accessKey: `dwk_${'b'.repeat(36)}` }),
       }) as never
     );
     const body = await response.json();
 
-    expect(response.status).toBe(400);
-    expect(body).toEqual({ error: 'Invalid access key', code: 'INVALID_ACCESS_KEY' });
+    expect(response.status).toBe(429);
+    expect(body).toMatchObject({ code: 'RATE_LIMITED' });
+    expect(mocks.claimLegacyWorkspace).not.toHaveBeenCalled();
   });
 });

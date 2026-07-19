@@ -8,6 +8,7 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 const legacySql = readFileSync(`${root}drizzle/0000_legacy_baseline.sql`, 'utf8');
 const cloudSql = readFileSync(`${root}drizzle/0001_cloud_identity_publishing.sql`, 'utf8');
 const approvalGuardsSql = readFileSync(`${root}drizzle/0003_publish_approval_guards.sql`, 'utf8');
+const legacyClaimSql = readFileSync(`${root}drizzle/0004_legacy_workspace_claim.sql`, 'utf8');
 
 describe('Neon migration history', () => {
   it('has a clean legacy baseline instead of replaying the historical Prisma repair chain', () => {
@@ -67,5 +68,19 @@ describe('Neon migration history', () => {
     expect(approvalGuardsSql).toMatch(/WHERE "state" IN \('pending', 'confirmation_required'\)/);
     expect(approvalGuardsSql).toMatch(/CHECK \("revision" > 0\)/);
     expect(approvalGuardsSql).toMatch(/CHECK \("expiresAt" > "createdAt"\)/);
+  });
+
+  it('opens one immutable 30-day claim window and permits only one workspace owner', () => {
+    expect(legacyClaimSql).toMatch(
+      /ADD COLUMN "legacyClaimExpiresAt" timestamp\(3\)/,
+    );
+    expect(legacyClaimSql).toMatch(
+      /CURRENT_TIMESTAMP \+ INTERVAL '30 days'/,
+    );
+    expect(legacyClaimSql).toMatch(/WHERE NOT EXISTS[\s\S]*"WorkspaceMember"/);
+    expect(legacyClaimSql).not.toMatch(/DEFAULT[\s\S]*INTERVAL '30 days'/);
+    expect(legacyClaimSql).toMatch(
+      /CREATE UNIQUE INDEX "WorkspaceMember_single_owner_key"[\s\S]*WHERE "role" = 'owner'/,
+    );
   });
 });

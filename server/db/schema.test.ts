@@ -58,6 +58,7 @@ describe('Drizzle schema', () => {
     ]);
 
     expect(workspace.accessKeyHash.name).toBe('accessKeyHash');
+    expect(workspace.legacyClaimExpiresAt.name).toBe('legacyClaimExpiresAt');
     expect(deckProject.generationRevision.name).toBe('generationRevision');
     expect(slide.imageStatus.name).toBe('imageStatus');
     expect(jobRun.articleRevisionId.name).toBe('articleRevisionId');
