@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  requireActiveUser: vi.fn(async () => ({ id: 'user_1', status: 'active' })),
+  requireActiveUser: vi.fn(async () => ({
+    id: 'user_1', sessionId: 'session_1', status: 'active',
+  })),
   assertAllowedOrigin: vi.fn(),
   readBoundedJson: vi.fn(async () => ({ accessKey: `dwk_${'a'.repeat(36)}` })),
   consumeAtomicRateLimit: vi.fn(async () => ({
@@ -10,13 +12,15 @@ const mocks = vi.hoisted(() => ({
     resetAt: new Date('2026-07-19T00:15:00.000Z'),
   })),
   getRuntimeDatabase: vi.fn(() => ({ db: true })),
+  resolveActorWorkspace: vi.fn(async () => null),
+  isGenerateAccessEnabled: vi.fn(() => false),
+  getCurrentGenerateAccessState: vi.fn(async () => ({
+    hasAccess: true, invalidReason: null,
+  })),
+  createAccountWorkspaceRepository: vi.fn(() => ({ accountRepository: true })),
+  createAccountWorkspace: vi.fn(async () => ({ id: 'workspace-1', created: true })),
   createLegacyClaimRepository: vi.fn(() => ({ repository: true })),
   claimLegacyWorkspace: vi.fn(async () => ({ id: 'workspace-2' })),
-}));
-
-const workspaceMock = vi.hoisted(() => ({
-  getWorkspaceBootstrap: vi.fn(),
-  createWorkspaceForCurrentSession: vi.fn(),
 }));
 
 const rateLimitMock = {
@@ -27,7 +31,6 @@ const rateLimitMock = {
   })),
 };
 
-vi.mock('@/server/modules/workspace/service', () => workspaceMock);
 vi.mock('@/server/auth/authorization', () => ({ requireActiveUser: mocks.requireActiveUser }));
 vi.mock('@/server/auth/origin', () => ({
   assertAllowedOrigin: mocks.assertAllowedOrigin,
@@ -38,6 +41,19 @@ vi.mock('@/server/http/atomic-rate-limit', () => ({
   consumeAtomicRateLimit: mocks.consumeAtomicRateLimit,
 }));
 vi.mock('@/server/db/runtime', () => ({ getRuntimeDatabase: mocks.getRuntimeDatabase }));
+vi.mock('@/lib/generate-access', () => ({
+  isGenerateAccessEnabled: mocks.isGenerateAccessEnabled,
+  getCurrentGenerateAccessState: mocks.getCurrentGenerateAccessState,
+}));
+vi.mock('@/server/modules/workspace/membership', () => ({
+  resolveActorWorkspace: mocks.resolveActorWorkspace,
+}));
+vi.mock('@/server/modules/workspace/account-repository', () => ({
+  createAccountWorkspaceRepository: mocks.createAccountWorkspaceRepository,
+}));
+vi.mock('@/server/modules/workspace/account-service', () => ({
+  createAccountWorkspace: mocks.createAccountWorkspace,
+}));
 vi.mock('@/server/modules/workspace/legacy-claim-repository', () => ({
   createLegacyWorkspaceClaimRepository: mocks.createLegacyClaimRepository,
 }));
@@ -48,7 +64,16 @@ vi.mock('@/server/modules/workspace/legacy-claim-service', () => ({
 describe('/api/workspace routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.requireActiveUser.mockResolvedValue({ id: 'user_1', status: 'active' });
+    mocks.requireActiveUser.mockResolvedValue({
+      id: 'user_1', sessionId: 'session_1', status: 'active',
+    });
+    mocks.resolveActorWorkspace.mockResolvedValue(null);
+    mocks.isGenerateAccessEnabled.mockReturnValue(false);
+    mocks.getCurrentGenerateAccessState.mockResolvedValue({
+      hasAccess: true, invalidReason: null,
+    });
+    mocks.createAccountWorkspaceRepository.mockReturnValue({ accountRepository: true });
+    mocks.createAccountWorkspace.mockResolvedValue({ id: 'workspace-1', created: true });
     mocks.readBoundedJson.mockResolvedValue({ accessKey: `dwk_${'a'.repeat(36)}` });
     mocks.consumeAtomicRateLimit.mockResolvedValue({
       allowed: true,
@@ -64,22 +89,15 @@ describe('/api/workspace routes', () => {
     });
   });
 
-  it('returns workspace status without auto-creating for a fresh session', async () => {
-    workspaceMock.getWorkspaceBootstrap.mockResolvedValue({
-      hasWorkspace: false,
-      workspaceId: null,
-      accessKeyPrefix: null,
-      recoveryKey: null,
-      generateAccessEnabled: false,
-      hasGenerationAccess: false,
-      generationAccessInvalidReason: null,
-    });
-
+  it('returns account workspace status without auto-creating for a new user', async () => {
     const { GET } = await import('@/app/api/workspace/route');
-    const response = await GET();
+    const request = new Request('https://articles.example.com/api/workspace');
+    const response = await GET(request as never);
     const body = await response.json();
 
     expect(response.status).toBe(200);
+    expect(mocks.requireActiveUser).toHaveBeenCalledWith(request);
+    expect(mocks.resolveActorWorkspace).toHaveBeenCalledWith({ db: true }, 'user_1');
     expect(body).toEqual({
       hasWorkspace: false,
       workspaceId: null,
@@ -91,42 +109,49 @@ describe('/api/workspace routes', () => {
     });
   });
 
-  it('returns a sanitized structured error when workspace bootstrap fails', async () => {
-    workspaceMock.getWorkspaceBootstrap.mockRejectedValue(new Error('Prisma failed to open SQLite database'));
+  it('binds generation access to the verified Better Auth session', async () => {
+    mocks.resolveActorWorkspace.mockResolvedValue({
+      id: 'workspace-1', accessKeyPrefix: 'acct_12345678',
+    });
+    mocks.isGenerateAccessEnabled.mockReturnValue(true);
 
     const { GET } = await import('@/app/api/workspace/route');
-    const response = await GET();
+    const response = await GET(new Request('https://articles.example.com/api/workspace') as never);
     const body = await response.json();
 
-    expect(response.status).toBe(500);
-    expect(body).toEqual({
-      error: 'Failed to fetch workspace.',
-      code: 'WORKSPACE_BOOTSTRAP_FAILED',
+    expect(response.status).toBe(200);
+    expect(mocks.getCurrentGenerateAccessState).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1', sessionId: 'session_1',
+    });
+    expect(body).toMatchObject({
+      hasWorkspace: true,
+      workspaceId: 'workspace-1',
+      accessKeyPrefix: 'acct_12345678',
+      recoveryKey: null,
+      generateAccessEnabled: true,
+      hasGenerationAccess: true,
     });
   });
 
-  it('creates a workspace explicitly for the current session', async () => {
-    workspaceMock.createWorkspaceForCurrentSession.mockResolvedValue({
-      workspace: {
-        id: 'workspace-1',
-        accessKeyPrefix: 'dwk_123456',
-      },
-      recoveryKey: 'dwk_1234567890',
-    });
-
+  it('atomically creates an owner workspace for the active account without a recovery secret', async () => {
     const { POST } = await import('@/app/api/workspace/route');
-    const response = await POST(
-      new Request('http://localhost/api/workspace', { method: 'POST' }) as never
-    );
+    const request = new Request('https://articles.example.com/api/workspace', {
+      method: 'POST', headers: { origin: 'https://articles.example.com' },
+    });
+    const response = await POST(request as never);
     const body = await response.json();
 
     expect(response.status).toBe(200);
+    expect(mocks.assertAllowedOrigin).toHaveBeenCalledWith(request);
+    expect(mocks.requireActiveUser).toHaveBeenCalledWith(request);
+    expect(mocks.createAccountWorkspace).toHaveBeenCalledWith(expect.objectContaining({
+      repository: { accountRepository: true }, actorUserId: 'user_1',
+    }));
     expect(body).toEqual({
       success: true,
       workspaceId: 'workspace-1',
-      accessKeyPrefix: 'dwk_123456',
-      recoveryKey: 'dwk_1234567890',
     });
+    expect(JSON.stringify(body)).not.toMatch(/recovery|accessKey/i);
   });
 
   it('claims a legacy workspace only for an authenticated active account', async () => {
