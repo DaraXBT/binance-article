@@ -108,10 +108,12 @@ function reachableRuntimeSourceFiles(entryFiles: string[]): string[] {
   return Array.from(visited);
 }
 
-function runtimeViolations(entryFiles: string[]): string[] {
+function runtimeViolations(entryFiles: string[], additionalForbidden: string[] = []): string[] {
   return reachableRuntimeSourceFiles(entryFiles)
     .flatMap((file) => importedModules(file, readFileSync(file, 'utf8'))
-      .filter(isForbiddenRuntimeModule)
+      .filter((moduleName) => isForbiddenRuntimeModule(moduleName) || additionalForbidden.some(
+        (forbidden) => moduleName === forbidden || moduleName.startsWith(`${forbidden}/`),
+      ))
       .map((moduleName) => `${relative(projectRoot, file)} -> ${moduleName}`))
     .sort();
 }
@@ -124,6 +126,6 @@ describe('Cloudflare web Worker runtime policy', () => {
   it('keeps the standalone article Workflow free of Node-only and superseded provider imports', () => {
     expect(runtimeViolations([
       join(projectRoot, 'workers/article-workflow/index.ts'),
-    ])).toEqual([]);
+    ], ['next'])).toEqual([]);
   });
 });
