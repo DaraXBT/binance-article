@@ -8,6 +8,12 @@
     "global_fetch_strictly_public"
   ],
   "minify": true,
+  "routes": [
+    {
+      "pattern": "binance.v27.dev",
+      "custom_domain": true
+    }
+  ],
   "assets": {
     "binding": "ASSETS",
     "directory": ".open-next/assets"

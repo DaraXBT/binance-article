@@ -14,6 +14,7 @@ describe('Cloudflare web Worker deployment configuration', () => {
       main: string;
       compatibility_date: string;
       compatibility_flags: string[];
+      routes: Array<{ pattern: string; custom_domain: boolean }>;
       assets: { binding: string; directory: string };
       secrets: { required: string[] };
     };
@@ -28,6 +29,10 @@ describe('Cloudflare web Worker deployment configuration', () => {
       binding: 'ASSETS',
       directory: '.open-next/assets',
     });
+    expect(config.routes).toEqual([{
+      pattern: 'binance.v27.dev',
+      custom_domain: true,
+    }]);
     expect(config.secrets.required).toEqual([
       'DATABASE_URL',
       'BETTER_AUTH_SECRET',
