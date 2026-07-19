@@ -134,6 +134,7 @@ describe('Cloudflare web Worker deployment configuration', () => {
     expect(packageJson.scripts['cloudflare:dry-run']).not.toMatch(/\bdeploy\b(?! --dry-run)/);
     expect(packageJson.engines.node).toBe('>=22');
     expect(packageJson.devDependencies['@opennextjs/cloudflare']).toBe('1.20.1');
+    expect(packageJson.devDependencies.esbuild).toBe('0.28.1');
     expect(packageJson.devDependencies.wrangler).toBe('4.112.0');
   });
 
