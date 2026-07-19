@@ -7,6 +7,7 @@ import packageJson from '../../package.json';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const legacySql = readFileSync(`${root}drizzle/0000_legacy_baseline.sql`, 'utf8');
 const cloudSql = readFileSync(`${root}drizzle/0001_cloud_identity_publishing.sql`, 'utf8');
+const approvalGuardsSql = readFileSync(`${root}drizzle/0003_publish_approval_guards.sql`, 'utf8');
 
 describe('Neon migration history', () => {
   it('has a clean legacy baseline instead of replaying the historical Prisma repair chain', () => {
@@ -59,5 +60,12 @@ describe('Neon migration history', () => {
     expect(packageJson.scripts.build).not.toMatch(/migrate/i);
     expect(packageJson.scripts['db:migrate:deploy']).toMatch(/drizzle-kit migrate/);
     expect(packageJson.scripts['db:baseline:legacy']).toMatch(/baseline-drizzle-legacy/);
+  });
+
+  it('allows only one open approval per command and guards its revision and expiry', () => {
+    expect(approvalGuardsSql).toMatch(/CREATE UNIQUE INDEX "PublishApproval_commandId_open_key"/);
+    expect(approvalGuardsSql).toMatch(/WHERE "state" IN \('pending', 'confirmation_required'\)/);
+    expect(approvalGuardsSql).toMatch(/CHECK \("revision" > 0\)/);
+    expect(approvalGuardsSql).toMatch(/CHECK \("expiresAt" > "createdAt"\)/);
   });
 });

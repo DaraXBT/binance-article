@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createTelegramBot, dispatchTelegramCommand } from './bot';
+import { createTelegramBot, dispatchTelegramCommand, handleTelegramCallback } from './bot';
 
 const actor = {
   id: 'user_1',
@@ -71,5 +71,33 @@ describe('metadata-only Telegram commands', () => {
       appBaseUrl: 'https://articles.example.com',
     });
     expect(bot.botInfo.username).toBe('publisher_bot');
+  });
+
+  it('uses opaque two-click callback data without exposing the recipe hash', async () => {
+    const approvalActions = {
+      requestConfirmation: vi.fn(async () => ({
+        callbackToken: 'A'.repeat(43),
+        expiresAt: new Date('2026-07-19T00:02:00Z'),
+      })),
+      confirm: vi.fn(async () => ({ commandId: '11111111-1111-4111-8111-111111111111' })),
+    };
+    const first = await handleTelegramCallback({
+      data: 'p:11111111-1111-4111-8111-111111111111', actor, approvalActions,
+    });
+    expect(approvalActions.requestConfirmation).toHaveBeenCalledWith({
+      actorUserId: 'user_1', telegramUserId: '777',
+      commandId: '11111111-1111-4111-8111-111111111111',
+    });
+    expect(first.callbackData).toBe(`c:${'A'.repeat(43)}`);
+    expect(first.callbackData.length).toBeLessThanOrEqual(64);
+    expect(JSON.stringify(first)).not.toMatch(/[a-f0-9]{64}/);
+
+    const second = await handleTelegramCallback({
+      data: first.callbackData, actor, approvalActions,
+    });
+    expect(approvalActions.confirm).toHaveBeenCalledWith({
+      actorUserId: 'user_1', telegramUserId: '777', callbackToken: 'A'.repeat(43),
+    });
+    expect(second.callbackData).toBeNull();
   });
 });
