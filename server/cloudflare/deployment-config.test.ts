@@ -81,7 +81,10 @@ describe('Cloudflare web Worker deployment configuration', () => {
       main: 'workers/article-workflow/index.ts',
     });
     expect(config.compatibility_date >= '2025-04-01').toBe(true);
-    expect(config.compatibility_flags).toContain('nodejs_compat');
+    expect(config.compatibility_flags).toEqual(expect.arrayContaining([
+      'nodejs_compat',
+      'global_fetch_strictly_public',
+    ]));
     expect(config.workflows).toEqual([{
       binding: 'ARTICLE_JOBS',
       name: 'binance-article-jobs',

@@ -1,402 +1,373 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '@/server/http/errors';
 
-vi.mock('node:dns/promises', () => ({
-  lookup: vi.fn(),
+const { lookupMock } = vi.hoisted(() => ({
+  lookupMock: vi.fn(),
 }));
 
-vi.mock('cheerio', () => ({
-  load: vi.fn((html: string) => {
-    const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-    const $ = Object.assign(() => ({ text: () => text, remove: () => {} }), {
-      root: () => ({ text: () => text }),
-    });
-    return $;
-  }),
-}));
+// This keeps the legacy Node implementation deterministic until the Worker-native
+// implementation removes DNS preflight entirely.
+vi.mock('node:dns/promises', () => ({ lookup: lookupMock }));
 
-import { lookup } from 'node:dns/promises';
+import { fetchArticleSourceText } from '@/server/integrations/url-fetch';
 
-const lookupMock = vi.mocked(lookup);
-
-function mockDnsLookup(address: string, family: 4 | 6 = 4) {
-  lookupMock.mockResolvedValue([{ address, family }] as never);
-}
-
-function htmlBody(text: string) {
-  return `<html><body><article>${text}</article></body></html>`;
-}
-
+const PUBLIC_URL = 'https://93.184.216.34/article';
 const LONG_TEXT = 'A'.repeat(200);
-const VALID_HTML = htmlBody(LONG_TEXT);
+const VALID_HTML = `<html><body><article>${LONG_TEXT}</article></body></html>`;
 
-function mockFetchOk(body = VALID_HTML, contentType = 'text/html; charset=utf-8') {
-  const encoder = new TextEncoder();
-  const encoded = encoder.encode(body);
-  const stream = new ReadableStream({
+function responseWithBody(body = VALID_HTML, contentType = 'text/html; charset=utf-8') {
+  const encoded = new TextEncoder().encode(body);
+  const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       controller.enqueue(encoded);
       controller.close();
     },
   });
 
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockResolvedValue(
-      new Response(stream, {
-        status: 200,
-        headers: {
-          'content-type': contentType,
-          'content-length': String(encoded.byteLength),
-        },
-      })
-    )
-  );
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      'content-type': contentType,
+      'content-length': String(encoded.byteLength),
+    },
+  });
 }
 
-function mockFetchRedirect(location: string | null, status = 302) {
-  const headers = new Headers();
-  if (location) headers.set('location', location);
-
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockResolvedValue(
-      new Response(null, { status, headers })
-    )
-  );
+function mockFetchOk(body = VALID_HTML, contentType = 'text/html; charset=utf-8') {
+  const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(responseWithBody(body, contentType));
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
 }
 
 async function expectAppError(fn: () => Promise<unknown>, code: string) {
+  let caught: unknown;
   try {
     await fn();
-    expect.unreachable('Expected AppError to be thrown');
   } catch (error) {
-    expect(error).toBeInstanceOf(AppError);
-    expect((error as AppError).code).toBe(code);
+    caught = error;
   }
+
+  expect(caught).toBeInstanceOf(AppError);
+  expect(caught).toMatchObject({ code });
+  return caught as AppError;
 }
 
 describe('fetchArticleSourceText', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    lookupMock.mockReset();
+    lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
-    mockDnsLookup('93.184.216.34');
+    vi.unstubAllGlobals();
   });
 
-  async function fetchArticle(url: string) {
-    const mod = await import('@/server/integrations/url-fetch');
-    return mod.fetchArticleSourceText(url);
-  }
-
-  describe('HTTPS-only validation', () => {
-    it('rejects http:// URLs', async () => {
-      await expectAppError(() => fetchArticle('http://example.com'), 'UNSUPPORTED_SOURCE_URL');
-    });
-
-    it('rejects ftp:// URLs', async () => {
-      await expectAppError(() => fetchArticle('ftp://example.com/file'), 'UNSUPPORTED_SOURCE_URL');
-    });
-
-    it('rejects data: URLs', async () => {
-      await expectAppError(() => fetchArticle('data:text/html,<h1>hi</h1>'), 'UNSUPPORTED_SOURCE_URL');
-    });
-
-    it('rejects javascript: URLs', async () => {
-      await expectAppError(() => fetchArticle('javascript:alert(1)'), 'UNSUPPORTED_SOURCE_URL');
-    });
-
-    it('rejects invalid URLs', async () => {
-      await expectAppError(() => fetchArticle('not-a-url'), 'INVALID_SOURCE_URL');
-    });
-
-    it('accepts https:// URLs', async () => {
-      mockFetchOk();
-      const result = await fetchArticle('https://example.com/article');
-      expect(result.length).toBeGreaterThan(0);
-    });
+  it.each([
+    'http://example.com',
+    'ftp://example.com/file',
+    'data:text/html,<h1>hi</h1>',
+    'javascript:alert(1)',
+  ])('rejects a non-HTTPS URL: %s', async (url) => {
+    await expectAppError(() => fetchArticleSourceText(url), 'UNSUPPORTED_SOURCE_URL');
   });
 
-  describe('embedded credentials', () => {
-    it('rejects URLs with username', async () => {
-      await expectAppError(
-        () => fetchArticle('https://user@example.com/path'),
-        'UNSUPPORTED_SOURCE_URL'
-      );
-    });
+  it('rejects invalid URLs and overlong URLs before fetch', async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', fetchMock);
 
-    it('rejects URLs with username and password', async () => {
-      await expectAppError(
-        () => fetchArticle('https://user:pass@example.com/path'),
-        'UNSUPPORTED_SOURCE_URL'
-      );
-    });
+    await expectAppError(() => fetchArticleSourceText('not-a-url'), 'INVALID_SOURCE_URL');
+    await expectAppError(
+      () => fetchArticleSourceText(`https://example.com/${'a'.repeat(4_096)}`),
+      'INVALID_SOURCE_URL'
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  describe('private IPv4 blocking', () => {
-    const blockedIpv4 = [
-      ['127.0.0.1', 'loopback'],
-      ['127.255.255.255', 'loopback high'],
-      ['10.0.0.1', '10.x private'],
-      ['10.255.255.255', '10.x private high'],
-      ['172.16.0.1', '172.16.x private'],
-      ['172.31.255.255', '172.31.x private'],
-      ['192.168.0.1', '192.168.x private'],
-      ['192.168.255.255', '192.168.x private high'],
-      ['169.254.1.1', 'link-local'],
-      ['0.0.0.0', 'unspecified'],
-      ['0.1.2.3', '0.x reserved'],
-      ['100.64.0.1', 'shared address space'],
-      ['100.127.255.255', 'shared address space high'],
-      ['192.0.0.1', '192.0.x reserved'],
-      ['198.18.0.1', 'benchmark testing'],
-      ['198.19.0.1', 'benchmark testing 2'],
-      ['224.0.0.1', 'multicast'],
-      ['255.255.255.255', 'broadcast'],
+  it.each([
+    'https://user@example.com/path',
+    'https://user:pass@example.com/path',
+  ])('rejects embedded credentials: %s', async (url) => {
+    await expectAppError(() => fetchArticleSourceText(url), 'UNSUPPORTED_SOURCE_URL');
+  });
+
+  describe('literal private and reserved addresses', () => {
+    const blockedUrls = [
+      'https://127.0.0.1/',
+      'https://10.0.0.1/',
+      'https://169.254.1.1/',
+      'https://192.168.0.1/',
+      'https://203.0.113.1/',
+      'https://2130706433/',
+      'https://0x7f000001/',
+      'https://127.1/',
+      'https://0177.0.0.1/',
+      'https://[::1]/',
+      'https://[fe90::1]/',
+      'https://[febf::1]/',
+      'https://[::ffff:7f00:1]/',
+      'https://[2001:db8::1]/',
     ];
 
-    for (const [ip, label] of blockedIpv4) {
-      it(`blocks ${ip} (${label})`, async () => {
-        mockDnsLookup(ip, 4);
-        mockFetchOk();
-        await expectAppError(() => fetchArticle('https://evil.com'), 'UNSAFE_SOURCE_URL');
+    for (const url of blockedUrls) {
+      it(`blocks ${url} without making a request`, async () => {
+        const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(responseWithBody());
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expectAppError(() => fetchArticleSourceText(url), 'UNSAFE_SOURCE_URL');
+        expect(fetchMock).not.toHaveBeenCalled();
       });
     }
-  });
 
-  describe('private IPv6 blocking', () => {
-    const blockedIpv6 = [
-      ['::1', 'loopback'],
-      ['::', 'unspecified'],
-      ['fc00::1', 'unique local fc'],
-      ['fd00::1', 'unique local fd'],
-      ['fe80::1', 'link-local'],
-      ['ff01::1', 'multicast'],
-      ['ff02::1', 'multicast link-local'],
-    ];
-
-    for (const [ip, label] of blockedIpv6) {
-      it(`blocks ${ip} (${label})`, async () => {
-        mockDnsLookup(ip, 6);
-        mockFetchOk();
-        await expectAppError(() => fetchArticle('https://evil.com'), 'UNSAFE_SOURCE_URL');
-      });
-    }
-  });
-
-  describe('DNS rebinding protection', () => {
-    it('rejects hostname that resolves to private IPv4', async () => {
-      lookupMock.mockResolvedValue([
-        { address: '192.168.1.1', family: 4 },
-      ] as never);
+    it.each([
+      'https://93.184.216.34/article',
+      'https://[2606:4700:4700::1111]/article',
+    ])('allows a public literal address: %s', async (url) => {
       mockFetchOk();
-      await expectAppError(() => fetchArticle('https://rebind.example.com'), 'UNSAFE_SOURCE_URL');
-    });
-
-    it('rejects hostname that resolves to private IPv6', async () => {
-      lookupMock.mockResolvedValue([
-        { address: '::1', family: 6 },
-      ] as never);
-      mockFetchOk();
-      await expectAppError(() => fetchArticle('https://rebind.example.com'), 'UNSAFE_SOURCE_URL');
-    });
-
-    it('rejects when any resolved address is private (mixed)', async () => {
-      lookupMock.mockResolvedValue([
-        { address: '93.184.216.34', family: 4 },
-        { address: '::1', family: 6 },
-      ] as never);
-      mockFetchOk();
-      await expectAppError(() => fetchArticle('https://mixed.example.com'), 'UNSAFE_SOURCE_URL');
-    });
-
-    it('rejects when DNS lookup returns no addresses', async () => {
-      lookupMock.mockResolvedValue([] as never);
-      mockFetchOk();
-      await expectAppError(() => fetchArticle('https://no-records.example.com'), 'SOURCE_LOOKUP_FAILED');
+      await expect(fetchArticleSourceText(url)).resolves.toHaveLength(LONG_TEXT.length);
     });
   });
 
   describe('redirect handling', () => {
-    it('rejects redirect to http://', async () => {
-      mockDnsLookup('93.184.216.34');
-      mockFetchRedirect('http://example.com/page');
-      await expectAppError(() => fetchArticle('https://example.com'), 'UNSUPPORTED_SOURCE_URL');
+    it('revalidates a private IPv6 redirect before the second fetch', async () => {
+      const fetchMock = vi.fn<typeof fetch>()
+        .mockResolvedValueOnce(new Response(null, {
+          status: 302,
+          headers: { location: 'https://[::1]/secret' },
+        }))
+        .mockResolvedValueOnce(responseWithBody());
+      vi.stubGlobal('fetch', fetchMock);
+
+      await expectAppError(() => fetchArticleSourceText(PUBLIC_URL), 'UNSAFE_SOURCE_URL');
+      expect(fetchMock).toHaveBeenCalledOnce();
     });
 
-    it('rejects redirect to private IP', async () => {
-      let callCount = 0;
-      lookupMock.mockImplementation(async () => {
-        callCount++;
-        if (callCount === 1) return [{ address: '93.184.216.34', family: 4 }] as never;
-        return [{ address: '127.0.0.1', family: 4 }] as never;
-      });
+    it('rejects a redirect with embedded credentials', async () => {
+      const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, {
+        status: 302,
+        headers: { location: 'https://user:password@example.com/private' },
+      }));
+      vi.stubGlobal('fetch', fetchMock);
 
-      vi.stubGlobal(
-        'fetch',
-        vi.fn()
-          .mockResolvedValueOnce(
-            new Response(null, {
-              status: 302,
-              headers: { location: 'https://internal.example.com/secret' },
-            })
-          )
-          .mockResolvedValueOnce(
-            new Response(VALID_HTML, {
-              status: 200,
-              headers: { 'content-type': 'text/html' },
-            })
-          )
-      );
-
-      await expectAppError(() => fetchArticle('https://example.com'), 'UNSAFE_SOURCE_URL');
+      await expectAppError(() => fetchArticleSourceText(PUBLIC_URL), 'UNSUPPORTED_SOURCE_URL');
+      expect(fetchMock).toHaveBeenCalledOnce();
     });
 
-    it('rejects redirect without location header', async () => {
-      mockFetchRedirect(null);
-      await expectAppError(() => fetchArticle('https://example.com'), 'SOURCE_REDIRECT_FAILED');
+    it('allows exactly three redirects and follows a relative target', async () => {
+      const fetchMock = vi.fn<typeof fetch>()
+        .mockResolvedValueOnce(new Response(null, { status: 301, headers: { location: '/one' } }))
+        .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: '/two' } }))
+        .mockResolvedValueOnce(new Response(null, { status: 307, headers: { location: '/three' } }))
+        .mockResolvedValueOnce(responseWithBody());
+      vi.stubGlobal('fetch', fetchMock);
+
+      await expect(fetchArticleSourceText(PUBLIC_URL)).resolves.toHaveLength(LONG_TEXT.length);
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+      expect(String(fetchMock.mock.calls[3][0])).toBe('https://93.184.216.34/three');
     });
 
-    it('rejects after too many redirects', async () => {
-      mockDnsLookup('93.184.216.34');
-      vi.stubGlobal(
-        'fetch',
-        vi.fn().mockImplementation(async () =>
-          new Response(null, {
-            status: 302,
-            headers: { location: 'https://example.com/next' },
-          })
-        )
-      );
-      await expectAppError(() => fetchArticle('https://example.com'), 'TOO_MANY_REDIRECTS');
+    it('rejects a fourth redirect and does not fetch its target', async () => {
+      const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, {
+        status: 308,
+        headers: { location: '/again' },
+      }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await expectAppError(() => fetchArticleSourceText(PUBLIC_URL), 'TOO_MANY_REDIRECTS');
+      expect(fetchMock).toHaveBeenCalledTimes(4);
     });
 
-    it('follows valid HTTPS redirect to public IP', async () => {
-      mockDnsLookup('93.184.216.34');
-      vi.stubGlobal(
-        'fetch',
-        vi.fn()
-          .mockResolvedValueOnce(
-            new Response(null, {
-              status: 301,
-              headers: { location: 'https://example.com/final' },
-            })
-          )
-          .mockResolvedValueOnce(
-            new Response(VALID_HTML, {
-              status: 200,
-              headers: { 'content-type': 'text/html' },
-            })
-          )
-      );
+    it('cancels an unused redirect body before following the target', async () => {
+      const cancel = vi.fn();
+      const redirectBody = new ReadableStream<Uint8Array>({ cancel });
+      const fetchMock = vi.fn<typeof fetch>()
+        .mockResolvedValueOnce(new Response(redirectBody, {
+          status: 302,
+          headers: { location: '/final' },
+        }))
+        .mockResolvedValueOnce(responseWithBody());
+      vi.stubGlobal('fetch', fetchMock);
 
-      const result = await fetchArticle('https://example.com');
-      expect(result.length).toBeGreaterThan(0);
+      await fetchArticleSourceText(PUBLIC_URL);
+      expect(cancel).toHaveBeenCalledOnce();
     });
   });
 
-  describe('content-type validation', () => {
-    it('rejects application/json', async () => {
-      mockFetchOk('{}', 'application/json');
-      await expectAppError(() => fetchArticle('https://example.com'), 'UNSUPPORTED_SOURCE_CONTENT');
+  it('uses a credential-free manual fetch request and strips the fragment', async () => {
+    const fetchMock = mockFetchOk();
+
+    await fetchArticleSourceText(`${PUBLIC_URL}#private-fragment`);
+
+    const [url, request] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe(PUBLIC_URL);
+    expect(request).toMatchObject({
+      redirect: 'manual',
+      credentials: 'omit',
+    });
+    const headers = new Headers(request?.headers);
+    expect(headers.has('authorization')).toBe(false);
+    expect(headers.has('cookie')).toBe(false);
+    expect(request?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  describe('content type validation', () => {
+    it.each([
+      'application/json',
+      'application/pdf',
+      'image/png',
+      'application/not-text/html',
+      'text/htmlx',
+      '',
+    ])('rejects unsupported or missing media type: %s', async (contentType) => {
+      mockFetchOk(VALID_HTML, contentType);
+      await expectAppError(
+        () => fetchArticleSourceText(PUBLIC_URL),
+        'UNSUPPORTED_SOURCE_CONTENT'
+      );
     });
 
-    it('rejects application/pdf', async () => {
-      mockFetchOk('%PDF-1.4', 'application/pdf');
-      await expectAppError(() => fetchArticle('https://example.com'), 'UNSUPPORTED_SOURCE_CONTENT');
+    it.each([
+      'text/html; charset=utf-8',
+      'TEXT/HTML; CHARSET=UTF-8',
+      'application/xhtml+xml',
+    ])('accepts HTML media type: %s', async (contentType) => {
+      mockFetchOk(VALID_HTML, contentType);
+      await expect(fetchArticleSourceText(PUBLIC_URL)).resolves.toHaveLength(LONG_TEXT.length);
     });
 
-    it('rejects image/png', async () => {
-      mockFetchOk('binary', 'image/png');
-      await expectAppError(() => fetchArticle('https://example.com'), 'UNSUPPORTED_SOURCE_CONTENT');
-    });
-
-    it('accepts text/html', async () => {
-      mockFetchOk(VALID_HTML, 'text/html; charset=utf-8');
-      const result = await fetchArticle('https://example.com');
-      expect(result.length).toBeGreaterThan(0);
-    });
-
-    it('accepts text/plain', async () => {
-      mockFetchOk(LONG_TEXT, 'text/plain');
-      const result = await fetchArticle('https://example.com');
-      expect(result.length).toBeGreaterThan(0);
+    it('accepts and normalizes plain text', async () => {
+      mockFetchOk(`  ${'word \n\t'.repeat(30)}  `, 'text/plain; charset=utf-8');
+      const result = await fetchArticleSourceText(PUBLIC_URL);
+      expect(result).not.toMatch(/\s{2,}/);
+      expect(result.length).toBeGreaterThanOrEqual(100);
     });
   });
 
-  describe('response size limit', () => {
-    it('rejects when content-length exceeds limit', async () => {
-      mockDnsLookup('93.184.216.34');
-      vi.stubGlobal(
-        'fetch',
-        vi.fn().mockResolvedValue(
-          new Response('small body', {
-            status: 200,
-            headers: {
-              'content-type': 'text/html',
-              'content-length': String(3 * 1024 * 1024),
-            },
-          })
-        )
-      );
-      await expectAppError(() => fetchArticle('https://example.com'), 'SOURCE_TOO_LARGE');
+  describe('bounded HTML extraction', () => {
+    it('prefers article content and excludes active, chrome, and embedded elements', async () => {
+      const core = `Chosen & safe # article ${'A'.repeat(120)} tail`;
+      mockFetchOk(`<!doctype html>
+        <html><body data-secret="ATTRIBUTE_SECRET">
+          body marker
+          <main>main marker
+            <article>
+              Chosen &amp; safe &#35; article
+              <script>SCRIPT_SECRET</script><style>STYLE_SECRET</style>
+              <nav>NAV_SECRET</nav><form>FORM_SECRET</form>
+              <template>TEMPLATE_SECRET</template><iframe>IFRAME_SECRET</iframe>
+              <object>OBJECT_SECRET</object><!-- COMMENT_SECRET -->
+              <span>${'A'.repeat(120)}</span><strong>tail</strong>
+            </article>
+          </main>
+        </body></html>`);
+
+      const result = await fetchArticleSourceText(PUBLIC_URL);
+
+      expect(result).toBe(core);
+      expect(result).not.toMatch(/SECRET|body marker|main marker/);
     });
 
-    it('rejects when streamed body exceeds limit', async () => {
-      mockDnsLookup('93.184.216.34');
+    it('preserves word boundaries between tags', async () => {
+      mockFetchOk(`<article>${'A'.repeat(100)}<span>first</span><span>second</span></article>`);
+      await expect(fetchArticleSourceText(PUBLIC_URL)).resolves.toMatch(/first second/);
+    });
 
-      const chunkSize = 512 * 1024;
-      const totalChunks = 6; // 3MB total, exceeds 2MB limit
-      let chunksSent = 0;
-      const stream = new ReadableStream({
-        pull(controller) {
-          if (chunksSent < totalChunks) {
-            controller.enqueue(new Uint8Array(chunkSize));
-            chunksSent++;
-          } else {
-            controller.close();
-          }
+    it('caps extracted text even when the response is below the byte limit', async () => {
+      mockFetchOk(`<article>${'A'.repeat(300_000)}</article>`);
+      const result = await fetchArticleSourceText(PUBLIC_URL);
+      expect(result.length).toBeLessThanOrEqual(256 * 1024);
+    });
+  });
+
+  describe('response bounds and timeouts', () => {
+    it('rejects a declared response larger than two MiB', async () => {
+      vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(new Response('small', {
+        status: 200,
+        headers: {
+          'content-type': 'text/html',
+          'content-length': String(2 * 1024 * 1024 + 1),
         },
+      })));
+
+      await expectAppError(() => fetchArticleSourceText(PUBLIC_URL), 'SOURCE_TOO_LARGE');
+    });
+
+    it('cancels a streamed response as soon as it exceeds two MiB', async () => {
+      const cancel = vi.fn();
+      let chunks = 0;
+      const stream = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          chunks += 1;
+          controller.enqueue(new Uint8Array(1024 * 1024 + 1));
+        },
+        cancel,
       });
+      vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(new Response(stream, {
+        status: 200,
+        headers: { 'content-type': 'text/html' },
+      })));
 
-      vi.stubGlobal(
-        'fetch',
-        vi.fn().mockResolvedValue(
-          new Response(stream, {
-            status: 200,
-            headers: { 'content-type': 'text/html' },
-          })
-        )
+      await expectAppError(() => fetchArticleSourceText(PUBLIC_URL), 'SOURCE_TOO_LARGE');
+      expect(chunks).toBeGreaterThanOrEqual(2);
+      expect(cancel).toHaveBeenCalledOnce();
+    });
+
+    it('aborts a request that does not return headers within ten seconds', async () => {
+      vi.useFakeTimers();
+      vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation((_url, request) => (
+        new Promise<Response>((_resolve, reject) => {
+          request?.signal?.addEventListener('abort', () => {
+            reject(new DOMException('secret details', 'AbortError'));
+          }, { once: true });
+        })
+      )));
+
+      const pending = expectAppError(
+        () => fetchArticleSourceText(PUBLIC_URL),
+        'SOURCE_FETCH_FAILED'
       );
-
-      await expectAppError(() => fetchArticle('https://example.com'), 'SOURCE_TOO_LARGE');
+      await vi.advanceTimersByTimeAsync(10_000);
+      const error = await pending;
+      expect(error.message).not.toContain('secret details');
     });
   });
 
-  describe('HTTP error responses', () => {
-    it('rejects on 404', async () => {
-      mockDnsLookup('93.184.216.34');
-      vi.stubGlobal(
-        'fetch',
-        vi.fn().mockResolvedValue(new Response('Not Found', { status: 404 }))
-      );
-      await expectAppError(() => fetchArticle('https://example.com'), 'SOURCE_FETCH_FAILED');
-    });
-
-    it('rejects on 500', async () => {
-      mockDnsLookup('93.184.216.34');
-      vi.stubGlobal(
-        'fetch',
-        vi.fn().mockResolvedValue(new Response('Error', { status: 500 }))
-      );
-      await expectAppError(() => fetchArticle('https://example.com'), 'SOURCE_FETCH_FAILED');
-    });
+  it.each([404, 500])('maps HTTP %s to a sanitized fetch error', async (status) => {
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(
+      new Response('private provider response', { status })
+    ));
+    const error = await expectAppError(
+      () => fetchArticleSourceText(PUBLIC_URL),
+      'SOURCE_FETCH_FAILED'
+    );
+    expect(error.message).not.toContain('private provider response');
   });
 
-  describe('content length validation', () => {
-    it('rejects content shorter than 100 characters', async () => {
-      mockFetchOk(htmlBody('short'), 'text/html');
-      await expectAppError(() => fetchArticle('https://example.com'), 'SOURCE_CONTENT_TOO_SHORT');
-    });
+  it('rejects extracted content shorter than 100 characters', async () => {
+    mockFetchOk('<html><body><article>short</article></body></html>');
+    await expectAppError(
+      () => fetchArticleSourceText(PUBLIC_URL),
+      'SOURCE_CONTENT_TOO_SHORT'
+    );
+  });
+
+  it('never logs URL paths, query credentials, or fragments', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(new Response(null, {
+      status: 302,
+      headers: { location: '/again' },
+    })));
+
+    await expectAppError(
+      () => fetchArticleSourceText('https://93.184.216.34/private?token=DO_NOT_LOG#secret'),
+      'TOO_MANY_REDIRECTS'
+    );
+
+    const serializedLogs = warning.mock.calls.flat().join(' ');
+    expect(serializedLogs).not.toContain('DO_NOT_LOG');
+    expect(serializedLogs).not.toContain('/private');
+    expect(serializedLogs).not.toContain('#secret');
   });
 });
