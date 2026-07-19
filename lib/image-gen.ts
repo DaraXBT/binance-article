@@ -1,5 +1,4 @@
 import { GoogleGenAI, Modality, type GenerateContentResponse } from '@google/genai';
-import { put } from '@vercel/blob';
 
 import { getServerEnv } from '@/lib/server-env';
 
@@ -31,7 +30,6 @@ const STYLE_DESCRIPTIONS: Record<string, string> = {
 
 export interface ImagePipelineConfig {
   apiKey: string;
-  blobToken: string;
   model: string;
 }
 
@@ -72,16 +70,6 @@ function getImageApiKey(): string {
   return apiKey;
 }
 
-export function getBlobToken(): string {
-  const blobToken = getServerEnv('BLOB_READ_WRITE_TOKEN');
-  if (!blobToken) {
-    throw new Error(
-      'BLOB_READ_WRITE_TOKEN is not set. Add it to .env.local or .env.vercel.local for local development.'
-    );
-  }
-  return blobToken;
-}
-
 export function getImageModel(): string {
   const configuredModel = getServerEnv('GEMINI_IMAGE_MODEL')?.trim();
   return configuredModel || DEFAULT_IMAGE_MODEL;
@@ -94,7 +82,6 @@ export function getImageClient(): GoogleGenAI {
 export function assertImagePipelineReady(): ImagePipelineConfig {
   const config = {
     apiKey: getImageApiKey(),
-    blobToken: getBlobToken(),
     model: getImageModel(),
   };
 
@@ -327,61 +314,6 @@ export async function generateImage(prompt: string): Promise<ImageGenerationResu
   });
 
   return parseImageGenerationResponse(response);
-}
-
-function assertBrowserSafeBlobUrl(url: string): string {
-  let parsed: URL;
-
-  try {
-    parsed = new URL(url);
-  } catch {
-    throw new Error(`Blob upload returned an invalid URL: ${url}`);
-  }
-
-  const isHttps = parsed.protocol === 'https:';
-  const isVercelBlobHost = parsed.hostname.endsWith('blob.vercel-storage.com');
-
-  if (!isHttps || !isVercelBlobHost) {
-    throw new Error(`Blob upload returned a non-public URL: ${url}`);
-  }
-
-  return url;
-}
-
-/**
- * Upload an image buffer to Vercel Blob storage.
- * Returns a stored blob reference.
- * Public uploads return a browser-safe URL.
- * Private-store fallback returns a server-only blob reference that must be
- * proxied through an authorized app route before browser use.
- */
-export async function uploadToBlob(
-  imageBuffer: Buffer,
-  filename: string,
-  contentType: string = 'image/png'
-): Promise<string> {
-  const token = getBlobToken();
-  try {
-    const { url } = await put(filename, imageBuffer, {
-      access: 'public',
-      contentType,
-      allowOverwrite: true,
-      token,
-    });
-    return assertBrowserSafeBlobUrl(url);
-  } catch (err: any) {
-    if (err?.message?.includes('Cannot use public access on a private store')) {
-      console.warn('[Blob] Public access failed on private store, falling back to private access');
-      const { url } = await put(filename, imageBuffer, {
-        access: 'private',
-        contentType,
-        allowOverwrite: true,
-        token,
-      });
-      return url;
-    }
-    throw err;
-  }
 }
 
 /**

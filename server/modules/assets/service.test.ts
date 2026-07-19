@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { loadArticleAsset, storeArticleAsset } from './service';
+import {
+  loadArticleAsset,
+  storeArticleAsset,
+  type ArticleAssetMetadata,
+} from './service';
 
 function bucket() {
   return {
@@ -78,7 +82,7 @@ describe('private R2 article asset service', () => {
     const storage = bucket();
     const repository = {
       replaceSlideAsset: vi.fn(),
-      authorizeAsset: vi.fn(async () => null),
+      authorizeAsset: vi.fn(async (): Promise<ArticleAssetMetadata | null> => null),
     };
     const input = {
       repository, bucket: storage, workspaceId: 'workspace_1', articleId: 'article_1',

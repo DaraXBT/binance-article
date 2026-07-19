@@ -1,14 +1,14 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 
-import type { PrivateAssetBucket } from '@/server/modules/publisher/assets/service';
+import type { ArticleAssetBucket } from '@/server/modules/assets/service';
 
 declare global {
   interface CloudflareEnv {
-    ARTICLE_ASSETS?: PrivateAssetBucket;
+    ARTICLE_ASSETS?: ArticleAssetBucket;
   }
 }
 
-export function getArticleAssetsBucket(): PrivateAssetBucket {
+export function getArticleAssetsBucket(): ArticleAssetBucket {
   const bucket = getCloudflareContext().env.ARTICLE_ASSETS;
   if (!bucket) {
     throw new Error('ARTICLE_ASSETS R2 binding is required.');

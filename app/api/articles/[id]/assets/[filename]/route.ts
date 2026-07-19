@@ -1,15 +1,17 @@
-import { get } from '@vercel/blob';
 import { NextRequest, NextResponse } from 'next/server';
 
 import {
   extractArticleAssetFilename,
-  inferBlobAccess,
+  parseArticleAssetReference,
 } from '@/lib/article-assets';
 import { getDeckWithAssets } from '@/lib/db';
-import { getBlobToken } from '@/lib/image-gen';
 import { authorizeArticleRequest } from '@/server/auth/article-authorization';
+import { getArticleAssetsBucket } from '@/server/cloudflare/article-assets';
+import { getRuntimeDatabase } from '@/server/db/runtime';
 import { errorResponse } from '@/server/http/errors';
 import { logEvent } from '@/server/http/log';
+import { createArticleAssetRepository } from '@/server/modules/assets/repository';
+import { loadArticleAsset } from '@/server/modules/assets/service';
 
 function buildContentDisposition(filename: string, download: boolean) {
   const safeFilename = filename
@@ -55,22 +57,22 @@ export async function GET(
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
     }
 
-    const blob = await get(slide.imageUrl, {
-      access: inferBlobAccess(slide.imageUrl),
-      token: getBlobToken(),
+    const reference = parseArticleAssetReference(slide.imageUrl);
+    const asset = await loadArticleAsset({
+      repository: createArticleAssetRepository(getRuntimeDatabase()),
+      bucket: getArticleAssetsBucket(),
+      workspaceId,
+      articleId: deckId,
+      assetId: reference.assetId,
     });
-
-    if (!blob || blob.statusCode !== 200 || !blob.stream) {
-      return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
-    }
 
     const download = new URL(request.url).searchParams.get('download') === '1';
 
     logEvent('info', 'asset.served', { deckId, filename });
 
-    return new NextResponse(blob.stream, {
+    return new NextResponse(asset.body, {
       headers: {
-        'Content-Type': blob.blob.contentType || 'application/octet-stream',
+        'Content-Type': asset.mimeType,
         'Content-Disposition': buildContentDisposition(filename, download),
         'Cache-Control': 'private, no-store, max-age=0',
         Vary: 'Cookie',

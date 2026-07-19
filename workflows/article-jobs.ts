@@ -8,7 +8,6 @@ import {
   generateImage,
   getStyleDescription,
   normalizeImageGenerationError,
-  uploadToBlob,
 } from '@/lib/image-gen';
 import {
   listSlidesForImageGeneration,
@@ -19,8 +18,12 @@ import {
   replaceGeneratedContent,
 } from '@/lib/db';
 import { fetchArticleSourceText } from '@/server/integrations/url-fetch';
+import { getArticleAssetsBucket } from '@/server/cloudflare/article-assets';
+import { getRuntimeDatabase } from '@/server/db/runtime';
 import { AppError } from '@/server/http/errors';
 import { logEvent } from '@/server/http/log';
+import { createArticleAssetRepository } from '@/server/modules/assets/repository';
+import { storeArticleAsset } from '@/server/modules/assets/service';
 import { getJobRunById, appendJobLog, completeJobRun, failJobRun, markJobProgress, markJobRunning } from '@/server/modules/jobs/service';
 import { type DeckGenerateRequest } from '@/lib/schemas';
 
@@ -223,12 +226,18 @@ async function generateImagesForDeck(input: {
           const fullPrompt = buildImagePrompt(styleDescription, slide.imagePrompt);
           const imageResult = await generateImage(fullPrompt);
           const extension = imageResult.mimeType === 'image/jpeg' ? 'jpg' : 'png';
-          const filename = `decks/${input.deckId}/slide-${String(slide.order + 1).padStart(2, '0')}.${extension}`;
-          const imageUrl = await uploadToBlob(
-            imageResult.buffer,
+          const filename = `slide-${String(slide.order + 1).padStart(2, '0')}.${extension}`;
+          const storedAsset = await storeArticleAsset({
+            repository: createArticleAssetRepository(getRuntimeDatabase()),
+            bucket: getArticleAssetsBucket(),
+            workspaceId: input.workspaceId,
+            articleId: input.deckId,
+            slideId: slide.id,
             filename,
-            imageResult.mimeType
-          );
+            mimeType: imageResult.mimeType,
+            bytes: imageResult.buffer,
+          });
+          const imageUrl = storedAsset.reference;
 
           await markSlideImageGenerated(
             input.workspaceId,

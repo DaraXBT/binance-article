@@ -1,43 +1,68 @@
-export type ArticleBlobAccess = 'public' | 'private';
+export const ARTICLE_ASSET_REFERENCE_SCHEME = 'r2:';
+export const ARTICLE_ASSET_REFERENCE_HOST = 'article-assets';
 
-const VERCEL_BLOB_HOST_SUFFIX = '.blob.vercel-storage.com';
+const IdentifierPattern = /^[A-Za-z0-9][A-Za-z0-9_-]{0,199}$/;
+
+function assertIdentifier(value: string): string {
+  if (!IdentifierPattern.test(value)) throw new Error('Invalid private article asset reference.');
+  return value;
+}
+
+function assertFilename(value: string): string {
+  if (
+    value.length < 1 || value.length > 200 || value !== value.trim() ||
+    value === '.' || value === '..' || /[\\/\u0000-\u001f\u007f]/.test(value)
+  ) {
+    throw new Error('Invalid private article asset filename.');
+  }
+  return value;
+}
+
+export function createArticleAssetReference(assetId: string, filename: string): string {
+  return `r2://${ARTICLE_ASSET_REFERENCE_HOST}/${assertIdentifier(assetId)}/${encodeURIComponent(
+    assertFilename(filename),
+  )}`;
+}
+
+export function parseArticleAssetReference(reference: string): {
+  assetId: string;
+  filename: string;
+} {
+  let parsed: URL;
+  try {
+    parsed = new URL(reference);
+  } catch {
+    throw new Error('Invalid private article asset reference.');
+  }
+  const segments = parsed.pathname.split('/').filter(Boolean);
+  if (
+    parsed.protocol !== ARTICLE_ASSET_REFERENCE_SCHEME ||
+    parsed.hostname !== ARTICLE_ASSET_REFERENCE_HOST ||
+    parsed.username || parsed.password || parsed.port || parsed.search || parsed.hash ||
+    segments.length !== 2
+  ) {
+    throw new Error('Invalid private article asset reference.');
+  }
+  try {
+    return {
+      assetId: assertIdentifier(decodeURIComponent(segments[0])),
+      filename: assertFilename(decodeURIComponent(segments[1])),
+    };
+  } catch {
+    throw new Error('Invalid private article asset reference.');
+  }
+}
 
 export function extractArticleAssetFilename(storedImageUrl: string): string {
-  const parsed = new URL(storedImageUrl);
-  const encodedFilename = parsed.pathname.split('/').filter(Boolean).at(-1);
-
-  if (!encodedFilename) {
-    throw new Error('Stored image URL does not include a filename');
-  }
-
-  return decodeURIComponent(encodedFilename);
+  return parseArticleAssetReference(storedImageUrl).filename;
 }
 
 export function buildArticleSlideAssetUrl(
   articleId: string,
   storedImageUrl: string,
-  options?: { download?: boolean }
+  options?: { download?: boolean },
 ): string {
   const filename = extractArticleAssetFilename(storedImageUrl);
   const url = `/api/articles/${encodeURIComponent(articleId)}/assets/${encodeURIComponent(filename)}`;
-
-  if (options?.download) {
-    return `${url}?download=1`;
-  }
-
-  return url;
-}
-
-export function inferBlobAccess(storedImageUrl: string): ArticleBlobAccess {
-  const parsed = new URL(storedImageUrl);
-
-  if (!parsed.hostname.endsWith(VERCEL_BLOB_HOST_SUFFIX)) {
-    throw new Error('Stored image URL is not a Vercel Blob URL');
-  }
-
-  if (parsed.hostname.includes('.private.blob.vercel-storage.com')) {
-    return 'private';
-  }
-
-  return 'public';
+  return options?.download ? `${url}?download=1` : url;
 }
