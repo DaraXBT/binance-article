@@ -1,18 +1,11 @@
-import { and, eq, gt } from 'drizzle-orm';
-
 import type { AppDatabase } from '@/server/db/client';
-import { publisherDevice } from '@/server/db/schema';
 
 import type { PublisherDeviceRepository, PublisherDeviceRecord } from './service';
 
-const deviceSelection = {
-  id: publisherDevice.id,
-  userId: publisherDevice.userId,
-  workspaceId: publisherDevice.workspaceId,
-  name: publisherDevice.name,
-  status: publisherDevice.status,
-  protocolVersion: publisherDevice.protocolVersion,
-};
+function readDevice(row: Record<string, unknown> | undefined): PublisherDeviceRecord | null {
+  if (!row || typeof row.id !== 'string' || typeof row.protocolVersion !== 'number') return null;
+  return row as unknown as PublisherDeviceRecord;
+}
 
 export function createPublisherDeviceRepository(
   database: AppDatabase,
@@ -29,44 +22,72 @@ export function createPublisherDeviceRepository(
           ${input.tokenHash}, ${input.tokenPrefix}, 'pending'::"PublisherDeviceStatus", 1,
           ${input.now}, ${input.now}
         WHERE EXISTS (
-          SELECT 1 FROM "WorkspaceMember"
-          WHERE "workspaceId" = ${input.workspaceId} AND "userId" = ${input.userId}
+          SELECT 1 FROM "user" AS actor
+          WHERE actor."id" = ${input.userId}
+            AND actor."status" = 'active'::"UserStatus"
         )
+          AND EXISTS (
+            SELECT 1 FROM "WorkspaceMember" AS member
+            WHERE member."userId" = ${input.userId}
+              AND member."workspaceId" = ${input.workspaceId}
+          )
         RETURNING "id"
       `;
-      return rows[0] ? { id: String(rows[0].id) } : null;
+      const row = (rows as Array<Record<string, unknown>>)[0];
+      return typeof row?.id === 'string' ? { id: row.id } : null;
     },
 
     async activatePending(input) {
-      const rows = await database
-        .update(publisherDevice)
-        .set({
-          tokenHash: input.deviceTokenHash,
-          tokenPrefix: input.deviceTokenPrefix,
-          status: 'active',
-          pairedAt: input.now,
-          lastSeenAt: input.now,
-          updatedAt: input.now,
-        })
-        .where(and(
-          eq(publisherDevice.tokenHash, input.pairingHash),
-          eq(publisherDevice.status, 'pending'),
-          gt(publisherDevice.createdAt, input.notBefore),
-        ))
-        .returning(deviceSelection);
-      return (rows[0] as PublisherDeviceRecord | undefined) ?? null;
+      const rows = await database.$client`
+        UPDATE "PublisherDevice" AS device
+        SET "tokenHash" = ${input.deviceTokenHash},
+            "tokenPrefix" = ${input.deviceTokenPrefix},
+            "status" = 'active'::"PublisherDeviceStatus",
+            "pairedAt" = ${input.now},
+            "lastSeenAt" = ${input.now},
+            "updatedAt" = ${input.now}
+        WHERE device."tokenHash" = ${input.pairingHash}
+          AND device."status" = 'pending'::"PublisherDeviceStatus"
+          AND device."createdAt" > ${input.notBefore}
+          AND EXISTS (
+            SELECT 1 FROM "user" AS actor
+            WHERE actor."id" = device."userId"
+              AND actor."status" = 'active'::"UserStatus"
+          )
+          AND EXISTS (
+            SELECT 1 FROM "WorkspaceMember" AS member
+            WHERE member."userId" = device."userId"
+              AND member."workspaceId" = device."workspaceId"
+          )
+        RETURNING
+          device."id", device."userId", device."workspaceId", device."name",
+          device."status", device."protocolVersion"
+      `;
+      return readDevice((rows as Array<Record<string, unknown>>)[0]);
     },
 
     async authenticate({ tokenHash, now }) {
-      const rows = await database
-        .update(publisherDevice)
-        .set({ lastSeenAt: now, updatedAt: now })
-        .where(and(
-          eq(publisherDevice.tokenHash, tokenHash),
-          eq(publisherDevice.status, 'active'),
-        ))
-        .returning(deviceSelection);
-      return (rows[0] as PublisherDeviceRecord | undefined) ?? null;
+      const rows = await database.$client`
+        UPDATE "PublisherDevice" AS device
+        SET "lastSeenAt" = ${now},
+            "updatedAt" = ${now}
+        WHERE device."tokenHash" = ${tokenHash}
+          AND device."status" = 'active'::"PublisherDeviceStatus"
+          AND EXISTS (
+            SELECT 1 FROM "user" AS actor
+            WHERE actor."id" = device."userId"
+              AND actor."status" = 'active'::"UserStatus"
+          )
+          AND EXISTS (
+            SELECT 1 FROM "WorkspaceMember" AS member
+            WHERE member."userId" = device."userId"
+              AND member."workspaceId" = device."workspaceId"
+          )
+        RETURNING
+          device."id", device."userId", device."workspaceId", device."name",
+          device."status", device."protocolVersion"
+      `;
+      return readDevice((rows as Array<Record<string, unknown>>)[0]);
     },
   };
 }
