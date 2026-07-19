@@ -23,7 +23,9 @@
     "cloudflare:build": "node scripts/check-cloudflare-build-env.mjs && opennextjs-cloudflare build",
     "cloudflare:bundle-check": "node scripts/check-worker-bundle-size.mjs .wrangler/dry-run",
     "cloudflare:preview": "npm run cloudflare:build && wrangler dev",
-    "cloudflare:dry-run": "npm run cloudflare:build && wrangler deploy --dry-run --outdir .wrangler/dry-run && node scripts/check-worker-bundle-size.mjs .wrangler/dry-run"
+    "cloudflare:dry-run": "npm run cloudflare:build && wrangler deploy --dry-run --outdir .wrangler/dry-run && node scripts/check-worker-bundle-size.mjs .wrangler/dry-run",
+    "telegram:dev": "wrangler dev --config wrangler.telegram.jsonc",
+    "telegram:dry-run": "wrangler deploy --config wrangler.telegram.jsonc --dry-run --outdir .wrangler/telegram-dry-run && node scripts/check-worker-bundle-size.mjs .wrangler/telegram-dry-run"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.6.23",
@@ -70,6 +72,7 @@
     "date-fns": "^4.1.0",
     "drizzle-orm": "^0.45.2",
     "embla-carousel-react": "^8.6.0",
+    "grammy": "1.45.1",
     "input-otp": "^1.4.2",
     "jose": "^6.1.3",
     "jszip": "^3.10.1",
