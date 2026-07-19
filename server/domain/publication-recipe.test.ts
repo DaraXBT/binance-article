@@ -30,14 +30,12 @@ function validRecipe() {
     assets: [
       {
         id: 'asset_cover',
-        role: 'cover' as const,
         mimeType: 'image/png' as const,
         sizeBytes: 1024,
         sha256: 'a'.repeat(64),
       },
       {
         id: 'asset_body',
-        role: 'body' as const,
         mimeType: 'image/webp' as const,
         sizeBytes: 2048,
         sha256: 'b'.repeat(64),
@@ -72,7 +70,6 @@ describe('PublicationRecipeV1', () => {
         sha256: asset.sha256,
         sizeBytes: asset.sizeBytes,
         mimeType: asset.mimeType,
-        role: asset.role,
         id: asset.id,
       })),
       orderedAssetIds: recipe.orderedAssetIds,
@@ -95,6 +92,20 @@ describe('PublicationRecipeV1', () => {
     expect(await hashPublicationRecipe({ ...recipe, revision: 5 })).not.toBe(await hashPublicationRecipe(recipe));
     expect(await hashPublicationRecipe({ ...recipe, markdown: `${recipe.markdown}\nchanged` }))
       .not.toBe(await hashPublicationRecipe(recipe));
+  });
+
+  it('allows the cover source to remain in the ordered article body', () => {
+    const recipe = validRecipe();
+    const sharedAsset = recipe.assets[1];
+    expect(PublicationRecipeV1Schema.parse({
+      ...recipe,
+      cover: { ...recipe.cover, assetId: sharedAsset.id },
+      assets: [sharedAsset],
+      orderedAssetIds: [sharedAsset.id],
+    })).toMatchObject({
+      cover: { assetId: 'asset_body' },
+      orderedAssetIds: ['asset_body'],
+    });
   });
 
   it('rejects expired or stale recipes', () => {
