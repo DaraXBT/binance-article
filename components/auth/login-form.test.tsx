@@ -20,17 +20,19 @@ describe('LoginForm', () => {
   });
 
   it('signs returning users in with Google without requesting signup', () => {
-    render(<LoginForm />);
+    render(<LoginForm callbackURL="/articles/article_1" />);
     fireEvent.click(screen.getByRole('button', { name: /continue with google/i }));
-    expect(mocks.social).toHaveBeenCalledWith({ provider: 'google', callbackURL: '/' });
+    expect(mocks.social).toHaveBeenCalledWith({
+      provider: 'google', callbackURL: '/articles/article_1',
+    });
   });
 
   it('signs in only an already-linked Telegram account', () => {
-    render(<LoginForm />);
+    render(<LoginForm callbackURL="/settings/connections" />);
     fireEvent.click(screen.getByRole('button', { name: /continue with telegram/i }));
     expect(mocks.oauth2).toHaveBeenCalledWith({
       providerId: 'telegram',
-      callbackURL: '/',
+      callbackURL: '/settings/connections',
       requestSignUp: false,
     });
     expect(screen.getByText(/already linked/i)).toBeTruthy();
