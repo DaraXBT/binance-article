@@ -169,7 +169,11 @@ async function generateImagesForDeck(input: {
     return buildAggregateImageResult(input.deckId, input.mode, []);
   }
 
-  await markSlidesImagePending(targetSlides.map((slide) => slide.id));
+  await markSlidesImagePending(
+    input.workspaceId,
+    input.deckId,
+    targetSlides.map((slide) => slide.id),
+  );
 
   try {
     assertImagePipelineReady();
@@ -181,7 +185,12 @@ async function generateImagesForDeck(input: {
     const errorType = classifyImageError(normalizedError, 'preflight');
     const results = await Promise.all(
       targetSlides.map(async (slide) => {
-        await markSlideImageFailed(slide.id, normalizedError.message);
+        await markSlideImageFailed(
+          input.workspaceId,
+          input.deckId,
+          slide.id,
+          normalizedError.message,
+        );
         return buildFailedSlideResult(slide.id, normalizedError, errorType);
       })
     );
@@ -200,7 +209,7 @@ async function generateImagesForDeck(input: {
       chunk.map(async (slide) => {
         if (!slide.imagePrompt) {
           const message = 'No image prompt found for this slide.';
-          await markSlideImageFailed(slide.id, message);
+          await markSlideImageFailed(input.workspaceId, input.deckId, slide.id, message);
           return {
             slideId: slide.id,
             status: 'failed' as const,
@@ -221,7 +230,12 @@ async function generateImagesForDeck(input: {
             imageResult.mimeType
           );
 
-          await markSlideImageGenerated(slide.id, imageUrl);
+          await markSlideImageGenerated(
+            input.workspaceId,
+            input.deckId,
+            slide.id,
+            imageUrl,
+          );
 
           return {
             slideId: slide.id,
@@ -236,7 +250,12 @@ async function generateImagesForDeck(input: {
           );
           const errorType = classifyImageError(normalizedError);
 
-          await markSlideImageFailed(slide.id, normalizedError.message);
+          await markSlideImageFailed(
+            input.workspaceId,
+            input.deckId,
+            slide.id,
+            normalizedError.message,
+          );
           return buildFailedSlideResult(slide.id, normalizedError, errorType);
         }
       })
