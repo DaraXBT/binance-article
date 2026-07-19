@@ -67,6 +67,9 @@ describe('Neon migration history', () => {
     expect(packageJson.scripts.build).not.toMatch(/migrate/i);
     expect(packageJson.scripts['db:migrate:deploy']).toMatch(/drizzle-kit migrate/);
     expect(packageJson.scripts['db:baseline:legacy']).toMatch(/baseline-drizzle-legacy/);
+    expect(packageJson.scripts['db:repair:legacy-json']).toMatch(
+      /repair-legacy-json-columns/,
+    );
   });
 
   it('allows only one open approval per command and guards its revision and expiry', () => {
@@ -131,5 +134,13 @@ describe('Neon migration history', () => {
     expect(baselineScript).toMatch(/pg_constraint/i);
     expect(baselineScript).toMatch(/pg_indexes/i);
     expect(baselineScript).toMatch(/RenderJob/);
+  });
+
+  it('compares index columns through PostgreSQL metadata instead of quoted SQL text', () => {
+    expect(baselineScript).toMatch(/FROM pg_index/i);
+    expect(baselineScript).toMatch(/JOIN pg_attribute/i);
+    expect(baselineScript).toMatch(/indisunique/i);
+    expect(baselineScript).toMatch(/array_agg\([\s\S]*attname/i);
+    expect(baselineScript).not.toMatch(/indexDefinition\.indexOf/);
   });
 });
