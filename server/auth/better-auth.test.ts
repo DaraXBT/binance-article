@@ -77,6 +77,23 @@ describe('Better Auth factory', () => {
     });
   });
 
+  it('does not register Telegram when its optional credential pair is absent', () => {
+    const {
+      telegramClientId: _telegramClientId,
+      telegramClientSecret: _telegramClientSecret,
+      ...googleOnlyEnvironment
+    } = environment;
+
+    createBetterAuth({
+      database: {} as never,
+      environment: googleOnlyEnvironment as never,
+      enrollmentGate: { beforeUserCreate: vi.fn(), afterUserCreate: vi.fn() },
+    });
+
+    expect(genericOAuthMock).not.toHaveBeenCalled();
+    expect(betterAuthMock).toHaveBeenCalledWith(expect.objectContaining({ plugins: [] }));
+  });
+
   it('calls the invitation enrollment gate before and after user creation', async () => {
     const enrollmentGate = {
       beforeUserCreate: vi.fn(async () => undefined),

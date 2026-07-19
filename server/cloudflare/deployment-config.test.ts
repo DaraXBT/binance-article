@@ -34,8 +34,6 @@ describe('Cloudflare web Worker deployment configuration', () => {
       'BETTER_AUTH_URL',
       'GOOGLE_CLIENT_ID',
       'GOOGLE_CLIENT_SECRET',
-      'TELEGRAM_CLIENT_ID',
-      'TELEGRAM_CLIENT_SECRET',
     ]);
   });
 

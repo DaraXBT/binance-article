@@ -18,10 +18,37 @@ const validEnv = {
 };
 
 describe('authentication environment', () => {
-  it('requires every server-side OAuth secret without returning their values in errors', () => {
-    for (const key of Object.keys(validEnv)) {
+  it('requires the core server-side auth configuration without returning values in errors', () => {
+    const requiredKeys = [
+      'BETTER_AUTH_SECRET',
+      'BETTER_AUTH_URL',
+      'GOOGLE_CLIENT_ID',
+      'GOOGLE_CLIENT_SECRET',
+    ] as const;
+    for (const key of requiredKeys) {
       expect(() => parseAuthEnvironment({ ...validEnv, [key]: '' })).toThrow(key);
     }
+  });
+
+  it('allows Telegram to be disabled but rejects a partial credential pair', () => {
+    const {
+      TELEGRAM_CLIENT_ID: _telegramClientId,
+      TELEGRAM_CLIENT_SECRET: _telegramClientSecret,
+      ...googleOnlyEnv
+    } = validEnv;
+
+    expect(parseAuthEnvironment(googleOnlyEnv)).toMatchObject({
+      telegramClientId: undefined,
+      telegramClientSecret: undefined,
+    });
+    expect(() => parseAuthEnvironment({
+      ...googleOnlyEnv,
+      TELEGRAM_CLIENT_ID: '123456789',
+    })).toThrow(/TELEGRAM_CLIENT_ID and TELEGRAM_CLIENT_SECRET must be set together/);
+    expect(() => parseAuthEnvironment({
+      ...googleOnlyEnv,
+      TELEGRAM_CLIENT_SECRET: 'telegram-client-secret',
+    })).toThrow(/TELEGRAM_CLIENT_ID and TELEGRAM_CLIENT_SECRET must be set together/);
   });
 
   it('requires HTTPS outside explicit localhost development', () => {
@@ -90,6 +117,15 @@ describe('Better Auth security policy', () => {
       disableSignUp: true,
     });
     expect(policy.telegram.scopes).not.toContain('phone');
+  });
+
+  it('omits the Telegram policy when the optional provider is disabled', () => {
+    const {
+      TELEGRAM_CLIENT_ID: _telegramClientId,
+      TELEGRAM_CLIENT_SECRET: _telegramClientSecret,
+      ...googleOnlyEnv
+    } = validEnv;
+    expect(buildAuthPolicy(parseAuthEnvironment(googleOnlyEnv)).telegram).toBeNull();
   });
 });
 
