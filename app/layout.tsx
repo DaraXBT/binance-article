@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import { Analytics } from '@vercel/analytics/next'
 import { cookies } from 'next/headers'
 import { Geist, Geist_Mono } from 'next/font/google'
 import localFont from 'next/font/local'
@@ -75,7 +74,6 @@ export default async function RootLayout({
         <Providers initialLanguage={initialLanguage}>
           {children}
         </Providers>
-        <Analytics />
       </body>
     </html>
   )

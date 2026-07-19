@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { sql } from 'drizzle-orm';
+
+import { getRuntimeDatabase } from '@/server/db/runtime';
 
 export async function GET() {
   let databaseStatus: 'ok' | 'error' = 'error';
 
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await getRuntimeDatabase().execute(sql`SELECT 1`);
     databaseStatus = 'ok';
   } catch {
     // Database connectivity issue — don't expose details
@@ -18,6 +20,9 @@ export async function GET() {
       status: databaseStatus === 'ok' ? 'ok' : 'degraded',
       timestamp: new Date().toISOString(),
     },
-    { status }
+    {
+      status,
+      headers: { 'Cache-Control': 'no-store' },
+    }
   );
 }
