@@ -90,8 +90,8 @@ function resolveProjectImport(importer: string, moduleName: string): string | nu
   return candidates.find((candidate) => existsSync(candidate) && /\.(?:ts|tsx)$/.test(candidate)) ?? null;
 }
 
-function reachableRuntimeSourceFiles(): string[] {
-  const pending = listRuntimeSourceFiles(join(projectRoot, 'app'));
+function reachableRuntimeSourceFiles(entryFiles: string[]): string[] {
+  const pending = [...entryFiles];
   const visited = new Set<string>();
 
   while (pending.length > 0) {
@@ -108,14 +108,22 @@ function reachableRuntimeSourceFiles(): string[] {
   return Array.from(visited);
 }
 
+function runtimeViolations(entryFiles: string[]): string[] {
+  return reachableRuntimeSourceFiles(entryFiles)
+    .flatMap((file) => importedModules(file, readFileSync(file, 'utf8'))
+      .filter(isForbiddenRuntimeModule)
+      .map((moduleName) => `${relative(projectRoot, file)} -> ${moduleName}`))
+    .sort();
+}
+
 describe('Cloudflare web Worker runtime policy', () => {
   it('keeps production web source free of Node-only and superseded provider imports', () => {
-    const violations = reachableRuntimeSourceFiles()
-      .flatMap((file) => importedModules(file, readFileSync(file, 'utf8'))
-        .filter(isForbiddenRuntimeModule)
-        .map((moduleName) => `${relative(projectRoot, file)} -> ${moduleName}`))
-      .sort();
+    expect(runtimeViolations(listRuntimeSourceFiles(join(projectRoot, 'app')))).toEqual([]);
+  });
 
-    expect(violations).toEqual([]);
+  it('keeps the standalone article Workflow free of Node-only and superseded provider imports', () => {
+    expect(runtimeViolations([
+      join(projectRoot, 'workers/article-workflow/index.ts'),
+    ])).toEqual([]);
   });
 });
