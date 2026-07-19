@@ -18,13 +18,15 @@ function context(overrides: Record<string, unknown> = {}) {
       revision: 3,
       title: 'Reviewed article',
       markdown: '## Thesis\n\n![Chart](asset:asset_1)',
-      cover: { assetId: 'asset_1', focalX: 0.5, focalY: 0.5, targetWidth: 1000, targetHeight: 400 },
+      cover: {
+        assetId: 'asset_1', focalX: 0.5, focalY: 0.5, targetWidth: 1000 as const, targetHeight: 400 as const,
+      },
       orderedAssetIds: ['asset_1'],
       expiresAt: new Date('2026-07-19T00:15:00.000Z'),
     },
     assets: [{
       id: 'asset_1',
-      mimeType: 'image/png',
+      mimeType: 'image/png' as const,
       sizeBytes: 2048,
       sha256: 'a'.repeat(64),
     }],
@@ -36,7 +38,7 @@ function context(overrides: Record<string, unknown> = {}) {
     },
     device: {
       id: 'device_1',
-      status: 'active',
+      status: 'active' as const,
       lastSeenAt: new Date(now.getTime() - PUBLISHER_DEVICE_ONLINE_WINDOW_MS + 1),
     },
     ...overrides,
@@ -133,7 +135,7 @@ describe('prepareBinancePublication', () => {
   it('enforces the per-user and global ten-slide caps', async () => {
     const ids = Array.from({ length: 9 }, (_, index) => `asset_${index}`);
     const assets = ids.map((id, index) => ({
-      id, mimeType: 'image/png', sizeBytes: 100 + index, sha256: index.toString(16).padStart(64, '0'),
+      id, mimeType: 'image/png' as const, sizeBytes: 100 + index, sha256: index.toString(16).padStart(64, '0'),
     }));
     await expect(prepareBinancePublication({
       repository: repository({
