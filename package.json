@@ -17,6 +17,7 @@
     "db:check": "drizzle-kit check --config drizzle.config.ts",
     "db:migrate:deploy": "drizzle-kit migrate --config drizzle.config.ts",
     "db:baseline:legacy": "node scripts/baseline-drizzle-legacy.mjs",
+    "owner-bootstrap:create": "node scripts/bootstrap-owner-invitation.mjs",
     "generate-access:create": "node scripts/create-generate-access-grant.mjs",
     "cloudflare:build": "node scripts/check-cloudflare-build-env.mjs && opennextjs-cloudflare build",
     "cloudflare:bundle-check": "node scripts/check-worker-bundle-size.mjs .wrangler/dry-run",

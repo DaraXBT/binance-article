@@ -30,18 +30,46 @@ export function createDrizzleInvitationRepository(
     },
 
     async attachUser({ invitationId, userId, now }) {
-      const rows = await database
-        .update(invitation)
-        .set({
-          acceptedByUserId: userId,
-          updatedAt: now,
-        })
-        .where(and(
-          eq(invitation.id, invitationId),
-          eq(invitation.status, 'accepted'),
-          isNull(invitation.acceptedByUserId),
-        ))
-        .returning({ id: invitation.id });
+      const rows = await database.$client`
+        WITH candidate AS (
+          SELECT
+            "id",
+            ("id" LIKE 'bootstrap\\_%' ESCAPE '\\') AS "grantsOwner"
+          FROM "Invitation"
+          WHERE "id" = ${invitationId}
+            AND "status" = 'accepted'
+            AND "acceptedByUserId" IS NULL
+          FOR UPDATE
+        ), other_user AS (
+          SELECT 1
+          FROM "user"
+          WHERE "id" <> ${userId}
+          LIMIT 1
+        ), promoted_owner AS (
+          UPDATE "user"
+          SET
+            "role" = 'owner'::"UserRole",
+            "updatedAt" = ${now}
+          WHERE "id" = ${userId}
+            AND EXISTS (
+              SELECT 1 FROM candidate WHERE "grantsOwner"
+            )
+            AND NOT EXISTS (SELECT 1 FROM other_user)
+          RETURNING "id"
+        ), attached AS (
+          UPDATE "Invitation"
+          SET
+            "acceptedByUserId" = ${userId},
+            "updatedAt" = ${now}
+          WHERE "id" IN (SELECT "id" FROM candidate)
+            AND (
+              NOT EXISTS (SELECT 1 FROM candidate WHERE "grantsOwner")
+              OR EXISTS (SELECT 1 FROM promoted_owner)
+            )
+          RETURNING "id"
+        )
+        SELECT "id" FROM attached
+      `;
 
       if (!rows[0]) throw new Error('Invitation reservation could not be linked to the created user.');
     },

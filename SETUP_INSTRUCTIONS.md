@@ -35,7 +35,21 @@ The legacy workspace migration stamps only then-unowned workspaces with a 30-day
 
 ## 4. Better Auth and invitations
 
-Configure the Google callback URL for the deployment origin. Bootstrap the first owner through the controlled operator procedure, then create invitations from the owner administration surface. The application limits the private beta to ten active users plus pending invitations.
+Configure the Google callback URL for the deployment origin. On a freshly migrated,
+empty database, create the one-time first-owner invitation from an operator shell:
+
+```bash
+OPERATOR_DATABASE_URL='postgresql://...' \
+BOOTSTRAP_OWNER_EMAIL='owner@example.com' \
+BETTER_AUTH_URL='https://articles.example.com' \
+npm run owner-bootstrap:create
+```
+
+The command refuses databases containing any user or invitation, stores only the
+invitation-token hash, and prints the join URL once. The invited Google identity
+becomes the sole application owner when it enrolls. Afterwards, create normal
+invitations from the owner administration surface. The application limits the
+private beta to ten active users plus pending invitations.
 
 ## 5. Cloudflare resources
 
