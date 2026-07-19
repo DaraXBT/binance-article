@@ -81,6 +81,13 @@ describe('legacy JSON column repair', () => {
     expect(sql).toMatch(/SET LOCAL lock_timeout/i);
     expect(sql).toMatch(/SET LOCAL statement_timeout/i);
     expect(sql).toMatch(/pg_advisory_xact_lock/i);
+    const lockPosition = sql.indexOf('LOCK TABLE');
+    const validationPosition = sql.indexOf('pg_input_is_valid');
+    expect(lockPosition).toBeGreaterThanOrEqual(0);
+    expect(lockPosition).toBeLessThan(validationPosition);
+    expect(sql).toMatch(
+      /LOCK TABLE\s+"CaptionPackage",\s*"DeckProject",\s*"Slide"\s+IN ACCESS EXCLUSIVE MODE/i,
+    );
     expect(sql).toContain("to_regclass('drizzle.__drizzle_migrations')");
     for (const table of [
       'Workspace',
