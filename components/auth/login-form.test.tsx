@@ -1,0 +1,38 @@
+// @vitest-environment jsdom
+
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => ({
+  social: vi.fn(async () => ({ data: {}, error: null })),
+  oauth2: vi.fn(async () => ({ data: {}, error: null })),
+}));
+vi.mock('@/lib/auth-client', () => ({
+  authClient: { signIn: { social: mocks.social, oauth2: mocks.oauth2 } },
+}));
+
+import { LoginForm } from './login-form';
+
+describe('LoginForm', () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('signs returning users in with Google without requesting signup', () => {
+    render(<LoginForm />);
+    fireEvent.click(screen.getByRole('button', { name: /continue with google/i }));
+    expect(mocks.social).toHaveBeenCalledWith({ provider: 'google', callbackURL: '/' });
+  });
+
+  it('signs in only an already-linked Telegram account', () => {
+    render(<LoginForm />);
+    fireEvent.click(screen.getByRole('button', { name: /continue with telegram/i }));
+    expect(mocks.oauth2).toHaveBeenCalledWith({
+      providerId: 'telegram',
+      callbackURL: '/',
+      requestSignUp: false,
+    });
+    expect(screen.getByText(/already linked/i)).toBeTruthy();
+  });
+});
