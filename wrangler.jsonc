@@ -12,6 +12,17 @@
     "binding": "ASSETS",
     "directory": ".open-next/assets"
   },
+  "secrets": {
+    "required": [
+      "DATABASE_URL",
+      "BETTER_AUTH_SECRET",
+      "BETTER_AUTH_URL",
+      "GOOGLE_CLIENT_ID",
+      "GOOGLE_CLIENT_SECRET",
+      "TELEGRAM_CLIENT_ID",
+      "TELEGRAM_CLIENT_SECRET"
+    ]
+  },
   "r2_buckets": [
     {
       "binding": "ARTICLE_ASSETS",

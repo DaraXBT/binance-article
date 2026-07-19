@@ -30,7 +30,7 @@ async function listWorkerModules(rootPath, currentPath = rootPath) {
       files.push(absolutePath);
     }
   }
-  return files;
+  return files.sort();
 }
 
 export async function measureCompressedWorkerBundle(directory) {
@@ -41,13 +41,9 @@ export async function measureCompressedWorkerBundle(directory) {
     throw new Error(`No Worker modules found in ${rootPath}.`);
   }
 
-  let sourceBytes = 0;
-  let compressedBytes = 0;
-  for (const path of files) {
-    const contents = await readFile(path);
-    sourceBytes += contents.byteLength;
-    compressedBytes += gzipSync(contents, { level: 9 }).byteLength;
-  }
+  const contents = await Promise.all(files.map((path) => readFile(path)));
+  const sourceBytes = contents.reduce((total, value) => total + value.byteLength, 0);
+  const compressedBytes = gzipSync(Buffer.concat(contents), { level: 9 }).byteLength;
   return { sourceBytes, compressedBytes, fileCount: files.length };
 }
 
