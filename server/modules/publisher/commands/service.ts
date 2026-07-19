@@ -1,0 +1,201 @@
+import { z } from 'zod';
+
+import {
+  hashPublicationRecipe,
+  validatePublicationRecipe,
+  type PublicationRecipeV1,
+} from '@/server/domain/publication-recipe';
+import { transitionPublisherCommand } from '@/server/domain/publisher-command';
+import { AppError } from '@/server/http/errors';
+
+const IdentifierSchema = z.string().trim().min(1).max(200);
+const RevisionSchema = z.number().int().positive().safe();
+
+type CommandState =
+  | 'queued'
+  | 'claimed'
+  | 'awaiting_review'
+  | 'awaiting_approval'
+  | 'approved'
+  | 'publishing'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled'
+  | 'expired'
+  | 'outcome_unknown';
+
+export interface PublisherCommandRecord {
+  id: string;
+  draftId: string;
+  deviceId: string | null;
+  state: CommandState;
+  revision: number;
+  recipeHash: string;
+  expiresAt: Date;
+}
+
+export interface PublisherCommandRepository {
+  claimNext(input: { deviceId: string; now: Date }): Promise<PublisherCommandRecord | null>;
+  loadRecipe(input: {
+    deviceId: string;
+    commandId: string;
+  }): Promise<{
+    command: Pick<PublisherCommandRecord, 'id' | 'deviceId' | 'state' | 'revision' | 'recipeHash'>;
+    recipe: unknown;
+  } | null>;
+  compareAndSwap(input: {
+    commandId: string;
+    deviceId: string;
+    revision: number;
+    from: CommandState;
+    to: CommandState;
+    now: Date;
+    publishedUrl?: string;
+    failureReason?: string;
+  }): Promise<boolean>;
+}
+
+function commandError(code: string, message: string, status = 409): AppError {
+  return new AppError({ code, message, status });
+}
+
+function constantTimeHashEqual(left: string, right: string): boolean {
+  const length = Math.max(left.length, right.length);
+  let mismatch = left.length ^ right.length;
+  for (let index = 0; index < length; index += 1) {
+    mismatch |= (left.charCodeAt(index) || 0) ^ (right.charCodeAt(index) || 0);
+  }
+  return mismatch === 0;
+}
+
+export function claimNextPublisherCommand(input: {
+  repository: PublisherCommandRepository;
+  deviceId: string;
+  now?: Date;
+}) {
+  return input.repository.claimNext({
+    deviceId: IdentifierSchema.parse(input.deviceId),
+    now: input.now ?? new Date(),
+  });
+}
+
+export async function loadPublisherRecipe(input: {
+  repository: PublisherCommandRepository;
+  deviceId: string;
+  commandId: string;
+  now?: Date;
+}): Promise<PublicationRecipeV1> {
+  const deviceId = IdentifierSchema.parse(input.deviceId);
+  const commandId = IdentifierSchema.parse(input.commandId);
+  const loaded = await input.repository.loadRecipe({ deviceId, commandId });
+  if (!loaded || loaded.command.deviceId !== deviceId) {
+    throw commandError('PUBLISHER_COMMAND_NOT_FOUND', 'Publisher command not found.', 404);
+  }
+  if (!['claimed', 'awaiting_review', 'awaiting_approval', 'approved'].includes(loaded.command.state)) {
+    throw commandError('PUBLISHER_COMMAND_STALE', 'Publisher command is no longer available.');
+  }
+
+  const recipe = validatePublicationRecipe(loaded.recipe, {
+    now: input.now ?? new Date(),
+    expectedRevision: loaded.command.revision,
+  });
+  const actualHash = await hashPublicationRecipe(recipe);
+  if (!constantTimeHashEqual(actualHash, loaded.command.recipeHash)) {
+    throw commandError('PUBLICATION_RECIPE_MISMATCH', 'Publication recipe verification failed.');
+  }
+  return recipe;
+}
+
+async function transition(input: {
+  repository: PublisherCommandRepository;
+  deviceId: string;
+  commandId: string;
+  revision: number;
+  from: CommandState;
+  to: CommandState;
+  now?: Date;
+  publishedUrl?: string;
+  failureReason?: string;
+}) {
+  const swapped = await input.repository.compareAndSwap({
+    commandId: IdentifierSchema.parse(input.commandId),
+    deviceId: IdentifierSchema.parse(input.deviceId),
+    revision: RevisionSchema.parse(input.revision),
+    from: input.from,
+    to: input.to,
+    now: input.now ?? new Date(),
+    ...(input.publishedUrl ? { publishedUrl: input.publishedUrl } : {}),
+    ...(input.failureReason ? { failureReason: input.failureReason } : {}),
+  });
+  if (!swapped) throw commandError('PUBLISHER_COMMAND_STALE', 'Publisher command state changed.');
+  return { state: input.to };
+}
+
+export function reportEditorReady(input: {
+  repository: PublisherCommandRepository;
+  deviceId: string;
+  commandId: string;
+  revision: number;
+  now?: Date;
+}) {
+  return transition({ ...input, from: 'claimed', to: 'awaiting_review' });
+}
+
+export function beginDevicePublish(input: {
+  repository: PublisherCommandRepository;
+  deviceId: string;
+  commandId: string;
+  revision: number;
+  now?: Date;
+}) {
+  return transition({ ...input, from: 'approved', to: 'publishing' });
+}
+
+export async function reportPublishResult(input: {
+  repository: PublisherCommandRepository;
+  deviceId: string;
+  commandId: string;
+  revision: number;
+  outcome: 'succeeded' | 'failed' | 'outcome_unknown';
+  publishedUrl?: string;
+  failureReason?: string;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const base = {
+    state: 'publishing' as const,
+    revision: RevisionSchema.parse(input.revision),
+    assignedDeviceId: IdentifierSchema.parse(input.deviceId),
+    expiresAt: new Date(now.getTime() + 1),
+  };
+
+  if (input.outcome === 'succeeded') {
+    transitionPublisherCommand(base, {
+      type: 'publish_succeeded',
+      deviceId: input.deviceId,
+      revision: input.revision,
+      publishedUrl: input.publishedUrl ?? '',
+    }, now);
+  } else if (input.outcome === 'failed') {
+    transitionPublisherCommand(base, {
+      type: 'publish_failed',
+      deviceId: input.deviceId,
+      revision: input.revision,
+      failureReason: input.failureReason ?? 'Publisher reported a failure.',
+    }, now);
+  } else {
+    transitionPublisherCommand(base, {
+      type: 'publish_outcome_unknown',
+      deviceId: input.deviceId,
+      revision: input.revision,
+      failureReason: input.failureReason ?? 'Publisher could not verify the final outcome.',
+    }, now);
+  }
+
+  return transition({
+    ...input,
+    from: 'publishing',
+    to: input.outcome,
+    now,
+  });
+}
