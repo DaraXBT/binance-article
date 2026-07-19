@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { gzipSync } from 'node:zlib';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -38,6 +39,23 @@ describe('Cloudflare compressed Worker bundle gate', () => {
 
     await expect(assertWorkerBundleSize({ directory, maxBytes: 100 })).rejects.toThrow(
       /exceeds.*100 bytes/i,
+    );
+  });
+
+  it('measures the concatenated uploaded modules as one gzip payload', async () => {
+    const { measureCompressedWorkerBundle } = await import('./check-worker-bundle-size.mjs');
+    const directory = await createBundle(new TextEncoder().encode('export const first = 1;'));
+    const second = new TextEncoder().encode('export const second = 2;');
+    await writeFile(join(directory, 'second.js'), second);
+
+    const result = await measureCompressedWorkerBundle(directory);
+    const first = await import('node:fs/promises').then(({ readFile }) => (
+      readFile(join(directory, 'worker.js'))
+    ));
+
+    expect(result.fileCount).toBe(2);
+    expect(result.compressedBytes).toBe(
+      gzipSync(Buffer.concat([first, second]), { level: 9 }).byteLength,
     );
   });
 });

@@ -15,6 +15,7 @@ describe('Cloudflare web Worker deployment configuration', () => {
       compatibility_date: string;
       compatibility_flags: string[];
       assets: { binding: string; directory: string };
+      secrets: { required: string[] };
     };
 
     expect(config.main).toBe('.open-next/worker.js');
@@ -27,6 +28,15 @@ describe('Cloudflare web Worker deployment configuration', () => {
       binding: 'ASSETS',
       directory: '.open-next/assets',
     });
+    expect(config.secrets.required).toEqual([
+      'DATABASE_URL',
+      'BETTER_AUTH_SECRET',
+      'BETTER_AUTH_URL',
+      'GOOGLE_CLIENT_ID',
+      'GOOGLE_CLIENT_SECRET',
+      'TELEGRAM_CLIENT_ID',
+      'TELEGRAM_CLIENT_SECRET',
+    ]);
   });
 
   it('binds article assets to private R2 without embedding credentials or a public URL', () => {
@@ -45,6 +55,8 @@ describe('Cloudflare web Worker deployment configuration', () => {
   it('provides build, local preview, dry-run, and compressed bundle gate scripts', () => {
     const packageJson = JSON.parse(readProjectFile('package.json')) as {
       scripts: Record<string, string>;
+      engines: Record<string, string>;
+      devDependencies: Record<string, string>;
     };
 
     expect(packageJson.scripts['cloudflare:build']).toContain('opennextjs-cloudflare build');
@@ -56,7 +68,12 @@ describe('Cloudflare web Worker deployment configuration', () => {
     expect(packageJson.scripts['cloudflare:bundle-check']).toContain(
       'scripts/check-worker-bundle-size.mjs',
     );
+    expect(packageJson.scripts['cloudflare:bundle-check']).toContain('.wrangler/dry-run');
+    expect(packageJson.scripts['cloudflare:build']).not.toContain('cloudflare:bundle-check');
     expect(packageJson.scripts['cloudflare:dry-run']).not.toMatch(/\bdeploy\b(?! --dry-run)/);
+    expect(packageJson.engines.node).toBe('>=22');
+    expect(packageJson.devDependencies['@opennextjs/cloudflare']).toBe('1.20.1');
+    expect(packageJson.devDependencies.wrangler).toBe('4.112.0');
   });
 
   it('can start the pinned OpenNext CLI with the installed dependency graph', () => {
