@@ -93,6 +93,24 @@ describe('invitation OAuth enrollment gate', () => {
       now: expect.any(Date),
     });
   });
+
+  it('reserves before Better Auth assigns an id, then links the inserted user', async () => {
+    const repository = {
+      reserve: vi.fn(async () => ({ id: 'invite_1' })),
+      attachUser: vi.fn(async () => undefined),
+    };
+    const gate = createInvitationEnrollmentGate({ repository });
+    const context = googleContext();
+
+    await gate.beforeUserCreate({ email: 'Invited@Example.com' }, context);
+    await gate.afterUserCreate({ id: 'user_1', email: 'invited@example.com' }, context);
+
+    expect(repository.attachUser).toHaveBeenCalledWith({
+      invitationId: 'invite_1',
+      userId: 'user_1',
+      now: expect.any(Date),
+    });
+  });
 });
 
 describe('invitation enrollment cookie', () => {
