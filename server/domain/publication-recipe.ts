@@ -118,6 +118,34 @@ export const PublicationRecipeV1Schema = z.object({
 
 export type PublicationRecipeV1 = z.infer<typeof PublicationRecipeV1Schema>;
 
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+    return JSON.stringify(value);
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new TypeError('Canonical JSON cannot contain non-finite numbers.');
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right));
+    return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`).join(',')}}`;
+  }
+  throw new TypeError('Canonical JSON contains an unsupported value.');
+}
+
+export function canonicalizePublicationRecipe(input: unknown): string {
+  return canonicalJson(PublicationRecipeV1Schema.parse(input));
+}
+
+export async function hashPublicationRecipe(input: unknown): Promise<string> {
+  const canonical = canonicalizePublicationRecipe(input);
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 export function validatePublicationRecipe(
   input: unknown,
   options: { now?: Date; expectedRevision: number },
