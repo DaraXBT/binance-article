@@ -7,7 +7,7 @@ describe('private publisher assets', () => {
     const repository = {
       authorizeAsset: vi.fn(async () => ({
         r2Key: 'private/workspace/article/asset.png',
-        mimeType: 'image/png',
+        mimeType: 'image/png' as const,
         sizeBytes: 8,
         sha256: 'a'.repeat(64),
       })),
@@ -46,7 +46,7 @@ describe('private publisher assets', () => {
 
     await expect(loadPublisherAsset({
       repository: { authorizeAsset: vi.fn(async () => ({
-        r2Key: 'private/key', mimeType: 'image/png', sizeBytes: 8, sha256: 'a'.repeat(64),
+        r2Key: 'private/key', mimeType: 'image/png' as const, sizeBytes: 8, sha256: 'a'.repeat(64),
       })) },
       bucket: { get: vi.fn(async () => null) },
       deviceId: 'device_1', commandId: 'command_1', assetId: 'asset_1',
@@ -56,7 +56,7 @@ describe('private publisher assets', () => {
   it('fails closed when R2 size differs from immutable database metadata', async () => {
     await expect(loadPublisherAsset({
       repository: { authorizeAsset: vi.fn(async () => ({
-        r2Key: 'private/key', mimeType: 'image/png', sizeBytes: 8, sha256: 'a'.repeat(64),
+        r2Key: 'private/key', mimeType: 'image/png' as const, sizeBytes: 8, sha256: 'a'.repeat(64),
       })) },
       bucket: { get: vi.fn(async () => ({ body: new Uint8Array(7), size: 7 })) },
       deviceId: 'device_1', commandId: 'command_1', assetId: 'asset_1',
