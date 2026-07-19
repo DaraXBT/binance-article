@@ -9,23 +9,45 @@ const RequiredEnvironmentValue = (name: string) => z.string()
   .trim()
   .min(1, `${name} is required.`);
 
+const OptionalEnvironmentValue = z.preprocess(
+  (value) => typeof value === 'string' && value.trim().length === 0 ? undefined : value,
+  z.string().trim().min(1).optional(),
+);
+
 const AuthEnvironmentSchema = z.object({
   BETTER_AUTH_SECRET: RequiredEnvironmentValue('BETTER_AUTH_SECRET')
     .min(AUTH_SECRET_MIN_LENGTH, `BETTER_AUTH_SECRET must contain at least ${AUTH_SECRET_MIN_LENGTH} characters.`),
   BETTER_AUTH_URL: RequiredEnvironmentValue('BETTER_AUTH_URL'),
   GOOGLE_CLIENT_ID: RequiredEnvironmentValue('GOOGLE_CLIENT_ID'),
   GOOGLE_CLIENT_SECRET: RequiredEnvironmentValue('GOOGLE_CLIENT_SECRET'),
-  TELEGRAM_CLIENT_ID: RequiredEnvironmentValue('TELEGRAM_CLIENT_ID'),
-  TELEGRAM_CLIENT_SECRET: RequiredEnvironmentValue('TELEGRAM_CLIENT_SECRET'),
 }).passthrough();
+
+const TelegramAuthEnvironmentSchema = z.object({
+  TELEGRAM_CLIENT_ID: OptionalEnvironmentValue,
+  TELEGRAM_CLIENT_SECRET: OptionalEnvironmentValue,
+}).superRefine((value, context) => {
+  const hasClientId = Boolean(value.TELEGRAM_CLIENT_ID);
+  const hasClientSecret = Boolean(value.TELEGRAM_CLIENT_SECRET);
+  if (hasClientId === hasClientSecret) return;
+
+  context.addIssue({
+    code: 'custom',
+    path: [hasClientId ? 'TELEGRAM_CLIENT_SECRET' : 'TELEGRAM_CLIENT_ID'],
+    message: 'TELEGRAM_CLIENT_ID and TELEGRAM_CLIENT_SECRET must be set together.',
+  });
+});
+
+export interface TelegramAuthEnvironment {
+  clientId: string;
+  clientSecret: string;
+}
 
 export interface AuthEnvironment {
   secret: string;
   baseUrl: string;
   googleClientId: string;
   googleClientSecret: string;
-  telegramClientId: string;
-  telegramClientSecret: string;
+  telegram: TelegramAuthEnvironment | null;
   secureCookies: boolean;
 }
 
@@ -57,6 +79,7 @@ function parseBaseUrl(value: string): { baseUrl: string; secure: boolean } {
 
 export function parseAuthEnvironment(input: Record<string, string | undefined>): AuthEnvironment {
   const parsed = AuthEnvironmentSchema.parse(input);
+  const telegram = parseTelegramAuthEnvironment(input);
   const origin = parseBaseUrl(parsed.BETTER_AUTH_URL);
 
   return {
@@ -64,9 +87,19 @@ export function parseAuthEnvironment(input: Record<string, string | undefined>):
     baseUrl: origin.baseUrl,
     googleClientId: parsed.GOOGLE_CLIENT_ID,
     googleClientSecret: parsed.GOOGLE_CLIENT_SECRET,
-    telegramClientId: parsed.TELEGRAM_CLIENT_ID,
-    telegramClientSecret: parsed.TELEGRAM_CLIENT_SECRET,
+    telegram,
     secureCookies: origin.secure,
+  };
+}
+
+export function parseTelegramAuthEnvironment(
+  input: Record<string, string | undefined>,
+): TelegramAuthEnvironment | null {
+  const parsed = TelegramAuthEnvironmentSchema.parse(input);
+  if (!parsed.TELEGRAM_CLIENT_ID || !parsed.TELEGRAM_CLIENT_SECRET) return null;
+  return {
+    clientId: parsed.TELEGRAM_CLIENT_ID,
+    clientSecret: parsed.TELEGRAM_CLIENT_SECRET,
   };
 }
 
@@ -100,10 +133,10 @@ export function buildAuthPolicy(environment: AuthEnvironment) {
       scopes: ['openid', 'email', 'profile'],
       disableImplicitSignUp: true,
     },
-    telegram: {
+    telegram: environment.telegram ? {
       providerId: 'telegram',
-      clientId: environment.telegramClientId,
-      clientSecret: environment.telegramClientSecret,
+      clientId: environment.telegram.clientId,
+      clientSecret: environment.telegram.clientSecret,
       discoveryUrl: TELEGRAM_OIDC_DISCOVERY_URL,
       issuer: 'https://oauth.telegram.org',
       requireIssuerValidation: true,
@@ -111,7 +144,7 @@ export function buildAuthPolicy(environment: AuthEnvironment) {
       pkce: true,
       disableImplicitSignUp: true,
       disableSignUp: true,
-    },
+    } : null,
   };
 }
 

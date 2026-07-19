@@ -1,4 +1,5 @@
 import { LoginForm } from '@/components/auth/login-form';
+import { parseTelegramAuthEnvironment } from '@/server/auth/auth-policy';
 import { normalizeLoginCallback } from '@/server/auth/page-authorization';
 
 export default async function LoginPage({
@@ -17,7 +18,10 @@ export default async function LoginPage({
             This account is suspended or revoked. Contact the workspace owner.
           </p>
         ) : null}
-        <LoginForm callbackURL={callbackURL} />
+        <LoginForm
+          callbackURL={callbackURL}
+          telegramEnabled={parseTelegramAuthEnvironment(process.env) !== null}
+        />
       </div>
     </main>
   );

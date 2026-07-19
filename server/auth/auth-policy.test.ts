@@ -37,10 +37,7 @@ describe('authentication environment', () => {
       ...googleOnlyEnv
     } = validEnv;
 
-    expect(parseAuthEnvironment(googleOnlyEnv)).toMatchObject({
-      telegramClientId: undefined,
-      telegramClientSecret: undefined,
-    });
+    expect(parseAuthEnvironment(googleOnlyEnv).telegram).toBeNull();
     expect(() => parseAuthEnvironment({
       ...googleOnlyEnv,
       TELEGRAM_CLIENT_ID: '123456789',
@@ -116,7 +113,7 @@ describe('Better Auth security policy', () => {
       disableImplicitSignUp: true,
       disableSignUp: true,
     });
-    expect(policy.telegram.scopes).not.toContain('phone');
+    expect(policy.telegram?.scopes).not.toContain('phone');
   });
 
   it('omits the Telegram policy when the optional provider is disabled', () => {

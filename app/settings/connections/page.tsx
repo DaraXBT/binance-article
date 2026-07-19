@@ -1,4 +1,5 @@
 import { TelegramConnectionCard } from '@/components/auth/telegram-connection-card';
+import { parseTelegramAuthEnvironment } from '@/server/auth/auth-policy';
 
 export default function ConnectionsPage() {
   return (
@@ -10,7 +11,9 @@ export default function ConnectionsPage() {
             Control which identities can access your private publishing workflow.
           </p>
         </div>
-        <TelegramConnectionCard />
+        <TelegramConnectionCard
+          enabled={parseTelegramAuthEnvironment(process.env) !== null}
+        />
       </div>
     </main>
   );

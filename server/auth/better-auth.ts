@@ -56,6 +56,23 @@ export function createBetterAuth({
   enrollmentGate,
 }: CreateBetterAuthInput) {
   const policy = buildAuthPolicy(environment);
+  const telegram = policy.telegram;
+  const plugins = telegram ? [
+    genericOAuth({
+      config: [{
+        ...telegram,
+        authentication: 'basic',
+        getUserInfo: (tokens) => getVerifiedTelegramProfile(tokens, telegram.clientId),
+        mapProfileToUser: (profile) => ({
+          id: profile.id,
+          name: profile.name,
+          email: profile.email,
+          emailVerified: profile.emailVerified,
+          image: profile.image,
+        }),
+      }],
+    }),
+  ] : [];
 
   return betterAuth({
     database: drizzleAdapter(database, {
@@ -94,22 +111,7 @@ export function createBetterAuth({
     socialProviders: {
       google: policy.google,
     },
-    plugins: [
-      genericOAuth({
-        config: [{
-          ...policy.telegram,
-          authentication: 'basic',
-          getUserInfo: (tokens) => getVerifiedTelegramProfile(tokens, environment.telegramClientId),
-          mapProfileToUser: (profile) => ({
-            id: profile.id,
-            name: profile.name,
-            email: profile.email,
-            emailVerified: profile.emailVerified,
-            image: profile.image,
-          }),
-        }],
-      }),
-    ],
+    plugins,
     databaseHooks: {
       user: {
         create: {

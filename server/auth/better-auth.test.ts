@@ -17,8 +17,10 @@ const environment = {
   baseUrl: 'https://articles.example.com',
   googleClientId: 'google-client-id',
   googleClientSecret: 'google-client-secret',
-  telegramClientId: 'telegram-client-id',
-  telegramClientSecret: 'telegram-client-secret',
+  telegram: {
+    clientId: 'telegram-client-id',
+    clientSecret: 'telegram-client-secret',
+  },
   secureCookies: true,
 };
 
@@ -79,14 +81,13 @@ describe('Better Auth factory', () => {
 
   it('does not register Telegram when its optional credential pair is absent', () => {
     const {
-      telegramClientId: _telegramClientId,
-      telegramClientSecret: _telegramClientSecret,
+      telegram: _telegram,
       ...googleOnlyEnvironment
     } = environment;
 
     createBetterAuth({
       database: {} as never,
-      environment: googleOnlyEnvironment as never,
+      environment: { ...googleOnlyEnvironment, telegram: null },
       enrollmentGate: { beforeUserCreate: vi.fn(), afterUserCreate: vi.fn() },
     });
 
