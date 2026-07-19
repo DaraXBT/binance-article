@@ -18,7 +18,7 @@ function repository(overrides: Record<string, unknown> = {}) {
     createPending: vi.fn(async () => ({ id: 'device_1' })),
     activatePending: vi.fn(async () => ({ id: 'device_1', name: 'My Mac', protocolVersion: 1 })),
     authenticate: vi.fn(async () => ({
-      id: 'device_1', userId: 'user_1', workspaceId: 'workspace_1', status: 'active', protocolVersion: 1,
+      id: 'device_1', userId: 'user_1', workspaceId: 'workspace_1', status: 'active' as const, protocolVersion: 1,
     })),
     ...overrides,
   };
