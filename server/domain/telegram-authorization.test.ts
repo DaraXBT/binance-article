@@ -23,9 +23,9 @@ describe('Telegram webhook authorization', () => {
 
   it.each([
     ['invalid_secret', { presentedWebhookSecret: 'wrong' }],
-    ['private_chat_required', { chatType: 'group' }],
+    ['private_chat_required', { chatType: 'group' as const }],
     ['identity_mismatch', { telegramUserId: '999' }],
-    ['user_suspended', { userStatus: 'suspended' }],
+    ['user_suspended', { userStatus: 'suspended' as const }],
     ['replayed_update', { updateAlreadyProcessed: true }],
   ])('rejects unauthorized input with %s', (reason, override) => {
     const result = authorizeTelegramWebhook({
