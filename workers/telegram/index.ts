@@ -11,7 +11,7 @@ import { handleTelegramWebhook } from '@/server/modules/telegram/update-service'
 import { executeTelegramUpdate } from './bot';
 import { parseTelegramEnvironment, type TelegramWorkerEnvironment } from './environment';
 
-export default {
+const telegramWorker = {
   async fetch(request: Request, rawEnvironment: TelegramWorkerEnvironment): Promise<Response> {
     let environment: ReturnType<typeof parseTelegramEnvironment>;
     try {
@@ -58,3 +58,5 @@ export default {
     });
   },
 };
+
+export default telegramWorker;
