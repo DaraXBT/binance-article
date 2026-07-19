@@ -37,9 +37,9 @@ describe('Telegram account connection', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Connect Telegram' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
+    expect((await screen.findByRole('alert')).textContent).toBe(
       'Telegram could not be connected. Please try again.',
     );
-    expect(screen.queryByText(/sensitive provider detail/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/sensitive provider detail/i)).toBeNull();
   });
 });

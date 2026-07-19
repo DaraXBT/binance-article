@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   headers: vi.fn(async () => new Headers({ cookie: 'better-auth.session_token=opaque' })),
-  requireActiveUser: vi.fn(async () => ({ id: 'user_1', status: 'active' })),
+  requireActiveUser: vi.fn(async (_request: Request) => ({ id: 'user_1', status: 'active' })),
   redirect: vi.fn((location: string) => {
     throw new Error(`REDIRECT:${location}`);
   }),
