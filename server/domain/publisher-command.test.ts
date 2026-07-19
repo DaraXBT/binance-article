@@ -100,4 +100,27 @@ describe('publisher command state machine', () => {
       now,
     )).toThrow(/terminal/i);
   });
+
+  it('marks pre-click work expired as terminal but never expires an in-flight click', () => {
+    const awaitingApproval = {
+      ...base,
+      state: 'awaiting_approval' as const,
+      assignedDeviceId: 'device_a',
+    };
+    const expired = transitionPublisherCommand(awaitingApproval, {
+      type: 'expire',
+      revision: 3,
+    }, now);
+
+    expect(expired.state).toBe('expired');
+    expect(() => transitionPublisherCommand(expired, {
+      type: 'approve', revision: 3,
+    }, now)).toThrow(/terminal/i);
+    expect(() => transitionPublisherCommand({
+      ...awaitingApproval,
+      state: 'publishing' as const,
+    }, {
+      type: 'expire', revision: 3,
+    }, now)).toThrow(/publishing|transition/i);
+  });
 });

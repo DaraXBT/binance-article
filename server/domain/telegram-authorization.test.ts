@@ -48,8 +48,10 @@ describe('Telegram publish double confirmation', () => {
     state: 'pending' as const,
     userId: 'user_123',
     telegramUserId: '12345',
+    commandId: 'command_123',
     draftId: 'draft_123',
     revision: 7,
+    recipeHash: 'a'.repeat(64),
     expiresAt: new Date(now.getTime() + TELEGRAM_APPROVAL_LIFETIME_MS),
   };
 
@@ -57,8 +59,10 @@ describe('Telegram publish double confirmation', () => {
     const confirmation = advancePublishApproval(approval, {
       type: 'request_confirmation',
       telegramUserId: '12345',
+      commandId: 'command_123',
       draftId: 'draft_123',
       revision: 7,
+      recipeHash: 'a'.repeat(64),
       chatType: 'private',
     }, now);
     expect(confirmation.state).toBe('confirmation_required');
@@ -66,8 +70,10 @@ describe('Telegram publish double confirmation', () => {
     const approved = advancePublishApproval(confirmation, {
       type: 'confirm_publish',
       telegramUserId: '12345',
+      commandId: 'command_123',
       draftId: 'draft_123',
       revision: 7,
+      recipeHash: 'a'.repeat(64),
       chatType: 'private',
     }, now);
     expect(approved.state).toBe('approved');
@@ -83,8 +89,10 @@ describe('Telegram publish double confirmation', () => {
     expect(() => advancePublishApproval(confirmation, {
       type: 'confirm_publish',
       telegramUserId: '12345',
+      commandId: 'command_123',
       draftId: 'draft_123',
       revision: 7,
+      recipeHash: 'a'.repeat(64),
       chatType: 'private',
       ...override,
     }, now)).toThrow();
@@ -95,16 +103,56 @@ describe('Telegram publish double confirmation', () => {
     expect(() => advancePublishApproval(
       { ...confirmation, expiresAt: now },
       {
-        type: 'confirm_publish', telegramUserId: '12345', draftId: 'draft_123', revision: 7, chatType: 'private',
+        type: 'confirm_publish', telegramUserId: '12345', commandId: 'command_123',
+        draftId: 'draft_123', revision: 7, recipeHash: 'a'.repeat(64), chatType: 'private',
       },
       now,
     )).toThrow(/expired/i);
     expect(() => advancePublishApproval(
       { ...approval, state: 'approved' as const },
       {
-        type: 'confirm_publish', telegramUserId: '12345', draftId: 'draft_123', revision: 7, chatType: 'private',
+        type: 'confirm_publish', telegramUserId: '12345', commandId: 'command_123',
+        draftId: 'draft_123', revision: 7, recipeHash: 'a'.repeat(64), chatType: 'private',
       },
       now,
     )).toThrow(/already processed/i);
+  });
+
+  it.each([
+    ['command', { commandId: 'command_old' }],
+    ['recipe hash', { recipeHash: 'b'.repeat(64) }],
+  ])('binds confirmation to the exact %s', (_label, override) => {
+    expect(() => advancePublishApproval({
+      ...approval,
+      state: 'confirmation_required' as const,
+    }, {
+      type: 'confirm_publish',
+      telegramUserId: '12345',
+      commandId: 'command_123',
+      draftId: 'draft_123',
+      revision: 7,
+      recipeHash: 'a'.repeat(64),
+      chatType: 'private',
+      ...override,
+    }, now)).toThrow();
+  });
+
+  it('transitions an elapsed approval to terminal expired exactly once', () => {
+    const expired = advancePublishApproval({ ...approval, expiresAt: now }, {
+      type: 'expire',
+      commandId: 'command_123',
+      draftId: 'draft_123',
+      revision: 7,
+      recipeHash: 'a'.repeat(64),
+    }, now);
+
+    expect(expired.state).toBe('expired');
+    expect(() => advancePublishApproval(expired, {
+      type: 'expire',
+      commandId: 'command_123',
+      draftId: 'draft_123',
+      revision: 7,
+      recipeHash: 'a'.repeat(64),
+    }, now)).toThrow(/already processed/i);
   });
 });
