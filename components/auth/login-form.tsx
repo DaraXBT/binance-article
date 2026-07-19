@@ -8,12 +8,12 @@ import { authClient } from '@/lib/auth-client';
 
 type LoginState = 'idle' | 'google' | 'telegram' | 'error';
 
-export function LoginForm() {
+export function LoginForm({ callbackURL = '/' }: { callbackURL?: string }) {
   const [state, setState] = useState<LoginState>('idle');
 
   const startGoogle = async () => {
     setState('google');
-    const result = await authClient.signIn.social({ provider: 'google', callbackURL: '/' });
+    const result = await authClient.signIn.social({ provider: 'google', callbackURL });
     if (result.error) setState('error');
   };
 
@@ -21,7 +21,7 @@ export function LoginForm() {
     setState('telegram');
     const result = await authClient.signIn.oauth2({
       providerId: 'telegram',
-      callbackURL: '/',
+      callbackURL,
       requestSignUp: false,
     });
     if (result.error) setState('error');

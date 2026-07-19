@@ -1,19 +1,6 @@
-import { headers } from 'next/headers';
-import { redirect } from 'next/navigation';
-
 import { TelegramConnectionCard } from '@/components/auth/telegram-connection-card';
-import { requireActiveUser } from '@/server/auth/authorization';
 
-export default async function ConnectionsPage() {
-  try {
-    const requestHeaders = await headers();
-    await requireActiveUser(new Request('https://app.invalid/settings/connections', {
-      headers: requestHeaders,
-    }));
-  } catch {
-    redirect('/login?callbackURL=%2Fsettings%2Fconnections');
-  }
-
+export default function ConnectionsPage() {
   return (
     <main className="flex min-h-screen justify-center bg-muted/30 px-4 py-12">
       <div className="w-full max-w-xl space-y-6">
