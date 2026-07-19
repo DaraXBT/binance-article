@@ -26,7 +26,7 @@ export const API_ROUTE_POLICIES = {
   'app/api/health/route.ts': 'public',
   'app/api/invitations/accept/route.ts': 'invitation-token',
   'app/api/jobs/[jobId]/route.ts': 'active-user',
-  'app/api/publisher/commands/[commandId]/assets/[assetId]/route.ts': 'device-bearer',
+  'app/api/publisher/commands/[id]/assets/[assetId]/route.ts': 'device-bearer',
   'app/api/publisher/commands/[id]/abort/route.ts': 'device-bearer',
   'app/api/publisher/commands/[id]/begin/route.ts': 'device-bearer',
   'app/api/publisher/commands/[id]/editor-ready/route.ts': 'device-bearer',

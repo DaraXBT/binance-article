@@ -9,7 +9,7 @@ import { createPublisherDeviceRepository } from '@/server/modules/publisher/devi
 import { authenticatePublisherDevice } from '@/server/modules/publisher/devices/service';
 
 type RouteContext = {
-  params: Promise<{ commandId: string; assetId: string }>;
+  params: Promise<{ id: string; assetId: string }>;
 };
 
 function formatEntityTag(etag: string): string | undefined {
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       repository: createPublisherDeviceRepository(database),
       authorization: request.headers.get('authorization'),
     });
-    const { commandId, assetId } = await context.params;
+    const { id: commandId, assetId } = await context.params;
     const asset = await loadPublisherAsset({
       repository: createPublisherAssetRepository(database),
       bucket: getArticleAssetsBucket(),

@@ -59,7 +59,7 @@ describe('GET /api/publisher/commands/:commandId/assets/:assetId', () => {
     );
 
     const response = await GET(request as never, {
-      params: Promise.resolve({ commandId: 'command_1', assetId: 'asset_1' }),
+      params: Promise.resolve({ id: 'command_1', assetId: 'asset_1' }),
     });
 
     expect(response.status).toBe(200);
@@ -96,7 +96,7 @@ describe('GET /api/publisher/commands/:commandId/assets/:assetId', () => {
       new Request('https://articles.example.com/api/publisher/commands/c/assets/a', {
         headers: { authorization: 'Bearer opaque-device-token' },
       }) as never,
-      { params: Promise.resolve({ commandId: 'c', assetId: 'a' }) },
+      { params: Promise.resolve({ id: 'c', assetId: 'a' }) },
     );
 
     expect(response.status).toBe(200);
@@ -113,7 +113,7 @@ describe('GET /api/publisher/commands/:commandId/assets/:assetId', () => {
     const { GET } = await import('./route');
     const unauthorized = await GET(
       new Request('https://articles.example.com/api/publisher/commands/c/assets/a') as never,
-      { params: Promise.resolve({ commandId: 'c', assetId: 'a' }) },
+      { params: Promise.resolve({ id: 'c', assetId: 'a' }) },
     );
     expect(unauthorized.status).toBe(401);
     expect(unauthorized.headers.get('Cache-Control')).toBe('no-store');
@@ -131,7 +131,7 @@ describe('GET /api/publisher/commands/:commandId/assets/:assetId', () => {
       new Request('https://articles.example.com/api/publisher/commands/c/assets/missing', {
         headers: { authorization: 'Bearer opaque-device-token' },
       }) as never,
-      { params: Promise.resolve({ commandId: 'c', assetId: 'missing' }) },
+      { params: Promise.resolve({ id: 'c', assetId: 'missing' }) },
     );
     expect(missing.status).toBe(404);
     expect(missing.headers.get('Cache-Control')).toBe('no-store');
