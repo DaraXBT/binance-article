@@ -1,0 +1,41 @@
+export type ApiRoutePolicy =
+  | 'public'
+  | 'invitation-token'
+  | 'pairing-token'
+  | 'owner'
+  | 'active-user'
+  | 'article-member'
+  | 'device-bearer';
+
+export const API_ROUTE_POLICIES = {
+  'app/api/admin/invitations/route.ts': 'owner',
+  'app/api/articles/[id]/assets/[filename]/route.ts': 'article-member',
+  'app/api/articles/[id]/generate-images/route.ts': 'article-member',
+  'app/api/articles/[id]/generate/route.ts': 'article-member',
+  'app/api/articles/[id]/publications/binance/prepare/route.ts': 'article-member',
+  'app/api/articles/[id]/publications/binance/route.ts': 'article-member',
+  'app/api/articles/[id]/render/route.ts': 'article-member',
+  'app/api/articles/[id]/reorder/route.ts': 'article-member',
+  'app/api/articles/[id]/route.ts': 'article-member',
+  'app/api/articles/[id]/slides/[slideId]/route.ts': 'article-member',
+  'app/api/articles/[id]/slides/route.ts': 'article-member',
+  'app/api/articles/generate-prompt/route.ts': 'active-user',
+  'app/api/articles/route.ts': 'active-user',
+  'app/api/auth/[...all]/route.ts': 'public',
+  'app/api/generate-access/route.ts': 'active-user',
+  'app/api/health/route.ts': 'public',
+  'app/api/invitations/accept/route.ts': 'invitation-token',
+  'app/api/jobs/[jobId]/route.ts': 'active-user',
+  'app/api/publisher/commands/[commandId]/assets/[assetId]/route.ts': 'device-bearer',
+  'app/api/publisher/commands/[id]/abort/route.ts': 'device-bearer',
+  'app/api/publisher/commands/[id]/begin/route.ts': 'device-bearer',
+  'app/api/publisher/commands/[id]/editor-ready/route.ts': 'device-bearer',
+  'app/api/publisher/commands/[id]/recipe/route.ts': 'device-bearer',
+  'app/api/publisher/commands/[id]/result/route.ts': 'device-bearer',
+  'app/api/publisher/commands/[id]/status/route.ts': 'device-bearer',
+  'app/api/publisher/commands/claim/route.ts': 'device-bearer',
+  'app/api/publisher/devices/pair/route.ts': 'pairing-token',
+  'app/api/publisher/devices/pairing/route.ts': 'active-user',
+  'app/api/workspace/recover/route.ts': 'active-user',
+  'app/api/workspace/route.ts': 'active-user',
+} as const satisfies Record<string, ApiRoutePolicy>;

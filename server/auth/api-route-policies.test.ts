@@ -24,7 +24,7 @@ describe('API authorization inventory', () => {
 
   it('keeps each policy attached to its concrete authorization boundary', () => {
     const markers = {
-      public: ['toNextJsHandler', 'status: "ok"'],
+      public: ['toNextJsHandler', 'databaseStatus'],
       'invitation-token': ['inspectInvitation'],
       'pairing-token': ['activatePublisherDevice'],
       owner: ['requireOwner: true'],
