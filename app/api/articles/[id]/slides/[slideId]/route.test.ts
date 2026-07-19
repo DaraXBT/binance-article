@@ -6,20 +6,11 @@ const dbMock = {
   deleteSlide: vi.fn(),
 };
 
-const workspaceMock = {
-  getCurrentWorkspace: vi.fn(async () => ({
-    workspace: {
-      id: 'workspace-1',
-      accessKeyPrefix: 'dwk_test',
-    },
-  })),
-};
 const articleAuthorizationMock = {
   authorizeArticleRequest: vi.fn(async () => ({ workspaceId: 'workspace-1' })),
 };
 
 vi.mock('@/lib/db', () => dbMock);
-vi.mock('@/lib/workspace', () => workspaceMock);
 vi.mock('@/server/auth/article-authorization', () => articleAuthorizationMock);
 
 describe('PATCH/DELETE /api/articles/[id]/slides/[slideId]', () => {

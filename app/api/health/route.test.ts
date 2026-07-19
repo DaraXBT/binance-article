@@ -3,16 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
   getRuntimeDatabase: vi.fn(),
-  legacyPrismaQuery: vi.fn(),
 }));
 
 vi.mock('@/server/db/runtime', () => ({
   getRuntimeDatabase: mocks.getRuntimeDatabase,
-}));
-
-// Prevent the legacy implementation from opening a real connection during RED.
-vi.mock('@/lib/prisma', () => ({
-  default: { $queryRaw: mocks.legacyPrismaQuery },
 }));
 
 import { GET } from './route';
@@ -22,7 +16,6 @@ describe('GET /api/health', () => {
     vi.clearAllMocks();
     mocks.execute.mockResolvedValue([]);
     mocks.getRuntimeDatabase.mockReturnValue({ execute: mocks.execute });
-    mocks.legacyPrismaQuery.mockResolvedValue([{ '?column?': 1 }]);
   });
 
   it('checks the Worker-native Neon/Drizzle connection', async () => {
@@ -31,7 +24,6 @@ describe('GET /api/health', () => {
     expect(response.status).toBe(200);
     expect(mocks.getRuntimeDatabase).toHaveBeenCalledOnce();
     expect(mocks.execute).toHaveBeenCalledOnce();
-    expect(mocks.legacyPrismaQuery).not.toHaveBeenCalled();
     await expect(response.json()).resolves.toMatchObject({ status: 'ok' });
   });
 

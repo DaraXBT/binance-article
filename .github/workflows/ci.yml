@@ -28,9 +28,6 @@ jobs:
 
       - run: npm ci
 
-      - name: Generate Prisma Client
-        run: npx prisma generate
-
       - name: Lint
         run: npm run lint
 
@@ -57,5 +54,7 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Validate Prisma Migrations
-        run: npx prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --exit-code
+      - name: Validate Drizzle migrations
+        run: npm run db:check
+        env:
+          MIGRATION_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/xarticle

@@ -11,6 +11,5 @@ node_modules/
 .vercel
 .open-next/
 .wrangler/
-prisma/dev.db
 test-results/
 playwright-report/

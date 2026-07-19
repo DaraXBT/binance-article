@@ -26,19 +26,10 @@ const mocks = vi.hoisted(() => ({
   claimLegacyWorkspace: vi.fn(async () => ({ id: 'workspace-2' })),
 }));
 
-const rateLimitMock = {
-  checkRateLimit: vi.fn(async () => ({
-    allowed: true,
-    remaining: 4,
-    resetAt: Date.now() + 60_000,
-  })),
-};
-
 vi.mock('@/server/auth/authorization', () => ({ requireActiveUser: mocks.requireActiveUser }));
 vi.mock('@/server/auth/origin', () => ({
   assertAllowedOrigin: mocks.assertAllowedOrigin,
 }));
-vi.mock('@/server/http/rate-limit', () => rateLimitMock);
 vi.mock('@/server/http/request-body', () => ({ readBoundedJson: mocks.readBoundedJson }));
 vi.mock('@/server/http/atomic-rate-limit', () => ({
   consumeAtomicRateLimit: mocks.consumeAtomicRateLimit,
@@ -85,11 +76,6 @@ describe('/api/workspace routes', () => {
     });
     mocks.createLegacyClaimRepository.mockReturnValue({ repository: true });
     mocks.claimLegacyWorkspace.mockResolvedValue({ id: 'workspace-2' });
-    rateLimitMock.checkRateLimit.mockResolvedValue({
-      allowed: true,
-      remaining: 4,
-      resetAt: Date.now() + 60_000,
-    });
   });
 
   it('returns account workspace status without auto-creating for a new user', async () => {

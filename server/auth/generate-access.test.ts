@@ -14,15 +14,6 @@ vi.mock('./generate-access-repository', () => ({
 vi.mock('@/server/db/runtime', () => ({
   getRuntimeDatabase: vi.fn(() => ({ database: true })),
 }));
-vi.mock('@/lib/prisma', () => ({
-  default: {
-    generationAccessGrant: {
-      findUnique: vi.fn(async () => null),
-      updateMany: vi.fn(async () => ({ count: 0 })),
-    },
-  },
-}));
-
 import {
   consumeGenerateAccessGrant,
   createGenerateAccessCode,

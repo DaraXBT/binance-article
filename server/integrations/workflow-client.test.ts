@@ -6,7 +6,6 @@ const { createBatchMock, contextMock } = vi.hoisted(() => ({
 }));
 
 vi.mock('@opennextjs/cloudflare', () => ({ getCloudflareContext: contextMock }));
-vi.mock('@vercel/functions', () => ({ waitUntil: vi.fn() }));
 
 import { startWorkflow } from './workflow-client';
 

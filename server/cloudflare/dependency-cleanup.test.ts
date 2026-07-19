@@ -7,6 +7,12 @@ import lockfile from '../../package-lock.json';
 import packageJson from '../../package.json';
 
 const root = resolve(import.meta.dirname, '../..');
+const manifest = packageJson as unknown as {
+  dependencies?: Record<string, unknown>;
+  devDependencies?: Record<string, unknown>;
+  optionalDependencies?: Record<string, unknown>;
+  overrides?: Record<string, unknown>;
+};
 const forbiddenPackages = [
   '@google/genai',
   '@prisma/client',
@@ -25,15 +31,15 @@ function projectFile(path: string) {
 describe('Cloudflare dependency cleanup', () => {
   it('removes superseded runtime and build packages from the manifest and lockfile', () => {
     const manifestSections: Array<Record<string, unknown> | undefined> = [
-      packageJson.dependencies,
-      packageJson.devDependencies,
-      packageJson.optionalDependencies,
-      packageJson.overrides,
+      manifest.dependencies,
+      manifest.devDependencies,
+      manifest.optionalDependencies,
+      manifest.overrides,
     ];
 
     for (const packageName of forbiddenPackages) {
       for (const section of manifestSections) {
-        expect(section, packageName).not.toHaveProperty(packageName);
+        expect(section ?? {}, packageName).not.toHaveProperty(packageName);
       }
       expect(lockfile.packages, packageName).not.toHaveProperty(`node_modules/${packageName}`);
     }

@@ -21,10 +21,6 @@ vi.mock('./repository', () => ({
 vi.mock('@/server/db/runtime', () => ({
   getRuntimeDatabase: vi.fn(() => ({ database: true })),
 }));
-vi.mock('@/server/integrations/prisma', () => ({
-  default: { jobRun: {} },
-}));
-
 import {
   appendJobLog,
   attachWorkflowRunId,

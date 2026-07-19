@@ -33,7 +33,6 @@ vi.mock('./repository', () => ({
 vi.mock('@/server/db/runtime', () => ({
   getRuntimeDatabase: vi.fn(() => ({ database: true })),
 }));
-vi.mock('@/server/integrations/prisma', () => ({ default: {} }));
 vi.mock('@/server/modules/jobs/service', () => ({
   getLatestDeckJob: latestJobMock,
   serializeJobRun: serializeJobMock,

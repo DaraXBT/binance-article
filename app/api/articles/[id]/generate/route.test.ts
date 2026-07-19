@@ -4,14 +4,6 @@ const dbMock = {
   beginGenerationRevision: vi.fn(),
 };
 
-const workspaceMock = {
-  getCurrentWorkspace: vi.fn(async () => ({
-    workspace: {
-      id: 'workspace-1',
-      accessKeyPrefix: 'dwk_test',
-    },
-  })),
-};
 const articleAuthorizationMock = {
   authorizeArticleRequest: vi.fn(async () => ({
     actor: { id: 'user-1', sessionId: 'session-1' },
@@ -56,7 +48,6 @@ const generateAccessMock = {
 
 vi.mock('@/lib/db', () => dbMock);
 vi.mock('@/lib/generate-access', () => generateAccessMock);
-vi.mock('@/server/modules/workspace/service', () => workspaceMock);
 vi.mock('@/server/auth/article-authorization', () => articleAuthorizationMock);
 vi.mock('@/server/modules/jobs/service', () => jobServiceMock);
 vi.mock('@/server/integrations/workflow-client', () => workflowClientMock);

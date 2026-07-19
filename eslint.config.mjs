@@ -9,7 +9,6 @@ const config = [
       '.next/**',
       'coverage/**',
       'node_modules/**',
-      'prisma/migrations/**',
       'app/.well-known/**',
       'workers/article-workflow/cloudflare-runtime.d.ts',
       'workers/article-workflow/worker-configuration.d.ts',

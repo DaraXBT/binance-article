@@ -7,14 +7,6 @@ const dbMock = {
   deleteDeckProject: vi.fn(),
 };
 
-const workspaceMock = {
-  getCurrentWorkspace: vi.fn(async () => ({
-    workspace: {
-      id: 'workspace-1',
-      accessKeyPrefix: 'dwk_test',
-    },
-  })),
-};
 const articleAuthorizationMock = {
   authorizeArticleRequest: vi.fn(async () => ({
     actor: { id: 'user-1', sessionId: 'session-1' },
@@ -24,7 +16,6 @@ const articleAuthorizationMock = {
 };
 
 vi.mock('@/lib/db', () => dbMock);
-vi.mock('@/server/modules/workspace/service', () => workspaceMock);
 vi.mock('@/server/auth/article-authorization', () => articleAuthorizationMock);
 
 describe('GET/PATCH/DELETE /api/articles/[id]', () => {

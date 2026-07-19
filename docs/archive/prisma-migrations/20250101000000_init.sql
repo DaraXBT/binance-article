@@ -209,4 +209,3 @@ ALTER TABLE "JobRun" ADD CONSTRAINT "JobRun_deckId_fkey" FOREIGN KEY ("deckId") 
 
 -- AddForeignKey
 ALTER TABLE "JobRun" ADD CONSTRAINT "JobRun_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
