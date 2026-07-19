@@ -14,6 +14,7 @@ export const PublisherCommandStateSchema = z.object({
     'succeeded',
     'failed',
     'cancelled',
+    'outcome_unknown',
   ]),
   revision: RevisionSchema,
   assignedDeviceId: IdentifierSchema.nullable(),
@@ -40,13 +41,24 @@ const PublisherCommandEventSchema = z.discriminatedUnion('type', [
     revision: RevisionSchema,
     failureReason: z.string().trim().min(1).max(500),
   }).strict(),
+  z.object({
+    type: z.literal('publish_outcome_unknown'),
+    deviceId: IdentifierSchema,
+    revision: RevisionSchema,
+    failureReason: z.string().trim().min(1).max(500),
+  }).strict(),
   z.object({ type: z.literal('cancel'), revision: RevisionSchema }).strict(),
 ]);
 
 export type PublisherCommandState = z.infer<typeof PublisherCommandStateSchema>;
 export type PublisherCommandEvent = z.infer<typeof PublisherCommandEventSchema>;
 
-const TERMINAL_STATES = new Set<PublisherCommandState['state']>(['succeeded', 'failed', 'cancelled']);
+const TERMINAL_STATES = new Set<PublisherCommandState['state']>([
+  'succeeded',
+  'failed',
+  'cancelled',
+  'outcome_unknown',
+]);
 
 function assertDevice(command: PublisherCommandState, deviceId: string): void {
   if (!command.assignedDeviceId || command.assignedDeviceId !== deviceId) {
@@ -137,6 +149,11 @@ export function transitionPublisherCommand(
       assertTransition(command, event, 'publishing');
       assertDevice(command, event.deviceId);
       return { ...command, state: 'failed', failureReason: event.failureReason };
+
+    case 'publish_outcome_unknown':
+      assertTransition(command, event, 'publishing');
+      assertDevice(command, event.deviceId);
+      return { ...command, state: 'outcome_unknown', failureReason: event.failureReason };
 
     case 'cancel':
       return { ...command, state: 'cancelled' };
