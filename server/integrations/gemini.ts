@@ -1,5 +1,4 @@
 export {
-  createGeminiTextClient,
   generateDeckWithGemini,
   generatePlainTextWithGemini,
   normalizeGeminiError,

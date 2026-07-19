@@ -1,6 +1,9 @@
-import { GoogleGenAI, Modality, type GenerateContentResponse } from '@google/genai';
-
-import { getServerEnv } from '@/lib/server-env';
+import {
+  GeminiRestError,
+  generateGeminiContent,
+  type GeminiContentPart,
+  type GeminiGenerateContentResponse,
+} from '@/server/integrations/gemini-rest';
 
 export const DEFAULT_IMAGE_MODEL = 'gemini-3.1-flash-image-preview';
 
@@ -54,16 +57,8 @@ interface GeminiErrorPayload {
   details?: Array<Record<string, unknown>>;
 }
 
-interface ResponsePart {
-  text?: string;
-  inlineData?: {
-    data?: string;
-    mimeType?: string;
-  };
-}
-
 function getImageApiKey(): string {
-  const apiKey = getServerEnv('GEMINI_API_KEY') || getServerEnv('GOOGLE_API_KEY');
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY or GOOGLE_API_KEY is not set');
   }
@@ -71,12 +66,8 @@ function getImageApiKey(): string {
 }
 
 export function getImageModel(): string {
-  const configuredModel = getServerEnv('GEMINI_IMAGE_MODEL')?.trim();
+  const configuredModel = process.env.GEMINI_IMAGE_MODEL?.trim();
   return configuredModel || DEFAULT_IMAGE_MODEL;
-}
-
-export function getImageClient(): GoogleGenAI {
-  return new GoogleGenAI({ apiKey: getImageApiKey() });
 }
 
 export function assertImagePipelineReady(): ImagePipelineConfig {
@@ -84,8 +75,6 @@ export function assertImagePipelineReady(): ImagePipelineConfig {
     apiKey: getImageApiKey(),
     model: getImageModel(),
   };
-
-  void new GoogleGenAI({ apiKey: config.apiKey });
 
   if (!config.model) {
     throw new Error('GEMINI_IMAGE_MODEL resolved to an empty value');
@@ -100,6 +89,14 @@ function extractGeminiErrorPayload(error: unknown): GeminiErrorPayload | null {
   }
 
   if (typeof error === 'object') {
+    if (error instanceof GeminiRestError) {
+      return {
+        code: error.providerCode ?? error.statusCode,
+        status: error.providerStatus,
+        details: error.providerDetails,
+      };
+    }
+
     const candidate = error as Record<string, unknown>;
     if (candidate.error && typeof candidate.error === 'object') {
       return candidate.error as GeminiErrorPayload;
@@ -244,7 +241,9 @@ export function normalizeImageGenerationError(
   };
 }
 
-function getPromptFeedbackMessage(response: Pick<GenerateContentResponse, 'promptFeedback'>): string | null {
+function getPromptFeedbackMessage(
+  response: Pick<GeminiGenerateContentResponse, 'promptFeedback'>
+): string | null {
   const feedback = response.promptFeedback as
     | {
         blockReason?: string;
@@ -260,7 +259,7 @@ function getPromptFeedbackMessage(response: Pick<GenerateContentResponse, 'promp
 }
 
 export function parseImageGenerationResponse(
-  response: Pick<GenerateContentResponse, 'candidates' | 'promptFeedback'>
+  response: Pick<GeminiGenerateContentResponse, 'candidates' | 'promptFeedback'>
 ): ImageGenerationResult {
   const candidates = response.candidates ?? [];
 
@@ -273,11 +272,14 @@ export function parseImageGenerationResponse(
     );
   }
 
-  const parts = (candidates[0]?.content?.parts ?? []) as ResponsePart[];
+  const parts = (candidates[0]?.content?.parts ?? []) as GeminiContentPart[];
 
   for (const part of parts) {
     if (part.inlineData?.data) {
       const mimeType = part.inlineData.mimeType || 'image/png';
+      if (mimeType !== 'image/png' && mimeType !== 'image/jpeg') {
+        throw new Error(`Image generation returned an unsupported image type: ${mimeType}`);
+      }
       return {
         buffer: Buffer.from(part.inlineData.data, 'base64'),
         mimeType,
@@ -298,14 +300,17 @@ export function parseImageGenerationResponse(
  * Returns the image as a Buffer and its MIME type.
  */
 export async function generateImage(prompt: string): Promise<ImageGenerationResult> {
-  const client = getImageClient();
+  const apiKey = getImageApiKey();
   const model = getImageModel();
 
-  const response = await client.models.generateContent({
+  const response = await generateGeminiContent({
+    apiKey,
     model,
-    contents: prompt,
-    config: {
-      responseModalities: [Modality.IMAGE, Modality.TEXT],
+    prompt,
+    timeoutMs: 180_000,
+    maxResponseBytes: 16 * 1024 * 1024,
+    generationConfig: {
+      responseModalities: ['TEXT', 'IMAGE'],
       imageConfig: {
         aspectRatio: '16:9',
         imageSize: '1K',

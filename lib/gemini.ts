@@ -1,6 +1,8 @@
-import { GoogleGenAI } from '@google/genai';
-
-import { getServerEnv } from '@/lib/server-env';
+import {
+  GeminiRestError,
+  generateGeminiContent,
+  type GeminiGenerateContentResponse,
+} from '@/server/integrations/gemini-rest';
 import { DeckGenerateRequest } from './schemas';
 
 const DEFAULT_GEMINI_TEXT_MODEL = 'gemini-2.5-flash';
@@ -59,14 +61,14 @@ export interface GeminiErrorInfo {
 }
 
 export function resolveGeminiTextConfig(): GeminiTextConfig {
-  const apiKey = getServerEnv('GEMINI_API_KEY') || getServerEnv('GOOGLE_API_KEY');
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY or GOOGLE_API_KEY environment variable is not set');
   }
 
   const model =
-    getServerEnv('GEMINI_TEXT_MODEL')?.trim() ||
-    getServerEnv('GEMINI_MODEL')?.trim() ||
+    process.env.GEMINI_TEXT_MODEL?.trim() ||
+    process.env.GEMINI_MODEL?.trim() ||
     DEFAULT_GEMINI_TEXT_MODEL;
 
   if (!model) {
@@ -77,10 +79,6 @@ export function resolveGeminiTextConfig(): GeminiTextConfig {
     apiKey,
     model,
   };
-}
-
-export function createGeminiTextClient(config = resolveGeminiTextConfig()) {
-  return new GoogleGenAI({ apiKey: config.apiKey });
 }
 
 export function normalizeGeminiError(
@@ -137,12 +135,12 @@ export function normalizeGeminiError(
 
 export async function generatePlainTextWithGemini(prompt: string): Promise<string> {
   const config = resolveGeminiTextConfig();
-  const client = createGeminiTextClient(config);
-  const result = await client.models.generateContent({
+  const result = await generateGeminiContent({
+    apiKey: config.apiKey,
     model: config.model,
-    contents: prompt,
+    prompt,
   });
-  const responseText = result.text?.trim();
+  const responseText = extractResponseText(result)?.trim();
 
   if (!responseText) {
     throw new Error('Gemini returned an empty response');
@@ -156,15 +154,15 @@ export async function generateDeckWithGemini(
 ): Promise<GeneratedDeckResponse> {
   const prompt = buildGenerationPrompt(request);
   const config = resolveGeminiTextConfig();
-  const client = createGeminiTextClient(config);
-  const result = await client.models.generateContent({
+  const result = await generateGeminiContent({
+    apiKey: config.apiKey,
     model: config.model,
-    contents: prompt,
-    config: {
+    prompt,
+    generationConfig: {
       responseMimeType: 'application/json',
     },
   });
-  const responseText = result.text;
+  const responseText = extractResponseText(result);
 
   if (!responseText) {
     throw new Error('Gemini returned an empty response');
@@ -260,6 +258,14 @@ function extractGeminiErrorPayload(error: unknown): GeminiErrorPayload | null {
   }
 
   if (typeof error === 'object') {
+    if (error instanceof GeminiRestError) {
+      return {
+        code: error.providerCode ?? error.statusCode,
+        status: error.providerStatus,
+        details: error.providerDetails,
+      };
+    }
+
     const candidate = error as Record<string, unknown>;
     if (candidate.error && typeof candidate.error === 'object') {
       return candidate.error as GeminiErrorPayload;
@@ -287,6 +293,15 @@ function extractGeminiErrorPayload(error: unknown): GeminiErrorPayload | null {
   } catch {
     return null;
   }
+}
+
+function extractResponseText(response: GeminiGenerateContentResponse): string | undefined {
+  for (const candidate of response.candidates) {
+    for (const part of candidate.content?.parts ?? []) {
+      if (typeof part.text === 'string') return part.text;
+    }
+  }
+  return undefined;
 }
 
 function extractRetryAfterSeconds(details: Array<Record<string, unknown>> | undefined) {
