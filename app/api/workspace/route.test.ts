@@ -12,7 +12,10 @@ const mocks = vi.hoisted(() => ({
     resetAt: new Date('2026-07-19T00:15:00.000Z'),
   })),
   getRuntimeDatabase: vi.fn(() => ({ db: true })),
-  resolveActorWorkspace: vi.fn(async () => null),
+  resolveActorWorkspace: vi.fn<() => Promise<{
+    id: string;
+    accessKeyPrefix: string;
+  } | null>>(async () => null),
   isGenerateAccessEnabled: vi.fn(() => false),
   getCurrentGenerateAccessState: vi.fn(async () => ({
     hasAccess: true, invalidReason: null,

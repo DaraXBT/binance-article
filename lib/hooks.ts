@@ -36,8 +36,6 @@ export type WorkspaceBootstrap = {
 export type WorkspaceCreateResult = {
   success: true;
   workspaceId: string;
-  accessKeyPrefix: string;
-  recoveryKey: string | null;
 };
 
 export type WorkspaceRecoveryResult = {
