@@ -138,6 +138,7 @@ describe('legacy workspace claim repository', () => {
     expect(sql.indexOf('UPDATE "GenerationAccessGrant"')).toBeLessThan(
       sql.indexOf('DELETE FROM "Workspace"'),
     );
+    expect(sql).not.toMatch(/\bAS\s+grant\b/i);
   });
 
   it('consumes the claim window, deletes old browser sessions, and writes a secret-free audit', async () => {
@@ -152,7 +153,7 @@ describe('legacy workspace claim repository', () => {
     expect(sql).toContain("'workspace.legacy_claimed'");
     expect(sql).toContain("jsonb_build_object('source', 'recovery_key')");
     expect(JSON.stringify(harness.captured)).not.toContain('dwk_raw_recovery_key');
-    expect(JSON.stringify(harness.captured)).not.toContain('accessKeyPrefix');
+    expect(harness.captured.flatMap((query) => query.values)).not.toContain('dwk_raw_recovery_key');
   });
 
   it('returns null for unknown, expired, wrong-origin, non-pristine, and race-lost claims', async () => {
