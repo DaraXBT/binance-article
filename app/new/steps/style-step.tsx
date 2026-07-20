@@ -36,9 +36,9 @@ export function StyleStep({ formData, onUpdate }: StyleStepProps) {
               <button
                 key={style.id}
                 onClick={() => onUpdate({ illustrationStyle: style.id })}
-                className={`relative text-left p-5 rounded-xl border-2 transition-all duration-200 ${
+                className={`relative border border-dotted p-4 text-left transition-colors duration-150 ${
                   isSelected
-                    ? 'border-primary bg-primary/5 shadow-md shadow-primary/10'
+                    ? 'border-primary/65 bg-primary/[0.04]'
                     : 'border-border hover:border-primary/40 hover:bg-accent/5'
                 }`}
               >
@@ -57,7 +57,7 @@ export function StyleStep({ formData, onUpdate }: StyleStepProps) {
                       {style.colors.map((color, i) => (
                         <div
                           key={i}
-                          className="w-5 h-5 rounded-full border border-border/50"
+                          className="size-5 border border-dotted border-border/50"
                           style={{ backgroundColor: color }}
                           title={color}
                         />
@@ -69,8 +69,8 @@ export function StyleStep({ formData, onUpdate }: StyleStepProps) {
                   </div>
 
                   {isSelected && (
-                    <div className="absolute top-3 right-3 bg-primary text-primary-foreground rounded-full p-1">
-                      <Check className="h-4 w-4" />
+                    <div className="absolute right-3 top-3 border border-primary/60 bg-primary px-1.5 py-1 text-primary-foreground">
+                      <Check className="size-3.5" />
                     </div>
                   )}
                 </div>

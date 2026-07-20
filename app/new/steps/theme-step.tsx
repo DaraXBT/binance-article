@@ -26,28 +26,28 @@ export function ThemeStep({ formData, onUpdate }: ThemeStepProps) {
           <button
             key={themeId}
             onClick={() => onUpdate({ theme: themeId })}
-            className={`relative p-4 rounded-lg border-2 transition-all ${
+            className={`relative border border-dotted p-4 transition-colors ${
               formData.theme === themeId
                 ? 'border-primary bg-primary/5'
                 : 'border-border hover:border-primary/50'
             }`}
           >
             {/* Theme preview */}
-            <div className="w-full h-24 rounded-md mb-3 flex items-center justify-center gap-2">
+            <div className="mb-3 flex h-24 w-full items-center justify-center gap-2 border border-dotted border-border/60">
               <div
-                className="w-6 h-6 rounded"
+                className="size-6 border border-border/50"
                 style={{
                   backgroundColor: theme.colors.primary,
                 }}
               />
               <div
-                className="w-6 h-6 rounded"
+                className="size-6 border border-border/50"
                 style={{
                   backgroundColor: theme.colors.secondary,
                 }}
               />
               <div
-                className="w-6 h-6 rounded"
+                className="size-6 border border-border/50"
                 style={{
                   backgroundColor: theme.colors.accent,
                 }}
@@ -60,8 +60,8 @@ export function ThemeStep({ formData, onUpdate }: ThemeStepProps) {
 
             {/* Selected indicator */}
             {formData.theme === themeId && (
-              <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1">
-                <Check className="h-4 w-4" />
+              <div className="absolute right-2 top-2 border border-primary/60 bg-primary px-1.5 py-1 text-primary-foreground">
+                <Check className="size-3.5" />
               </div>
             )}
           </button>

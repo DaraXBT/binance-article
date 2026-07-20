@@ -40,7 +40,7 @@ export function UrlStep({ formData, onUpdate }: UrlStepProps) {
               placeholder="https://example.com/great-article"
               value={formData.title} // Repurposing title to temporarily hold the URL for step 1 validation
               onChange={(e) => onUpdate({ title: e.target.value, articleContent: 'Content will be extracted from the URL...' })}
-              className="pl-9 text-base"
+              className="h-11 rounded-none border-dotted pl-9 font-mono text-base"
             />
           </div>
           <p className="mt-1.5 text-xs text-muted-foreground">

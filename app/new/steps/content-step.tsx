@@ -63,7 +63,7 @@ export function ContentStep({ formData, onUpdate }: ContentStepProps) {
               rows={16}
               className="text-sm leading-relaxed resize-y min-h-[250px]"
             />
-            <div className="absolute bottom-3 right-3 flex items-center gap-1.5 text-xs text-muted-foreground bg-background/80 backdrop-blur-sm px-2 py-1 rounded">
+            <div className="absolute bottom-3 right-3 flex items-center gap-1.5 border border-dotted border-border bg-background/90 px-2 py-1 font-mono text-xs text-muted-foreground">
               <FileText className="h-3 w-3" />
               {messages.newDeck.content.wordCount(wordCount)}
             </div>
@@ -74,7 +74,7 @@ export function ContentStep({ formData, onUpdate }: ContentStepProps) {
         </div>
 
         {formData.title ? (
-          <div className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2">
+          <div className="flex items-center gap-2 border border-dotted border-border/60 bg-muted/30 px-3 py-2">
             <Type className="h-4 w-4 text-muted-foreground shrink-0" />
             <span className="text-sm text-muted-foreground">{messages.newDeck.content.articleTitle}:</span>
             <span className="text-sm font-medium truncate">{formData.title}</span>
