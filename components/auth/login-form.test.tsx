@@ -19,6 +19,12 @@ describe('LoginForm', () => {
     vi.clearAllMocks();
   });
 
+  it('exposes the sign-in title as the page heading', () => {
+    render(<LoginForm telegramEnabled={false} />);
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Sign in' })).toBeTruthy();
+  });
+
   it('signs returning users in with Google without requesting signup', () => {
     render(<LoginForm callbackURL="/articles/article_1" telegramEnabled />);
     fireEvent.click(screen.getByRole('button', { name: /continue with google/i }));

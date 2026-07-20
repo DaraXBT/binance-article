@@ -77,6 +77,25 @@ describe('PublicHome', () => {
     expect(screen.getByText(messages.publicHome.trustLine).classList.contains('z-10')).toBe(true);
   });
 
+  it('keeps the public header inside narrow phone viewports', () => {
+    const { container } = render(<PublicHome onNavigate={vi.fn()} />);
+    const headerRow = container.querySelector('header > div');
+    const wordmark = screen.getByText('xArticle');
+
+    expect(headerRow?.classList.contains('px-2')).toBe(true);
+    expect(headerRow?.classList.contains('min-[390px]:px-4')).toBe(true);
+    expect(wordmark.classList.contains('hidden')).toBe(true);
+    expect(wordmark.classList.contains('min-[390px]:inline')).toBe(true);
+  });
+
+  it('shows a visible keyboard focus ring on the prompt field', () => {
+    render(<PublicHome onNavigate={vi.fn()} />);
+    const prompt = screen.getByLabelText(messages.publicHome.promptLabel);
+
+    expect(prompt.classList.contains('focus-visible:ring-0')).toBe(false);
+    expect(prompt.classList.contains('focus-visible:ring-[3px]')).toBe(true);
+  });
+
   it('persists the latest valid prompt synchronously and navigates with only an opaque resume id', () => {
     const onNavigate = vi.fn();
     render(<PublicHome onNavigate={onNavigate} />);
