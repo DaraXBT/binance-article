@@ -33,6 +33,13 @@ describe('private page authorization', () => {
     expect(request.headers.get('cookie')).toBe('better-auth.session_token=opaque');
   });
 
+  it('renders the anonymous home without initializing auth when no session cookie exists', async () => {
+    mocks.headers.mockResolvedValueOnce(new Headers({ cookie: 'theme=dark; locale=en' }));
+
+    await expect(getOptionalActivePageUser()).resolves.toBeNull();
+    expect(mocks.requireActiveUser).not.toHaveBeenCalled();
+  });
+
   it('redirects a logged-out visitor with a safe local callback', async () => {
     const { AppError } = await import('@/server/http/errors');
     mocks.requireActiveUser.mockRejectedValueOnce(new AppError({

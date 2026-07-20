@@ -1,3 +1,4 @@
+import { getSessionCookie } from 'better-auth/cookies';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
@@ -45,16 +46,23 @@ export function normalizeLoginCallback(value: unknown): string {
   }
 }
 
-async function authorizePageRequest(path: string) {
-  const requestHeaders = await headers();
+async function authorizePageRequest(path: string, requestHeaders?: Headers) {
+  const resolvedHeaders = requestHeaders ?? await headers();
   return requireActiveUser(new Request(new URL(path, 'https://app.invalid'), {
-    headers: requestHeaders,
+    headers: resolvedHeaders,
   }));
 }
 
 export async function getOptionalActivePageUser() {
+  const requestHeaders = await headers();
+  // The public home is anonymous by default. Avoid constructing Better Auth
+  // (and therefore validating auth/database environment variables) when the
+  // browser has no session token to validate. A present token still goes
+  // through the full server-side session and account-status checks below.
+  if (!getSessionCookie(requestHeaders)) return null;
+
   try {
-    return await authorizePageRequest('/');
+    return await authorizePageRequest('/', requestHeaders);
   } catch (error) {
     if (isAppError(error) && error.code === 'AUTH_REQUIRED') return null;
     if (isAppError(error) && error.code === 'ACCOUNT_DISABLED') {
