@@ -4,7 +4,6 @@ import type { ReactNode } from 'react';
 
 import {
   Sidebar,
-  SidebarContent,
   SidebarFooter,
   SidebarInset,
   SidebarProvider,
@@ -119,9 +118,7 @@ export function ArticleStudioShell({
             className="z-30 border-r border-dotted border-sidebar-border/80 md:!absolute md:!inset-y-0"
             collapsible="offcanvas"
           >
-            <SidebarContent className="min-h-0 px-2 py-2">
-              {sidebar}
-            </SidebarContent>
+            {sidebar}
             {sidebarFooter ? (
               <SidebarFooter className="border-t border-dotted border-sidebar-border/80">
                 {sidebarFooter}

@@ -14,6 +14,7 @@ import { LanguageToggle } from '@/components/language-toggle';
 import { useLanguage } from '@/components/language-provider';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
+import { SidebarContent } from '@/components/ui/sidebar';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -300,11 +301,12 @@ export function PublicHome({
         mode="public"
         headerTitle={copy.studioTitle}
         sidebar={(
-          <nav
-            aria-label={copy.studioTitle}
-            data-article-studio-rail="anonymous"
-            className="flex min-h-full flex-col"
-          >
+          <SidebarContent className="min-h-0 px-2 py-2">
+            <nav
+              aria-label={copy.studioTitle}
+              data-article-studio-rail="anonymous"
+              className="flex min-h-full flex-col"
+            >
             <div className="border-b border-dotted border-sidebar-border/80 px-1 pb-3">
               <Link href="/" className="flex min-w-0 items-center gap-2.5 px-1 py-1.5">
                 <span className="flex size-8 shrink-0 items-center justify-center border border-sidebar-foreground/70 bg-sidebar-foreground text-sidebar">
@@ -341,7 +343,11 @@ export function PublicHome({
                       {getDraftTitle(prompt, copy.untitledArticle)}
                     </span>
                     <span className="mt-1 block font-mono text-[0.58rem] uppercase tracking-[0.12em] text-sidebar-foreground/60">
-                      {resumeIntentId ? copy.draftStateHeld : copy.draftStateLocal}
+                      {intentRef.current?.stage === 'submitted'
+                        ? copy.draftStateReady
+                        : resumeIntentId
+                          ? copy.draftStateHeld
+                          : copy.draftStateLocal}
                     </span>
                   </span>
                 </button>
@@ -370,7 +376,8 @@ export function PublicHome({
                 ))}
               </div>
             </div>
-          </nav>
+            </nav>
+          </SidebarContent>
         )}
         sidebarFooter={(
           <div className="space-y-2 p-1">

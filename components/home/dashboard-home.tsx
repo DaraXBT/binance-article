@@ -20,9 +20,7 @@ import { useLanguage } from '@/components/language-provider';
 import { ThemeToggle } from '@/components/theme-toggle';
 import {
   ConsolePanel,
-  ConsoleStatusRail,
   FrameCornerHandles,
-  ScreenLine,
   SecureConsoleFrame,
 } from '@/components/console/secure-console-frame';
 import {
@@ -44,21 +42,15 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import {
-  Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
-  SidebarInset,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSkeleton,
-  SidebarProvider,
-  SidebarRail,
-  SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { GenerateAccessDialog } from '@/components/generate-access-dialog';
 import { RecoveryKeyDialog } from '@/components/workspace/recovery-key-dialog';
@@ -90,6 +82,10 @@ import {
   PromptComposer,
   type ComposerSlideCount,
 } from './prompt-composer';
+import {
+  ArticleStudioShell,
+  ArticleStudioStatusStrip,
+} from './article-studio-shell';
 
 type DeckListItem = {
   id: string;
@@ -1319,40 +1315,29 @@ export function DashboardHome({
     'Your draft is ready to continue.';
 
   return (
-    <div data-console-frame="private" className="console-viewport">
-      <div aria-hidden="true" className="viewport-top-line" />
-      <div className="console-shell console-shell-private mx-auto max-w-7xl">
-    <SidebarProvider defaultOpen className="relative min-h-0 h-full w-full flex-1 bg-background">
-      <Sidebar className="z-30 border-r border-dotted border-sidebar-border/80 md:!absolute md:!inset-y-0" collapsible="offcanvas">
-        <DeckSidebarList
-          decks={filteredDecks}
-          isLoading={isLoading}
-          isError={isError}
-          query={query}
-          onQueryChange={setQuery}
-          language={language}
-        />
-        <SidebarFooter className="border-t border-dotted border-sidebar-border/80">
+    <>
+      <ArticleStudioShell
+        mode="workspace"
+        headerTitle={messages.dashboard.headerTitle}
+        sidebar={(
+          <DeckSidebarList
+            decks={filteredDecks}
+            isLoading={isLoading}
+            isError={isError}
+            query={query}
+            onQueryChange={setQuery}
+            language={language}
+          />
+        )}
+        sidebarFooter={(
           <WorkspaceSidebarFooter
             accessKeyPrefix={workspace.accessKeyPrefix ?? '—'}
             recoveryKey={workspace.recoveryKey ?? null}
             showRecovery={workspace.workspaceOrigin !== 'account'}
           />
-        </SidebarFooter>
-        <SidebarRail />
-      </Sidebar>
-
-      <RecoveryKeyDialog recoveryKey={workspace.recoveryKey ?? null} />
-
-      <SidebarInset className="min-h-0 bg-background">
-        <header className="console-header sticky top-0 z-10 border-b border-dotted border-border/80 bg-background">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <SidebarTrigger className="size-8 rounded-none border border-border/70" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-mono text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-foreground sm:text-xs">
-                {messages.dashboard.headerTitle}
-              </p>
-            </div>
+        )}
+        headerActions={(
+          <>
             <LanguageToggle />
             <ThemeToggle />
             <DropdownMenu>
@@ -1416,28 +1401,38 @@ export function DashboardHome({
                 <span className="hidden sm:inline">{messages.common.newDeck}</span>
               </Link>
             </Button>
+          </>
+        )}
+        footer={(
+          <>
+            <span className="truncate font-mono text-[0.6rem] uppercase tracking-[0.12em]">
+              PRIVATE WORKSPACE
+            </span>
+            <span className="truncate font-mono text-[0.6rem] uppercase tracking-[0.12em] text-muted-foreground/65">
+              {accountLabel}
+            </span>
+          </>
+        )}
+        mainClassName="studio-main-workspace"
+      >
+        <section className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-center gap-4">
+          <div className="min-w-0 text-center">
+            <p className="mb-2 font-mono text-[0.64rem] font-semibold uppercase tracking-[0.16em] text-primary">
+              ARTICLE GENERATION / PRIVATE WORKSPACE
+            </p>
+            <h1 className="text-2xl font-semibold leading-tight tracking-normal text-foreground sm:text-3xl">
+              {messages.dashboard.promptHomeTitle}
+            </h1>
+            <p className="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+              {messages.dashboard.promptHomeSubtitle}
+            </p>
           </div>
-        </header>
-        <ScreenLine className="h-4" />
 
-        <div className="flex min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-8 sm:py-6">
-          <section className="mx-auto flex w-full max-w-3xl flex-col self-start">
-            <div className="mb-4 min-w-0">
-              <p className="mb-2 font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-primary">
-                ARTICLE GENERATION / PRIVATE WORKSPACE
-              </p>
-              <h1 className="text-2xl font-semibold leading-tight tracking-normal text-foreground sm:text-3xl">
-                {messages.dashboard.promptHomeTitle}
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                {messages.dashboard.promptHomeSubtitle}
-              </p>
-            </div>
+          <ArticleStudioStatusStrip items={consoleStatuses} />
 
-            <ConsoleStatusRail items={consoleStatuses} className="mb-3" />
-
-            <ConsolePanel className="overflow-hidden bg-card/70 p-3 sm:p-4">
-              <div className="mb-3 flex min-w-0 items-center justify-between gap-3 border-b border-dotted border-border/70 px-1 pb-2">
+          <div data-article-studio-composer>
+            <ConsolePanel className="studio-composer-panel overflow-hidden bg-card/70 p-3 sm:p-5">
+              <div className="mb-3 flex min-w-0 items-center justify-between gap-3 border-b border-dotted border-border/70 px-1 pb-2.5">
                 <span className="truncate font-mono text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-foreground">
                   ARTICLE INPUT
                 </span>
@@ -1489,16 +1484,11 @@ export function DashboardHome({
                 error={composerError}
               />
             </ConsolePanel>
-          </section>
-        </div>
-        <ScreenLine className="h-4" />
-        <footer className="console-footer border-t-0">
-          <span className="truncate font-mono text-[0.6rem] uppercase tracking-[0.12em]">PRIVATE WORKSPACE</span>
-          <span className="truncate font-mono text-[0.6rem] uppercase tracking-[0.12em] text-muted-foreground/65">
-            {accountLabel}
-          </span>
-        </footer>
-      </SidebarInset>
+          </div>
+        </section>
+      </ArticleStudioShell>
+
+      <RecoveryKeyDialog recoveryKey={workspace.recoveryKey ?? null} />
 
       {workspaceChoiceOpen ? (
         <AlertDialog open onOpenChange={handleWorkspaceChoiceOpenChange}>
@@ -1536,8 +1526,6 @@ export function DashboardHome({
         onOpenChange={handleAccessDialogChange}
         onSuccess={handleAccessSuccess}
       />
-    </SidebarProvider>
-      </div>
-    </div>
+    </>
   );
 }
