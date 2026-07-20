@@ -200,6 +200,7 @@ export function PublicHome({
   const submissionStartedRef = useRef(false);
   const hasUserEditedRef = useRef(false);
   const focusPromptOnMobileCloseRef = useRef(false);
+  const focusRetryTimerRef = useRef<number | null>(null);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
 
   const getStorage = useCallback(
@@ -264,6 +265,19 @@ export function PublicHome({
       if (autosaveTimerRef.current === timeout) autosaveTimerRef.current = null;
     };
   }, [getStorage, illustrationStyle, prompt, slideCount]);
+
+  useEffect(() => {
+    return () => {
+      // A mobile sheet can finish its close animation after this controller
+      // unmounts (for example during route changes or test cleanup). Clear
+      // any pending focus retry so it cannot outlive the page.
+      const timer = focusRetryTimerRef.current;
+      focusRetryTimerRef.current = null;
+      if (timer !== null && typeof window !== 'undefined') {
+        window.clearTimeout(timer);
+      }
+    };
+  }, []);
 
   const handleCreate = () => {
     if (isSubmitting) return;
@@ -356,15 +370,26 @@ export function PublicHome({
   };
 
   const focusPrompt = () => {
+    if (typeof window === 'undefined') return;
+
+    if (focusRetryTimerRef.current !== null) {
+      window.clearTimeout(focusRetryTimerRef.current);
+      focusRetryTimerRef.current = null;
+    }
+
     let attempts = 0;
     const focus = () => {
+      if (typeof window === 'undefined') return;
       if (promptRef.current) {
         promptRef.current.focus();
+        focusRetryTimerRef.current = null;
         return;
       }
       if (attempts < 20) {
         attempts += 1;
-        window.setTimeout(focus, 10);
+        focusRetryTimerRef.current = window.setTimeout(focus, 10);
+      } else {
+        focusRetryTimerRef.current = null;
       }
     };
     focus();
