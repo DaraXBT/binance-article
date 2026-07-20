@@ -84,7 +84,8 @@ export function PromptComposer({
   return (
     <form
       onSubmit={handleSubmit}
-      className="relative min-w-0"
+      data-article-studio-composer-form
+      className="studio-prompt-form relative min-w-0"
       aria-describedby="composer-feedback"
       noValidate
     >
@@ -102,11 +103,11 @@ export function PromptComposer({
         disabled={busy}
         aria-invalid={Boolean(error)}
         aria-describedby="composer-feedback"
-        className="min-h-32 resize-y rounded-none border border-dotted border-border/80 bg-background/35 px-3 py-3 text-base leading-7 shadow-none placeholder:text-muted-foreground/65 focus-visible:border-primary/60 focus-visible:ring-[3px] focus-visible:ring-ring/30 focus-visible:ring-offset-0 max-[390px]:min-h-20 max-[390px]:py-2 sm:min-h-36 sm:text-[1.02rem]"
+        className="studio-prompt-input min-h-24 max-h-56 resize-none rounded-xl border border-border/70 bg-background/45 px-4 py-3.5 text-base leading-7 shadow-none placeholder:text-muted-foreground/60 focus-visible:border-primary/65 focus-visible:bg-background focus-visible:ring-[3px] focus-visible:ring-ring/25 focus-visible:ring-offset-0 max-[390px]:min-h-20 max-[390px]:rounded-lg max-[390px]:py-3 sm:min-h-28 sm:text-[1.02rem]"
       />
 
-      <div className="mt-3 flex flex-col gap-3 border-t border-border/70 pt-3 max-[390px]:flex-row max-[390px]:items-center max-[390px]:justify-between max-[390px]:gap-1 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap items-center gap-2 max-[390px]:min-w-0 max-[390px]:flex-1 max-[390px]:flex-nowrap max-[390px]:gap-1">
+      <div className="mt-3 flex flex-col gap-2.5 border-t border-border/60 pt-3 max-[390px]:flex-row max-[390px]:items-center max-[390px]:justify-between max-[390px]:gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 max-[390px]:flex-1 max-[390px]:flex-nowrap">
           <Select
             value={String(slideCount)}
             onValueChange={(value) => {
@@ -115,7 +116,7 @@ export function PromptComposer({
             }}
             disabled={busy}
           >
-            <SelectTrigger aria-label={labels.slideCount} size="sm" className="min-w-24 rounded-none border-dotted bg-background/55 max-[390px]:min-w-0 max-[390px]:flex-1 max-[390px]:px-2">
+            <SelectTrigger aria-label={labels.slideCount} size="sm" className="studio-composer-chip min-w-24 rounded-lg border-dotted bg-background/55 px-2.5 text-xs max-[390px]:min-w-0 max-[390px]:flex-1 max-[390px]:px-2">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -133,7 +134,7 @@ export function PromptComposer({
             }}
             disabled={busy}
           >
-            <SelectTrigger aria-label={labels.illustrationStyle} size="sm" className="min-w-40 rounded-none border-dotted bg-background/55 max-[390px]:min-w-0 max-[390px]:flex-[1.5] max-[390px]:px-2">
+            <SelectTrigger aria-label={labels.illustrationStyle} size="sm" className="studio-composer-chip min-w-40 rounded-lg border-dotted bg-background/55 px-2.5 text-xs max-[390px]:min-w-0 max-[390px]:flex-[1.5] max-[390px]:px-2">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -146,7 +147,7 @@ export function PromptComposer({
           </Select>
         </div>
 
-        <div className="flex flex-col gap-2 max-[390px]:shrink-0 max-[390px]:flex-row max-[390px]:gap-1 sm:flex-row sm:justify-end">
+        <div className="flex shrink-0 items-center gap-1.5 max-[390px]:gap-1">
           {showSuggest && onSuggest ? (
             <div className="inline-flex">
               <Button
@@ -156,7 +157,7 @@ export function PromptComposer({
                 onClick={() => void onSuggest()}
                 disabled={busy || !prompt.trim()}
                 aria-label={isSuggesting ? labels.suggesting : labels.suggest}
-                className="rounded-none border-dotted max-[390px]:size-8 max-[390px]:p-0"
+                className="studio-composer-chip rounded-lg border-dotted px-2.5 text-xs max-[390px]:size-8 max-[390px]:p-0"
               >
                 {isSuggesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 <span className="max-[390px]:hidden">{isSuggesting ? labels.suggesting : labels.suggest}</span>
@@ -167,7 +168,7 @@ export function PromptComposer({
             type="submit"
             size="sm"
             disabled={busy || !prompt.trim()}
-            className="w-full rounded-none bg-primary px-5 text-primary-foreground hover:bg-primary/90 max-[390px]:size-8 max-[390px]:w-8 max-[390px]:shrink-0 max-[390px]:p-0 sm:w-auto"
+            className="studio-submit-button h-9 rounded-lg bg-primary px-3.5 text-primary-foreground shadow-none hover:bg-primary/90 max-[390px]:size-8 max-[390px]:w-8 max-[390px]:shrink-0 max-[390px]:p-0 sm:px-4"
             aria-label={isGenerating ? labels.generating : labels.generate}
           >
             {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -180,7 +181,7 @@ export function PromptComposer({
         id="composer-feedback"
         role={error ? 'alert' : undefined}
         aria-live="polite"
-        className={`mt-3 min-h-5 text-sm ${error ? 'text-destructive' : 'text-muted-foreground'}`}
+        className={`mt-2 min-h-5 text-xs leading-relaxed ${error ? 'text-destructive' : 'text-muted-foreground'}`}
       >
         {error || helperText || '\u00a0'}
       </p>
