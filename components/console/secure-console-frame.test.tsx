@@ -15,6 +15,7 @@ describe('SecureConsoleFrame', () => {
         eyebrow="ARTICLE STUDIO"
         title="Draft a publish-ready article"
         subtitle="One focused workspace for the next story."
+        header={<div>Header</div>}
         statuses={[
           { label: 'Draft', value: 'LOCAL', tone: 'neutral' },
           { label: 'Identity', value: 'REQUIRED', tone: 'warning' },
@@ -25,7 +26,7 @@ describe('SecureConsoleFrame', () => {
       </SecureConsoleFrame>,
     );
 
-    expect(screen.getByRole('main')).toHaveAttribute('data-console-frame', 'public');
+    expect(screen.getByRole('main').getAttribute('data-console-frame')).toBe('public');
     expect(screen.getByRole('heading', { name: 'Draft a publish-ready article' })).toBeTruthy();
     expect(screen.getByText('Draft')).toBeTruthy();
     expect(screen.getByText('LOCAL')).toBeTruthy();
@@ -42,7 +43,7 @@ describe('SecureConsoleFrame', () => {
       </SecureConsoleFrame>,
     );
 
-    expect(screen.getByRole('main')).toHaveAttribute('data-console-frame', 'checkpoint');
+    expect(screen.getByRole('main').getAttribute('data-console-frame')).toBe('checkpoint');
     expect(screen.getByText('IDENTITY')).toBeTruthy();
     expect(screen.queryByRole('heading')).toBeNull();
   });
