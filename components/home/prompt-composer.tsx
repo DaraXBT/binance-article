@@ -76,6 +76,7 @@ export function PromptComposer({
   suggestGlowClassName?: string;
 }) {
   const busy = isGenerating || isSuggesting;
+  const feedback = error || helperText;
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     void onGenerate();
@@ -86,7 +87,7 @@ export function PromptComposer({
       onSubmit={handleSubmit}
       data-article-studio-composer-form
       className="studio-prompt-form relative min-w-0"
-      aria-describedby="composer-feedback"
+      aria-describedby={feedback ? 'composer-feedback' : undefined}
       noValidate
     >
       <label htmlFor="article-prompt" className="sr-only">{labels.prompt}</label>
@@ -102,7 +103,7 @@ export function PromptComposer({
         rows={5}
         disabled={busy}
         aria-invalid={Boolean(error)}
-        aria-describedby="composer-feedback"
+        aria-describedby={feedback ? 'composer-feedback' : undefined}
         className="studio-prompt-input min-h-24 max-h-56 resize-none rounded-xl border border-border/70 bg-background/45 px-4 py-3.5 text-base leading-7 shadow-none placeholder:text-muted-foreground/60 focus-visible:border-primary/65 focus-visible:bg-background focus-visible:ring-[3px] focus-visible:ring-ring/25 focus-visible:ring-offset-0 max-[390px]:min-h-20 max-[390px]:rounded-lg max-[390px]:py-3 sm:min-h-28 sm:text-[1.02rem]"
       />
 
@@ -177,14 +178,16 @@ export function PromptComposer({
         </div>
       </div>
 
-      <p
-        id="composer-feedback"
-        role={error ? 'alert' : undefined}
-        aria-live="polite"
-        className={`mt-2 min-h-5 text-xs leading-relaxed ${error ? 'text-destructive' : 'text-muted-foreground'}`}
-      >
-        {error || helperText || '\u00a0'}
-      </p>
+      {feedback ? (
+        <p
+          id="composer-feedback"
+          role={error ? 'alert' : undefined}
+          aria-live="polite"
+          className={`mt-2 min-h-5 text-xs leading-relaxed ${error ? 'text-destructive' : 'text-muted-foreground'}`}
+        >
+          {feedback}
+        </p>
+      ) : null}
     </form>
   );
 }

@@ -8,6 +8,7 @@ const messages = {
     privateBeta: 'Invite-only private beta',
     signIn: 'Sign in',
     studioTitle: 'Article Studio',
+    eyebrow: 'Binance Square article studio',
     newArticle: 'New article',
     localDraft: 'Local draft',
     untitledArticle: 'Untitled article',
@@ -34,6 +35,7 @@ const messages = {
     resumeUnavailable: 'That draft is no longer available in this tab.',
     promptTooShort: 'Add at least 10 characters.',
     trustLine: 'Private assets · Binance login stays on your device',
+    privateAssets: 'Private assets',
     startersLabel: 'Try an idea',
     starters: [
       'Explain tokenized gold for crypto traders',
@@ -85,6 +87,17 @@ describe('PublicHome', () => {
     ).toBe(true);
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
+  });
+
+  it('keeps the public surface focused on the article composer', () => {
+    render(<PublicHome onNavigate={vi.fn()} />);
+
+    expect(screen.queryByText(messages.publicHome.accessHint)).toBeNull();
+    expect(screen.queryByText(messages.publicHome.subtitle)).toBeNull();
+    expect(screen.queryByText(messages.publicHome.eyebrow)).toBeNull();
+    expect(screen.queryByText(messages.publicHome.trustLine)).toBeNull();
+    expect(screen.queryByText(messages.publicHome.privateAssets)).toBeNull();
+    expect(screen.queryByText(messages.publicHome.privateBeta)).toBeNull();
   });
 
   it('uses a quiet framed console without atmospheric decoration', () => {

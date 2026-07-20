@@ -500,9 +500,6 @@ export function PublicHome({
         )}
         headerActions={(
           <>
-            <span className="mr-1 hidden max-w-48 truncate border-r border-border/70 pr-3 font-mono text-[0.62rem] uppercase tracking-[0.12em] text-muted-foreground sm:inline">
-              {copy.privateBeta}
-            </span>
             <LanguageToggle />
             <ThemeToggle />
             <Button asChild size="sm" className="h-8 rounded-none px-2 min-[390px]:px-3">
@@ -513,29 +510,15 @@ export function PublicHome({
             </Button>
           </>
         )}
-        footer={(
-          <>
-            <span className="truncate">{copy.trustLine}</span>
-            <span className="hidden shrink-0 font-mono uppercase tracking-[0.1em] sm:inline">
-              {copy.privateAssets}
-            </span>
-          </>
-        )}
         onMobileSidebarClose={handleMobileSidebarClosed}
         onMobileSidebarCloseAutoFocus={handleMobileSidebarCloseAutoFocus}
         mainClassName="studio-main-public"
       >
         <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-center gap-4">
           <section className="min-w-0 text-center">
-            <p className="mb-2 font-mono text-[0.64rem] font-semibold uppercase tracking-[0.16em] text-primary">
-              {copy.eyebrow}
-            </p>
             <h1 className="text-2xl font-semibold leading-tight tracking-normal sm:text-3xl">
               {copy.studioGreeting || copy.title}
             </h1>
-            <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-              {copy.subtitle}
-            </p>
           </section>
 
           <div data-article-studio-composer>
@@ -544,9 +527,6 @@ export function PublicHome({
               <div className="mb-3 flex items-center justify-between gap-3 border-b border-dotted border-border/70 px-1 pb-2.5">
                 <span className="truncate font-mono text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-foreground">
                   {copy.promptLabel}
-                </span>
-                <span className="shrink-0 font-mono text-[0.6rem] uppercase tracking-[0.12em] text-muted-foreground/75">
-                  {copy.privateAssets}
                 </span>
               </div>
               <PromptComposer
@@ -577,7 +557,6 @@ export function PublicHome({
                   generating: copy.createAction,
                   styleNames,
                 }}
-                helperText={copy.accessHint}
                 error={error}
                 isGenerating={isSubmitting}
               />
