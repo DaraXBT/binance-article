@@ -96,7 +96,7 @@ describe('PublicHome', () => {
 
     expect(decoration).toHaveLength(0);
     expect(container.querySelector('[data-console-frame="public"]')).toBeTruthy();
-    expect(container.querySelector('[data-console-status-rail]')).toBeTruthy();
+    expect(container.querySelector('[data-console-status-rail]')).toBeNull();
   });
 
   it('keeps the public header utility controls compact', () => {
@@ -121,7 +121,7 @@ describe('PublicHome', () => {
     expect(container.querySelector('[data-article-studio-shell="public"]')).toBeTruthy();
     expect(container.querySelector('[data-article-studio-rail]')).toBeTruthy();
     expect(container.querySelector('[data-article-studio-composer]')).toBeTruthy();
-    expect(container.querySelector('[data-article-studio-status-strip]')).toBeTruthy();
+    expect(container.querySelector('[data-article-studio-status-strip]')).toBeNull();
     expect(screen.getByRole('navigation', { name: /article/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: messages.publicHome.newArticle })).toBeTruthy();
     expect(screen.getByText(/saved in this tab/i)).toBeTruthy();

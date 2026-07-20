@@ -374,13 +374,13 @@ describe('DashboardHome', () => {
     expect(html).toContain(messages.dashboard.generateAction);
   });
 
-  it('uses the shared workspace shell with a history rail and compact status strip', async () => {
+  it('uses the shared workspace shell with a history rail and focused composer', async () => {
     const { DashboardHome } = await import('@/components/home/dashboard-home');
     const html = renderToStaticMarkup(React.createElement(DashboardHome));
 
     expect(html).toContain('data-article-studio-shell="workspace"');
     expect(html).toContain('data-article-studio-rail="workspace"');
-    expect(html).toContain('data-article-studio-status-strip');
+    expect(html).not.toContain('data-article-studio-status-strip');
     expect(html).toContain('data-article-studio-composer');
     expect(html).toContain(messages.dashboard.searchDecks);
   });

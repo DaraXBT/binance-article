@@ -27,7 +27,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   ConsolePanel,
-  type ConsoleStatusItem,
 } from '@/components/console/secure-console-frame';
 import type { IllustrationStyleId } from '@/lib/config';
 import {
@@ -41,7 +40,6 @@ import {
 } from '@/lib/client/anonymous-draft';
 import {
   ArticleStudioShell,
-  ArticleStudioStatusStrip,
 } from './article-studio-shell';
 import { PromptComposer, type ComposerSlideCount } from './prompt-composer';
 
@@ -459,21 +457,6 @@ export function PublicHome({
     'lab-notes': messages.newDeck.styleOptions['lab-notes'].name,
   };
 
-  const statuses: ConsoleStatusItem[] = [
-    {
-      label: 'Draft',
-      value: prompt.trim()
-        ? resumeIntent?.stage === 'submitted'
-          ? 'READY'
-          : resumeIntentId
-            ? 'HELD'
-            : 'LOCAL'
-        : 'EMPTY',
-    },
-    { label: 'Identity', value: 'REQUIRED', tone: 'warning' },
-    { label: 'Generation', value: 'LOCKED', tone: 'warning' },
-  ];
-
   return (
     <>
       <a
@@ -554,8 +537,6 @@ export function PublicHome({
               {copy.subtitle}
             </p>
           </section>
-
-          <ArticleStudioStatusStrip items={statuses} />
 
           <div data-article-studio-composer>
             <ConsolePanel className="studio-composer-panel bg-card/70 p-3 sm:p-5">

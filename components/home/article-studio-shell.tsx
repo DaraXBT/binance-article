@@ -12,10 +12,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar';
-import {
-  ScreenLine,
-  type ConsoleStatusItem,
-} from '@/components/console/secure-console-frame';
+import { ScreenLine } from '@/components/console/secure-console-frame';
 import { cn } from '@/lib/utils';
 
 export type ArticleStudioMode = 'public' | 'workspace';
@@ -44,56 +41,6 @@ function MobileSidebarCloseBridge({ onClose }: { onClose?: () => void }) {
   }, [onClose, openMobile]);
 
   return null;
-}
-
-const statusToneClasses: Record<NonNullable<ConsoleStatusItem['tone']>, string> = {
-  neutral: 'text-muted-foreground',
-  action: 'text-primary',
-  warning: 'text-[var(--access-signal)]',
-  success: 'text-emerald-600 dark:text-emerald-300',
-  danger: 'text-destructive',
-};
-
-export function ArticleStudioStatusStrip({
-  items,
-  className,
-}: {
-  items: ConsoleStatusItem[];
-  className?: string;
-}) {
-  if (items.length === 0) return null;
-
-  return (
-    <dl
-      data-article-studio-status-strip
-      data-article-studio-status
-      data-console-status-rail
-      aria-live="polite"
-      className={cn(
-        'flex min-w-0 flex-wrap items-center border-y border-border/70 bg-background/25',
-        className,
-      )}
-    >
-      {items.map((item) => (
-        <div
-          key={`${item.label}-${item.value}`}
-          className="flex min-w-0 flex-1 basis-[30%] items-center justify-between gap-2 border-border/60 px-2.5 py-2 first:border-l-0 max-[500px]:flex-col max-[500px]:items-start max-[500px]:gap-0.5 max-[500px]:px-2 sm:px-3"
-        >
-          <dt className="truncate font-mono text-[0.6rem] uppercase tracking-[0.12em] text-muted-foreground/75">
-            {item.label}
-          </dt>
-          <dd
-            className={cn(
-              'truncate font-mono text-[0.64rem] font-semibold uppercase tracking-[0.08em]',
-              statusToneClasses[item.tone ?? 'neutral'],
-            )}
-          >
-            {item.value}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
 }
 
 /**

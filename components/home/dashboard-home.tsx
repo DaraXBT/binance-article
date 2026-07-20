@@ -84,7 +84,6 @@ import {
 } from './prompt-composer';
 import {
   ArticleStudioShell,
-  ArticleStudioStatusStrip,
 } from './article-studio-shell';
 
 type DeckListItem = {
@@ -1204,29 +1203,6 @@ export function DashboardHome({
         ? messages.dashboard.promptHintReady
         : messages.dashboard.promptHintEmpty;
 
-  const consoleStatuses = [
-    {
-      label: 'DRAFT',
-      value: resumeNeedsAction ? 'HELD' : prompt.trim() ? 'EDITING' : 'EMPTY',
-      tone: resumeNeedsAction ? 'warning' as const : prompt.trim() ? 'action' as const : 'neutral' as const,
-    },
-    {
-      label: 'IDENTITY',
-      value: actor ? 'VERIFIED' : 'SESSION',
-      tone: actor ? 'success' as const : 'neutral' as const,
-    },
-    {
-      label: 'WORKSPACE',
-      value: hasWorkspace ? 'READY' : 'CHECK',
-      tone: hasWorkspace ? 'success' as const : 'warning' as const,
-    },
-    {
-      label: 'AI ACCESS',
-      value: generationLocked ? 'LOCKED' : isSubmitting || isSuggesting ? 'ACTIVE' : 'READY',
-      tone: generationLocked ? 'warning' as const : isSubmitting || isSuggesting ? 'action' as const : 'success' as const,
-    },
-  ];
-
   if ((isWorkspaceLoading && !workspace) || isWorkspaceBusy) {
     return (
       <SecureConsoleFrame
@@ -1427,8 +1403,6 @@ export function DashboardHome({
               {messages.dashboard.promptHomeSubtitle}
             </p>
           </div>
-
-          <ArticleStudioStatusStrip items={consoleStatuses} />
 
           <div data-article-studio-composer>
             <ConsolePanel className="studio-composer-panel overflow-hidden bg-card/70 p-3 sm:p-5">
