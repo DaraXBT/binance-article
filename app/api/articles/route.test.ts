@@ -92,8 +92,49 @@ describe('POST /api/articles', () => {
       'Article content',
       'Article description',
       'pixel-art',
-      'workspace-1'
+      'workspace-1',
+      undefined,
     );
+  });
+
+  it('passes a bounded UUID idempotency key into workspace-scoped article creation', async () => {
+    const { POST } = await import('@/app/api/articles/route');
+    const idempotencyKey = '11111111-1111-4111-8111-111111111111';
+    const request = new Request('https://articles.example.com/api/articles', {
+      method: 'POST',
+      headers: {
+        origin: 'https://articles.example.com',
+        'Idempotency-Key': idempotencyKey,
+      },
+      body: '{}',
+    });
+
+    const response = await POST(request as never);
+
+    expect(response.status).toBe(201);
+    expect(dbMock.createDeckProject).toHaveBeenCalledWith(
+      'Article title',
+      'Article content',
+      'Article description',
+      'pixel-art',
+      'workspace-1',
+      idempotencyKey,
+    );
+  });
+
+  it('rejects malformed idempotency keys before article persistence', async () => {
+    const { POST } = await import('@/app/api/articles/route');
+    const response = await POST(new Request('https://articles.example.com/api/articles', {
+      method: 'POST',
+      headers: {
+        origin: 'https://articles.example.com',
+        'Idempotency-Key': 'not-a-uuid',
+      },
+      body: '{}',
+    }) as never);
+
+    expect(response.status).toBe(400);
+    expect(dbMock.createDeckProject).not.toHaveBeenCalled();
   });
 
   it('lists only the authenticated account workspace', async () => {

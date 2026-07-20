@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   resolveActorWorkspace: vi.fn<() => Promise<{
     id: string;
     accessKeyPrefix: string;
+    origin: 'legacy' | 'account';
+    canReplaceWithLegacy: boolean;
   } | null>>(async () => null),
   isGenerateAccessEnabled: vi.fn(() => false),
   getCurrentGenerateAccessState: vi.fn(async () => ({
@@ -23,7 +25,9 @@ const mocks = vi.hoisted(() => ({
   createAccountWorkspaceRepository: vi.fn(() => ({ accountRepository: true })),
   createAccountWorkspace: vi.fn(async () => ({ id: 'workspace-1', created: true })),
   createLegacyClaimRepository: vi.fn(() => ({ repository: true })),
-  claimLegacyWorkspace: vi.fn(async () => ({ id: 'workspace-2' })),
+  claimLegacyWorkspace: vi.fn(async () => ({
+    id: 'workspace-2', replacedWorkspace: false,
+  })),
 }));
 
 vi.mock('@/server/auth/authorization', () => ({ requireActiveUser: mocks.requireActiveUser }));
@@ -75,7 +79,9 @@ describe('/api/workspace routes', () => {
       resetAt: new Date('2026-07-19T00:15:00.000Z'),
     });
     mocks.createLegacyClaimRepository.mockReturnValue({ repository: true });
-    mocks.claimLegacyWorkspace.mockResolvedValue({ id: 'workspace-2' });
+    mocks.claimLegacyWorkspace.mockResolvedValue({
+      id: 'workspace-2', replacedWorkspace: false,
+    });
   });
 
   it('returns account workspace status without auto-creating for a new user', async () => {
@@ -92,6 +98,8 @@ describe('/api/workspace routes', () => {
       workspaceId: null,
       accessKeyPrefix: null,
       recoveryKey: null,
+      workspaceOrigin: null,
+      canReplaceWithLegacy: false,
       generateAccessEnabled: false,
       hasGenerationAccess: false,
       generationAccessInvalidReason: null,
@@ -101,6 +109,7 @@ describe('/api/workspace routes', () => {
   it('binds generation access to the verified Better Auth session', async () => {
     mocks.resolveActorWorkspace.mockResolvedValue({
       id: 'workspace-1', accessKeyPrefix: 'acct_12345678',
+      origin: 'account', canReplaceWithLegacy: true,
     });
     mocks.isGenerateAccessEnabled.mockReturnValue(true);
 
@@ -117,8 +126,29 @@ describe('/api/workspace routes', () => {
       workspaceId: 'workspace-1',
       accessKeyPrefix: 'acct_12345678',
       recoveryKey: null,
+      workspaceOrigin: 'account',
+      canReplaceWithLegacy: true,
       generateAccessEnabled: true,
       hasGenerationAccess: true,
+    });
+  });
+
+  it('marks a claimed legacy workspace as ineligible for placeholder replacement', async () => {
+    mocks.resolveActorWorkspace.mockResolvedValue({
+      id: 'workspace-legacy',
+      accessKeyPrefix: 'dwk_12345678',
+      origin: 'legacy',
+      canReplaceWithLegacy: false,
+    });
+
+    const { GET } = await import('@/app/api/workspace/route');
+    const response = await GET(new Request('https://articles.example.com/api/workspace') as never);
+
+    await expect(response.json()).resolves.toMatchObject({
+      hasWorkspace: true,
+      workspaceId: 'workspace-legacy',
+      workspaceOrigin: 'legacy',
+      canReplaceWithLegacy: false,
     });
   });
 
@@ -139,6 +169,7 @@ describe('/api/workspace routes', () => {
     expect(body).toEqual({
       success: true,
       workspaceId: 'workspace-1',
+      created: true,
     });
     expect(JSON.stringify(body)).not.toMatch(/recovery|accessKey/i);
   });
@@ -171,8 +202,28 @@ describe('/api/workspace routes', () => {
     expect(body).toEqual({
       success: true,
       workspaceId: 'workspace-2',
+      replacedWorkspace: false,
     });
     expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('reports when legacy recovery replaced a pristine account workspace', async () => {
+    mocks.claimLegacyWorkspace.mockResolvedValueOnce({
+      id: 'workspace-legacy', replacedWorkspace: true,
+    });
+    const { POST } = await import('@/app/api/workspace/recover/route');
+    const response = await POST(new Request('https://articles.example.com/api/workspace/recover', {
+      method: 'POST',
+      headers: { origin: 'https://articles.example.com' },
+      body: JSON.stringify({ accessKey: `dwk_${'d'.repeat(36)}` }),
+    }) as never);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      workspaceId: 'workspace-legacy',
+      replacedWorkspace: true,
+    });
   });
 
   it('rejects rate-limited attempts before reading or hashing another recovery key', async () => {

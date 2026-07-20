@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import * as databaseSchema from './schema';
 import {
   account,
   auditEvent,
@@ -120,6 +121,26 @@ describe('Drizzle schema', () => {
     expect(publisherCommand.recipeHash.name).toBe('recipeHash');
     expect(publishApproval.callbackTokenHash.name).toBe('callbackTokenHash');
     expect(telegramUpdate.updateId.name).toBe('updateId');
+  });
+
+  it('classifies every workspace with the fail-closed WorkspaceOrigin enum', () => {
+    const originEnum = (databaseSchema as Record<string, unknown>).workspaceOrigin as {
+      enumName?: string;
+      enumValues?: string[];
+    } | undefined;
+    const originColumn = (workspace as unknown as Record<string, {
+      name?: string;
+      notNull?: boolean;
+      hasDefault?: boolean;
+      default?: unknown;
+    } | undefined>).origin;
+
+    expect(originEnum?.enumName).toBe('WorkspaceOrigin');
+    expect(originEnum?.enumValues).toEqual(['legacy', 'account']);
+    expect(originColumn?.name).toBe('origin');
+    expect(originColumn?.notNull).toBe(true);
+    expect(originColumn?.hasDefault).toBe(true);
+    expect(originColumn?.default).toBe('legacy');
   });
 
   it('stores only hashes and object keys at cloud trust boundaries', () => {

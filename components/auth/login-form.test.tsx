@@ -39,10 +39,14 @@ describe('LoginForm', () => {
   });
 
   it('does not offer Telegram when the deployment has no Telegram OAuth client', () => {
-    render(<LoginForm callbackURL="/" telegramEnabled={false} />);
+    render(<LoginForm telegramEnabled={false} />);
 
     expect(screen.getByRole('button', { name: /continue with google/i })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /telegram/i })).toBeNull();
     expect(screen.queryByText(/already linked/i)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /continue with google/i }));
+    expect(mocks.social).toHaveBeenCalledWith({
+      provider: 'google', callbackURL: '/workspace',
+    });
   });
 });

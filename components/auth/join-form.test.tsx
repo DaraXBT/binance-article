@@ -38,8 +38,8 @@ describe('JoinForm', () => {
     }));
     expect(signInSocial).toHaveBeenCalledWith({
       provider: 'google',
-      callbackURL: '/',
-      newUserCallbackURL: '/',
+      callbackURL: '/workspace',
+      newUserCallbackURL: '/workspace',
       requestSignUp: true,
     });
   });

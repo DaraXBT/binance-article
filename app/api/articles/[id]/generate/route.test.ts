@@ -15,6 +15,8 @@ const articleAuthorizationMock = {
 const jobServiceMock = {
   createJobRun: vi.fn(),
   attachWorkflowRunId: vi.fn(),
+  findIdempotentGeneration: vi.fn(),
+  beginIdempotentGeneration: vi.fn(),
 };
 
 const workflowClientMock = {
@@ -77,7 +79,77 @@ describe('POST /api/articles/[id]/generate', () => {
       id: 'job-1',
       status: 'queued',
     });
+    jobServiceMock.findIdempotentGeneration.mockResolvedValue(null);
+    jobServiceMock.beginIdempotentGeneration.mockResolvedValue({
+      job: {
+        id: '11111111-1111-4111-8111-111111111111',
+        status: 'queued',
+        runId: null,
+        articleRevisionId: 'deck-1:rev:1',
+      },
+      replayed: false,
+    });
     workflowClientMock.startWorkflow.mockResolvedValue({ runId: 'run-1' });
+  });
+
+  it('uses one idempotency key for the revision, job, and workflow handoff', async () => {
+    const { POST } = await import('@/app/api/articles/[id]/generate/route');
+    const idempotencyKey = '11111111-1111-4111-8111-111111111111';
+    const response = await POST(
+      new Request('http://localhost/api/articles/deck-1/generate', {
+        method: 'POST',
+        headers: { 'Idempotency-Key': idempotencyKey },
+        body: JSON.stringify({
+          articleContent: 'This is a sufficiently long article body for testing.',
+          slideCount: 3,
+          illustrationStyle: 'pixel-art',
+          mode: 'text',
+        }),
+      }) as never,
+      { params: Promise.resolve({ id: 'deck-1' }) },
+    );
+
+    expect(response.status).toBe(202);
+    expect(jobServiceMock.beginIdempotentGeneration).toHaveBeenCalledWith(expect.objectContaining({
+      idempotencyKey,
+      deckId: 'deck-1',
+      workspaceId: 'workspace-1',
+      payload: expect.objectContaining({ slideCount: 3 }),
+    }));
+    expect(dbMock.beginGenerationRevision).not.toHaveBeenCalled();
+    expect(jobServiceMock.createJobRun).not.toHaveBeenCalled();
+    expect(workflowClientMock.startWorkflow).toHaveBeenCalledWith({
+      jobId: idempotencyKey,
+      kind: 'generate',
+    });
+  });
+
+  it('returns an authenticated replay without consuming another rate-limit slot', async () => {
+    jobServiceMock.findIdempotentGeneration.mockResolvedValueOnce({
+      id: '11111111-1111-4111-8111-111111111111',
+      status: 'queued',
+      runId: 'run-existing',
+      articleRevisionId: 'deck-1:rev:1',
+    });
+    const { POST } = await import('@/app/api/articles/[id]/generate/route');
+    const response = await POST(
+      new Request('http://localhost/api/articles/deck-1/generate', {
+        method: 'POST',
+        headers: { 'Idempotency-Key': '11111111-1111-4111-8111-111111111111' },
+        body: JSON.stringify({
+          articleContent: 'This is a sufficiently long article body for testing.',
+          slideCount: 3,
+          illustrationStyle: 'pixel-art',
+          mode: 'text',
+        }),
+      }) as never,
+      { params: Promise.resolve({ id: 'deck-1' }) },
+    );
+
+    expect(response.status).toBe(202);
+    expect(rateLimitMock.consumeAtomicRateLimit).not.toHaveBeenCalled();
+    expect(jobServiceMock.beginIdempotentGeneration).not.toHaveBeenCalled();
+    expect(workflowClientMock.startWorkflow).not.toHaveBeenCalled();
   });
 
   it('returns 202 with jobId when generation is started', async () => {

@@ -203,6 +203,7 @@ vi.mock('@/components/generate-access-dialog', () => ({
 const refetch = vi.fn();
 const refetchWorkspace = vi.fn();
 const mutate = vi.fn();
+const createWorkspaceMutate = vi.fn();
 let workspaceData:
   | {
       hasWorkspace: boolean;
@@ -235,6 +236,7 @@ vi.mock('@/lib/hooks', () => ({
   }),
   useUpdateDeck: () => ({ isPending: false, mutate }),
   useDeleteDeck: () => ({ isPending: false, mutate }),
+  useCreateWorkspace: () => ({ isPending: false, mutate: createWorkspaceMutate }),
 }));
 
 describe('DashboardHome', () => {
@@ -256,6 +258,7 @@ describe('DashboardHome', () => {
     };
     workspaceIsLoading = false;
     workspaceError = null;
+    createWorkspaceMutate.mockReset();
   });
 
   afterEach(() => {
@@ -305,7 +308,7 @@ describe('DashboardHome', () => {
     expect(refetchWorkspace).toHaveBeenCalledTimes(1);
   });
 
-  it('shows workspace onboarding instead of the dashboard when no workspace is attached', async () => {
+  it('automatically provisions an account workspace once when none is attached', async () => {
     workspaceData = {
       hasWorkspace: false,
       workspaceId: null,
@@ -317,11 +320,10 @@ describe('DashboardHome', () => {
     };
 
     const { DashboardHome } = await import('@/components/home/dashboard-home');
-    const html = renderToStaticMarkup(React.createElement(DashboardHome));
+    render(React.createElement(DashboardHome));
 
-    expect(html).toContain('data-testid="workspace-onboarding"');
-    expect(html).toContain(messages.workspace.onboardingTitle);
-    expect(html).not.toContain(messages.dashboard.promptHomeTitle);
+    await waitFor(() => expect(createWorkspaceMutate).toHaveBeenCalledTimes(1));
+    expect(screen.getByText(messages.workspace.bootstrapLoadingTitle)).toBeTruthy();
   });
 
   it('renders a prompt-first home composer after a workspace is attached', async () => {
@@ -368,7 +370,7 @@ describe('DashboardHome', () => {
     expect(html).not.toContain('data-testid="recovery-key-dialog"');
   });
 
-  it('shows locked generation messaging and disables generate actions until unlocked', async () => {
+  it('keeps locked generation actions clickable and opens access on the first paid action', async () => {
     workspaceData = {
       hasWorkspace: true,
       workspaceId: 'workspace-1',
@@ -382,9 +384,14 @@ describe('DashboardHome', () => {
     const { DashboardHome } = await import('@/components/home/dashboard-home');
     render(React.createElement(DashboardHome));
 
-    expect(screen.getByText(messages.dashboard.generationLockedBanner)).toBeTruthy();
-    expect(screen.getByRole('button', { name: messages.dashboard.aiSuggest }).hasAttribute('disabled')).toBe(true);
-    expect(screen.getByRole('button', { name: messages.dashboard.generateAction }).hasAttribute('disabled')).toBe(true);
+    expect(screen.queryByText(messages.dashboard.generationLockedBanner)).toBeNull();
+    fireEvent.change(screen.getByPlaceholderText(messages.dashboard.promptPlaceholder), {
+      target: { value: 'This is a sufficiently detailed article prompt.' },
+    });
+    const generate = screen.getByRole('button', { name: messages.dashboard.generateAction });
+    expect(generate.hasAttribute('disabled')).toBe(false);
+    fireEvent.click(generate);
+    expect(screen.getByTestId('generate-access-dialog')).toBeTruthy();
   });
 
   it('exports a helper that returns the AI suggest glow classes for idle and non-idle states', async () => {

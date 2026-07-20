@@ -6,8 +6,7 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 
 describe('private page policy', () => {
   it.each([
-    'app/page.tsx',
-    'app/workspace/layout.tsx',
+    'app/workspace/page.tsx',
     'app/new/layout.tsx',
     'app/articles/layout.tsx',
     'app/settings/layout.tsx',
@@ -17,5 +16,12 @@ describe('private page policy', () => {
 
   it.each(['app/login/page.tsx', 'app/join/page.tsx'])('%s remains outside private auth', (file) => {
     expect(readFileSync(`${root}${file}`, 'utf8')).not.toContain('requireActivePageUser');
+  });
+
+  it('keeps the root home public and free of private workspace bootstrapping', () => {
+    const source = readFileSync(`${root}app/page.tsx`, 'utf8');
+    expect(source).not.toContain('requireActivePageUser');
+    expect(source).toContain('PublicHome');
+    expect(source).not.toContain('DashboardHome');
   });
 });

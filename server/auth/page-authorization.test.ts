@@ -55,7 +55,7 @@ describe('private page authorization', () => {
   it('accepts only bounded same-origin callback paths', () => {
     expect(normalizeLoginCallback('/articles/a?tab=slides')).toBe('/articles/a?tab=slides');
     for (const value of ['https://evil.example', '//evil.example', '/\\evil', 'relative', '/login']) {
-      expect(normalizeLoginCallback(value)).toBe('/');
+      expect(normalizeLoginCallback(value)).toBe('/workspace');
     }
   });
 });

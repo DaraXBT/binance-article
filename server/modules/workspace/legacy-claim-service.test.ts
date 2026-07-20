@@ -5,7 +5,12 @@ import { claimLegacyWorkspace } from './legacy-claim-service';
 const now = new Date('2026-07-20T00:00:00.000Z');
 const recoveryKey = `dwk_${'a'.repeat(36)}`;
 
-function repository(result: { id: string } | null = { id: 'workspace_1' }) {
+function repository(
+  result: { id: string; replacedWorkspace: boolean } | null = {
+    id: 'workspace_1',
+    replacedWorkspace: false,
+  },
+) {
   return { claimByRecoveryHash: vi.fn(async () => result) };
 }
 
@@ -17,7 +22,7 @@ describe('legacy workspace account claim', () => {
       actorUserId: 'user_1',
       recoveryKey,
       now,
-    })).resolves.toEqual({ id: 'workspace_1' });
+    })).resolves.toEqual({ id: 'workspace_1', replacedWorkspace: false });
 
     expect(repo.claimByRecoveryHash).toHaveBeenCalledWith({
       actorUserId: 'user_1',
@@ -26,6 +31,18 @@ describe('legacy workspace account claim', () => {
       now,
     });
     expect(JSON.stringify(repo.claimByRecoveryHash.mock.calls)).not.toContain(recoveryKey);
+  });
+
+  it('preserves the repository replacement result for the API contract', async () => {
+    await expect(claimLegacyWorkspace({
+      repository: repository({ id: 'workspace_legacy', replacedWorkspace: true }),
+      actorUserId: 'user_1',
+      recoveryKey,
+      now,
+    })).resolves.toEqual({
+      id: 'workspace_legacy',
+      replacedWorkspace: true,
+    });
   });
 
   it('returns one generic error for malformed, unknown, or already-claimed keys', async () => {
@@ -45,16 +62,18 @@ describe('legacy workspace account claim', () => {
     }
   });
 
-  it('does not distinguish an expired claim from an unknown or already-owned workspace', async () => {
-    await expect(claimLegacyWorkspace({
-      repository: repository(null),
-      actorUserId: 'user_1',
-      recoveryKey,
-      now,
-    })).rejects.toMatchObject({
-      code: 'LEGACY_WORKSPACE_UNAVAILABLE',
-      message: 'The recovery key is invalid or no longer available.',
-      status: 404,
-    });
+  it('does not distinguish expired, wrong-origin, non-pristine, or race-lost claims', async () => {
+    for (const _reason of ['expired', 'wrong-origin', 'non-pristine', 'race-lost']) {
+      await expect(claimLegacyWorkspace({
+        repository: repository(null),
+        actorUserId: 'user_1',
+        recoveryKey,
+        now,
+      })).rejects.toMatchObject({
+        code: 'LEGACY_WORKSPACE_UNAVAILABLE',
+        message: 'The recovery key is invalid or no longer available.',
+        status: 404,
+      });
+    }
   });
 });

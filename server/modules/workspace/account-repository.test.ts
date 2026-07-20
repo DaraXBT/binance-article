@@ -34,6 +34,8 @@ describe('account-owned workspace repository', () => {
     expect(captured[0]?.text).toMatch(/pg_advisory_xact_lock[\s\S]*hashtextextended/);
     expect(captured[1]?.text).toMatch(/INSERT INTO "Workspace"/);
     expect(captured[1]?.text).toMatch(/"legacyClaimExpiresAt"/);
+    expect(captured[1]?.text).toMatch(/"origin"/);
+    expect(captured[1]?.text).toMatch(/'account'::"WorkspaceOrigin"/);
     expect(captured[1]?.text).toMatch(/INSERT INTO "WorkspaceMember"/);
     expect(captured[1]?.text).toMatch(/'owner'::"WorkspaceMemberRole"/);
     expect(captured[1]?.text).toMatch(/INSERT INTO "AuditEvent"/);

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -14,6 +14,13 @@ const normalizeLegacyForeignKeysSql = readFileSync(
   `${root}drizzle/0006_normalize_legacy_foreign_keys.sql`,
   'utf8',
 );
+const workspaceOriginMigrationPath = `${root}drizzle/0007_workspace_origin.sql`;
+const workspaceOriginSql = existsSync(workspaceOriginMigrationPath)
+  ? readFileSync(workspaceOriginMigrationPath, 'utf8')
+  : '';
+const migrationJournal = JSON.parse(
+  readFileSync(`${root}drizzle/meta/_journal.json`, 'utf8'),
+) as { entries?: Array<{ idx?: number; tag?: string }> };
 const baselineScript = readFileSync(`${root}scripts/baseline-drizzle-legacy.mjs`, 'utf8');
 
 describe('Neon migration history', () => {
@@ -125,6 +132,23 @@ describe('Neon migration history', () => {
     }
     expect(normalizeLegacyForeignKeysSql).toMatch(/legacy[\s\S]*IS NOT NULL/i);
     expect(normalizeLegacyForeignKeysSql).toMatch(/target[\s\S]*IS NULL/i);
+  });
+
+  it('adds a fail-closed workspace origin and backfills only exact account prefixes', () => {
+    expect(workspaceOriginSql, 'drizzle/0007_workspace_origin.sql must exist').not.toBe('');
+    expect(workspaceOriginSql).toMatch(
+      /CREATE TYPE "public"\."WorkspaceOrigin" AS ENUM\('legacy', 'account'\)/,
+    );
+    expect(workspaceOriginSql).toMatch(/ADD COLUMN "origin" "WorkspaceOrigin"/);
+    expect(workspaceOriginSql).toContain('^acct_[a-f0-9]{8}$');
+    expect(workspaceOriginSql).toContain(`'account'::"WorkspaceOrigin"`);
+    expect(workspaceOriginSql).toContain(`'legacy'::"WorkspaceOrigin"`);
+    expect(workspaceOriginSql).toMatch(/ALTER COLUMN "origin" SET DEFAULT 'legacy'/);
+    expect(workspaceOriginSql).toMatch(/ALTER COLUMN "origin" SET NOT NULL/);
+    expect(migrationJournal.entries).toContainEqual(expect.objectContaining({
+      idx: 7,
+      tag: '0007_workspace_origin',
+    }));
   });
 
   it('verifies baseline structure beyond column-name sets before stamping history', () => {
