@@ -117,9 +117,9 @@ describe('PublicHome', () => {
     expect(container.querySelector('[data-article-studio-rail]')).toBeTruthy();
     expect(container.querySelector('[data-article-studio-composer]')).toBeTruthy();
     expect(container.querySelector('[data-article-studio-status-strip]')).toBeTruthy();
-    expect(screen.getByRole('navigation', { name: messages.publicHome.studioTitle })).toBeTruthy();
+    expect(screen.getByRole('navigation', { name: /article/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: messages.publicHome.newArticle })).toBeTruthy();
-    expect(screen.getByText(messages.publicHome.savedInTab)).toBeTruthy();
+    expect(screen.getByText(/saved in this tab/i)).toBeTruthy();
   });
 
   it('restores one local draft into the anonymous rail without exposing prompt text in a URL', () => {
@@ -150,6 +150,32 @@ describe('PublicHome', () => {
     expect(screen.getByRole('button', { name: new RegExp(title, 'i') })).toBeTruthy();
     expect(rail?.textContent).toContain(messages.publicHome.draftStateHeld);
     expect(rail?.querySelector(`a[href*="${prompt}"]`)).toBeNull();
+  });
+
+  it('marks a submitted draft as ready to continue instead of presenting it as a generic held draft', () => {
+    const now = Date.now();
+    const prompt = 'Explain tokenized gold settlement for crypto traders.';
+    sessionStorage.setItem(
+      'xarticle:anonymous-generation-intent:v1',
+      JSON.stringify({
+        version: 1,
+        intentId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        action: 'generate',
+        stage: 'submitted',
+        prompt,
+        slideCount: 5,
+        illustrationStyle: 'lab-notes',
+        createdAt: now,
+        updatedAt: now,
+        expiresAt: now + 60 * 60 * 1_000,
+      }),
+    );
+
+    const { container } = render(<PublicHome onNavigate={vi.fn()} />);
+    const rail = container.querySelector('[data-article-studio-rail]');
+
+    expect(rail?.textContent).toContain(messages.publicHome.draftStateReady);
+    expect(rail?.textContent).not.toContain(messages.publicHome.draftStateHeld);
   });
 
   it('selects a starter idea, focuses the composer, and makes no network request', () => {
