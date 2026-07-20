@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 
 import { isAppError } from '@/server/http/errors';
 
+import { hasUsableAuthEnvironment } from './auth-policy';
 import { requireActiveUser } from './authorization';
 
 const DEFAULT_AUTHENTICATED_DESTINATION = '/workspace';
@@ -59,7 +60,10 @@ export async function getOptionalActivePageUser() {
   // (and therefore validating auth/database environment variables) when the
   // browser has no session token to validate. A present token still goes
   // through the full server-side session and account-status checks below.
-  if (!getSessionCookie(requestHeaders)) return null;
+  if (
+    !hasUsableAuthEnvironment(process.env) ||
+    !getSessionCookie(requestHeaders)
+  ) return null;
 
   try {
     return await authorizePageRequest('/', requestHeaders);

@@ -4,6 +4,7 @@ import {
   AUTH_SESSION_MAX_AGE_SECONDS,
   TELEGRAM_OIDC_DISCOVERY_URL,
   buildAuthPolicy,
+  hasUsableAuthEnvironment,
   parseAuthEnvironment,
   telegramClaimsToProfile,
 } from './auth-policy';
@@ -62,6 +63,13 @@ describe('authentication environment', () => {
   it('requires a high-entropy Better Auth secret', () => {
     expect(() => parseAuthEnvironment({ ...validEnv, BETTER_AUTH_SECRET: 'too-short' }))
       .toThrow(/32/);
+  });
+
+  it('reports auth readiness without weakening the strict parser or exposing configuration', () => {
+    expect(hasUsableAuthEnvironment(validEnv)).toBe(true);
+    expect(hasUsableAuthEnvironment({ ...validEnv, BETTER_AUTH_SECRET: '' })).toBe(false);
+    expect(hasUsableAuthEnvironment({ ...validEnv, BETTER_AUTH_URL: 'not-a-url' })).toBe(false);
+    expect(hasUsableAuthEnvironment({})).toBe(false);
   });
 });
 

@@ -92,6 +92,22 @@ export function parseAuthEnvironment(input: Record<string, string | undefined>):
   };
 }
 
+/**
+ * Reports whether optional public-page session detection can safely initialize
+ * the auth runtime. Protected pages and API routes intentionally use the
+ * strict parser instead of this readiness check.
+ */
+export function hasUsableAuthEnvironment(
+  input: Record<string, string | undefined>,
+): boolean {
+  try {
+    parseAuthEnvironment(input);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function parseTelegramAuthEnvironment(
   input: Record<string, string | undefined>,
 ): TelegramAuthEnvironment | null {

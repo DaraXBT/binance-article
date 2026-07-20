@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  authEnvironmentUsable: true,
   headers: vi.fn(async () => new Headers({ cookie: 'better-auth.session_token=opaque' })),
   requireActiveUser: vi.fn<(request: Request) => Promise<{
     id: string;
@@ -13,6 +14,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('next/headers', () => ({ headers: mocks.headers }));
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
+vi.mock('./auth-policy', () => ({
+  hasUsableAuthEnvironment: () => mocks.authEnvironmentUsable,
+}));
 vi.mock('./authorization', () => ({ requireActiveUser: mocks.requireActiveUser }));
 
 import {
@@ -24,6 +28,7 @@ import {
 describe('private page authorization', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.authEnvironmentUsable = true;
     mocks.requireActiveUser.mockResolvedValue({ id: 'user_1', status: 'active' });
   });
 
@@ -35,6 +40,13 @@ describe('private page authorization', () => {
 
   it('renders the anonymous home without initializing auth when no session cookie exists', async () => {
     mocks.headers.mockResolvedValueOnce(new Headers({ cookie: 'theme=dark; locale=en' }));
+
+    await expect(getOptionalActivePageUser()).resolves.toBeNull();
+    expect(mocks.requireActiveUser).not.toHaveBeenCalled();
+  });
+
+  it('ignores a stale session cookie when optional auth is not configured', async () => {
+    mocks.authEnvironmentUsable = false;
 
     await expect(getOptionalActivePageUser()).resolves.toBeNull();
     expect(mocks.requireActiveUser).not.toHaveBeenCalled();
