@@ -68,6 +68,7 @@ export function ArticleStudioStatusStrip({
       data-article-studio-status-strip
       data-article-studio-status
       data-console-status-rail
+      aria-live="polite"
       className={cn(
         'flex min-w-0 flex-wrap items-center border-y border-border/70 bg-background/25',
         className,

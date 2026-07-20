@@ -435,7 +435,16 @@ export function PublicHome({
   };
 
   const statuses: ConsoleStatusItem[] = [
-    { label: 'Draft', value: prompt.trim() ? (resumeIntentId ? 'HELD' : 'LOCAL') : 'EMPTY' },
+    {
+      label: 'Draft',
+      value: prompt.trim()
+        ? resumeIntent?.stage === 'submitted'
+          ? 'READY'
+          : resumeIntentId
+            ? 'HELD'
+            : 'LOCAL'
+        : 'EMPTY',
+    },
     { label: 'Identity', value: 'REQUIRED', tone: 'warning' },
     { label: 'Generation', value: 'LOCKED', tone: 'warning' },
   ];
