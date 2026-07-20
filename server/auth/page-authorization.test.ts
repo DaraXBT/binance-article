@@ -15,7 +15,11 @@ vi.mock('next/headers', () => ({ headers: mocks.headers }));
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
 vi.mock('./authorization', () => ({ requireActiveUser: mocks.requireActiveUser }));
 
-import { normalizeLoginCallback, requireActivePageUser } from './page-authorization';
+import {
+  getOptionalActivePageUser,
+  normalizeLoginCallback,
+  requireActivePageUser,
+} from './page-authorization';
 
 describe('private page authorization', () => {
   beforeEach(() => {
@@ -37,6 +41,24 @@ describe('private page authorization', () => {
     await expect(requireActivePageUser('/articles/article_1?tab=slides')).rejects.toThrow(
       'REDIRECT:/login?callbackURL=%2Farticles%2Farticle_1%3Ftab%3Dslides',
     );
+  });
+
+  it('lets the public home distinguish logout from disabled or unavailable auth', async () => {
+    const { AppError } = await import('@/server/http/errors');
+    mocks.requireActiveUser.mockRejectedValueOnce(new AppError({
+      code: 'AUTH_REQUIRED', message: 'Authentication is required.', status: 401,
+    }));
+    await expect(getOptionalActivePageUser()).resolves.toBeNull();
+
+    mocks.requireActiveUser.mockRejectedValueOnce(new AppError({
+      code: 'ACCOUNT_DISABLED', message: 'This account is disabled.', status: 403,
+    }));
+    await expect(getOptionalActivePageUser()).rejects.toThrow(
+      'REDIRECT:/login?error=account_disabled',
+    );
+
+    mocks.requireActiveUser.mockRejectedValueOnce(new Error('database offline'));
+    await expect(getOptionalActivePageUser()).rejects.toThrow('database offline');
   });
 
   it('does not disguise a disabled account or infrastructure outage as logout', async () => {
