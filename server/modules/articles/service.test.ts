@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const { repositoryMock, latestJobMock, serializeJobMock } = vi.hoisted(() => ({
   repositoryMock: {
     createDeck: vi.fn(),
+    createDeckIdempotently: vi.fn(),
     listDecks: vi.fn(),
     findDeck: vi.fn(),
     getDeckBundle: vi.fn(),
@@ -97,6 +98,7 @@ describe('Worker-safe article service', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-19T12:00:00.000Z'));
     repositoryMock.createDeck.mockResolvedValue(fakeDeck());
+    repositoryMock.createDeckIdempotently.mockResolvedValue(fakeDeck());
     repositoryMock.findDeck.mockResolvedValue(fakeDeck());
     repositoryMock.getDeckBundle.mockResolvedValue({
       deck: fakeDeck(), slides: [fakeSlide()],

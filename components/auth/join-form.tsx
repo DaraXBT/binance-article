@@ -56,8 +56,8 @@ export function JoinForm({ token }: { token: string | null }) {
     setState({ status: 'signing-in', email });
     const result = await authClient.signIn.social({
       provider: 'google',
-      callbackURL: '/',
-      newUserCallbackURL: '/',
+      callbackURL: '/workspace',
+      newUserCallbackURL: '/workspace',
       requestSignUp: true,
     });
     if (result.error) {

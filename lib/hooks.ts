@@ -21,6 +21,8 @@ export type WorkspaceBootstrap = {
   workspaceId: string | null;
   accessKeyPrefix: string | null;
   recoveryKey: string | null;
+  workspaceOrigin: 'legacy' | 'account' | null;
+  canReplaceWithLegacy: boolean;
   generateAccessEnabled: boolean;
   hasGenerationAccess: boolean;
   generationAccessInvalidReason:
@@ -36,11 +38,13 @@ export type WorkspaceBootstrap = {
 export type WorkspaceCreateResult = {
   success: true;
   workspaceId: string;
+  created: boolean;
 };
 
 export type WorkspaceRecoveryResult = {
   success: true;
   workspaceId: string;
+  replacedWorkspace: boolean;
 };
 
 export class ApiError extends Error {

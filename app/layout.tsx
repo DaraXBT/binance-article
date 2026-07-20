@@ -35,9 +35,9 @@ const interKhmerLooped = localFont({
 })
 
 export const metadata: Metadata = {
-  title: 'xArticle - AI-Powered Presentations',
-  description: 'Create beautiful presentation decks with AI in minutes',
-  generator: 'v0.app',
+  title: 'xArticle — Binance Square article studio',
+  description: 'Turn a market idea into a publish-ready Binance Square article.',
+  applicationName: 'xArticle',
   icons: {
     icon: [
       {

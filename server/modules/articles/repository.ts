@@ -107,6 +107,16 @@ export interface ArticleRepository {
     status: 'draft';
     now: Date;
   }): Promise<DeckProjectRecord>;
+  createDeckIdempotently(input: {
+    id: string;
+    workspaceId: string;
+    title: string;
+    content: string;
+    description: string | null;
+    illustrationStyle: string;
+    status: 'draft';
+    now: Date;
+  }): Promise<DeckProjectRecord | null>;
   listDecks(workspaceId: string, limit: number): Promise<Array<DeckProjectRecord & {
     _count: { slides: number };
   }>>;
@@ -262,6 +272,29 @@ export function createArticleRepository(database: AppDatabase): ArticleRepositor
         RETURNING *
       `;
       return required<DeckProjectRecord>(result, 'Article');
+    },
+
+    async createDeckIdempotently(input) {
+      const result = await database.$client`
+        INSERT INTO "DeckProject" (
+          "id", "workspaceId", "title", "description", "content", "theme",
+          "customTheme", "illustrationStyle", "status", "generationRevision",
+          "lastCompletedRevision", "createdAt", "updatedAt"
+        ) VALUES (
+          ${input.id}, ${input.workspaceId}, ${input.title}, ${input.description},
+          ${input.content}, 'default', NULL, ${input.illustrationStyle},
+          'draft'::"DeckStatus", 0, 0, ${input.now}, ${input.now}
+        )
+        ON CONFLICT ("id") DO UPDATE
+        SET "id" = EXCLUDED."id"
+        WHERE "DeckProject"."workspaceId" = EXCLUDED."workspaceId"
+          AND "DeckProject"."title" = EXCLUDED."title"
+          AND "DeckProject"."description" IS NOT DISTINCT FROM EXCLUDED."description"
+          AND "DeckProject"."content" = EXCLUDED."content"
+          AND "DeckProject"."illustrationStyle" = EXCLUDED."illustrationStyle"
+        RETURNING *
+      `;
+      return first<DeckProjectRecord>(result, 'Article');
     },
 
     async listDecks(workspaceId, limit) {

@@ -33,11 +33,13 @@ export const generationAccessGrantStatus = pgEnum('GenerationAccessGrantStatus',
   'consumed',
   'revoked',
 ]);
+export const workspaceOrigin = pgEnum('WorkspaceOrigin', ['legacy', 'account']);
 
 export const workspace = pgTable('Workspace', {
   id: text('id').primaryKey(),
   accessKeyHash: text('accessKeyHash').notNull(),
   accessKeyPrefix: text('accessKeyPrefix').notNull(),
+  origin: workspaceOrigin('origin').default('legacy').notNull(),
   legacyClaimExpiresAt: timestamp('legacyClaimExpiresAt', {
     mode: 'date',
     precision: 3,

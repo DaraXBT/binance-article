@@ -1,5 +1,6 @@
 import type { JobKind, JobStatus } from '@/lib/schemas';
 import { getRuntimeDatabase } from '@/server/db/runtime';
+import { AppError } from '@/server/http/app-error';
 
 import { createJobRepository, type JobRunRecord } from './repository';
 
@@ -104,6 +105,111 @@ export function getJobRun(jobId: string, workspaceId: string) {
 
 export function getJobRunById(jobId: string) {
   return repository().findById(jobId);
+}
+
+function canonicalJson(value: unknown): unknown {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new Error('Non-finite JSON number.');
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(canonicalJson);
+  if (isRecord(value)) {
+    return Object.fromEntries(
+      Object.keys(value)
+        .filter((key) => value[key] !== undefined)
+        .sort()
+        .map((key) => [key, canonicalJson(value[key])]),
+    );
+  }
+  throw new Error('Unsupported JSON value.');
+}
+
+function payloadMatches(actual: unknown, expected: unknown): boolean {
+  try {
+    return JSON.stringify(canonicalJson(actual ?? null)) ===
+      JSON.stringify(canonicalJson(expected ?? null));
+  } catch {
+    return false;
+  }
+}
+
+function idempotencyConflict(): AppError {
+  return new AppError({
+    code: 'IDEMPOTENCY_CONFLICT',
+    message: 'This generation request conflicts with an earlier request.',
+    status: 409,
+  });
+}
+
+export async function findIdempotentGeneration(input: {
+  idempotencyKey: string;
+  deckId: string;
+  workspaceId: string;
+  payload: unknown;
+}) {
+  const job = await repository().findById(input.idempotencyKey);
+  if (!job) return null;
+  if (
+    job.deckId !== input.deckId ||
+    job.workspaceId !== input.workspaceId ||
+    job.kind !== 'generate' ||
+    !payloadMatches(job.payload, input.payload)
+  ) {
+    throw idempotencyConflict();
+  }
+  return job;
+}
+
+export async function beginIdempotentGeneration(input: {
+  idempotencyKey: string;
+  deckId: string;
+  workspaceId: string;
+  payload: unknown;
+  rateLimit?: {
+    key: string;
+    limit: number;
+    windowMs: number;
+  };
+}) {
+  if (input.rateLimit) {
+    const key = input.rateLimit.key.trim();
+    if (!key || key.length > 200) throw new Error('Rate-limit key is invalid.');
+    if (
+      !Number.isSafeInteger(input.rateLimit.limit) ||
+      input.rateLimit.limit < 1 ||
+      input.rateLimit.limit > 100_000
+    ) {
+      throw new Error('Rate-limit maximum is invalid.');
+    }
+    if (
+      !Number.isSafeInteger(input.rateLimit.windowMs) ||
+      input.rateLimit.windowMs < 1_000 ||
+      input.rateLimit.windowMs > 86_400_000
+    ) {
+      throw new Error('Rate-limit window is invalid.');
+    }
+    input = { ...input, rateLimit: { ...input.rateLimit, key } };
+  }
+  const result = await repository().createGenerationIdempotently({
+    id: input.idempotencyKey,
+    deckId: input.deckId,
+    workspaceId: input.workspaceId,
+    payload: input.payload,
+    now: new Date(),
+    rateLimit: input.rateLimit,
+  });
+  if (!result) throw idempotencyConflict();
+  if (result.rateLimited) return result;
+  if (
+    result.job.deckId !== input.deckId ||
+    result.job.workspaceId !== input.workspaceId ||
+    result.job.kind !== 'generate' ||
+    !payloadMatches(result.job.payload, input.payload)
+  ) {
+    throw idempotencyConflict();
+  }
+  return result;
 }
 
 export function getLatestDeckJob(deckId: string, workspaceId: string) {

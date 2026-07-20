@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 import type { AppDatabase } from '@/server/db/client';
 import { deckProject, workspace, workspaceMember } from '@/server/db/schema';
@@ -7,6 +7,8 @@ import { AppError } from '@/server/http/errors';
 export interface ActorWorkspace {
   id: string;
   accessKeyPrefix: string;
+  origin: 'legacy' | 'account';
+  canReplaceWithLegacy: boolean;
 }
 
 function notFound(code: 'WORKSPACE_NOT_FOUND' | 'ARTICLE_NOT_FOUND', message: string): AppError {
@@ -18,7 +20,35 @@ export async function resolveActorWorkspace(
   actorUserId: string,
 ): Promise<ActorWorkspace | null> {
   const rows = await database
-    .select({ id: workspace.id, accessKeyPrefix: workspace.accessKeyPrefix })
+    .select({
+      id: workspace.id,
+      accessKeyPrefix: workspace.accessKeyPrefix,
+      origin: workspace.origin,
+      canReplaceWithLegacy: sql<boolean>`
+        ${workspace.origin} = 'account'::"WorkspaceOrigin"
+        AND ${workspace.accessKeyPrefix} ~ '^acct_[a-f0-9]{8}$'
+        AND ${workspace.legacyClaimExpiresAt} IS NULL
+        AND EXISTS (
+          SELECT 1 FROM "WorkspaceMember" AS actor_member
+          WHERE actor_member."workspaceId" = ${workspace.id}
+            AND actor_member."userId" = ${actorUserId}
+            AND actor_member."role" = 'owner'::"WorkspaceMemberRole"
+            AND actor_member."legacyClaimedAt" IS NULL
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM "WorkspaceMember" AS other_member
+          WHERE other_member."workspaceId" = ${workspace.id}
+            AND other_member."userId" <> ${actorUserId}
+        )
+        AND NOT EXISTS (SELECT 1 FROM "WorkspaceSession" WHERE "workspaceId" = ${workspace.id})
+        AND NOT EXISTS (SELECT 1 FROM "DeckProject" WHERE "workspaceId" = ${workspace.id})
+        AND NOT EXISTS (SELECT 1 FROM "JobRun" WHERE "workspaceId" = ${workspace.id})
+        AND NOT EXISTS (SELECT 1 FROM "UsageLedger" WHERE "workspaceId" = ${workspace.id})
+        AND NOT EXISTS (SELECT 1 FROM "StorageObject" WHERE "workspaceId" = ${workspace.id})
+        AND NOT EXISTS (SELECT 1 FROM "BinancePublicationDraft" WHERE "workspaceId" = ${workspace.id})
+        AND NOT EXISTS (SELECT 1 FROM "PublisherDevice" WHERE "workspaceId" = ${workspace.id})
+      `.as('canReplaceWithLegacy'),
+    })
     .from(workspaceMember)
     .innerJoin(workspace, eq(workspace.id, workspaceMember.workspaceId))
     .where(eq(workspaceMember.userId, actorUserId))
@@ -30,7 +60,14 @@ export async function resolveActorWorkspace(
       status: 409,
     });
   }
-  return rows[0] ?? null;
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    accessKeyPrefix: row.accessKeyPrefix,
+    origin: row.origin,
+    canReplaceWithLegacy: Boolean(row.canReplaceWithLegacy),
+  };
 }
 
 export async function requireActorWorkspace(

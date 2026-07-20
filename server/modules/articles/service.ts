@@ -86,10 +86,11 @@ export function createDeckProject(
   description: string | undefined,
   illustrationStyle: string | undefined,
   workspaceId: string,
+  idempotencyKey?: string,
 ): Promise<DeckProjectRecord> {
   const now = new Date();
-  return repository().createDeck({
-    id: crypto.randomUUID(),
+  const input = {
+    id: idempotencyKey ?? crypto.randomUUID(),
     workspaceId,
     title,
     content,
@@ -97,6 +98,15 @@ export function createDeckProject(
     illustrationStyle: illustrationStyle || 'pixel-art',
     status: 'draft',
     now,
+  } as const;
+  if (!idempotencyKey) return repository().createDeck(input);
+  return repository().createDeckIdempotently(input).then((deck) => {
+    if (deck) return deck;
+    throw new AppError({
+      code: 'IDEMPOTENCY_CONFLICT',
+      message: 'This article request conflicts with an earlier request.',
+      status: 409,
+    });
   });
 }
 

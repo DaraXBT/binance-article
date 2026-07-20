@@ -3,6 +3,8 @@ import type { AppDatabase } from '@/server/db/client';
 
 import type { JobLogEntry } from './service';
 
+const IDEMPOTENCY_LOCK_SEED = 9_173_021;
+
 export interface JobRunRecord {
   id: string;
   deckId: string;
@@ -43,6 +45,22 @@ export interface JobRepository {
   }): Promise<JobRunRecord | null>;
   findForWorkspace(jobId: string, workspaceId: string): Promise<JobRunRecord | null>;
   findById(jobId: string): Promise<JobRunRecord | null>;
+  createGenerationIdempotently(input: {
+    id: string;
+    deckId: string;
+    workspaceId: string;
+    payload: unknown;
+    now: Date;
+    rateLimit?: {
+      key: string;
+      limit: number;
+      windowMs: number;
+    };
+  }): Promise<
+    | { job: JobRunRecord; replayed: boolean; rateLimited: false; resetAt: null }
+    | { job: null; replayed: false; rateLimited: true; resetAt: Date }
+    | null
+  >;
   findLatestForDeck(deckId: string, workspaceId: string): Promise<JobRunRecord | null>;
   appendLog(input: {
     jobId: string;
@@ -95,6 +113,58 @@ function requiredJob(rows: unknown): JobRunRecord {
   return job;
 }
 
+function dateValue(value: unknown): Date | null {
+  if (value === null) return null;
+  const date = value instanceof Date ? value : new Date(String(value));
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+function readIdempotentEnvelope(rows: unknown):
+  | { job: JobRunRecord; replayed: boolean; rateLimited: false; resetAt: null }
+  | { job: null; replayed: false; rateLimited: true; resetAt: Date }
+  | null {
+  if (!Array.isArray(rows)) throw new Error('Idempotent generation query returned invalid data.');
+  const raw = (rows[0] as { result?: unknown } | undefined)?.result;
+  let result = raw;
+  if (typeof raw === 'string') {
+    try {
+      result = JSON.parse(raw);
+    } catch {
+      throw new Error('Idempotent generation query returned invalid JSON.');
+    }
+  }
+  if (!result || typeof result !== 'object') return null;
+  const envelope = result as Record<string, unknown>;
+  if (envelope.outcome === 'rate_limited') {
+    const resetAt = dateValue(envelope.resetAt);
+    if (!resetAt) throw new Error('Idempotent rate limit returned an invalid reset time.');
+    return { job: null, replayed: false, rateLimited: true, resetAt };
+  }
+  if (envelope.outcome !== 'job' || typeof envelope.replayed !== 'boolean') return null;
+  const rawJob = envelope.job;
+  if (!rawJob || typeof rawJob !== 'object' || typeof (rawJob as { id?: unknown }).id !== 'string') {
+    throw new Error('Idempotent generation query returned an invalid job.');
+  }
+  const candidate = rawJob as Record<string, unknown>;
+  const createdAt = dateValue(candidate.createdAt);
+  const updatedAt = dateValue(candidate.updatedAt);
+  if (!createdAt || !updatedAt) {
+    throw new Error('Idempotent generation query returned invalid job timestamps.');
+  }
+  return {
+    job: {
+      ...(candidate as unknown as JobRunRecord),
+      startedAt: dateValue(candidate.startedAt),
+      completedAt: dateValue(candidate.completedAt),
+      createdAt,
+      updatedAt,
+    },
+    replayed: envelope.replayed,
+    rateLimited: false,
+    resetAt: null,
+  };
+}
+
 export function createJobRepository(database: AppDatabase): JobRepository {
   return {
     async create(input) {
@@ -140,6 +210,153 @@ export function createJobRepository(database: AppDatabase): JobRepository {
         LIMIT 1
       `;
       return firstJob(rows);
+    },
+
+    async createGenerationIdempotently(input) {
+      if (!input.rateLimit) {
+        const [, result] = await database.$client.transaction(
+          (transaction) => [
+            transaction`
+              SELECT pg_advisory_xact_lock(
+                hashtextextended(${input.id}, ${IDEMPOTENCY_LOCK_SEED})
+              )
+            `,
+            transaction`
+              WITH existing AS MATERIALIZED (
+                SELECT job.*
+                FROM "JobRun" AS job
+                WHERE job."id" = ${input.id}
+                LIMIT 1
+              ), updated_deck AS (
+                UPDATE "DeckProject" AS deck
+                SET
+                  "generationRevision" = deck."generationRevision" + 1,
+                  "status" = 'queued'::"DeckStatus",
+                  "updatedAt" = ${input.now}
+                WHERE deck."id" = ${input.deckId}
+                  AND deck."workspaceId" = ${input.workspaceId}
+                  AND NOT EXISTS (SELECT 1 FROM existing)
+                RETURNING deck."id", deck."generationRevision"
+              ), inserted AS (
+                INSERT INTO "JobRun" (
+                  "id", "deckId", "workspaceId", "kind", "status", "progress", "logs",
+                  "articleRevisionId", "payload", "createdAt", "updatedAt"
+                )
+                SELECT
+                  ${input.id}, updated_deck."id", ${input.workspaceId},
+                  'generate'::"JobKind", 'queued'::"JobStatus", 0, '[]'::jsonb,
+                  updated_deck."id" || ':rev:' || updated_deck."generationRevision"::text,
+                  ${json(input.payload)}::jsonb, ${input.now}, ${input.now}
+                FROM updated_deck
+                ON CONFLICT ("id") DO NOTHING
+                RETURNING *
+              )
+              SELECT inserted.*, false AS "replayed" FROM inserted
+              UNION ALL
+              SELECT existing.*, true AS "replayed" FROM existing
+              LIMIT 1
+            `,
+          ],
+          { isolationLevel: 'ReadCommitted' },
+        );
+        const row = firstJob(result);
+        if (!row) return null;
+        const replayed = (row as JobRunRecord & { replayed?: unknown }).replayed;
+        return {
+          job: row,
+          replayed: replayed === true,
+          rateLimited: false as const,
+          resetAt: null,
+        };
+      }
+
+      const rateLimit = input.rateLimit;
+      const nextResetAt = new Date(input.now.getTime() + rateLimit.windowMs);
+      const boundedCount = rateLimit.limit + 1;
+      const [, result] = await database.$client.transaction(
+        (transaction) => [
+          transaction`
+            SELECT pg_advisory_xact_lock(
+              hashtextextended(${input.id}, ${IDEMPOTENCY_LOCK_SEED})
+            )
+          `,
+          transaction`
+            WITH existing AS MATERIALIZED (
+              SELECT job.*
+              FROM "JobRun" AS job
+              WHERE job."id" = ${input.id}
+              LIMIT 1
+            ), rate_limit AS MATERIALIZED (
+              INSERT INTO "RateLimitBucket" (
+                "key", "count", "resetAt", "createdAt", "updatedAt"
+              )
+              SELECT
+                ${rateLimit.key}, 1, ${nextResetAt}, ${input.now}, ${input.now}
+              WHERE NOT EXISTS (SELECT 1 FROM existing)
+              ON CONFLICT ("key") DO UPDATE
+              SET
+                "count" = CASE
+                  WHEN "RateLimitBucket"."resetAt" <= ${input.now} THEN 1
+                  ELSE LEAST("RateLimitBucket"."count" + 1, ${boundedCount})
+                END,
+                "resetAt" = CASE
+                  WHEN "RateLimitBucket"."resetAt" <= ${input.now} THEN ${nextResetAt}
+                  ELSE "RateLimitBucket"."resetAt"
+                END,
+                "updatedAt" = ${input.now}
+              RETURNING "count", "resetAt"
+            ), allowed_new_request AS MATERIALIZED (
+              SELECT 1 FROM rate_limit
+              WHERE rate_limit."count" <= ${rateLimit.limit}
+            ), updated_deck AS (
+              UPDATE "DeckProject" AS deck
+              SET
+                "generationRevision" = deck."generationRevision" + 1,
+                "status" = 'queued'::"DeckStatus",
+                "updatedAt" = ${input.now}
+              WHERE deck."id" = ${input.deckId}
+                AND deck."workspaceId" = ${input.workspaceId}
+                AND NOT EXISTS (SELECT 1 FROM existing)
+                AND EXISTS (SELECT 1 FROM allowed_new_request)
+              RETURNING deck."id", deck."generationRevision"
+            ), inserted AS (
+              INSERT INTO "JobRun" (
+                "id", "deckId", "workspaceId", "kind", "status", "progress", "logs",
+                "articleRevisionId", "payload", "createdAt", "updatedAt"
+              )
+              SELECT
+                ${input.id}, updated_deck."id", ${input.workspaceId},
+                'generate'::"JobKind", 'queued'::"JobStatus", 0, '[]'::jsonb,
+                updated_deck."id" || ':rev:' || updated_deck."generationRevision"::text,
+                ${json(input.payload)}::jsonb, ${input.now}, ${input.now}
+              FROM updated_deck
+              ON CONFLICT ("id") DO NOTHING
+              RETURNING *
+            ), selected_job AS MATERIALIZED (
+              SELECT to_jsonb(inserted) AS "job", false AS "replayed" FROM inserted
+              UNION ALL
+              SELECT to_jsonb(existing) AS "job", true AS "replayed" FROM existing
+              LIMIT 1
+            )
+            SELECT jsonb_build_object(
+              'outcome', 'job',
+              'job', selected_job."job",
+              'replayed', selected_job."replayed"
+            ) AS "result"
+            FROM selected_job
+            UNION ALL
+            SELECT jsonb_build_object(
+              'outcome', 'rate_limited',
+              'resetAt', rate_limit."resetAt"
+            ) AS "result"
+            FROM rate_limit
+            WHERE rate_limit."count" > ${rateLimit.limit}
+            LIMIT 1
+          `,
+        ],
+        { isolationLevel: 'ReadCommitted' },
+      );
+      return readIdempotentEnvelope(result);
     },
 
     async findLatestForDeck(deckId, workspaceId) {

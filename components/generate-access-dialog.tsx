@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 interface GenerateAccessDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
+  onSuccess: () => void | Promise<void>;
 }
 
 export function GenerateAccessDialog({ open, onOpenChange, onSuccess }: GenerateAccessDialogProps) {
@@ -47,8 +47,10 @@ export function GenerateAccessDialog({ open, onOpenChange, onSuccess }: Generate
 
       setCode('');
       setError(null);
+      // Notify the caller before closing. Consumers may use the close event
+      // to decide whether a queued action should be replayed.
+      await onSuccess();
       onOpenChange(false);
-      onSuccess();
     } catch {
       setError(messages.generateAccess.invalidCode);
     } finally {
@@ -81,10 +83,15 @@ export function GenerateAccessDialog({ open, onOpenChange, onSuccess }: Generate
               }}
               placeholder={messages.generateAccess.codePlaceholder}
               disabled={isSubmitting}
+              autoComplete="off"
               autoFocus
             />
           </div>
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          {error ? (
+            <p className="text-sm text-destructive" role="alert" aria-live="polite">
+              {error}
+            </p>
+          ) : null}
           <Button type="submit" size="sm" disabled={isSubmitting || !code.trim()} className="w-full">
             {isSubmitting ? (
               <>

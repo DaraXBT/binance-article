@@ -115,7 +115,7 @@ export default function NewDeckPage() {
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/10">
       <div className="mx-auto w-full px-4 py-8">
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <Link href="/" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+          <Link href="/workspace" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
             ← {messages.common.backToDashboard}
           </Link>
           <div className="flex items-center gap-2">

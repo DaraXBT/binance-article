@@ -17,9 +17,15 @@ function databaseReturning(rows: unknown[]) {
 
 describe('authenticated workspace membership', () => {
   it('resolves the account workspace without consulting a legacy browser session', async () => {
-    const query = databaseReturning([{ id: 'workspace_1', accessKeyPrefix: 'dwk_aaaa' }]);
+    const query = databaseReturning([{
+      id: 'workspace_1',
+      accessKeyPrefix: 'dwk_aaaa',
+      origin: 'legacy',
+      canReplaceWithLegacy: false,
+    }]);
     await expect(resolveActorWorkspace(query.database, 'user_1')).resolves.toEqual({
-      id: 'workspace_1', accessKeyPrefix: 'dwk_aaaa',
+      id: 'workspace_1', accessKeyPrefix: 'dwk_aaaa', origin: 'legacy',
+      canReplaceWithLegacy: false,
     });
     expect(query.limit).toHaveBeenCalledWith(2);
   });

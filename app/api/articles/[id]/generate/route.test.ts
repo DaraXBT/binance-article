@@ -115,7 +115,13 @@ describe('POST /api/articles/[id]/generate', () => {
       deckId: 'deck-1',
       workspaceId: 'workspace-1',
       payload: expect.objectContaining({ slideCount: 3 }),
+      rateLimit: {
+        key: 'generate:user-1',
+        limit: 10,
+        windowMs: 60 * 60 * 1_000,
+      },
     }));
+    expect(rateLimitMock.consumeAtomicRateLimit).not.toHaveBeenCalled();
     expect(dbMock.beginGenerationRevision).not.toHaveBeenCalled();
     expect(jobServiceMock.createJobRun).not.toHaveBeenCalled();
     expect(workflowClientMock.startWorkflow).toHaveBeenCalledWith({
@@ -150,6 +156,34 @@ describe('POST /api/articles/[id]/generate', () => {
     expect(rateLimitMock.consumeAtomicRateLimit).not.toHaveBeenCalled();
     expect(jobServiceMock.beginIdempotentGeneration).not.toHaveBeenCalled();
     expect(workflowClientMock.startWorkflow).not.toHaveBeenCalled();
+  });
+
+  it('returns the atomic idempotent rate-limit result without creating a job', async () => {
+    jobServiceMock.beginIdempotentGeneration.mockResolvedValueOnce({
+      job: null,
+      replayed: false,
+      rateLimited: true,
+      resetAt: new Date(Date.now() + 60_000),
+    });
+    const { POST } = await import('@/app/api/articles/[id]/generate/route');
+    const response = await POST(
+      new Request('http://localhost/api/articles/deck-1/generate', {
+        method: 'POST',
+        headers: { 'Idempotency-Key': '11111111-1111-4111-8111-111111111111' },
+        body: JSON.stringify({
+          articleContent: 'This is a sufficiently long article body for testing.',
+          slideCount: 3,
+          illustrationStyle: 'pixel-art',
+          mode: 'text',
+        }),
+      }) as never,
+      { params: Promise.resolve({ id: 'deck-1' }) },
+    );
+
+    expect(response.status).toBe(429);
+    await expect(response.json()).resolves.toMatchObject({ code: 'RATE_LIMITED' });
+    expect(workflowClientMock.startWorkflow).not.toHaveBeenCalled();
+    expect(rateLimitMock.consumeAtomicRateLimit).not.toHaveBeenCalled();
   });
 
   it('returns 202 with jobId when generation is started', async () => {

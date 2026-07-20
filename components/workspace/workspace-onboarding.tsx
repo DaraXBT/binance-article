@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useCreateWorkspace } from '@/lib/hooks';
 import { RecoverWorkspaceDialog } from './recover-workspace-dialog';
 
-export function WorkspaceOnboarding() {
+export function WorkspaceOnboarding({ notice }: { notice?: string | null } = {}) {
   const { messages } = useLanguage();
   const createWorkspace = useCreateWorkspace();
   const [recoverOpen, setRecoverOpen] = useState(false);
@@ -18,6 +18,15 @@ export function WorkspaceOnboarding() {
           <h1 className="text-3xl font-semibold tracking-tight">{messages.workspace.onboardingTitle}</h1>
           <p className="text-sm text-muted-foreground">{messages.workspace.onboardingDescription}</p>
         </div>
+
+        {notice ? (
+          <p
+            role="status"
+            className="border border-border/70 bg-muted/40 px-4 py-3 text-center text-sm text-muted-foreground"
+          >
+            {notice}
+          </p>
+        ) : null}
 
         <div className="grid gap-4 md:grid-cols-2">
           <section className="space-y-4 border border-border/70 bg-background p-6">

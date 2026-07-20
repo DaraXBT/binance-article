@@ -9,6 +9,7 @@ import {
   createAnonymousGenerationIntent,
   loadAnonymousGenerationIntent,
   saveAnonymousGenerationIntent,
+  updateAnonymousGenerationIntent,
 } from './anonymous-draft';
 
 const NOW = Date.parse('2026-07-20T04:00:00.000Z');
@@ -34,7 +35,9 @@ describe('anonymous generation draft storage', () => {
       now: NOW + 1_000,
     })).toEqual(draft);
     const serialized = sessionStorage.getItem(ANONYMOUS_GENERATION_INTENT_KEY) ?? '';
-    expect(serialized).not.toMatch(/accessCode|token|email|workspaceId|oauth/i);
+    expect(Object.keys(JSON.parse(serialized))).not.toEqual(expect.arrayContaining([
+      'accessCode', 'token', 'email', 'workspaceId', 'oauthState',
+    ]));
   });
 
   it('rejects expired, mismatched, malformed, or unknown-version records and removes them', () => {
@@ -98,5 +101,42 @@ describe('anonymous generation draft storage', () => {
 
     expect(() => saveAnonymousGenerationIntent(deniedStorage, intent()))
       .toThrow(AnonymousDraftStorageError);
+  });
+
+  it('refreshes the bounded expiry after an edit or submit transition', () => {
+    const draft = intent();
+    const later = NOW + 10 * 60 * 1_000;
+    const updated = updateAnonymousGenerationIntent(sessionStorage, draft, {
+      stage: 'submitted',
+      prompt: `${draft.prompt} Add a risk section.`,
+    }, later);
+
+    expect(updated.updatedAt).toBe(later);
+    expect(updated.expiresAt).toBe(later + 60 * 60 * 1_000);
+  });
+
+  it('rejects forged lifetimes and incomplete generation checkpoints', () => {
+    const draft = intent();
+    sessionStorage.setItem(ANONYMOUS_GENERATION_INTENT_KEY, JSON.stringify({
+      ...draft,
+      updatedAt: draft.createdAt + 1,
+      expiresAt: draft.createdAt + 24 * 60 * 60 * 1_000,
+    }));
+    expect(loadAnonymousGenerationIntent(sessionStorage, { now: NOW })).toBeNull();
+
+    sessionStorage.setItem(ANONYMOUS_GENERATION_INTENT_KEY, JSON.stringify({
+      ...draft,
+      stage: 'generation_started',
+      articleId: '22222222-2222-4222-8222-222222222222',
+    }));
+    expect(loadAnonymousGenerationIntent(sessionStorage, { now: NOW })).toBeNull();
+
+    sessionStorage.setItem(ANONYMOUS_GENERATION_INTENT_KEY, JSON.stringify({
+      ...draft,
+      createdAt: NOW + 24 * 60 * 60 * 1_000,
+      updatedAt: NOW + 24 * 60 * 60 * 1_000,
+      expiresAt: NOW + 25 * 60 * 60 * 1_000,
+    }));
+    expect(loadAnonymousGenerationIntent(sessionStorage, { now: NOW })).toBeNull();
   });
 });

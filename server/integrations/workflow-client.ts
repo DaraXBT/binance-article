@@ -6,6 +6,7 @@ import {
 } from '@/server/domain/article-workflow';
 
 interface ArticleWorkflowBinding {
+  get(id: string): Promise<{ id: string }>;
   createBatch(batch: Array<{
     id: string;
     params: ArticleWorkflowPayload;
@@ -23,9 +24,20 @@ export async function startWorkflow(input: ArticleWorkflowPayload) {
   const workflow = getCloudflareContext().env.ARTICLE_JOBS;
   if (!workflow) throw new Error('ARTICLE_JOBS Workflow binding is required.');
 
-  await workflow.createBatch([{
-    id: payload.jobId,
-    params: payload,
-  }]);
+  try {
+    await workflow.createBatch([{
+      id: payload.jobId,
+      params: payload,
+    }]);
+  } catch (createError) {
+    // The deterministic job ID makes retries safe, but Cloudflare reports an
+    // existing instance by throwing. Reconcile the instance before deciding
+    // whether an ambiguous create (duplicate or timed-out response) failed.
+    try {
+      await workflow.get(payload.jobId);
+    } catch {
+      throw createError;
+    }
+  }
   return { runId: payload.jobId };
 }

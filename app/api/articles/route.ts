@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createDeckProject, listDeckProjects } from '@/lib/db';
 import { getRequestGenerateAccessState, isGenerateAccessEnabled } from '@/lib/generate-access';
 import { CreateDeckProjectSchema } from '@/lib/schemas';
@@ -9,6 +10,8 @@ import { assertAllowedOrigin } from '@/server/auth/origin';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
 import { readBoundedJson } from '@/server/http/request-body';
 import { requireActorWorkspace } from '@/server/modules/workspace/membership';
+
+const IdempotencyKeySchema = z.string().uuid();
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,13 +35,18 @@ export async function POST(request: NextRequest) {
     }
 
     const validated = CreateDeckProjectSchema.parse(body);
+    const rawIdempotencyKey = request.headers.get('Idempotency-Key');
+    const idempotencyKey = rawIdempotencyKey === null
+      ? undefined
+      : IdempotencyKeySchema.parse(rawIdempotencyKey);
 
     const deck = await createDeckProject(
       validated.title,
       validated.content,
       validated.description,
       validated.illustrationStyle,
-      workspace.id
+      workspace.id,
+      idempotencyKey,
     );
 
     return NextResponse.json(deck, { status: 201, headers: withNoStoreHeaders() });

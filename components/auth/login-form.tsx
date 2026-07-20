@@ -3,13 +3,13 @@
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 import { authClient } from '@/lib/auth-client';
 
 type LoginState = 'idle' | 'google' | 'telegram' | 'error';
 
 export function LoginForm({
-  callbackURL = '/',
+  callbackURL = '/workspace',
   telegramEnabled,
 }: {
   callbackURL?: string;
@@ -37,7 +37,7 @@ export function LoginForm({
   return (
     <Card className="w-full max-w-md border-border/70 shadow-xl">
       <CardHeader>
-        <CardTitle>Sign in</CardTitle>
+        <h1 className="font-semibold leading-none">Sign in</h1>
         <CardDescription>
           {telegramEnabled
             ? 'Use Google, or a Telegram identity already linked to your account.'

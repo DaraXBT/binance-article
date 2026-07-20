@@ -9,11 +9,13 @@ import { RecoverWorkspaceDialog } from './recover-workspace-dialog';
 interface WorkspaceSidebarFooterProps {
   accessKeyPrefix: string;
   recoveryKey: string | null;
+  showRecovery?: boolean;
 }
 
 export function WorkspaceSidebarFooter({
   accessKeyPrefix,
   recoveryKey,
+  showRecovery = true,
 }: WorkspaceSidebarFooterProps) {
   const { messages } = useLanguage();
   const [copied, setCopied] = useState(false);
@@ -55,21 +57,25 @@ export function WorkspaceSidebarFooter({
             <Copy className="h-3.5 w-3.5" />
           )}
         </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => setRecoverOpen(true)}
-          aria-label={messages.workspace.recoverDialogTitle}
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
-        </Button>
+        {showRecovery ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setRecoverOpen(true)}
+            aria-label={messages.workspace.recoverDialogTitle}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </Button>
+        ) : null}
       </div>
 
-      <RecoverWorkspaceDialog
-        open={recoverOpen}
-        onOpenChange={setRecoverOpen}
-      />
+      {showRecovery ? (
+        <RecoverWorkspaceDialog
+          open={recoverOpen}
+          onOpenChange={setRecoverOpen}
+        />
+      ) : null}
     </>
   );
 }

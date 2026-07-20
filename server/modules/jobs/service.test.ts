@@ -6,6 +6,7 @@ const { repositoryMock } = vi.hoisted(() => ({
     attachWorkflowRunId: vi.fn(),
     findForWorkspace: vi.fn(),
     findById: vi.fn(),
+    createGenerationIdempotently: vi.fn(),
     findLatestForDeck: vi.fn(),
     appendLog: vi.fn(),
     markRunning: vi.fn(),
@@ -24,6 +25,8 @@ vi.mock('@/server/db/runtime', () => ({
 import {
   appendJobLog,
   attachWorkflowRunId,
+  beginIdempotentGeneration,
+  findIdempotentGeneration,
   completeJobRun,
   createJobRun,
   failJobRun,
@@ -68,6 +71,9 @@ describe('Worker-safe job service', () => {
     repositoryMock.attachWorkflowRunId.mockResolvedValue(fakeJob());
     repositoryMock.findForWorkspace.mockResolvedValue(fakeJob());
     repositoryMock.findById.mockResolvedValue(fakeJob());
+    repositoryMock.createGenerationIdempotently.mockResolvedValue({
+      job: fakeJob(), replayed: false,
+    });
     repositoryMock.findLatestForDeck.mockResolvedValue(fakeJob());
     repositoryMock.appendLog.mockResolvedValue(fakeJob());
     repositoryMock.markRunning.mockResolvedValue(fakeJob({ status: 'running' }));
@@ -120,6 +126,55 @@ describe('Worker-safe job service', () => {
     expect(repositoryMock.findForWorkspace).toHaveBeenCalledWith('job_1', 'workspace_1');
     expect(repositoryMock.findLatestForDeck).toHaveBeenCalledWith('deck_1', 'workspace_1');
     expect(repositoryMock.findById).toHaveBeenCalledWith('job_1');
+  });
+
+  it('matches a replayed JSONB payload regardless of database key order', async () => {
+    repositoryMock.findById.mockResolvedValue(fakeJob({
+      payload: {
+        mode: 'prompt',
+        illustrationStyle: 'lab-notes',
+        slideCount: 5,
+        articleContent: 'A durable prompt',
+      },
+    }));
+
+    await expect(findIdempotentGeneration({
+      idempotencyKey: '11111111-1111-4111-8111-111111111111',
+      deckId: 'deck_1',
+      workspaceId: 'workspace_1',
+      payload: {
+        articleContent: 'A durable prompt',
+        slideCount: 5,
+        illustrationStyle: 'lab-notes',
+        mode: 'prompt',
+      },
+    })).resolves.toMatchObject({ id: 'job_1' });
+  });
+
+  it('passes the atomic rate-limit policy into same-key generation creation', async () => {
+    repositoryMock.createGenerationIdempotently.mockResolvedValueOnce({
+      job: null,
+      replayed: false,
+      rateLimited: true,
+      resetAt: new Date('2026-07-19T13:00:00.000Z'),
+    });
+
+    await expect(beginIdempotentGeneration({
+      idempotencyKey: '11111111-1111-4111-8111-111111111111',
+      deckId: 'deck_1',
+      workspaceId: 'workspace_1',
+      payload: { mode: 'prompt' },
+      rateLimit: { key: 'generate:user_1', limit: 10, windowMs: 3_600_000 },
+    })).resolves.toMatchObject({ rateLimited: true, job: null });
+
+    expect(repositoryMock.createGenerationIdempotently).toHaveBeenCalledWith({
+      id: '11111111-1111-4111-8111-111111111111',
+      deckId: 'deck_1',
+      workspaceId: 'workspace_1',
+      payload: { mode: 'prompt' },
+      now: new Date('2026-07-19T12:00:00.000Z'),
+      rateLimit: { key: 'generate:user_1', limit: 10, windowMs: 3_600_000 },
+    });
   });
 
   it('appends one structured log atomically', async () => {

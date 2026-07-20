@@ -1,7 +1,10 @@
-import { DashboardHome } from '@/components/home/dashboard-home';
-import { requireActivePageUser } from '@/server/auth/page-authorization';
+import { redirect } from 'next/navigation';
 
-export default async function DashboardPage() {
-  await requireActivePageUser('/');
-  return <DashboardHome />;
+import { PublicHome } from '@/components/home/public-home';
+import { getOptionalActivePageUser } from '@/server/auth/page-authorization';
+
+export default async function HomePage() {
+  const actor = await getOptionalActivePageUser();
+  if (actor) redirect('/workspace');
+  return <PublicHome />;
 }

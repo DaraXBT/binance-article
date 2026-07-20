@@ -17,11 +17,14 @@ import { useRecoverWorkspace } from '@/lib/hooks';
 interface RecoverWorkspaceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Called after the key has been claimed successfully. */
+  onSuccess?: () => void;
 }
 
 export function RecoverWorkspaceDialog({
   open,
   onOpenChange,
+  onSuccess,
 }: RecoverWorkspaceDialogProps) {
   const { messages } = useLanguage();
   const recoverWorkspace = useRecoverWorkspace();
@@ -46,6 +49,7 @@ export function RecoverWorkspaceDialog({
       setMessage(messages.workspace.recoverDialogSuccess);
       setIsError(false);
       setKeyInput('');
+      onSuccess?.();
       setTimeout(() => onOpenChange(false), 1200);
     } catch (error) {
       setMessage(

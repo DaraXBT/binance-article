@@ -11,7 +11,7 @@ export interface LegacyWorkspaceClaimRepository {
     accessKeyHash: string;
     auditEventId: string;
     now: Date;
-  }): Promise<{ id: string } | null>;
+  }): Promise<{ id: string; replacedWorkspace: boolean } | null>;
 }
 
 function unavailable(): AppError {
@@ -32,7 +32,7 @@ export async function claimLegacyWorkspace(input: {
   actorUserId: string;
   recoveryKey: string;
   now?: Date;
-}): Promise<{ id: string }> {
+}): Promise<{ id: string; replacedWorkspace: boolean }> {
   const actorUserId = ActorIdSchema.parse(input.actorUserId);
   const parsedKey = RecoveryKeySchema.safeParse(input.recoveryKey);
   if (!parsedKey.success) throw unavailable();
@@ -46,5 +46,5 @@ export async function claimLegacyWorkspace(input: {
     now,
   });
   if (!claimed) throw unavailable();
-  return { id: claimed.id };
+  return claimed;
 }

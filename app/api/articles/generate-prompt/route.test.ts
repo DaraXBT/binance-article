@@ -11,6 +11,11 @@ const mocks = vi.hoisted(() => ({
     hasAccess: true, invalidReason: null,
   })),
   generatePlainTextWithGemini: vi.fn(async () => 'A bounded generated prompt.'),
+  consumeAtomicRateLimit: vi.fn(async () => ({
+    allowed: true,
+    remaining: 19,
+    resetAt: new Date(Date.now() + 60_000),
+  })),
 }));
 
 vi.mock('@/server/auth/authorization', () => ({ requireActiveUser: mocks.requireActiveUser }));
@@ -25,6 +30,9 @@ vi.mock('@/lib/generate-access', () => ({
   getRequestGenerateAccessState: mocks.getRequestGenerateAccessState,
 }));
 vi.mock('@/lib/gemini', () => ({ generatePlainTextWithGemini: mocks.generatePlainTextWithGemini }));
+vi.mock('@/server/http/atomic-rate-limit', () => ({
+  consumeAtomicRateLimit: mocks.consumeAtomicRateLimit,
+}));
 
 describe('POST /api/articles/generate-prompt', () => {
   beforeEach(() => {
@@ -34,6 +42,11 @@ describe('POST /api/articles/generate-prompt', () => {
     mocks.readBoundedJson.mockResolvedValue({ title: 'Bitcoin adoption' });
     mocks.isGenerateAccessEnabled.mockReturnValue(false);
     mocks.generatePlainTextWithGemini.mockResolvedValue('A bounded generated prompt.');
+    mocks.consumeAtomicRateLimit.mockResolvedValue({
+      allowed: true,
+      remaining: 19,
+      resetAt: new Date(Date.now() + 60_000),
+    });
   });
 
   it('generates only after active-user and workspace authorization', async () => {
@@ -46,6 +59,12 @@ describe('POST /api/articles/generate-prompt', () => {
     await expect(response.json()).resolves.toEqual({ prompt: 'A bounded generated prompt.' });
     expect(mocks.requireActiveUser).toHaveBeenCalledWith(request);
     expect(mocks.requireActorWorkspace).toHaveBeenCalledWith({ db: true }, 'user-1');
+    expect(mocks.consumeAtomicRateLimit).toHaveBeenCalledWith(expect.objectContaining({
+      database: { db: true },
+      key: 'generate-prompt:user-1',
+      limit: 20,
+      windowMs: 60 * 60 * 1_000,
+    }));
     expect(mocks.generatePlainTextWithGemini).toHaveBeenCalledOnce();
   });
 
@@ -72,6 +91,24 @@ describe('POST /api/articles/generate-prompt', () => {
     ) as never);
     expect(response.status).toBe(401);
     expect(mocks.readBoundedJson).not.toHaveBeenCalled();
+    expect(mocks.generatePlainTextWithGemini).not.toHaveBeenCalled();
+  });
+
+  it('returns 429 before invoking Gemini when the actor suggestion budget is exhausted', async () => {
+    mocks.consumeAtomicRateLimit.mockResolvedValueOnce({
+      allowed: false,
+      remaining: 0,
+      resetAt: new Date(Date.now() + 60_000),
+    });
+    const { POST } = await import('./route');
+    const response = await POST(new Request(
+      'https://articles.example.com/api/articles/generate-prompt',
+      { method: 'POST', headers: { origin: 'https://articles.example.com' }, body: '{}' },
+    ) as never);
+
+    expect(response.status).toBe(429);
+    await expect(response.json()).resolves.toMatchObject({ code: 'RATE_LIMITED' });
+    expect(response.headers.get('retry-after')).toMatch(/^\d+$/);
     expect(mocks.generatePlainTextWithGemini).not.toHaveBeenCalled();
   });
 });

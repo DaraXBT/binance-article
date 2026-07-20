@@ -2,7 +2,7 @@ import type { AppDatabase } from '@/server/db/client';
 
 import type { AccountWorkspaceRepository } from './account-service';
 
-const ACCOUNT_WORKSPACE_LOCK_SEED = 6_284_191;
+export const ACCOUNT_WORKSPACE_LOCK_SEED = 6_284_191;
 
 export function createAccountWorkspaceRepository(
   database: AppDatabase,
@@ -27,12 +27,12 @@ export function createAccountWorkspaceRepository(
             INNER JOIN active_actor ON active_actor."id" = member."userId"
           ), created_workspace AS (
             INSERT INTO "Workspace" (
-              "id", "accessKeyHash", "accessKeyPrefix", "legacyClaimExpiresAt",
+              "id", "accessKeyHash", "accessKeyPrefix", "origin", "legacyClaimExpiresAt",
               "createdAt", "updatedAt"
             )
             SELECT
               ${input.workspaceId}, ${input.accessKeyHash}, ${input.accessKeyPrefix},
-              NULL, ${input.now}, ${input.now}
+              'account'::"WorkspaceOrigin", NULL, ${input.now}, ${input.now}
             FROM active_actor
             WHERE NOT EXISTS (SELECT 1 FROM existing_membership)
             ON CONFLICT DO NOTHING

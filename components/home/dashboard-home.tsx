@@ -1,9 +1,20 @@
 'use client';
 
-import { useDeferredValue, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useDeferredValue, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FolderOpenDot, Layers3, Loader2, Lock, MessageSquarePlus, MoreHorizontal, Search, Sparkles } from 'lucide-react';
+import {
+  ArrowRightLeft,
+  FolderOpenDot,
+  Layers3,
+  Loader2,
+  LogOut,
+  MessageSquarePlus,
+  MoreHorizontal,
+  Search,
+  Settings2,
+  UserRound,
+} from 'lucide-react';
 import { LanguageToggle } from '@/components/language-toggle';
 import { useLanguage } from '@/components/language-provider';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -26,13 +37,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -53,12 +57,32 @@ import { GenerateAccessDialog } from '@/components/generate-access-dialog';
 import { RecoveryKeyDialog } from '@/components/workspace/recovery-key-dialog';
 import { WorkspaceOnboarding } from '@/components/workspace/workspace-onboarding';
 import { WorkspaceSidebarFooter } from '@/components/workspace/workspace-sidebar-footer';
-import { Textarea } from '@/components/ui/textarea';
+import { RecoverWorkspaceDialog } from '@/components/workspace/recover-workspace-dialog';
 import { ILLUSTRATION_STYLES, type IllustrationStyleId } from '@/lib/config';
 import { formatRelativeTime, type Language } from '@/lib/i18n';
-import { useDecks, useDeleteDeck, useUpdateDeck, useWorkspace } from '@/lib/hooks';
+import {
+  useCreateWorkspace,
+  useDecks,
+  useDeleteDeck,
+  useUpdateDeck,
+  useWorkspace,
+} from '@/lib/hooks';
 import { GenerateAccessError } from '@/lib/generate-access-error';
-import { JobSummary } from '@/lib/schemas';
+import {
+  ANONYMOUS_GENERATION_INTENT_KEY,
+  claimAnonymousGenerationIntent,
+  createAnonymousGenerationIntent,
+  loadAnonymousGenerationIntent,
+  removeAnonymousGenerationIntent,
+  saveAnonymousGenerationIntent,
+  updateAnonymousGenerationIntent,
+  type AnonymousGenerationIntent,
+} from '@/lib/client/anonymous-draft';
+import {
+  MINIMUM_PROMPT_LENGTH,
+  PromptComposer,
+  type ComposerSlideCount,
+} from './prompt-composer';
 
 type DeckListItem = {
   id: string;
@@ -79,11 +103,14 @@ interface SubmitPromptArticleOptions {
   prompt: string;
   slideCount?: number;
   illustrationStyle?: IllustrationStyleId;
-  accessCode?: string;
+  /** A stable key lets a browser retry the same intent without creating a duplicate. */
+  idempotencyKey?: string;
+  /** Resume an article that was created before generation access was granted. */
+  articleId?: string;
+  onStage?: (stage: 'article_created' | 'generation_started', value: { articleId: string; jobId?: string }) => void;
   fetchImpl?: HomeFetch;
 }
 
-const HOME_SLIDE_COUNT_OPTIONS = [1, 3, 5, 7, 10, 15] as const;
 const DEFAULT_HOME_SLIDE_COUNT = 1;
 const DEFAULT_HOME_ILLUSTRATION_STYLE: IllustrationStyleId = 'pixel-art';
 const sidebarSkeletonWidths = ['88%', '64%', '76%', '58%', '71%', '67%'] as const;
@@ -101,38 +128,11 @@ async function readHomeResponse<T>(response: Response, fallbackMessage: string):
   return data as T;
 }
 
-async function waitForJob({
-  jobId,
-  fetchImpl = fetch,
-}: {
-  jobId: string;
-  fetchImpl?: HomeFetch;
-}) {
-  const maxAttempts = 90;
-
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const response = await fetchImpl(`/api/jobs/${jobId}`, {
-      cache: 'no-store',
-    });
-    const job = await readHomeResponse<JobSummary>(response, 'Failed to fetch job');
-
-    if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
-      return job;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-  }
-
-  throw new Error('Timed out while waiting for the article to finish generating.');
-}
-
 export async function requestPromptSuggestion({
   title,
-  accessCode,
   fetchImpl = fetch,
 }: {
   title: string;
-  accessCode?: string;
   fetchImpl?: HomeFetch;
 }) {
   const trimmedTitle = title.trim();
@@ -146,7 +146,6 @@ export async function requestPromptSuggestion({
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       title: trimmedTitle,
-      ...(accessCode ? { accessCode } : {}),
     }),
   });
 
@@ -183,7 +182,9 @@ export async function submitPromptArticle({
   prompt,
   slideCount = 1,
   illustrationStyle = 'pixel-art',
-  accessCode,
+  idempotencyKey,
+  articleId: existingArticleId,
+  onStage,
   fetchImpl = fetch,
 }: SubmitPromptArticleOptions) {
   const trimmedPrompt = prompt.trim();
@@ -192,38 +193,49 @@ export async function submitPromptArticle({
   if (!trimmedPrompt) {
     throw new Error('A prompt is required.');
   }
+  if (trimmedPrompt.length < MINIMUM_PROMPT_LENGTH) {
+    throw new Error(`A prompt of at least ${MINIMUM_PROMPT_LENGTH} characters is required.`);
+  }
 
-  const createResponse = await fetchImpl('/api/articles', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      title: trimmedTitle,
-      description: trimmedPrompt.slice(0, 200),
-      content: trimmedPrompt,
-      illustrationStyle,
-      ...(accessCode ? { accessCode } : {}),
-    }),
-  });
+  let deckId = existingArticleId;
 
-  const createdArticle = await readHomeResponse<{ id?: string }>(
-    createResponse,
-    'Failed to generate article'
-  );
-  const deckId = createdArticle.id;
+  if (!deckId) {
+    const createHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (idempotencyKey) createHeaders['Idempotency-Key'] = idempotencyKey;
+    const createResponse = await fetchImpl('/api/articles', {
+      method: 'POST',
+      headers: createHeaders,
+      body: JSON.stringify({
+        title: trimmedTitle,
+        description: trimmedPrompt.slice(0, 200),
+        content: trimmedPrompt,
+        illustrationStyle,
+      }),
+    });
+
+    const createdArticle = await readHomeResponse<{ id?: string }>(
+      createResponse,
+      'Failed to generate article'
+    );
+    deckId = createdArticle.id;
+  }
 
   if (!deckId) {
     throw new Error('Failed to generate article');
   }
 
+  onStage?.('article_created', { articleId: deckId });
+
+  const generationHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (idempotencyKey) generationHeaders['Idempotency-Key'] = idempotencyKey;
   const generateResponse = await fetchImpl(`/api/articles/${deckId}/generate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: generationHeaders,
     body: JSON.stringify({
       articleContent: trimmedPrompt,
       slideCount,
       illustrationStyle,
       mode: 'prompt',
-      ...(accessCode ? { accessCode } : {}),
     }),
   });
 
@@ -236,6 +248,10 @@ export async function submitPromptArticle({
     throw new Error('Failed to start article generation');
   }
 
+  onStage?.('generation_started', { articleId: deckId, jobId: generationJob.jobId });
+
+  // Keep the public helper contract intentionally small; callers that need the
+  // job checkpoint receive it through `onStage` above.
   return { deckId };
 }
 
@@ -470,7 +486,7 @@ function DeckSidebarList({
   return (
     <>
       <SidebarHeader className="gap-3 border-b border-sidebar-border/70 p-3">
-        <Link href="/" className="flex min-w-0 items-center gap-3 px-2 py-2">
+        <Link href="/workspace" className="flex min-w-0 items-center gap-3 px-2 py-2">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center bg-sidebar-primary text-sidebar-primary-foreground">
             <Layers3 className="h-5 w-5" />
           </div>
@@ -529,35 +545,638 @@ function DeckSidebarList({
   );
 }
 
-export function DashboardHome() {
+type HomeSubmissionSnapshot = {
+  prompt: string;
+  slideCount: ComposerSlideCount;
+  illustrationStyle: IllustrationStyleId;
+};
+
+type SubmissionCheckpoint = HomeSubmissionSnapshot & {
+  idempotencyKey: string;
+  articleId?: string;
+  jobId?: string;
+};
+
+type WorkspaceChoiceCopy = {
+  title?: string;
+  description?: string;
+  continueAction?: string;
+  importAction?: string;
+};
+
+const RESUME_WORKSPACE_CHOICE_PREFIX = `${ANONYMOUS_GENERATION_INTENT_KEY}:workspace-choice:`;
+
+function readSessionStorage(): Storage | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+function newIdempotencyKey(): string {
+  return crypto.randomUUID();
+}
+
+interface DashboardHomeProps {
+  resumeIntentId?: string | null;
+  resumeRequested?: boolean;
+  actor?: { name: string; email: string };
+}
+
+export function DashboardHome({
+  resumeIntentId = null,
+  resumeRequested = Boolean(resumeIntentId),
+  actor,
+}: DashboardHomeProps) {
   const router = useRouter();
   const { language, messages } = useLanguage();
   const [query, setQuery] = useState('');
   const [prompt, setPrompt] = useState('');
-  const [slideCount, setSlideCount] = useState<number>(DEFAULT_HOME_SLIDE_COUNT);
+  const [slideCount, setSlideCount] = useState<ComposerSlideCount>(DEFAULT_HOME_SLIDE_COUNT);
   const [illustrationStyle, setIllustrationStyle] =
     useState<IllustrationStyleId>(DEFAULT_HOME_ILLUSTRATION_STYLE);
   const [composerError, setComposerError] = useState<string | null>(null);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAccessDialog, setShowAccessDialog] = useState(false);
+  const [hasGenerationAccess, setHasGenerationAccess] = useState(false);
+  const [isProvisioningWorkspace, setIsProvisioningWorkspace] = useState(false);
+  const [provisioningError, setProvisioningError] = useState<string | null>(null);
+  const [provisionAttempt, setProvisionAttempt] = useState(0);
+  const [resumeIntent, setResumeIntent] = useState<AnonymousGenerationIntent | null>(null);
+  const [resumeReady, setResumeReady] = useState(!resumeRequested);
+  const [resumeAllowed, setResumeAllowed] = useState(!resumeRequested);
+  const [resumeNeedsAction, setResumeNeedsAction] = useState(false);
+  const [workspaceCreatedForResume, setWorkspaceCreatedForResume] = useState(false);
+  const [workspaceChoiceOpen, setWorkspaceChoiceOpen] = useState(false);
+  const [recoverWorkspaceOpen, setRecoverWorkspaceOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
   const pendingRetryRef = useRef<(() => void) | null>(null);
+  const accessDialogSucceededRef = useRef(false);
+  const autoProvisionAttemptedRef = useRef(false);
+  const resumeStartedRef = useRef(false);
+  const freshResumeRef = useRef(false);
+  const resumeIntentRef = useRef<AnonymousGenerationIntent | null>(null);
+  const submissionRef = useRef<SubmissionCheckpoint | null>(null);
+  const recoverySucceededRef = useRef(false);
+  const recoveryReturnsToChoiceRef = useRef(false);
   const deferredQuery = useDeferredValue(query);
+  const createWorkspace = useCreateWorkspace();
   const {
     data: workspace,
     isLoading: isWorkspaceLoading,
     error: workspaceError,
     refetch: refetchWorkspace,
   } = useWorkspace();
-  const [hasGenerationAccess, setHasGenerationAccess] = useState(workspace?.hasGenerationAccess ?? false);
   const hasWorkspace = workspace?.hasWorkspace ?? false;
   const { data, isLoading, isError, refetch } = useDecks(hasWorkspace);
   const decks = (data ?? []) as DeckListItem[];
-  const generationLocked = Boolean(workspace?.generateAccessEnabled && !hasGenerationAccess);
+  const generationLocked = Boolean(
+    workspace?.generateAccessEnabled &&
+    !(hasGenerationAccess || workspace.hasGenerationAccess),
+  );
+  const isWorkspaceBusy = isProvisioningWorkspace || Boolean(createWorkspace.isPending);
+  const accountLabel = actor?.name?.trim() || actor?.email?.trim() || 'Account';
+  const accountInitial = accountLabel.slice(0, 1).toUpperCase();
 
   useEffect(() => {
     setHasGenerationAccess(workspace?.hasGenerationAccess ?? false);
   }, [workspace?.hasGenerationAccess]);
+
+  // A newly enrolled account has no workspace yet. Provision it silently so a
+  // user can land on the composer without an extra onboarding click.
+  useEffect(() => {
+    if (
+      isWorkspaceLoading ||
+      workspaceError ||
+      !workspace ||
+      workspace.hasWorkspace ||
+      (resumeRequested && (!resumeReady || !resumeIntent)) ||
+      autoProvisionAttemptedRef.current
+    ) {
+      return;
+    }
+
+    autoProvisionAttemptedRef.current = true;
+    setIsProvisioningWorkspace(true);
+    setProvisioningError(null);
+    try {
+      createWorkspace.mutate(undefined, {
+        onSuccess: (result) => {
+          setIsProvisioningWorkspace(false);
+          if (resumeRequested && resumeIntent && result?.created) setWorkspaceCreatedForResume(true);
+          void refetchWorkspace();
+        },
+        onError: (error) => {
+          setIsProvisioningWorkspace(false);
+          setProvisioningError(error instanceof Error ? error.message : 'Failed to create workspace.');
+        },
+      });
+    } catch (error) {
+      setIsProvisioningWorkspace(false);
+      setProvisioningError(error instanceof Error ? error.message : 'Failed to create workspace.');
+    }
+  }, [
+    createWorkspace,
+    isWorkspaceLoading,
+    workspace,
+    workspaceError,
+    resumeIntentId,
+    resumeRequested,
+    resumeReady,
+    resumeIntent,
+    refetchWorkspace,
+    provisionAttempt,
+  ]);
+
+  const applyResumeIntent = (intent: AnonymousGenerationIntent | null) => {
+    resumeIntentRef.current = intent;
+    setResumeIntent(intent);
+    if (!intent) return;
+    setPrompt(intent.prompt);
+    setSlideCount(intent.slideCount);
+    setIllustrationStyle(intent.illustrationStyle);
+    submissionRef.current = {
+      prompt: intent.prompt,
+      slideCount: intent.slideCount,
+      illustrationStyle: intent.illustrationStyle,
+      idempotencyKey: intent.intentId,
+      articleId: intent.articleId,
+      jobId: intent.jobId,
+    };
+  };
+
+  // Claim the submitted anonymous intent exactly once. The URL contains only
+  // the opaque UUID; all prompt data remains in tab-scoped storage.
+  useEffect(() => {
+    if (!resumeRequested) {
+      freshResumeRef.current = false;
+      applyResumeIntent(null);
+      setResumeReady(true);
+      setResumeAllowed(true);
+      return;
+    }
+
+    if (!resumeIntentId) {
+      freshResumeRef.current = false;
+      setComposerError(messages.publicHome.resumeUnavailable);
+      setResumeReady(true);
+      setResumeAllowed(true);
+      return;
+    }
+
+    const storage = readSessionStorage();
+    if (!storage) {
+      setComposerError(messages.publicHome.storageError);
+      setResumeReady(true);
+      setResumeAllowed(true);
+      return;
+    }
+
+    try {
+      const loaded = loadAnonymousGenerationIntent(storage, { intentId: resumeIntentId });
+      if (!loaded) {
+        freshResumeRef.current = false;
+        setComposerError(messages.publicHome.resumeUnavailable);
+        setResumeReady(true);
+        setResumeAllowed(true);
+        return;
+      }
+      const isFreshSubmission = loaded.stage === 'submitted';
+      // React StrictMode may immediately re-run this effect after the first
+      // claim has changed `submitted` to `resuming`. Preserve freshness only
+      // for that same mounted intent; a real reload starts with a fresh ref and
+      // therefore requires the explicit Continue action below.
+      const isFreshClaim = isFreshSubmission || Boolean(
+        freshResumeRef.current &&
+        loaded.stage === 'resuming' &&
+        resumeIntentRef.current?.intentId === loaded.intentId,
+      );
+      freshResumeRef.current = isFreshClaim;
+      const claimed = isFreshSubmission
+        ? claimAnonymousGenerationIntent(storage, { intentId: resumeIntentId })
+        : loaded;
+      applyResumeIntent(claimed ?? loaded);
+      setResumeNeedsAction(
+        !isFreshClaim &&
+        loaded.stage !== 'editing' &&
+        loaded.stage !== 'generation_started',
+      );
+    } catch {
+      setComposerError(messages.publicHome.storageError);
+      setResumeAllowed(true);
+    } finally {
+      setResumeReady(true);
+    }
+    // The server-provided opaque id is intentionally the only dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumeIntentId, resumeRequested]);
+
+  const resumeChoiceKey = resumeIntentId
+    ? `${RESUME_WORKSPACE_CHOICE_PREFIX}${resumeIntentId}`
+    : null;
+
+  const readResumeChoice = () => {
+    const storage = readSessionStorage();
+    if (!storage || !resumeChoiceKey) return null;
+    try {
+      const value = storage.getItem(resumeChoiceKey);
+      return value === 'continue' || value === 'import' ? value : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveResumeChoice = (choice: 'continue' | 'import') => {
+    const storage = readSessionStorage();
+    if (!storage || !resumeChoiceKey) return;
+    try {
+      storage.setItem(resumeChoiceKey, choice);
+    } catch {
+      // A denied sessionStorage should not prevent the signed-in flow.
+    }
+  };
+
+  // Creating a workspace while an anonymous draft is pending is the one point
+  // where an old recovery-key workspace could be silently hidden. Pause once so
+  // the user can explicitly keep the new account workspace or import the old one.
+  useEffect(() => {
+    if (
+      !resumeIntentId ||
+      !resumeReady ||
+      !resumeIntent ||
+      !workspace?.hasWorkspace
+    ) {
+      return;
+    }
+    // An existing account workspace needs no handoff choice; only a workspace
+    // created during this resume flow pauses for the explicit import decision.
+    if (!workspaceCreatedForResume) {
+      setResumeAllowed(true);
+      return;
+    }
+    if (readResumeChoice()) {
+      setResumeAllowed(true);
+      return;
+    }
+    if (workspace.workspaceOrigin === 'account' && workspace.canReplaceWithLegacy) {
+      setResumeAllowed(false);
+      setWorkspaceChoiceOpen(true);
+    } else {
+      setResumeAllowed(true);
+    }
+    // `workspaceCreatedForResume` is the deliberate one-shot trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumeIntentId, resumeReady, resumeIntent, workspace, workspaceCreatedForResume]);
+
+  const handleContinueWithNewWorkspace = () => {
+    saveResumeChoice('continue');
+    setWorkspaceChoiceOpen(false);
+    setResumeAllowed(true);
+  };
+
+  const handleWorkspaceChoiceOpenChange = (open: boolean) => {
+    // This choice protects a pristine account workspace from becoming
+    // ineligible for legacy import. Escape/outside dismissal must not bypass it.
+    if (open) setWorkspaceChoiceOpen(true);
+  };
+
+  const handleImportOldWorkspace = () => {
+    setWorkspaceChoiceOpen(false);
+    recoverySucceededRef.current = false;
+    recoveryReturnsToChoiceRef.current = true;
+    setRecoverWorkspaceOpen(true);
+  };
+
+  const handleWorkspaceRecovered = () => {
+    recoverySucceededRef.current = true;
+    saveResumeChoice('import');
+    setRecoverWorkspaceOpen(false);
+    setWorkspaceCreatedForResume(false);
+    setResumeAllowed(true);
+    void refetchWorkspace();
+  };
+
+  const handleRecoverWorkspaceOpenChange = (open: boolean) => {
+    setRecoverWorkspaceOpen(open);
+    if (!open && !recoverySucceededRef.current && recoveryReturnsToChoiceRef.current) {
+      // Keep the first-run choice available if the user closes recovery
+      // without importing a key.
+      setWorkspaceChoiceOpen(true);
+    }
+  };
+
+  const persistResumeStage = (
+    stage: AnonymousGenerationIntent['stage'],
+    values: { articleId?: string; jobId?: string } = {},
+  ): boolean => {
+    const current = resumeIntentRef.current;
+    const storage = readSessionStorage();
+    if (!current) return true;
+    if (!storage) return false;
+    try {
+      const next = updateAnonymousGenerationIntent(storage, current, {
+        stage,
+        ...values,
+      });
+      resumeIntentRef.current = next;
+      setResumeIntent(next);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const snapshotForCurrentPrompt = (): HomeSubmissionSnapshot => ({
+    prompt: prompt.trim(),
+    slideCount,
+    illustrationStyle,
+  });
+
+  const checkpointFor = (snapshot: HomeSubmissionSnapshot): SubmissionCheckpoint => {
+    const existing = submissionRef.current;
+    if (
+      existing &&
+      existing.prompt === snapshot.prompt &&
+      existing.slideCount === snapshot.slideCount &&
+      existing.illustrationStyle === snapshot.illustrationStyle
+    ) {
+      return existing;
+    }
+    const intent = resumeIntentRef.current;
+    const intentMatchesSnapshot = Boolean(
+      intent &&
+      intent.prompt === snapshot.prompt &&
+      intent.slideCount === snapshot.slideCount &&
+      intent.illustrationStyle === snapshot.illustrationStyle,
+    );
+    const checkpoint: SubmissionCheckpoint = {
+      ...snapshot,
+      // A changed prompt is a new logical request. Do not reuse the old
+      // intent key (which may already be an article/job id).
+      idempotencyKey: intentMatchesSnapshot && intent ? intent.intentId : newIdempotencyKey(),
+      articleId: intentMatchesSnapshot ? intent?.articleId : undefined,
+      jobId: intentMatchesSnapshot ? intent?.jobId : undefined,
+    };
+    submissionRef.current = checkpoint;
+    return checkpoint;
+  };
+
+  const replaceEditedResumeCheckpoint = (checkpoint: SubmissionCheckpoint): boolean => {
+    const current = resumeIntentRef.current;
+    if (!current || current.intentId === checkpoint.idempotencyKey) return true;
+    const storage = readSessionStorage();
+    if (!storage) return false;
+
+    try {
+      const replacement = createAnonymousGenerationIntent({
+        intentId: checkpoint.idempotencyKey,
+        prompt: checkpoint.prompt,
+        slideCount: checkpoint.slideCount,
+        illustrationStyle: checkpoint.illustrationStyle,
+        stage: 'resuming',
+      });
+      saveAnonymousGenerationIntent(storage, replacement);
+      try {
+        window.history.replaceState(
+          window.history.state,
+          '',
+          `/workspace?resume=${encodeURIComponent(replacement.intentId)}`,
+        );
+      } catch {
+        // Keep storage and the URL paired if browser history is unavailable.
+        saveAnonymousGenerationIntent(storage, current);
+        return false;
+      }
+      resumeIntentRef.current = replacement;
+      setResumeIntent(replacement);
+      submissionRef.current = checkpoint;
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const runSuggest = async (title: string) => {
+    setIsSuggesting(true);
+    setComposerError(null);
+    try {
+      const suggestedPrompt = await requestPromptSuggestion({ title });
+      setPrompt(suggestedPrompt);
+    } catch (error) {
+      if (error instanceof GenerateAccessError) {
+        setHasGenerationAccess(false);
+        void refetchWorkspace();
+        pendingRetryRef.current = () => void runSuggest(title);
+        accessDialogSucceededRef.current = false;
+        setShowAccessDialog(true);
+        return;
+      }
+      setComposerError(error instanceof Error ? error.message : messages.dashboard.promptGenerateFailed);
+    } finally {
+      setIsSuggesting(false);
+    }
+  };
+
+  const handleSuggest = async () => {
+    const title = prompt.trim();
+    if (!title) {
+      setComposerError(messages.dashboard.promptRequired);
+      return;
+    }
+    if (generationLocked) {
+      pendingRetryRef.current = () => void runSuggest(title);
+      accessDialogSucceededRef.current = false;
+      setShowAccessDialog(true);
+      return;
+    }
+    await runSuggest(title);
+  };
+
+  const runSubmit = async (snapshot: HomeSubmissionSnapshot) => {
+    const checkpoint = checkpointFor(snapshot);
+    let persistsResumeCheckpoint =
+      resumeIntentRef.current?.intentId === checkpoint.idempotencyKey;
+    if (
+      resumeIntentRef.current &&
+      !persistsResumeCheckpoint &&
+      !replaceEditedResumeCheckpoint(checkpoint)
+    ) {
+      setComposerError(messages.publicHome.storageError);
+      setResumeNeedsAction(true);
+      return;
+    }
+    persistsResumeCheckpoint = Boolean(
+      resumeIntentRef.current?.intentId === checkpoint.idempotencyKey,
+    );
+    setIsSubmitting(true);
+    setComposerError(null);
+
+    try {
+      const { deckId } = await submitPromptArticle({
+        prompt: checkpoint.prompt,
+        slideCount: checkpoint.slideCount,
+        illustrationStyle: checkpoint.illustrationStyle,
+        idempotencyKey: checkpoint.idempotencyKey,
+        articleId: checkpoint.articleId,
+        onStage: (stage, value) => {
+          checkpoint.articleId = value.articleId;
+          if (value.jobId) checkpoint.jobId = value.jobId;
+          if (persistsResumeCheckpoint && !persistResumeStage(stage, value)) {
+            throw new Error(messages.publicHome.storageError);
+          }
+        },
+      });
+      if (resumeIntentRef.current) {
+        const storage = readSessionStorage();
+        if (storage) {
+          try {
+            removeAnonymousGenerationIntent(storage);
+          } catch {
+            // Leaving a resumable checkpoint is safer than losing the draft.
+          }
+        }
+      }
+      // The article/job endpoints are authoritative; a stale sidebar refresh
+      // must not turn a successful generation start into a visible failure.
+      try {
+        await refetch();
+      } catch {
+        // Navigation can continue with the article id returned above.
+      }
+      router.push(`/articles/${deckId}`);
+    } catch (error) {
+      if (error instanceof GenerateAccessError) {
+        setHasGenerationAccess(false);
+        void refetchWorkspace();
+        pendingRetryRef.current = () => void runSubmit(snapshot);
+        accessDialogSucceededRef.current = false;
+        setShowAccessDialog(true);
+        return;
+      }
+      if (persistsResumeCheckpoint && resumeIntentRef.current && !checkpoint.jobId) {
+        persistResumeStage('needs_retry', checkpoint.articleId ? { articleId: checkpoint.articleId } : {});
+      }
+      setComposerError(error instanceof Error ? error.message : messages.dashboard.articleGenerateFailed);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    const snapshot = snapshotForCurrentPrompt();
+    if (!snapshot.prompt) {
+      setComposerError(messages.dashboard.promptRequired);
+      return;
+    }
+    if (snapshot.prompt.length < MINIMUM_PROMPT_LENGTH) {
+      setComposerError(messages.publicHome.promptTooShort);
+      return;
+    }
+    if (generationLocked) {
+      pendingRetryRef.current = () => void runSubmit(snapshot);
+      accessDialogSucceededRef.current = false;
+      setShowAccessDialog(true);
+      return;
+    }
+    await runSubmit(snapshot);
+  };
+
+  const handleAccessDialogChange = (open: boolean) => {
+    setShowAccessDialog(open);
+    if (open) {
+      accessDialogSucceededRef.current = false;
+      return;
+    }
+    if (!accessDialogSucceededRef.current) {
+      pendingRetryRef.current = null;
+      if (resumeIntentRef.current) setResumeNeedsAction(true);
+    }
+  };
+
+  const handleAccessSuccess = () => {
+    accessDialogSucceededRef.current = true;
+    setHasGenerationAccess(true);
+    void refetchWorkspace();
+    const retry = pendingRetryRef.current;
+    pendingRetryRef.current = null;
+    if (retry) void retry();
+  };
+
+  const handleSignOut = async () => {
+    if (isSigningOut) return;
+    setIsSigningOut(true);
+    try {
+      await fetch('/api/auth/sign-out', { method: 'POST', credentials: 'same-origin' });
+    } catch {
+      // Redirect even when the session endpoint is temporarily unavailable;
+      // the server-side page boundary remains the source of truth.
+    } finally {
+      router.replace('/');
+    }
+  };
+
+  // Resume an intent only after workspace handoff is settled. A started job is
+  // safe to revisit because the generation endpoint is idempotent by intent id.
+  useEffect(() => {
+    if (
+      !resumeIntentId ||
+      !resumeReady ||
+      !resumeIntent ||
+      !workspace?.hasWorkspace ||
+      !resumeAllowed ||
+      resumeStartedRef.current
+    ) {
+      return;
+    }
+    resumeStartedRef.current = true;
+    if (resumeIntent.stage === 'generation_started' && resumeIntent.articleId) {
+      router.push(`/articles/${resumeIntent.articleId}`);
+      return;
+    }
+    if (resumeIntent.stage === 'editing' || !freshResumeRef.current) return;
+    freshResumeRef.current = false;
+    setResumeNeedsAction(false);
+    const snapshot = {
+      prompt: resumeIntent.prompt,
+      slideCount: resumeIntent.slideCount,
+      illustrationStyle: resumeIntent.illustrationStyle,
+    };
+    if (generationLocked) {
+      pendingRetryRef.current = () => void runSubmit(snapshot);
+      accessDialogSucceededRef.current = false;
+      setShowAccessDialog(true);
+      return;
+    }
+    void runSubmit(snapshot);
+    // The ref guard makes this effect safe across StrictMode's development pass.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumeIntentId, resumeReady, resumeIntent, workspace, resumeAllowed]);
+
+  const handleResumeContinue = () => {
+    if (!resumeIntent) return;
+    const snapshot = snapshotForCurrentPrompt();
+    if (!snapshot.prompt) {
+      setComposerError(messages.dashboard.promptRequired);
+      return;
+    }
+    if (snapshot.prompt.length < MINIMUM_PROMPT_LENGTH) {
+      setComposerError(messages.publicHome.promptTooShort);
+      return;
+    }
+    resumeStartedRef.current = true;
+    setResumeNeedsAction(false);
+    if (generationLocked) {
+      pendingRetryRef.current = () => void runSubmit(snapshot);
+      accessDialogSucceededRef.current = false;
+      setShowAccessDialog(true);
+      return;
+    }
+    void runSubmit(snapshot);
+  };
 
   const filteredDecks = decks.filter((deck) => {
     if (deferredQuery.trim()) {
@@ -569,113 +1188,18 @@ export function DashboardHome() {
         return false;
       }
     }
-
     return true;
   });
-
-  const doSuggest = async () => {
-    setIsSuggesting(true);
-    setComposerError(null);
-
-    try {
-      const suggestedPrompt = await requestPromptSuggestion({
-        title: prompt,
-      });
-      setPrompt(suggestedPrompt);
-    } catch (error) {
-      if (error instanceof GenerateAccessError) {
-        setHasGenerationAccess(false);
-        void refetchWorkspace();
-        pendingRetryRef.current = () => void doSuggest();
-        setShowAccessDialog(true);
-        setIsSuggesting(false);
-        return;
-      }
-      setComposerError(
-        error instanceof Error ? error.message : messages.dashboard.promptGenerateFailed
-      );
-    } finally {
-      setIsSuggesting(false);
-    }
-  };
-
-  const handleSuggest = async () => {
-    if (!prompt.trim()) {
-      setComposerError(messages.dashboard.promptRequired);
-      return;
-    }
-
-    if (generationLocked) {
-      pendingRetryRef.current = () => void doSuggest();
-      setShowAccessDialog(true);
-      return;
-    }
-
-    await doSuggest();
-  };
-
-  const doSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    setIsSubmitting(true);
-    setComposerError(null);
-
-    try {
-      const { deckId } = await submitPromptArticle({
-        prompt,
-        slideCount,
-        illustrationStyle,
-      });
-      await refetch();
-      router.push(`/articles/${deckId}`);
-    } catch (error) {
-      if (error instanceof GenerateAccessError) {
-        setHasGenerationAccess(false);
-        void refetchWorkspace();
-        pendingRetryRef.current = () => void doSubmit(event);
-        setShowAccessDialog(true);
-        setIsSubmitting(false);
-        return;
-      }
-      setComposerError(
-        error instanceof Error ? error.message : messages.dashboard.articleGenerateFailed
-      );
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (!prompt.trim()) {
-      setComposerError(messages.dashboard.promptRequired);
-      return;
-    }
-
-    if (generationLocked) {
-      pendingRetryRef.current = () => void doSubmit(event);
-      setShowAccessDialog(true);
-      return;
-    }
-
-    await doSubmit(event);
-  };
-
-  const handleAccessSuccess = () => {
-    setHasGenerationAccess(true);
-    void refetchWorkspace();
-    const retry = pendingRetryRef.current;
-    pendingRetryRef.current = null;
-    if (retry) retry();
-  };
 
   const helperText = composerError
     ? composerError
     : generationLocked
       ? messages.dashboard.generationLockedHint
-    : prompt.trim()
-      ? messages.dashboard.promptHintReady
-      : messages.dashboard.promptHintEmpty;
+      : prompt.trim()
+        ? messages.dashboard.promptHintReady
+        : messages.dashboard.promptHintEmpty;
 
-  if (isWorkspaceLoading && !workspace) {
+  if ((isWorkspaceLoading && !workspace) || isWorkspaceBusy) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background px-6">
         <div className="max-w-md text-center">
@@ -709,9 +1233,45 @@ export function DashboardHome() {
     );
   }
 
-  if (!workspace || !hasWorkspace) {
-    return <WorkspaceOnboarding />;
+  if (provisioningError && (!workspace || !hasWorkspace)) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background px-6">
+        <div className="max-w-md border border-destructive/20 bg-destructive/5 p-6 text-center">
+          <h1 className="text-xl font-semibold text-foreground">
+            {messages.workspace.bootstrapErrorTitle}
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">{provisioningError}</p>
+          <Button
+            type="button"
+            className="mt-4"
+            onClick={() => {
+              autoProvisionAttemptedRef.current = false;
+              setProvisioningError(null);
+              setProvisionAttempt((attempt) => attempt + 1);
+            }}
+          >
+            {messages.common.retry}
+          </Button>
+        </div>
+      </main>
+    );
   }
+
+  if (!workspace || !hasWorkspace) {
+    // This is only a defensive fallback if provisioning is unavailable. The
+    // normal account path above creates the workspace automatically.
+    return <WorkspaceOnboarding notice={composerError} />;
+  }
+
+  const workspaceCopy = messages.workspace as typeof messages.workspace & WorkspaceChoiceCopy;
+  const workspaceChoiceTitle = workspaceCopy.resumeChoiceTitle ?? 'Choose where to continue';
+  const workspaceChoiceDescription = workspaceCopy.resumeChoiceDescription ??
+    'A new workspace is ready. You can continue here or import an older workspace with its recovery key.';
+  const continueWorkspaceLabel = workspaceCopy.resumeChoiceContinue ?? 'Continue with new workspace';
+  const importWorkspaceLabel = workspaceCopy.resumeChoiceImport ?? 'Import old workspace';
+  const resumeContinueLabel = workspaceCopy.resumeContinue ?? 'Continue this draft';
+  const resumeContinueDescription = workspaceCopy.resumeContinueDescription ??
+    'Your draft is ready to continue.';
 
   return (
     <SidebarProvider defaultOpen className="min-h-screen w-full bg-background">
@@ -728,6 +1288,7 @@ export function DashboardHome() {
           <WorkspaceSidebarFooter
             accessKeyPrefix={workspace.accessKeyPrefix ?? '—'}
             recoveryKey={workspace.recoveryKey ?? null}
+            showRecovery={workspace.workspaceOrigin !== 'account'}
           />
         </SidebarFooter>
         <SidebarRail />
@@ -739,16 +1300,68 @@ export function DashboardHome() {
         <header className="sticky top-0 z-10 border-b border-border/70 bg-background/85 backdrop-blur">
           <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
             <SidebarTrigger className="size-9 border border-border/70" />
-
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-foreground sm:text-base">
                 {messages.dashboard.headerTitle}
               </p>
             </div>
-
             <LanguageToggle />
             <ThemeToggle />
-
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  className="rounded-full"
+                  aria-label={`Account: ${accountLabel}`}
+                >
+                  {accountInitial || <UserRound className="h-4 w-4" />}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <div className="border-b border-border/70 px-2 py-2">
+                  <p className="truncate text-sm font-medium">{accountLabel}</p>
+                  {actor?.email ? (
+                    <p className="truncate text-xs text-muted-foreground">{actor.email}</p>
+                  ) : null}
+                </div>
+                <DropdownMenuItem asChild>
+                  <Link href="/settings/connections">
+                    <Settings2 className="h-4 w-4" />
+                    {messages.dashboard.connections}
+                  </Link>
+                </DropdownMenuItem>
+                {workspace.canReplaceWithLegacy ? (
+                  <DropdownMenuItem
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      recoverySucceededRef.current = false;
+                      recoveryReturnsToChoiceRef.current = false;
+                      setRecoverWorkspaceOpen(true);
+                    }}
+                  >
+                    <ArrowRightLeft className="h-4 w-4" />
+                    {messages.dashboard.importOldWorkspace}
+                  </DropdownMenuItem>
+                ) : null}
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={isSigningOut}
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    void handleSignOut();
+                  }}
+                >
+                  {isSigningOut ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <LogOut className="h-4 w-4" />
+                  )}
+                  {isSigningOut ? messages.dashboard.signingOut : messages.dashboard.signOut}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button asChild size="sm" className="px-4 sm:px-5">
               <Link href="/new">
                 <MessageSquarePlus className="h-4 w-4" />
@@ -769,154 +1382,89 @@ export function DashboardHome() {
               </p>
             </div>
 
-            <div className="space-y-6">
-              <form
-                onSubmit={handleSubmit}
-                className="overflow-hidden border border-border/70 bg-background/90 shadow-[0_30px_80px_-60px_rgba(15,23,42,0.45)]"
-              >
-                <div className="px-4 py-4 sm:px-5 sm:py-5">
-                  {generationLocked ? (
-                    <div className="mb-4 flex flex-col gap-3 border border-amber-200 bg-amber-50/70 px-3 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex items-start gap-2">
-                        <Lock className="mt-0.5 h-4 w-4 shrink-0" />
-                        <p>{messages.dashboard.generationLockedBanner}</p>
-                      </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="gap-2 self-start sm:self-auto"
-                        onClick={() => setShowAccessDialog(true)}
-                      >
-                        <Lock className="h-4 w-4" />
-                        {messages.generateAccess.submit}
-                      </Button>
-                    </div>
-                  ) : null}
-
-                  <Textarea
-                    value={prompt}
-                    onChange={(event) => {
-                      setPrompt(event.target.value);
-                      if (composerError) {
-                        setComposerError(null);
-                      }
-                    }}
-                    placeholder={messages.dashboard.promptPlaceholder}
-                    rows={8}
-                    className="min-h-[180px] resize-y border-0 bg-transparent px-0 text-sm leading-7 shadow-none focus-visible:ring-0"
-                    disabled={isSubmitting || isSuggesting}
-                  />
-
-                  <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <p
-                      className={`text-sm ${
-                        composerError ? 'text-destructive' : 'text-muted-foreground'
-                      }`}
-                    >
-                      {helperText}
-                    </p>
-
-                    <div className="flex flex-wrap gap-2 sm:flex-row sm:items-center sm:justify-end">
-                      <Select
-                        value={String(slideCount)}
-                        onValueChange={(value) => setSlideCount(Number(value))}
-                      >
-                        <SelectTrigger
-                          aria-label={messages.dashboard.slideCountLabel}
-                          size="sm"
-                          className="w-auto min-w-[5rem]"
-                          disabled={isSubmitting || isSuggesting || generationLocked}
-                        >
-                          <SelectValue placeholder={messages.dashboard.slideCountLabel} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {HOME_SLIDE_COUNT_OPTIONS.map((count) => (
-                            <SelectItem key={count} value={String(count)}>
-                              {count}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-
-                      <Select
-                        value={illustrationStyle}
-                        onValueChange={(value) => setIllustrationStyle(value as IllustrationStyleId)}
-                      >
-                        <SelectTrigger
-                          aria-label={messages.dashboard.illustrationStyleLabel}
-                          size="sm"
-                          className="w-auto min-w-[8rem] sm:w-[11rem]"
-                          disabled={isSubmitting || isSuggesting || generationLocked}
-                        >
-                          <SelectValue placeholder={messages.dashboard.illustrationStyleLabel} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ILLUSTRATION_STYLES.map((style) => {
-                            const localizedStyle =
-                              messages.newDeck.styleOptions[
-                                style.id as keyof typeof messages.newDeck.styleOptions
-                              ];
-
-                            return (
-                              <SelectItem key={style.id} value={style.id}>
-                                {localizedStyle.name}
-                              </SelectItem>
-                            );
-                          })}
-                        </SelectContent>
-                      </Select>
-
-                      <div className="relative inline-flex w-auto">
-                        <span
-                          aria-hidden="true"
-                          className={getAiSuggestGlowClassName({
-                            hasTopic: Boolean(prompt.trim()),
-                            isSuggesting,
-                          })}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={handleSuggest}
-                          disabled={isSuggesting || isSubmitting || generationLocked || !prompt.trim()}
-                          className="gap-2"
-                        >
-                          {isSuggesting ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Sparkles className="h-4 w-4" />
-                          )}
-                          {isSuggesting
-                            ? messages.dashboard.aiSuggestLoading
-                            : messages.dashboard.aiSuggest}
-                        </Button>
-                      </div>
-
-                      <Button
-                        type="submit"
-                        size="sm"
-                        disabled={isSubmitting || isSuggesting || generationLocked || !prompt.trim()}
-                        className="gap-2 w-auto"
-                      >
-                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                        {isSubmitting
-                          ? messages.dashboard.generateLoading
-                          : messages.dashboard.generateAction}
-                      </Button>
-                    </div>
-                  </div>
+            <div className="overflow-hidden border border-border/70 bg-background/90 px-4 py-4 shadow-[0_30px_80px_-60px_rgba(15,23,42,0.45)] sm:px-5 sm:py-5">
+              {resumeNeedsAction ? (
+                <div className="mb-4 flex flex-col gap-3 border border-[var(--signal)]/20 bg-[var(--signal-soft)]/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-muted-foreground">{resumeContinueDescription}</p>
+                  <Button type="button" size="sm" onClick={handleResumeContinue}>
+                    {resumeContinueLabel}
+                  </Button>
                 </div>
-              </form>
-
+              ) : null}
+              <PromptComposer
+                prompt={prompt}
+                onPromptChange={(value) => {
+                  setPrompt(value);
+                  if (composerError) setComposerError(null);
+                }}
+                slideCount={slideCount}
+                onSlideCountChange={setSlideCount}
+                illustrationStyle={illustrationStyle}
+                onIllustrationStyleChange={setIllustrationStyle}
+                onGenerate={handleSubmit}
+                onSuggest={handleSuggest}
+                showSuggest
+                isGenerating={isSubmitting}
+                isSuggesting={isSuggesting}
+                suggestGlowClassName={getAiSuggestGlowClassName({
+                  hasTopic: Boolean(prompt.trim()),
+                  isSuggesting,
+                })}
+                labels={{
+                  prompt: (messages.dashboard as typeof messages.dashboard & { promptLabel?: string }).promptLabel
+                    ?? messages.dashboard.promptHomeTitle,
+                  placeholder: messages.dashboard.promptPlaceholder,
+                  slideCount: messages.dashboard.slideCountLabel,
+                  illustrationStyle: messages.dashboard.illustrationStyleLabel,
+                  generate: messages.dashboard.generateAction,
+                  generating: messages.dashboard.generateLoading,
+                  suggest: messages.dashboard.aiSuggest,
+                  suggesting: messages.dashboard.aiSuggestLoading,
+                  styleNames: Object.fromEntries(
+                    ILLUSTRATION_STYLES.map((style) => [
+                      style.id,
+                      messages.newDeck.styleOptions[style.id as keyof typeof messages.newDeck.styleOptions].name,
+                    ]),
+                  ) as Record<IllustrationStyleId, string>,
+                }}
+                helperText={helperText}
+                error={composerError}
+              />
             </div>
           </section>
         </div>
       </SidebarInset>
+
+      {workspaceChoiceOpen ? (
+        <AlertDialog open onOpenChange={handleWorkspaceChoiceOpenChange}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{workspaceChoiceTitle}</AlertDialogTitle>
+              <AlertDialogDescription>{workspaceChoiceDescription}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={handleImportOldWorkspace}>
+                {importWorkspaceLabel}
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={handleContinueWithNewWorkspace}>
+                {continueWorkspaceLabel}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : null}
+
+      {recoverWorkspaceOpen ? (
+        <RecoverWorkspaceDialog
+          open={recoverWorkspaceOpen}
+          onOpenChange={handleRecoverWorkspaceOpenChange}
+          onSuccess={handleWorkspaceRecovered}
+        />
+      ) : null}
+
       <GenerateAccessDialog
         open={showAccessDialog}
-        onOpenChange={setShowAccessDialog}
+        onOpenChange={handleAccessDialogChange}
         onSuccess={handleAccessSuccess}
       />
     </SidebarProvider>

@@ -311,7 +311,7 @@ export default function DeckPage({ params }: DeckPageProps) {
   const handleDeleteDeck = () => {
     deleteDeck.mutate(deckId, {
       onSuccess: () => {
-        router.push('/');
+        router.push('/workspace');
       },
       onError: (error) => {
         setEditorError(
@@ -333,7 +333,7 @@ export default function DeckPage({ params }: DeckPageProps) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4">
         <p className="text-destructive">{messages.deckPage.failedToLoad}</p>
-        <Link href="/">
+        <Link href="/workspace">
           <Button variant="outline" size="sm">{messages.common.backToDashboard}</Button>
         </Link>
       </div>
@@ -347,7 +347,7 @@ export default function DeckPage({ params }: DeckPageProps) {
         <div className="flex w-full flex-wrap items-center justify-between gap-2 px-3 py-3 sm:px-4 sm:py-4">
           <div className="min-w-0 flex-1">
             <Link
-              href="/"
+              href="/workspace"
               className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
             >
               <ChevronLeft className="h-4 w-4" />

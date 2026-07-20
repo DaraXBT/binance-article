@@ -7,17 +7,21 @@ import { requireActiveUser } from '@/server/auth/authorization';
 import { assertAllowedOrigin } from '@/server/auth/origin';
 import { getRuntimeDatabase } from '@/server/db/runtime';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
+import { consumeAtomicRateLimit } from '@/server/http/atomic-rate-limit';
 import { readBoundedJson } from '@/server/http/request-body';
 import { requireActorWorkspace } from '@/server/modules/workspace/membership';
 
 export const maxDuration = 30;
 const TopicSchema = z.string().trim().min(1).max(200);
+const RATE_LIMIT = 20;
+const RATE_WINDOW_MS = 60 * 60 * 1_000;
 
 export async function POST(request: NextRequest) {
   try {
     assertAllowedOrigin(request);
     const actor = await requireActiveUser(request);
-    const workspace = await requireActorWorkspace(getRuntimeDatabase(), actor.id);
+    const database = getRuntimeDatabase();
+    const workspace = await requireActorWorkspace(database, actor.id);
     const body = await readBoundedJson(request, 1_024);
 
     if (isGenerateAccessEnabled()) {
@@ -41,6 +45,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'A topic title is required', code: 'TOPIC_REQUIRED' },
         { status: 400, headers: withNoStoreHeaders() }
+      );
+    }
+
+    const now = new Date();
+    const rateLimit = await consumeAtomicRateLimit({
+      database,
+      key: `generate-prompt:${actor.id}`,
+      limit: RATE_LIMIT,
+      windowMs: RATE_WINDOW_MS,
+      now,
+    });
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'AI suggestion rate limit exceeded. Please try again later.', code: 'RATE_LIMITED' },
+        {
+          status: 429,
+          headers: {
+            ...withNoStoreHeaders(),
+            'Retry-After': String(Math.max(
+              1,
+              Math.ceil((rateLimit.resetAt.getTime() - now.getTime()) / 1_000),
+            )),
+          },
+        },
       );
     }
 

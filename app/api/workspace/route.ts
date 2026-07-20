@@ -26,6 +26,8 @@ export async function GET(request: NextRequest) {
       workspaceId: workspace?.id ?? null,
       accessKeyPrefix: workspace?.accessKeyPrefix ?? null,
       recoveryKey: null,
+      workspaceOrigin: workspace?.origin ?? null,
+      canReplaceWithLegacy: workspace?.canReplaceWithLegacy ?? false,
       generateAccessEnabled,
       hasGenerationAccess: generationAccess?.hasAccess ?? false,
       generationAccessInvalidReason: generationAccess?.invalidReason ??
@@ -55,6 +57,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       workspaceId: created.id,
+      created: created.created,
     }, {
       headers: withNoStoreHeaders(),
     });
