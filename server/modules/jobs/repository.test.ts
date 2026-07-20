@@ -98,4 +98,51 @@ describe('Neon job repository', () => {
     expect(queries[0]?.text).toMatch(/"runId" IS NULL OR "runId" =/);
     expect(queries[0]?.text).toMatch(/"status" IN \('queued', 'running'\)/);
   });
+
+  it('serializes same-key creation and consumes the rate limit only for the insert winner', async () => {
+    const queries: Array<{ text: string; values: unknown[] }> = [];
+    const capture = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const query = { text: strings.join('?'), values };
+      queries.push(query);
+      return query;
+    };
+    const transaction = vi.fn(async (
+      build: (query: typeof capture) => Array<{ text: string; values: unknown[] }>,
+    ) => {
+      const statements = build(capture);
+      return statements.map((_statement, index) => index === 1 ? [{
+        result: {
+          outcome: 'job',
+          replayed: false,
+          job: {
+            ...jobRow(),
+            createdAt: '2026-07-19T00:00:00.000Z',
+            updatedAt: '2026-07-19T00:00:00.000Z',
+          },
+        },
+      }] : []);
+    });
+    const client = Object.assign(vi.fn(), { transaction });
+    const repository = createJobRepository({ $client: client } as never);
+
+    await expect(repository.createGenerationIdempotently({
+      id: '11111111-1111-4111-8111-111111111111',
+      deckId: 'deck_1',
+      workspaceId: 'workspace_1',
+      payload: { mode: 'prompt' },
+      now: new Date('2026-07-19T12:00:00.000Z'),
+      rateLimit: { key: 'generate:user_1', limit: 10, windowMs: 3_600_000 },
+    })).resolves.toMatchObject({
+      job: { id: 'job_1' }, replayed: false, rateLimited: false,
+    });
+
+    const sql = queries.map((query) => query.text).join('\n');
+    expect(sql).toMatch(/pg_advisory_xact_lock/);
+    expect(sql).not.toContain('9_173_021');
+    expect(queries.flatMap((query) => query.values)).toContain(9_173_021);
+    expect(sql).toMatch(/INSERT INTO "RateLimitBucket"/);
+    expect(sql).toMatch(/WHERE NOT EXISTS \(SELECT 1 FROM existing\)/);
+    expect(sql).toMatch(/allowed_new_request/);
+    expect(sql).toMatch(/jsonb_build_object\([\s\S]*'rate_limited'/);
+  });
 });

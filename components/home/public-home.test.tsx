@@ -81,11 +81,17 @@ describe('PublicHome', () => {
     const { container } = render(<PublicHome onNavigate={vi.fn()} />);
     const headerRow = container.querySelector('header > div');
     const wordmark = screen.getByText('xArticle');
+    const signIn = screen.getByRole('link', { name: messages.publicHome.signIn });
+    const compactSignInLabel = signIn.querySelector('span');
 
     expect(headerRow?.classList.contains('px-2')).toBe(true);
     expect(headerRow?.classList.contains('min-[390px]:px-4')).toBe(true);
     expect(wordmark.classList.contains('hidden')).toBe(true);
     expect(wordmark.classList.contains('min-[390px]:inline')).toBe(true);
+    expect(signIn.classList.contains('px-2')).toBe(true);
+    expect(signIn.getAttribute('aria-label')).toBe(messages.publicHome.signIn);
+    expect(compactSignInLabel?.classList.contains('hidden')).toBe(true);
+    expect(compactSignInLabel?.classList.contains('min-[390px]:inline')).toBe(true);
   });
 
   it('shows a visible keyboard focus ring on the prompt field', () => {
@@ -94,6 +100,7 @@ describe('PublicHome', () => {
 
     expect(prompt.classList.contains('focus-visible:ring-0')).toBe(false);
     expect(prompt.classList.contains('focus-visible:ring-[3px]')).toBe(true);
+    expect((prompt as HTMLTextAreaElement).minLength).toBe(10);
   });
 
   it('persists the latest valid prompt synchronously and navigates with only an opaque resume id', () => {

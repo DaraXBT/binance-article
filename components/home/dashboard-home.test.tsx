@@ -6,6 +6,11 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 const messages = {
+  publicHome: {
+    resumeUnavailable: 'That draft is no longer available in this tab.',
+    storageError: 'This browser could not preserve the draft.',
+    promptTooShort: 'Add at least 10 characters.',
+  },
   common: {
     cancel: 'Cancel',
     delete: 'Delete',
@@ -51,6 +56,10 @@ const messages = {
     promptRequired: 'A prompt is required.',
     promptGenerateFailed: 'Failed to generate prompt',
     articleGenerateFailed: 'Failed to generate article',
+    connections: 'Localized connections',
+    importOldWorkspace: 'Localized import workspace',
+    signOut: 'Localized sign out',
+    signingOut: 'Localized signing out…',
   },
   newDeck: {
     styleOptions: {
@@ -141,9 +150,21 @@ vi.mock('@/components/ui/textarea', () => ({
 }));
 
 vi.mock('@/components/ui/alert-dialog', () => ({
-  AlertDialog: ({ children }: any) => React.createElement(React.Fragment, null, children),
+  AlertDialog: ({ children, onOpenChange }: any) => React.createElement(
+    React.Fragment,
+    null,
+    React.createElement('button', {
+      type: 'button',
+      onClick: () => onOpenChange?.(false),
+    }, 'Dismiss mandatory choice'),
+    children,
+  ),
   AlertDialogAction: ({ children, ...props }: any) => React.createElement('button', props, children),
-  AlertDialogCancel: ({ children, ...props }: any) => React.createElement('button', props, children),
+  AlertDialogCancel: ({ children, ...props }: any) => React.createElement(
+    'button',
+    { 'data-testid': 'alert-dialog-cancel', ...props },
+    children,
+  ),
   AlertDialogContent: ({ children }: any) => React.createElement('div', null, children),
   AlertDialogDescription: ({ children }: any) => React.createElement('p', null, children),
   AlertDialogFooter: ({ children }: any) => React.createElement('div', null, children),
@@ -154,7 +175,8 @@ vi.mock('@/components/ui/alert-dialog', () => ({
 vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenu: ({ children }: any) => React.createElement(React.Fragment, null, children),
   DropdownMenuContent: ({ children }: any) => React.createElement('div', null, children),
-  DropdownMenuItem: ({ children, ...props }: any) => React.createElement('button', props, children),
+  DropdownMenuItem: ({ children, asChild: _asChild, ...props }: any) =>
+    React.createElement('button', props, children),
   DropdownMenuTrigger: ({ children }: any) => React.createElement(React.Fragment, null, children),
 }));
 
@@ -196,8 +218,21 @@ vi.mock('@/components/workspace/workspace-onboarding', () => ({
 }));
 
 vi.mock('@/components/generate-access-dialog', () => ({
-  GenerateAccessDialog: ({ open }: any) =>
-    open ? React.createElement('div', { 'data-testid': 'generate-access-dialog' }, 'Generate Access Dialog') : null,
+  GenerateAccessDialog: ({ open, onSuccess, onOpenChange }: any) =>
+    open
+      ? React.createElement(
+          'div',
+          { 'data-testid': 'generate-access-dialog' },
+          'Generate Access Dialog',
+          React.createElement('button', {
+            type: 'button',
+            onClick: () => {
+              onSuccess?.();
+              onOpenChange?.(false);
+            },
+          }, 'Unlock test access'),
+        )
+      : null,
 }));
 
 const refetch = vi.fn();
@@ -243,6 +278,7 @@ describe('DashboardHome', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    sessionStorage.clear();
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
       configurable: true,
       value: vi.fn(),
@@ -394,6 +430,153 @@ describe('DashboardHome', () => {
     expect(screen.getByTestId('generate-access-dialog')).toBeTruthy();
   });
 
+  it('claims a submitted public draft and asks for access before calling a paid API', async () => {
+    workspaceData = {
+      hasWorkspace: true,
+      workspaceId: 'workspace-1',
+      accessKeyPrefix: 'dwk_test',
+      recoveryKey: null,
+      generateAccessEnabled: true,
+      hasGenerationAccess: false,
+      generationAccessInvalidReason: 'missing',
+    };
+    const intentId = '11111111-1111-4111-8111-111111111111';
+    const prompt = 'Explain tokenized gold settlement for crypto traders.';
+    const draftModule = await import('@/lib/client/anonymous-draft');
+    const draft = draftModule.createAnonymousGenerationIntent({
+      intentId,
+      prompt,
+      slideCount: 5,
+      illustrationStyle: 'lab-notes',
+      stage: 'submitted',
+    });
+    draftModule.saveAnonymousGenerationIntent(sessionStorage, draft);
+    const fetchMock = vi.fn();
+    const originalFetch = global.fetch;
+
+    try {
+      global.fetch = fetchMock as typeof fetch;
+      const { DashboardHome } = await import('@/components/home/dashboard-home');
+      render(React.createElement(DashboardHome, { resumeIntentId: intentId, resumeRequested: true }));
+
+      await waitFor(() => {
+        expect(screen.getByDisplayValue(prompt)).toBeTruthy();
+        expect(screen.getByTestId('generate-access-dialog')).toBeTruthy();
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(draftModule.loadAnonymousGenerationIntent(sessionStorage, { intentId }))
+        .toMatchObject({ stage: 'resuming' });
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('pauses once for workspace choice when provisioning a workspace for a pending draft', async () => {
+    workspaceData = {
+      hasWorkspace: false,
+      workspaceId: null,
+      accessKeyPrefix: null,
+      recoveryKey: null,
+      generateAccessEnabled: false,
+      hasGenerationAccess: false,
+      generationAccessInvalidReason: null,
+    };
+    const intentId = '33333333-3333-4333-8333-333333333333';
+    const draftModule = await import('@/lib/client/anonymous-draft');
+    draftModule.saveAnonymousGenerationIntent(
+      sessionStorage,
+      draftModule.createAnonymousGenerationIntent({
+        intentId,
+        prompt: 'Compare stablecoin settlement rails for treasury teams.',
+        slideCount: 3,
+        illustrationStyle: 'pixel-art',
+        stage: 'submitted',
+      }),
+    );
+    createWorkspaceMutate.mockImplementation((_value, options) => {
+      workspaceData = {
+        hasWorkspace: true,
+        workspaceId: 'workspace-account',
+        accessKeyPrefix: 'acct_12345678',
+        recoveryKey: null,
+        workspaceOrigin: 'account',
+        canReplaceWithLegacy: true,
+        generateAccessEnabled: false,
+        hasGenerationAccess: false,
+        generationAccessInvalidReason: null,
+      } as typeof workspaceData;
+      options?.onSuccess?.({ success: true, workspaceId: 'workspace-account', created: true });
+    });
+    const fetchMock = vi.fn();
+    const originalFetch = global.fetch;
+
+    try {
+      global.fetch = fetchMock as typeof fetch;
+      const { DashboardHome } = await import('@/components/home/dashboard-home');
+      render(React.createElement(DashboardHome, { resumeIntentId: intentId, resumeRequested: true }));
+
+      expect(await screen.findByRole('button', { name: 'Continue with new workspace' })).toBeTruthy();
+      expect(screen.getAllByRole('button', { name: 'Import old workspace' }).length).toBeGreaterThan(0);
+      expect(screen.getByTestId('alert-dialog-cancel').textContent).toBe('Import old workspace');
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss mandatory choice' }));
+      expect(screen.getByRole('button', { name: 'Continue with new workspace' })).toBeTruthy();
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('requires an explicit continue after reloading an already-claimed draft', async () => {
+    const intentId = '44444444-4444-4444-8444-444444444444';
+    const prompt = 'Compare stablecoin settlement rails for treasury teams.';
+    const draftModule = await import('@/lib/client/anonymous-draft');
+    draftModule.saveAnonymousGenerationIntent(
+      sessionStorage,
+      draftModule.createAnonymousGenerationIntent({
+        intentId,
+        prompt,
+        slideCount: 3,
+        illustrationStyle: 'pixel-art',
+        stage: 'resuming',
+      }),
+    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: intentId }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ jobId: intentId }), { status: 202 }));
+    const originalFetch = global.fetch;
+
+    try {
+      global.fetch = fetchMock as typeof fetch;
+      const { DashboardHome } = await import('@/components/home/dashboard-home');
+      render(React.createElement(DashboardHome, { resumeIntentId: intentId, resumeRequested: true }));
+
+      expect(await screen.findByDisplayValue(prompt)).toBeTruthy();
+      expect(fetchMock).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole('button', { name: 'Continue this draft' }));
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('does not provision a workspace for a malformed resume marker', async () => {
+    workspaceData = {
+      hasWorkspace: false,
+      workspaceId: null,
+      accessKeyPrefix: null,
+      recoveryKey: null,
+      generateAccessEnabled: false,
+      hasGenerationAccess: false,
+      generationAccessInvalidReason: null,
+    };
+    const { DashboardHome } = await import('@/components/home/dashboard-home');
+    render(React.createElement(DashboardHome, { resumeIntentId: null, resumeRequested: true }));
+
+    await waitFor(() => expect(screen.getByTestId('workspace-onboarding')).toBeTruthy());
+    expect(createWorkspaceMutate).not.toHaveBeenCalled();
+  });
+
   it('exports a helper that returns the AI suggest glow classes for idle and non-idle states', async () => {
     const module = await import('@/components/home/dashboard-home');
 
@@ -515,6 +698,129 @@ describe('DashboardHome', () => {
         mode: 'prompt',
       })
     );
+  });
+
+  it('rejects a short prompt before creating an orphan article', async () => {
+    const { submitPromptArticle } = await import('@/components/home/dashboard-home');
+    const fetchImpl = vi.fn();
+
+    await expect(submitPromptArticle({ prompt: 'Bitcoin', fetchImpl })).rejects.toThrow(
+      /at least 10 characters/i,
+    );
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('shows a localized short-prompt error without calling the article API', async () => {
+    const fetchMock = vi.fn();
+    const originalFetch = global.fetch;
+    try {
+      global.fetch = fetchMock as typeof fetch;
+      const { DashboardHome } = await import('@/components/home/dashboard-home');
+      render(React.createElement(DashboardHome));
+
+      fireEvent.change(screen.getByPlaceholderText(messages.dashboard.promptPlaceholder), {
+        target: { value: 'Bitcoin' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /generate article/i }));
+
+      expect((await screen.findByRole('alert')).textContent).toContain(
+        messages.publicHome.promptTooShort,
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('moves an edited resumed draft to a durable independent checkpoint', async () => {
+    const oldIntentId = '66666666-6666-4666-8666-666666666666';
+    const newIntentId = '77777777-7777-4777-8777-777777777777';
+    const newArticleId = '88888888-8888-4888-8888-888888888888';
+    const oldPrompt = 'Compare stablecoin settlement rails for treasury teams.';
+    const newPrompt = 'Compare tokenized treasury settlement rails for CFO teams.';
+    const draftModule = await import('@/lib/client/anonymous-draft');
+    draftModule.saveAnonymousGenerationIntent(
+      sessionStorage,
+      draftModule.createAnonymousGenerationIntent({
+        intentId: oldIntentId,
+        prompt: oldPrompt,
+        slideCount: 3,
+        illustrationStyle: 'pixel-art',
+        stage: 'resuming',
+      }),
+    );
+    window.history.replaceState(window.history.state, '', `/workspace?resume=${oldIntentId}`);
+    const randomUUID = vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(newIntentId);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: newArticleId }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        code: 'GENERATE_ACCESS_REQUIRED',
+        error: 'Generation access code required.',
+      }), { status: 403 }));
+    const originalFetch = global.fetch;
+
+    try {
+      global.fetch = fetchMock as typeof fetch;
+      const { DashboardHome } = await import('@/components/home/dashboard-home');
+      render(React.createElement(DashboardHome, {
+        resumeIntentId: oldIntentId,
+        resumeRequested: true,
+      }));
+
+      fireEvent.change(await screen.findByDisplayValue(oldPrompt), {
+        target: { value: newPrompt },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Continue this draft' }));
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+      expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
+        'Idempotency-Key': newIntentId,
+      });
+      expect(draftModule.loadAnonymousGenerationIntent(sessionStorage)).toMatchObject({
+        intentId: newIntentId,
+        prompt: newPrompt,
+        stage: 'article_created',
+        articleId: newArticleId,
+      });
+      expect(window.location.search).toBe(`?resume=${newIntentId}`);
+    } finally {
+      global.fetch = originalFetch;
+      randomUUID.mockRestore();
+      window.history.replaceState(window.history.state, '', '/');
+    }
+  });
+
+  it('uses localized account-menu labels', async () => {
+    const { DashboardHome } = await import('@/components/home/dashboard-home');
+    render(React.createElement(DashboardHome));
+
+    expect(screen.getByText(messages.dashboard.connections)).toBeTruthy();
+    expect(screen.getByText(messages.dashboard.signOut)).toBeTruthy();
+  });
+
+  it('uses the same idempotency key for article creation and generation', async () => {
+    const { submitPromptArticle } = await import('@/components/home/dashboard-home');
+    const idempotencyKey = '22222222-2222-4222-8222-222222222222';
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: idempotencyKey }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ jobId: idempotencyKey }), { status: 202 }));
+
+    await submitPromptArticle({
+      prompt: 'Write a strategic article about stablecoin settlement.',
+      idempotencyKey,
+      fetchImpl,
+    });
+
+    expect(fetchImpl.mock.calls[0]?.[1]?.headers).toEqual({
+      'Content-Type': 'application/json',
+      'Idempotency-Key': idempotencyKey,
+    });
+    expect(fetchImpl.mock.calls[1]?.[1]?.headers).toEqual({
+      'Content-Type': 'application/json',
+      'Idempotency-Key': idempotencyKey,
+    });
   });
 
   it('renders the prompt-first controls only when a workspace is attached', async () => {
