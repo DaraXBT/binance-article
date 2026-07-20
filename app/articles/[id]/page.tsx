@@ -9,6 +9,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CaptionViewer } from '@/components/caption-viewer';
 import { BinanceExportDialog } from '@/components/binance-export-dialog';
 import { GenerateAccessDialog } from '@/components/generate-access-dialog';
+import {
+  FrameCornerHandles,
+  ScreenLine,
+  SecureConsoleFrame,
+} from '@/components/console/secure-console-frame';
 import { GenerateAccessError } from '@/lib/generate-access-error';
 import { LanguageToggle } from '@/components/language-toggle';
 import { SlideEditor } from '@/components/slide-editor';
@@ -323,37 +328,54 @@ export default function DeckPage({ params }: DeckPageProps) {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <Spinner />
-      </div>
+      <SecureConsoleFrame
+        variant="focus"
+        eyebrow="ARTICLE STUDIO"
+        title="Loading article"
+        panelClassName="mx-auto w-full max-w-lg"
+      >
+        <div className="flex min-h-28 items-center gap-3" role="status" aria-live="polite">
+          <span className="inline-flex size-9 items-center justify-center border border-dotted border-border text-primary">
+            <Spinner />
+          </span>
+          <span className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">CHECKING ARTICLE</span>
+        </div>
+      </SecureConsoleFrame>
     );
   }
 
   if (isError || !deck) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4">
-        <p className="text-destructive">{messages.deckPage.failedToLoad}</p>
-        <Link href="/workspace">
-          <Button variant="outline" size="sm">{messages.common.backToDashboard}</Button>
-        </Link>
-      </div>
+      <SecureConsoleFrame
+        variant="focus"
+        eyebrow="ARTICLE ERROR"
+        title={messages.deckPage.failedToLoad}
+        panelClassName="mx-auto w-full max-w-lg border-destructive/45 bg-destructive/[0.025]"
+      >
+        <Button asChild variant="outline" size="sm" className="w-fit rounded-none border-dotted">
+          <Link href="/workspace">{messages.common.backToDashboard}</Link>
+        </Button>
+      </SecureConsoleFrame>
     );
   }
 
   return (
     <>
-    <div className="flex h-screen flex-col">
-      <div className="sticky top-0 z-10 border-b border-border bg-background">
-        <div className="flex w-full flex-wrap items-center justify-between gap-2 px-3 py-3 sm:px-4 sm:py-4">
+    <div data-console-frame="focus" className="console-viewport">
+      <div aria-hidden="true" className="viewport-top-line" />
+      <div className="console-shell mx-auto max-w-[96rem]">
+      <div className="flex min-h-0 flex-1 flex-col">
+      <header className="console-header sticky top-0 z-10 border-b border-dotted border-border/80 bg-background">
+        <div className="flex min-w-0 w-full flex-wrap items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
             <Link
               href="/workspace"
-              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+              className="inline-flex items-center gap-1 font-mono text-[0.62rem] uppercase tracking-[0.12em] text-muted-foreground hover:text-foreground"
             >
               <ChevronLeft className="h-4 w-4" />
               {messages.deckPage.back}
             </Link>
-            <h1 className="truncate text-lg font-bold sm:text-2xl">{deck.title}</h1>
+            <h1 className="truncate text-base font-semibold tracking-normal sm:text-lg">{deck.title}</h1>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <LanguageToggle />
@@ -362,7 +384,7 @@ export default function DeckPage({ params }: DeckPageProps) {
               <Button
                 size="sm"
                 variant="outline"
-                className="gap-2"
+                className="gap-2 rounded-none border-dotted"
                 onClick={() => retryFailedImages.mutate()}
                 disabled={retryFailedImages.isPending || generationLocked}
               >
@@ -380,7 +402,7 @@ export default function DeckPage({ params }: DeckPageProps) {
               <Button
                 size="sm"
                 variant="outline"
-                className="gap-2"
+                className="gap-2 rounded-none border-dotted"
                 onClick={() => setShowAccessDialog(true)}
               >
                 <Lock className="h-4 w-4" />
@@ -390,7 +412,7 @@ export default function DeckPage({ params }: DeckPageProps) {
             <Button
               size="sm"
               variant="outline"
-              className="gap-2"
+              className="gap-2 rounded-none border-dotted"
               onClick={() => setShowBinanceExport(true)}
               disabled={slides.length === 0}
               aria-label="Export to Binance Square"
@@ -404,14 +426,15 @@ export default function DeckPage({ params }: DeckPageProps) {
                 <Button
                   size="sm"
                   variant="destructive"
-                  className="gap-2"
+                  className="gap-2 rounded-none"
                   disabled={deleteDeck.isPending}
                 >
                   <Trash2 className="h-4 w-4" />
                   <span className="hidden sm:inline">{messages.deckPage.deleteArticle}</span>
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent>
+              <AlertDialogContent className="console-dialog border-dotted p-4 sm:p-5">
+                <FrameCornerHandles className="size-2.5 bg-card" />
                 <AlertDialogHeader>
                   <AlertDialogTitle>{messages.deckPage.deleteArticleTitle}</AlertDialogTitle>
                   <AlertDialogDescription>
@@ -419,8 +442,8 @@ export default function DeckPage({ params }: DeckPageProps) {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>{messages.common.cancel}</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDeleteDeck}>
+                  <AlertDialogCancel className="rounded-none border-dotted">{messages.common.cancel}</AlertDialogCancel>
+                  <AlertDialogAction className="rounded-none" onClick={handleDeleteDeck}>
                     {messages.common.delete}
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -428,10 +451,11 @@ export default function DeckPage({ params }: DeckPageProps) {
             </AlertDialog>
           </div>
         </div>
-      </div>
+      </header>
+      <ScreenLine className="h-3" />
 
       {failedSlides.length > 0 || pendingSlides.length > 0 || retryFeedback || retryError || editorFeedback || editorError ? (
-        <div className="border-b border-border bg-muted/30 px-4 py-3">
+        <div className="border-b border-dotted border-border/80 bg-muted/20 px-4 py-2.5">
           <div className="flex flex-wrap items-center gap-3 text-sm">
             {failedSlides.length > 0 ? (
               <p className="font-medium text-destructive">
@@ -451,13 +475,13 @@ export default function DeckPage({ params }: DeckPageProps) {
         </div>
       ) : null}
 
-      <div className="border-b border-border bg-muted/30 md:hidden">
+      <div className="border-b border-dotted border-border/80 bg-muted/20 md:hidden">
         <div className="flex">
           {(['slides', 'editor', 'preview'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setMobileTab(tab)}
-              className={`flex-1 px-3 py-2.5 text-xs font-medium uppercase tracking-wider transition-colors ${
+              className={`flex-1 px-3 py-2.5 font-mono text-[0.62rem] font-medium uppercase tracking-[0.12em] transition-colors ${
                 mobileTab === tab
                   ? 'border-b-2 border-primary bg-background text-foreground'
                   : 'text-muted-foreground hover:text-foreground'
@@ -561,6 +585,8 @@ export default function DeckPage({ params }: DeckPageProps) {
             </ResizablePanelGroup>
           </ResizablePanel>
         </ResizablePanelGroup>
+      </div>
+      </div>
       </div>
     </div>
       <GenerateAccessDialog
