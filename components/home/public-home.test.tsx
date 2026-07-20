@@ -50,6 +50,8 @@ const messages = {
   },
 };
 
+const mobileState = vi.hoisted(() => ({ value: false }));
+
 vi.mock('@/components/language-provider', () => ({
   useLanguage: () => ({ language: 'en', messages }),
 }));
@@ -60,13 +62,16 @@ vi.mock('@/components/theme-toggle', () => ({
   ThemeToggle: () => <button type="button">Theme</button>,
 }));
 vi.mock('@/hooks/use-mobile', () => ({
-  useIsMobile: () => false,
+  useIsMobile: () => mobileState.value,
 }));
 
 import { PublicHome } from './public-home';
 
 describe('PublicHome', () => {
-  beforeEach(() => sessionStorage.clear());
+  beforeEach(() => {
+    sessionStorage.clear();
+    mobileState.value = false;
+  });
   afterEach(() => cleanup());
 
   it('shows the public product home without calling a private API', () => {
@@ -193,6 +198,26 @@ describe('PublicHome', () => {
     } finally {
       fetchSpy.mockRestore();
     }
+  });
+
+  it('closes the mobile rail after selecting a starter idea and returns focus to the composer', async () => {
+    mobileState.value = true;
+    render(<PublicHome onNavigate={vi.fn()} />);
+
+    const trigger = document.querySelector('[data-sidebar="trigger"]');
+    expect(trigger).toBeTruthy();
+    fireEvent.click(trigger!);
+
+    const starter = messages.publicHome.starters[0];
+    expect(screen.getByRole('button', { name: starter })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: starter }));
+
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('button', { name: starter })).toBeNull();
+    });
+    expect(document.activeElement).toBe(
+      screen.getByLabelText(messages.publicHome.promptLabel),
+    );
   });
 
   it('requires confirmation before clearing a non-empty local draft and preserves it on cancel', () => {
