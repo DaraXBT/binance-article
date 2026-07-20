@@ -181,7 +181,7 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
 }));
 
 vi.mock('@/components/ui/sidebar', () => ({
-  Sidebar: ({ children }: any) => React.createElement('aside', null, children),
+  Sidebar: ({ children, ...props }: any) => React.createElement('aside', props, children),
   SidebarContent: ({ children }: any) => React.createElement('div', null, children),
   SidebarFooter: ({ children }: any) => React.createElement('div', { 'data-testid': 'sidebar-footer' }, children),
   SidebarGroup: ({ children }: any) => React.createElement('div', null, children),
@@ -372,6 +372,17 @@ describe('DashboardHome', () => {
     expect(html).not.toContain('ai-suggest-glow');
     expect(html).toContain('border-primary');
     expect(html).toContain(messages.dashboard.generateAction);
+  });
+
+  it('uses the shared workspace shell with a history rail and compact status strip', async () => {
+    const { DashboardHome } = await import('@/components/home/dashboard-home');
+    const html = renderToStaticMarkup(React.createElement(DashboardHome));
+
+    expect(html).toContain('data-article-studio-shell="workspace"');
+    expect(html).toContain('data-article-studio-rail="workspace"');
+    expect(html).toContain('data-article-studio-status-strip');
+    expect(html).toContain('data-article-studio-composer');
+    expect(html).toContain(messages.dashboard.searchDecks);
   });
 
   it('renders workspace sidebar footer with key prefix only after workspace attachment', async () => {
