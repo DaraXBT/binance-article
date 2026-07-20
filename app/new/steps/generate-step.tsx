@@ -268,7 +268,7 @@ export function GenerateStep({
       <div>
         <h2 className="text-2xl font-semibold mb-2">
           {phase === 'complete'
-            ? `🎉 ${messages.newDeck.generateView.deckReady}`
+            ? messages.newDeck.generateView.deckReady
             : phase === 'awaiting-code'
               ? messages.newDeck.generateView.generationLockedTitle
             : messages.newDeck.generateView.generatingDeck}
@@ -286,14 +286,14 @@ export function GenerateStep({
 
       {phase === 'awaiting-code' ? (
         <div className="space-y-4">
-          <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-4 text-amber-900">
+          <div className="border border-dotted border-[var(--access-signal)]/45 bg-[var(--access-signal)]/5 p-4 text-foreground">
             <div className="flex items-start gap-3">
               <Lock className="mt-0.5 h-5 w-5 shrink-0" />
               <div>
                 <p className="text-sm font-medium">
                   {messages.newDeck.generateView.generationLockedTitle}
                 </p>
-                <p className="mt-1 text-sm text-amber-900/80">
+                <p className="mt-1 text-sm text-muted-foreground">
                   {messages.newDeck.generateView.generationLockedDescription}
                 </p>
               </div>
@@ -304,7 +304,7 @@ export function GenerateStep({
             onClick={() => setShowAccessDialog(true)}
             variant="outline"
             size="sm"
-            className="gap-2"
+            className="gap-2 rounded-none border-dotted"
           >
             <Lock className="h-4 w-4" />
             {messages.generateAccess.submit}
@@ -312,7 +312,7 @@ export function GenerateStep({
         </div>
       ) : phase === 'error' ? (
         <div className="space-y-4">
-          <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg flex items-start gap-3">
+          <div className="flex items-start gap-3 border border-dotted border-destructive/30 bg-destructive/10 p-4">
             <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-medium text-destructive mb-1">
@@ -321,7 +321,7 @@ export function GenerateStep({
               <p className="text-sm text-destructive/80">{error}</p>
             </div>
           </div>
-          <Button onClick={handleGenerate} variant="outline" size="sm" className="gap-2">
+          <Button onClick={handleGenerate} variant="outline" size="sm" className="gap-2 rounded-none border-dotted">
             {messages.newDeck.generateView.tryAgain}
           </Button>
         </div>
@@ -332,9 +332,9 @@ export function GenerateStep({
               <p className="text-sm font-medium">{messages.newDeck.generateView.progress}</p>
               <p className="text-sm text-muted-foreground tabular-nums">{progress}%</p>
             </div>
-            <div className="w-full h-2.5 bg-secondary rounded-full overflow-hidden">
+            <div className="h-2.5 w-full overflow-hidden border border-dotted border-border bg-secondary/50">
               <div
-                className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-700 ease-out rounded-full"
+                className="h-full bg-primary transition-[width] duration-300"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -347,20 +347,20 @@ export function GenerateStep({
                   {isPhaseComplete(p.id) ? (
                     <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                   ) : isPhaseActive(p.id) ? (
-                    <Loader2 className="h-5 w-5 text-amber-500 animate-spin" />
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
                   ) : (
                     <Circle className="h-5 w-5 text-muted-foreground/30" />
                   )}
                 </div>
                 <span className={
                   isPhaseComplete(p.id) ? 'text-emerald-600 dark:text-emerald-400 font-medium' :
-                  isPhaseActive(p.id) ? 'text-amber-600 dark:text-amber-400 font-medium' :
+                  isPhaseActive(p.id) ? 'text-primary font-medium' :
                   'text-muted-foreground'
                 }>
                   {p.label}
                 </span>
                 {p.detail && isPhaseActive(p.id) && (
-                  <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                  <span className="border border-dotted border-border bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
                     {p.detail}
                   </span>
                 )}
@@ -370,7 +370,7 @@ export function GenerateStep({
 
           {phase === 'complete' && (
             <div
-              className={`p-4 border rounded-lg ${
+              className={`border border-dotted p-4 ${
                 hasImageWarnings
                   ? 'bg-destructive/10 border-destructive/30'
                   : 'bg-primary/10 border-primary/30'
@@ -385,7 +385,7 @@ export function GenerateStep({
                   ? quotaErrorSummary
                     ? messages.newDeck.generateView.quotaWarningTitle
                     : messages.newDeck.generateView.generationCompletedWithWarnings
-                  : `✨ ${messages.newDeck.generateView.successSummary(formData.slideCount)}`}
+                  : messages.newDeck.generateView.successSummary(formData.slideCount)}
               </p>
               {hasImageWarnings && imageSummary ? (
                 quotaErrorSummary ? (

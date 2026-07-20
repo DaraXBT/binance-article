@@ -103,7 +103,7 @@ export function PromptStep({
             {messages.newDeck.promptView.promptLabel}
           </Label>
           {generationLocked ? (
-            <div className="mb-3 flex flex-col gap-3 border border-amber-200 bg-amber-50/70 px-3 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mb-3 flex flex-col gap-3 border border-dotted border-[var(--access-signal)]/45 bg-[var(--access-signal)]/5 px-3 py-3 text-sm text-foreground sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-2">
                 <Lock className="mt-0.5 h-4 w-4 shrink-0" />
                 <p>{messages.newDeck.promptView.generationLockedBanner}</p>
@@ -112,7 +112,7 @@ export function PromptStep({
                 type="button"
                 size="sm"
                 variant="outline"
-                className="gap-2 self-start sm:self-auto"
+                className="gap-2 self-start rounded-none border-dotted sm:self-auto"
                 onClick={() => setShowAccessDialog(true)}
               >
                 <Lock className="h-4 w-4" />
@@ -127,7 +127,7 @@ export function PromptStep({
               value={formData.articleContent}
               onChange={(e) => onUpdate({ articleContent: e.target.value })}
               rows={8}
-              className={`min-h-[150px] resize-y text-sm leading-relaxed sm:pr-28 ${
+              className={`min-h-[150px] resize-y rounded-none border-dotted text-sm leading-relaxed sm:pr-28 ${
                 isGenerating ? 'opacity-50' : ''
               }`}
               disabled={isGenerating}
@@ -147,7 +147,7 @@ export function PromptStep({
                   size="sm"
                   onClick={handleAutoGenerate}
                   disabled={!canGenerate}
-                  className="gap-2"
+                  className="gap-2 rounded-none border-dotted"
                 >
                   {isGenerating ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
