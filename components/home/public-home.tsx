@@ -73,8 +73,6 @@ function AnonymousStudioRail({
   copy,
   prompt,
   resumeIntent,
-  signInHref,
-  onSignIn,
   onNewArticle,
   onStarterSelect,
   onFocusPrompt,
@@ -83,8 +81,6 @@ function AnonymousStudioRail({
   copy: AnonymousRailCopy;
   prompt: string;
   resumeIntent: AnonymousGenerationIntent | null;
-  signInHref: string;
-  onSignIn: (event: MouseEvent<HTMLAnchorElement>) => void;
   onNewArticle: () => void;
   onStarterSelect: (starter: string) => void;
   onFocusPrompt: () => void;
@@ -461,8 +457,6 @@ export function PublicHome({
             copy={copy}
             prompt={prompt}
             resumeIntent={resumeIntent}
-            signInHref={signInHref}
-            onSignIn={handleHeaderSignIn}
             onNewArticle={handleNewArticle}
             onStarterSelect={handleStarterSelect}
             onFocusPrompt={focusPrompt}
