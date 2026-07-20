@@ -7,6 +7,18 @@ const messages = {
   publicHome: {
     privateBeta: 'Invite-only private beta',
     signIn: 'Sign in',
+    studioTitle: 'Article Studio',
+    newArticle: 'New article',
+    localDraft: 'Local draft',
+    untitledArticle: 'Untitled article',
+    draftStateLocal: 'LOCAL',
+    draftStateHeld: 'HELD',
+    draftStateReady: 'READY TO CONTINUE',
+    savedInTab: 'Saved in this tab.',
+    discardDraftTitle: 'Start a new article?',
+    discardDraftDescription: 'Your current local draft will be cleared from this tab.',
+    keepDraft: 'Keep draft',
+    discardDraft: 'Discard draft',
     title: 'Turn a market idea into a publish-ready article.',
     subtitle: 'Draft the story, visuals, and social copy in one focused workspace.',
     promptLabel: 'Article idea',
@@ -47,6 +59,9 @@ vi.mock('@/components/language-toggle', () => ({
 vi.mock('@/components/theme-toggle', () => ({
   ThemeToggle: () => <button type="button">Theme</button>,
 }));
+vi.mock('@/hooks/use-mobile', () => ({
+  useIsMobile: () => false,
+}));
 
 import { PublicHome } from './public-home';
 
@@ -59,8 +74,10 @@ describe('PublicHome', () => {
     render(<PublicHome onNavigate={vi.fn()} />);
 
     expect(screen.getByRole('heading', { name: messages.publicHome.title })).toBeTruthy();
-    expect(screen.getByRole('link', { name: messages.publicHome.signIn }).getAttribute('href'))
-      .toBe('/login?callbackURL=%2Fworkspace');
+    expect(
+      screen.getAllByRole('link', { name: messages.publicHome.signIn })
+        .some((link) => link.getAttribute('href') === '/login?callbackURL=%2Fworkspace'),
+    ).toBe(true);
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });
@@ -80,15 +97,129 @@ describe('PublicHome', () => {
   it('keeps the public header utility controls compact', () => {
     const { container } = render(<PublicHome onNavigate={vi.fn()} />);
     const wordmark = screen.getByText('xArticle');
-    const signIn = screen.getByRole('link', { name: messages.publicHome.signIn });
-    const compactSignInLabel = signIn.querySelector('span');
+    const signIn = screen.getAllByRole('link', { name: messages.publicHome.signIn })
+      .find((link) => link.classList.contains('h-8'));
+    expect(signIn).toBeTruthy();
+    const compactSignInLabel = signIn!.querySelector('span');
 
     expect(container.querySelector('.console-header')).toBeTruthy();
     expect(wordmark.classList.contains('truncate')).toBe(true);
-    expect(signIn.classList.contains('h-8')).toBe(true);
-    expect(signIn.getAttribute('aria-label')).toBe(messages.publicHome.signIn);
+    expect(signIn!.classList.contains('h-8')).toBe(true);
+    expect(signIn!.getAttribute('aria-label')).toBe(messages.publicHome.signIn);
     expect(compactSignInLabel?.classList.contains('hidden')).toBe(true);
     expect(compactSignInLabel?.classList.contains('min-[390px]:inline')).toBe(true);
+  });
+
+  it('renders the compose-first Article Studio shell with an anonymous rail', () => {
+    const { container } = render(<PublicHome onNavigate={vi.fn()} />);
+
+    expect(container.querySelector('[data-article-studio-shell="public"]')).toBeTruthy();
+    expect(container.querySelector('[data-article-studio-rail]')).toBeTruthy();
+    expect(container.querySelector('[data-article-studio-composer]')).toBeTruthy();
+    expect(container.querySelector('[data-article-studio-status-strip]')).toBeTruthy();
+    expect(screen.getByRole('navigation', { name: messages.publicHome.studioTitle })).toBeTruthy();
+    expect(screen.getByRole('button', { name: messages.publicHome.newArticle })).toBeTruthy();
+    expect(screen.getByText(messages.publicHome.savedInTab)).toBeTruthy();
+  });
+
+  it('restores one local draft into the anonymous rail without exposing prompt text in a URL', () => {
+    const now = Date.now();
+    const prompt = 'Explain tokenized gold settlement for crypto traders.';
+    const title = 'Explain tokenized gold settlement';
+    sessionStorage.setItem(
+      'xarticle:anonymous-generation-intent:v1',
+      JSON.stringify({
+        version: 1,
+        intentId: '99999999-9999-4999-8999-999999999999',
+        action: 'generate',
+        stage: 'editing',
+        prompt,
+        slideCount: 5,
+        illustrationStyle: 'lab-notes',
+        createdAt: now,
+        updatedAt: now,
+        expiresAt: now + 60 * 60 * 1_000,
+      }),
+    );
+
+    const { container } = render(<PublicHome onNavigate={vi.fn()} />);
+    const rail = container.querySelector('[data-article-studio-rail]');
+
+    expect(rail).toBeTruthy();
+    expect(screen.getByDisplayValue(prompt)).toBeTruthy();
+    expect(screen.getByRole('button', { name: new RegExp(title, 'i') })).toBeTruthy();
+    expect(rail?.textContent).toContain(messages.publicHome.draftStateHeld);
+    expect(rail?.querySelector(`a[href*="${prompt}"]`)).toBeNull();
+  });
+
+  it('selects a starter idea, focuses the composer, and makes no network request', () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    try {
+      render(<PublicHome onNavigate={vi.fn()} />);
+
+      const starter = messages.publicHome.starters[0];
+      fireEvent.click(screen.getByRole('button', { name: starter }));
+
+      const prompt = screen.getByLabelText(messages.publicHome.promptLabel) as HTMLTextAreaElement;
+      expect(prompt.value).toBe(starter);
+      expect(document.activeElement).toBe(prompt);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('requires confirmation before clearing a non-empty local draft and preserves it on cancel', () => {
+    const prompt = 'Explain tokenized gold settlement for crypto traders.';
+    render(<PublicHome onNavigate={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText(messages.publicHome.promptLabel), {
+      target: { value: prompt },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: messages.publicHome.newArticle }));
+    expect(screen.getByRole('heading', { name: messages.publicHome.discardDraftTitle })).toBeTruthy();
+    expect(screen.getByText(messages.publicHome.discardDraftDescription)).toBeTruthy();
+    expect((screen.getByLabelText(messages.publicHome.promptLabel) as HTMLTextAreaElement).value)
+      .toBe(prompt);
+
+    fireEvent.click(screen.getByRole('button', { name: messages.publicHome.keepDraft }));
+    expect(screen.queryByRole('heading', { name: messages.publicHome.discardDraftTitle })).toBeNull();
+    expect((screen.getByLabelText(messages.publicHome.promptLabel) as HTMLTextAreaElement).value)
+      .toBe(prompt);
+  });
+
+  it('clears the local draft only after confirming New article and keeps style preferences', () => {
+    const now = Date.now();
+    const prompt = 'Explain tokenized gold settlement for crypto traders.';
+    sessionStorage.setItem(
+      'xarticle:anonymous-generation-intent:v1',
+      JSON.stringify({
+        version: 1,
+        intentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        action: 'generate',
+        stage: 'editing',
+        prompt,
+        slideCount: 7,
+        illustrationStyle: 'fantasy-animation',
+        createdAt: now,
+        updatedAt: now,
+        expiresAt: now + 60 * 60 * 1_000,
+      }),
+    );
+    render(<PublicHome onNavigate={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: messages.publicHome.newArticle }));
+    fireEvent.click(screen.getByRole('button', { name: messages.publicHome.discardDraft }));
+
+    expect((screen.getByLabelText(messages.publicHome.promptLabel) as HTMLTextAreaElement).value)
+      .toBe('');
+    expect(sessionStorage.getItem('xarticle:anonymous-generation-intent:v1')).toBeNull();
+    expect(screen.getByRole('combobox', { name: messages.publicHome.slideCountLabel }).textContent)
+      .toContain('7');
+    expect(screen.getByRole('combobox', {
+      name: messages.publicHome.illustrationStyleLabel,
+    }).textContent).toContain('Fantasy Animation');
+    expect(screen.getByRole('button', { name: messages.publicHome.newArticle })).toBeTruthy();
   });
 
   it('shows a visible keyboard focus ring on the prompt field', () => {
@@ -199,7 +330,10 @@ describe('PublicHome', () => {
     fireEvent.change(screen.getByLabelText(messages.publicHome.promptLabel), {
       target: { value: prompt },
     });
-    fireEvent.click(screen.getByRole('link', { name: messages.publicHome.signIn }));
+    const headerSignIn = screen.getAllByRole('link', { name: messages.publicHome.signIn })
+      .find((link) => link.classList.contains('h-8'));
+    expect(headerSignIn).toBeTruthy();
+    fireEvent.click(headerSignIn!);
 
     const stored = JSON.parse(
       sessionStorage.getItem('xarticle:anonymous-generation-intent:v1') ?? '{}',
