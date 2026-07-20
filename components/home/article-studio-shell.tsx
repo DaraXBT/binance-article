@@ -11,7 +11,10 @@ import {
   SidebarRail,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
-import { ScreenLine } from '@/components/console/secure-console-frame';
+import {
+  ScreenLine,
+  type ConsoleStatusItem,
+} from '@/components/console/secure-console-frame';
 import { cn } from '@/lib/utils';
 
 export type ArticleStudioMode = 'public' | 'workspace';
@@ -26,6 +29,55 @@ export interface ArticleStudioShellProps {
   children: ReactNode;
   className?: string;
   mainClassName?: string;
+}
+
+const statusToneClasses: Record<NonNullable<ConsoleStatusItem['tone']>, string> = {
+  neutral: 'text-muted-foreground',
+  action: 'text-primary',
+  warning: 'text-[var(--access-signal)]',
+  success: 'text-emerald-600 dark:text-emerald-300',
+  danger: 'text-destructive',
+};
+
+export function ArticleStudioStatusStrip({
+  items,
+  className,
+}: {
+  items: ConsoleStatusItem[];
+  className?: string;
+}) {
+  if (items.length === 0) return null;
+
+  return (
+    <dl
+      data-article-studio-status-strip
+      data-article-studio-status
+      data-console-status-rail
+      className={cn(
+        'flex min-w-0 flex-wrap items-center border-y border-border/70 bg-background/25',
+        className,
+      )}
+    >
+      {items.map((item) => (
+        <div
+          key={`${item.label}-${item.value}`}
+          className="flex min-w-0 flex-1 items-center justify-between gap-2 border-border/60 px-2.5 py-2 first:border-l-0 sm:px-3"
+        >
+          <dt className="truncate font-mono text-[0.6rem] uppercase tracking-[0.12em] text-muted-foreground/75">
+            {item.label}
+          </dt>
+          <dd
+            className={cn(
+              'truncate font-mono text-[0.64rem] font-semibold uppercase tracking-[0.08em]',
+              statusToneClasses[item.tone ?? 'neutral'],
+            )}
+          >
+            {item.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
 }
 
 /**
@@ -62,7 +114,7 @@ export function ArticleStudioShell({
           className="relative min-h-0 h-full w-full flex-1 bg-background"
         >
           <Sidebar
-            data-article-studio-rail
+            data-article-studio-rail={mode === 'public' ? 'anonymous' : 'workspace'}
             aria-label={mode === 'public' ? 'Article navigation' : 'Article history'}
             className="z-30 border-r border-dotted border-sidebar-border/80 md:!absolute md:!inset-y-0"
             collapsible="offcanvas"

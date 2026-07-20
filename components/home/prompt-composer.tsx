@@ -1,6 +1,6 @@
 'use client';
 
-import type { FormEvent } from 'react';
+import type { FormEvent, Ref } from 'react';
 import { Loader2, Send, Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,7 @@ export function parseComposerIllustrationStyle(value: string): IllustrationStyle
 }
 
 export function PromptComposer({
+  textareaRef,
   prompt,
   onPromptChange,
   slideCount,
@@ -47,6 +48,7 @@ export function PromptComposer({
   isSuggesting = false,
   showSuggest = false,
 }: {
+  textareaRef?: Ref<HTMLTextAreaElement>;
   prompt: string;
   onPromptChange: (value: string) => void;
   slideCount: ComposerSlideCount;
@@ -88,6 +90,7 @@ export function PromptComposer({
     >
       <label htmlFor="article-prompt" className="sr-only">{labels.prompt}</label>
       <Textarea
+        ref={textareaRef}
         id="article-prompt"
         name="prompt"
         value={prompt}
