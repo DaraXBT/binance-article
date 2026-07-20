@@ -17,6 +17,9 @@ const messages = {
     accessHint: 'You’ll sign in and enter an article access code before AI generation starts.',
     localDraftHint: 'Saved in this tab until you sign in.',
     storageError: 'This browser could not preserve the draft.',
+    retryDraft: 'Try saving the draft again',
+    signInWithoutDraft: 'Sign in without this draft',
+    resumeUnavailable: 'That draft is no longer available in this tab.',
     promptTooShort: 'Add at least 10 characters.',
     trustLine: 'Private assets · Binance login stays on your device',
     startersLabel: 'Try an idea',
@@ -56,12 +59,22 @@ describe('PublicHome', () => {
     render(<PublicHome onNavigate={vi.fn()} />);
 
     expect(screen.getByRole('heading', { name: messages.publicHome.title })).toBeTruthy();
-    expect(screen.getByRole('link', { name: messages.publicHome.signIn })).toHaveAttribute(
-      'href',
-      '/login?callbackURL=%2Fworkspace',
-    );
+    expect(screen.getByRole('link', { name: messages.publicHome.signIn }).getAttribute('href'))
+      .toBe('/login?callbackURL=%2Fworkspace');
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
+  });
+
+  it('keeps folio decoration non-interactive and the trust copy above it', () => {
+    const { container } = render(<PublicHome onNavigate={vi.fn()} />);
+    const composer = container.querySelector('#public-composer');
+    const decoration = Array.from(
+      composer?.querySelectorAll(':scope > [aria-hidden="true"]') ?? [],
+    );
+
+    expect(decoration).toHaveLength(2);
+    expect(decoration.every((layer) => layer.classList.contains('pointer-events-none'))).toBe(true);
+    expect(screen.getByText(messages.publicHome.trustLine).classList.contains('z-10')).toBe(true);
   });
 
   it('persists the latest valid prompt synchronously and navigates with only an opaque resume id', () => {
@@ -101,7 +114,76 @@ describe('PublicHome', () => {
     fireEvent.click(screen.getByRole('button', { name: messages.publicHome.createAction }));
 
     expect(screen.getByRole('alert').textContent).toContain(messages.publicHome.storageError);
-    expect(screen.getByLabelText(messages.publicHome.promptLabel)).toHaveValue(prompt);
+    expect((screen.getByLabelText(messages.publicHome.promptLabel) as HTMLTextAreaElement).value)
+      .toBe(prompt);
     expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it('does not let a delayed autosave undo a submitted intent', () => {
+    vi.useFakeTimers();
+    try {
+      const onNavigate = vi.fn();
+      render(<PublicHome onNavigate={onNavigate} />);
+      fireEvent.change(screen.getByLabelText(messages.publicHome.promptLabel), {
+        target: { value: 'Explain tokenized gold settlement for crypto traders.' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: messages.publicHome.createAction }));
+      vi.runOnlyPendingTimers();
+
+      const stored = JSON.parse(
+        sessionStorage.getItem('xarticle:anonymous-generation-intent:v1') ?? '{}',
+      );
+      expect(stored.stage).toBe('submitted');
+      expect(onNavigate).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps a previously submitted intent submitted until the user edits it', () => {
+    vi.useFakeTimers();
+    try {
+      const intentId = '55555555-5555-4555-8555-555555555555';
+      const now = Date.now();
+      sessionStorage.setItem('xarticle:anonymous-generation-intent:v1', JSON.stringify({
+        version: 1,
+        intentId,
+        action: 'generate',
+        stage: 'submitted',
+        prompt: 'Explain tokenized gold settlement for crypto traders.',
+        slideCount: 5,
+        illustrationStyle: 'lab-notes',
+        createdAt: now,
+        updatedAt: now,
+        expiresAt: now + 60 * 60 * 1_000,
+      }));
+      render(<PublicHome onNavigate={vi.fn()} />);
+      vi.runOnlyPendingTimers();
+
+      const stored = JSON.parse(
+        sessionStorage.getItem('xarticle:anonymous-generation-intent:v1') ?? '{}',
+      );
+      expect(stored.stage).toBe('submitted');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('flushes the latest draft before an immediate header sign-in', () => {
+    const onNavigate = vi.fn();
+    const prompt = 'Explain tokenized gold settlement for crypto traders.';
+    render(<PublicHome onNavigate={onNavigate} />);
+    fireEvent.change(screen.getByLabelText(messages.publicHome.promptLabel), {
+      target: { value: prompt },
+    });
+    fireEvent.click(screen.getByRole('link', { name: messages.publicHome.signIn }));
+
+    const stored = JSON.parse(
+      sessionStorage.getItem('xarticle:anonymous-generation-intent:v1') ?? '{}',
+    );
+    expect(stored).toMatchObject({ stage: 'editing', prompt });
+    expect(onNavigate).toHaveBeenCalledWith(
+      `/login?callbackURL=${encodeURIComponent(`/workspace?resume=${stored.intentId}`)}`,
+    );
   });
 });
