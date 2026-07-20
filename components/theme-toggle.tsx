@@ -6,16 +6,9 @@ import { useLanguage } from '@/components/language-provider';
 import { useTheme } from 'next-themes';
 
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 
 export function ThemeToggle() {
-  const { resolvedTheme, setTheme, theme = 'system' } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const { messages } = useLanguage();
   const [mounted, setMounted] = useState(false);
 
@@ -23,36 +16,25 @@ export function ThemeToggle() {
     setMounted(true);
   }, []);
 
-  const Icon = !mounted ? Laptop : resolvedTheme === 'dark' ? Moon : Sun;
+  const isDark = mounted && resolvedTheme === 'dark';
+  const Icon = !mounted ? Laptop : isDark ? Moon : Sun;
+
+  const handleToggle = () => {
+    if (!mounted) return;
+    setTheme(isDark ? 'light' : 'dark');
+  };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon"
-          className=" border-border/70"
-          aria-label={messages.theme.ariaLabel}
-        >
-          <Icon className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40 ">
-        <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
-          <DropdownMenuRadioItem value="light">
-            <Sun className="h-4 w-4" />
-            {messages.theme.light}
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="dark">
-            <Moon className="h-4 w-4" />
-            {messages.theme.dark}
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="system">
-            <Laptop className="h-4 w-4" />
-            {messages.theme.system}
-          </DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Button
+      type="button"
+      variant="outline"
+      size="icon"
+      className="rounded-none border-border/70"
+      aria-label={messages.theme.ariaLabel}
+      aria-pressed={isDark}
+      onClick={handleToggle}
+    >
+      <Icon aria-hidden="true" className="h-4 w-4" />
+    </Button>
   );
 }
