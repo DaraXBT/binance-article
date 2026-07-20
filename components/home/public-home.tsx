@@ -520,7 +520,7 @@ export function PublicHome({
               {copy.eyebrow}
             </p>
             <h1 className="text-2xl font-semibold leading-tight tracking-normal sm:text-3xl">
-              {copy.title}
+              {copy.studioGreeting || copy.title}
             </h1>
             <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
               {copy.subtitle}

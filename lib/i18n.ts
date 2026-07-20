@@ -49,6 +49,7 @@ const en = {
     discardDraftDescription: 'Your current local draft will be cleared from this tab.',
     keepDraft: 'Keep draft',
     discardDraft: 'Discard draft',
+    studioGreeting: 'What do you want to write about?',
     eyebrow: 'Binance Square article studio',
     title: 'Turn a market idea into a publish-ready article.',
     subtitle: 'Draft the story, visuals, and social copy in one focused workspace.',
@@ -475,6 +476,7 @@ const km: typeof en = {
   auth: { ...en.auth },
   publicHome: {
     ...en.publicHome,
+    studioGreeting: 'តើអ្នកចង់សរសេរអំពីអ្វី?',
     skipToComposer: 'រំលងទៅកន្លែងសរសេរអត្ថបទ',
     privateBeta: 'បេតាឯកជនតាមការអញ្ជើញ',
     signIn: 'ចូលគណនី',
@@ -868,6 +870,7 @@ const id: typeof en = {
   auth: { ...en.auth },
   publicHome: {
     ...en.publicHome,
+    studioGreeting: 'Apa yang ingin Anda tulis?',
     skipToComposer: 'Lewati ke penyusun artikel',
     privateBeta: 'Beta privat khusus undangan',
     signIn: 'Masuk',
@@ -1261,6 +1264,7 @@ const lo: typeof en = {
   auth: { ...en.auth },
   publicHome: {
     ...en.publicHome,
+    studioGreeting: 'ທ່ານຕ້ອງການຂຽນກ່ຽວກັບຫຍັງ?',
     skipToComposer: 'ຂ້າມໄປຫາຕົວຂຽນບົດຄວາມ',
     privateBeta: 'ເບຕ້າສ່ວນຕົວສຳລັບຜູ້ຖືກເຊີນ',
     signIn: 'ເຂົ້າລະບົບ',
@@ -1654,6 +1658,7 @@ const my: typeof en = {
   auth: { ...en.auth },
   publicHome: {
     ...en.publicHome,
+    studioGreeting: 'ဘာအကြောင်းအရာ ရေးချင်ပါသလဲ?',
     skipToComposer: 'ဆောင်းပါးရေးစက်သို့ ကျော်သွားရန်',
     privateBeta: 'ဖိတ်ကြားထားသူများအတွက် သီးသန့် beta',
     signIn: 'အကောင့်ဝင်ရန်',
@@ -2047,6 +2052,7 @@ const th: typeof en = {
   auth: { ...en.auth },
   publicHome: {
     ...en.publicHome,
+    studioGreeting: 'คุณต้องการเขียนเกี่ยวกับอะไร?',
     skipToComposer: 'ข้ามไปยังตัวเขียนบทความ',
     privateBeta: 'เบต้าส่วนตัวสำหรับผู้ได้รับเชิญ',
     signIn: 'เข้าสู่ระบบ',
@@ -2440,6 +2446,7 @@ const fil: typeof en = {
   auth: { ...en.auth },
   publicHome: {
     ...en.publicHome,
+    studioGreeting: 'Ano ang gusto mong isulat?',
     skipToComposer: 'Lumaktaw sa tagagawa ng artikulo',
     privateBeta: 'Pribadong beta para sa mga inimbitahan',
     signIn: 'Mag-sign in',
