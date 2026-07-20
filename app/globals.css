@@ -4,8 +4,6 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --folio-canvas: #f5f4ed;
-  --folio-sheet: #faf9f5;
   --signal: #315ef6;
   --signal-strong: #2448c7;
   --signal-soft: #e9efff;
@@ -47,8 +45,6 @@
 
 .dark {
   color-scheme: dark;
-  --folio-canvas: #151414;
-  --folio-sheet: #191817;
   --signal: #c8fc34;
   --signal-strong: #d9ff72;
   --signal-soft: #26320d;
@@ -286,65 +282,5 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-  }
-}
-
-@keyframes stepper-gradient {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-@keyframes stepper-dot {
-  0%,
-  100% {
-    transform: translate(-50%, -50%) scale(0.85);
-    opacity: 0.7;
-  }
-  50% {
-    transform: translate(-50%, -50%) scale(1.15);
-    opacity: 1;
-  }
-}
-
-@keyframes stepper-glow {
-  0%,
-  100% {
-    box-shadow: 0 8px 24px -6px rgba(245, 158, 11, 0.3),
-      0 0 0 0 rgba(245, 158, 11, 0);
-  }
-  50% {
-    box-shadow: 0 12px 32px -4px rgba(245, 158, 11, 0.45),
-      0 0 16px 2px rgba(245, 158, 11, 0.1);
-  }
-}
-
-@keyframes stepper-ring {
-  0% {
-    transform: scale(1);
-    opacity: 0.6;
-  }
-  50% {
-    transform: scale(1.08);
-    opacity: 0.25;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 0.6;
-  }
-}
-
-@keyframes ai-suggest-sweep {
-  0% {
-    background-position: 0% 50%;
-  }
-  100% {
-    background-position: 200% 50%;
   }
 }

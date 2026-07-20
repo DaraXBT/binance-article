@@ -91,8 +91,8 @@ describe('PromptStep', () => {
 
     const button = screen.getByRole('button', { name: /ai suggest/i });
 
-    expect(container.innerHTML).toContain('ai-suggest-glow');
-    expect(container.innerHTML).toContain('ai-suggest-sweep');
+    expect(container.innerHTML).toContain('ai-suggest-frame');
+    expect(container.innerHTML).not.toContain('ai-suggest-sweep');
 
     fireEvent.click(button);
 

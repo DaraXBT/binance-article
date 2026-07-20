@@ -61,6 +61,25 @@ const en = {
     privateAssets: 'Private assets',
     localBinance: 'Local Binance session',
   },
+  auth: {
+    signInTitle: 'Sign in',
+    signInGoogleDescription: 'Use Google to sign in to your account.',
+    signInTelegramDescription: 'Use Google, or a Telegram identity already linked to your account.',
+    continueGoogle: 'Continue with Google',
+    openingGoogle: 'Opening Google…',
+    continueTelegram: 'Continue with Telegram',
+    openingTelegram: 'Opening Telegram…',
+    signInError: 'Sign-in could not be started. Please try again.',
+    secureRedirect: 'Secure redirect · callback preserved',
+    joinTitle: 'Join the private beta',
+    invitationMissing: 'This invitation link is invalid or missing.',
+    invitationExpired: 'The invitation is invalid or expired.',
+    checkingInvitation: 'Checking invitation…',
+    invitationFor: (email: string) => `This invitation is for ${email}.`,
+    enrollmentError: 'Google enrollment could not be started. Please try again.',
+    checkInvitationAgain: 'Check invitation again',
+    alreadyEnrolled: 'Already enrolled?',
+  },
   accessGate: {
     title: 'Private access',
     description: 'Enter the access code to continue into this workspace.',
@@ -440,6 +459,7 @@ const km: typeof en = {
     rename: 'ប្ដូរឈ្មោះ',
     add: 'បន្ថែម',
   },
+  auth: { ...en.auth },
   publicHome: {
     ...en.publicHome,
     skipToComposer: 'រំលងទៅកន្លែងសរសេរអត្ថបទ',
@@ -832,6 +852,7 @@ const id: typeof en = {
     rename: 'Ubah nama',
     add: 'Tambah',
   },
+  auth: { ...en.auth },
   publicHome: {
     ...en.publicHome,
     skipToComposer: 'Lewati ke penyusun artikel',
@@ -1224,6 +1245,7 @@ const lo: typeof en = {
     rename: 'ປ່ຽນຊື່',
     add: 'ເພີ່ມ',
   },
+  auth: { ...en.auth },
   publicHome: {
     ...en.publicHome,
     skipToComposer: 'ຂ້າມໄປຫາຕົວຂຽນບົດຄວາມ',
@@ -1616,6 +1638,7 @@ const my: typeof en = {
     rename: 'အမည်ပြောင်း',
     add: 'ထည့်',
   },
+  auth: { ...en.auth },
   publicHome: {
     ...en.publicHome,
     skipToComposer: 'ဆောင်းပါးရေးစက်သို့ ကျော်သွားရန်',
@@ -2008,6 +2031,7 @@ const th: typeof en = {
     rename: 'เปลี่ยนชื่อ',
     add: 'เพิ่ม',
   },
+  auth: { ...en.auth },
   publicHome: {
     ...en.publicHome,
     skipToComposer: 'ข้ามไปยังตัวเขียนบทความ',
@@ -2400,6 +2424,7 @@ const fil: typeof en = {
     rename: 'Palitan ang pangalan',
     add: 'Magdagdag',
   },
+  auth: { ...en.auth },
   publicHome: {
     ...en.publicHome,
     skipToComposer: 'Lumaktaw sa tagagawa ng artikulo',

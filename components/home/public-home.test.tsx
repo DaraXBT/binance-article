@@ -65,30 +65,27 @@ describe('PublicHome', () => {
     fetchSpy.mockRestore();
   });
 
-  it('keeps folio decoration non-interactive and the trust copy above it', () => {
+  it('uses a quiet framed console without atmospheric decoration', () => {
     const { container } = render(<PublicHome onNavigate={vi.fn()} />);
     const composer = container.querySelector('#public-composer');
     const decoration = Array.from(
       composer?.querySelectorAll(':scope > [aria-hidden="true"]') ?? [],
     );
 
-    expect(decoration).toHaveLength(2);
-    expect(decoration.every((layer) => layer.classList.contains('pointer-events-none'))).toBe(true);
-    expect(screen.getByText(messages.publicHome.trustLine).classList.contains('z-10')).toBe(true);
+    expect(decoration).toHaveLength(0);
+    expect(container.querySelector('[data-console-frame="public"]')).toBeTruthy();
+    expect(container.querySelector('[data-console-status-rail]')).toBeTruthy();
   });
 
-  it('keeps the public header inside narrow phone viewports', () => {
+  it('keeps the public header utility controls compact', () => {
     const { container } = render(<PublicHome onNavigate={vi.fn()} />);
-    const headerRow = container.querySelector('header > div');
     const wordmark = screen.getByText('xArticle');
     const signIn = screen.getByRole('link', { name: messages.publicHome.signIn });
     const compactSignInLabel = signIn.querySelector('span');
 
-    expect(headerRow?.classList.contains('px-2')).toBe(true);
-    expect(headerRow?.classList.contains('min-[390px]:px-4')).toBe(true);
-    expect(wordmark.classList.contains('hidden')).toBe(true);
-    expect(wordmark.classList.contains('min-[390px]:inline')).toBe(true);
-    expect(signIn.classList.contains('px-2')).toBe(true);
+    expect(container.querySelector('.console-header')).toBeTruthy();
+    expect(wordmark.classList.contains('truncate')).toBe(true);
+    expect(signIn.classList.contains('h-8')).toBe(true);
     expect(signIn.getAttribute('aria-label')).toBe(messages.publicHome.signIn);
     expect(compactSignInLabel?.classList.contains('hidden')).toBe(true);
     expect(compactSignInLabel?.classList.contains('min-[390px]:inline')).toBe(true);

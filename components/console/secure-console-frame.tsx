@@ -83,21 +83,21 @@ export function ConsoleStatusRail({
     <dl
       data-console-status-rail
       className={cn(
-        'grid min-w-0 grid-cols-2 border-y border-border/70 bg-background/25 sm:grid-cols-4',
+        'grid min-w-0 grid-cols-2 border-y border-border/70 bg-background/25 max-[390px]:grid-cols-4 sm:grid-cols-4',
         className,
       )}
     >
       {items.map((item) => (
         <div
           key={`${item.label}-${item.value}`}
-          className="min-w-0 border-border/60 px-2.5 py-2 first:border-l-0 sm:border-l sm:px-3"
+          className="min-w-0 border-border/60 px-2.5 py-2 first:border-l-0 max-[390px]:border-l max-[390px]:px-1.5 max-[390px]:py-1.5 sm:border-l sm:px-3"
         >
-          <dt className="truncate font-mono text-[0.625rem] uppercase tracking-[0.12em] text-muted-foreground/75">
+          <dt className="truncate font-mono text-[0.625rem] uppercase tracking-[0.12em] text-muted-foreground/75 max-[390px]:text-[0.5rem] max-[390px]:tracking-[0.08em]">
             {item.label}
           </dt>
           <dd
             className={cn(
-              'mt-0.5 truncate font-mono text-[0.68rem] font-semibold uppercase tracking-[0.08em]',
+              'mt-0.5 truncate font-mono text-[0.68rem] font-semibold uppercase tracking-[0.08em] max-[390px]:text-[0.56rem] max-[390px]:tracking-[0.04em]',
               statusToneClasses[item.tone ?? 'neutral'],
             )}
           >
@@ -138,7 +138,7 @@ export function ConsoleHeader({
           <span className="inline-flex size-8 shrink-0 items-center justify-center border border-foreground/80 bg-foreground text-background">
             <Layers3 aria-hidden="true" className="size-4" />
           </span>
-          <span className="truncate">{brandLabel}</span>
+          <span className="truncate max-[350px]:hidden">{brandLabel}</span>
         </Link>
       </div>
       {actions ? <div className="ml-auto flex min-w-0 items-center gap-1.5">{actions}</div> : null}
@@ -193,8 +193,8 @@ export function SecureConsoleFrame({
       >
         {header}
         {header ? <ScreenLine /> : null}
-        <div className={cn('min-h-0 flex-1 px-4 py-4 sm:px-6 sm:py-5', contentClassName)}>
-          <div className={cn('mx-auto flex min-h-0 w-full flex-col gap-4', contentWidth)}>
+        <div className={cn('min-h-0 flex-1 overflow-y-auto px-4 py-4 max-[390px]:px-3 max-[390px]:py-2 sm:px-6 sm:py-5', contentClassName)}>
+          <div className={cn('mx-auto flex min-h-0 w-full flex-col gap-4 max-[390px]:gap-2', contentWidth)}>
             {eyebrow || title || subtitle ? (
               <div className="min-w-0">
                 {eyebrow ? (

@@ -5,10 +5,17 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { authClient } from '@/lib/auth-client';
+import { cn } from '@/lib/utils';
 
 type ConnectionState = 'idle' | 'linking' | 'error';
 
-export function TelegramConnectionCard({ enabled }: { enabled: boolean }) {
+export function TelegramConnectionCard({
+  enabled,
+  className,
+}: {
+  enabled: boolean;
+  className?: string;
+}) {
   const [state, setState] = useState<ConnectionState>('idle');
 
   const connectTelegram = async () => {
@@ -26,7 +33,7 @@ export function TelegramConnectionCard({ enabled }: { enabled: boolean }) {
   };
 
   return (
-    <Card className="w-full max-w-xl border-border/70 shadow-lg">
+    <Card className={cn('w-full max-w-xl border-border/70 shadow-lg', className)}>
       <CardHeader>
         <CardTitle>Telegram connection</CardTitle>
         <CardDescription>

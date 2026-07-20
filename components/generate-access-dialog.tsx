@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { Loader2, Lock } from 'lucide-react';
 import { useLanguage } from '@/components/language-provider';
+import { FrameCornerHandles } from '@/components/console/secure-console-frame';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -60,19 +61,27 @@ export function GenerateAccessDialog({ open, onOpenChange, onSuccess }: Generate
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Lock className="h-5 w-5" />
+      <DialogContent className="console-dialog border-dotted p-4 sm:max-w-md sm:p-5">
+        <FrameCornerHandles className="size-2.5 bg-card" />
+        <DialogHeader className="border-b border-dotted border-border/70 pb-3 pr-6">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <span className="inline-flex size-7 shrink-0 items-center justify-center border border-primary/45 bg-primary/10 text-primary">
+              <Lock className="size-3.5" />
+            </span>
             {messages.generateAccess.title}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs leading-relaxed sm:text-sm">
             {messages.generateAccess.description}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3">
           <div className="space-y-2">
-            <Label htmlFor="generate-access-code">{messages.generateAccess.codeLabel}</Label>
+            <Label
+              htmlFor="generate-access-code"
+              className="font-mono text-[0.68rem] uppercase tracking-[0.12em] text-muted-foreground"
+            >
+              {messages.generateAccess.codeLabel}
+            </Label>
             <Input
               id="generate-access-code"
               type="password"
@@ -85,14 +94,24 @@ export function GenerateAccessDialog({ open, onOpenChange, onSuccess }: Generate
               disabled={isSubmitting}
               autoComplete="off"
               autoFocus
+              className="h-11 rounded-none border-dotted bg-background/40 font-mono tracking-[0.12em]"
             />
           </div>
           {error ? (
-            <p className="text-sm text-destructive" role="alert" aria-live="polite">
+            <p
+              className="border border-dotted border-destructive/45 bg-destructive/5 px-2.5 py-2 text-sm text-destructive"
+              role="alert"
+              aria-live="polite"
+            >
               {error}
             </p>
           ) : null}
-          <Button type="submit" size="sm" disabled={isSubmitting || !code.trim()} className="w-full">
+          <Button
+            type="submit"
+            size="sm"
+            disabled={isSubmitting || !code.trim()}
+            className="h-10 w-full rounded-none"
+          >
             {isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />

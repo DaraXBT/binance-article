@@ -4,6 +4,11 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import {
+  ConsolePanel,
+  FrameCornerHandles,
+  SecureConsoleFrame,
+} from '@/components/console/secure-console-frame';
 import { LanguageToggle } from '@/components/language-toggle';
 import { useLanguage } from '@/components/language-provider';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -112,34 +117,59 @@ export default function NewDeckPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/10">
-      <div className="mx-auto w-full px-4 py-8">
-        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <Link href="/workspace" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
-            ← {messages.common.backToDashboard}
+    <SecureConsoleFrame
+      variant="focus"
+      panel={false}
+      eyebrow="ARTICLE BUILDER / FOCUS MODE"
+      title={messages.newDeck.title}
+      subtitle={messages.newDeck.subtitle}
+      statuses={[
+        { label: 'DRAFT', value: formData.articleContent.trim() ? 'EDITING' : 'EMPTY', tone: formData.articleContent.trim() ? 'action' : 'neutral' },
+        { label: 'STEP', value: `${currentStep + 1}/3`, tone: 'action' },
+        { label: 'WORKSPACE', value: workspace?.hasWorkspace ? 'READY' : 'CHECK', tone: workspace?.hasWorkspace ? 'success' : 'warning' },
+        { label: 'AI ACCESS', value: generationLocked ? 'LOCKED' : 'READY', tone: generationLocked ? 'warning' : 'success' },
+      ]}
+      header={
+        <header className="console-header">
+          <Link href="/workspace" className="flex min-w-0 items-center gap-2 font-semibold tracking-tight">
+            <span className="inline-flex size-8 shrink-0 items-center justify-center border border-foreground/80 bg-foreground text-background">
+              XA
+            </span>
+            <span className="truncate max-[350px]:hidden">xArticle / new</span>
           </Link>
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-1.5">
             <LanguageToggle />
             <ThemeToggle />
           </div>
-        </div>
-
-        <div className="mb-12">
-          <h1 className="mb-2 text-3xl font-bold">{messages.newDeck.title}</h1>
-          <p className="text-muted-foreground">
-            {messages.newDeck.subtitle}
-          </p>
-        </div>
-
-        <div className="mb-6 sm:mb-12 px-2 sm:px-4">
+        </header>
+      }
+      footer={
+        <>
+          <span className="truncate font-mono text-[0.6rem] uppercase tracking-[0.12em]">ARTICLE BUILDER</span>
+          <Link href="/workspace" className="font-mono text-[0.6rem] uppercase tracking-[0.12em] text-muted-foreground hover:text-foreground">
+            {messages.common.backToDashboard}
+          </Link>
+        </>
+      }
+    >
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+          <ConsolePanel corners={false} className="bg-card/45 p-3 sm:p-4">
+            <FrameCornerHandles className="size-2.5 bg-card" />
+            <div className="mb-1 border-b border-dotted border-border/70 pb-2 font-mono text-[0.65rem] font-semibold uppercase tracking-[0.14em]">
+              WORKFLOW / {messages.newDeck.stepCounter(currentStep + 1, steps.length)}
+            </div>
+            <div className="px-1 py-3 sm:px-3">
           <WizardStepper
             steps={steps}
             currentStep={currentStep}
             onStepClick={handleStepClick}
           />
-        </div>
+            </div>
+          </ConsolePanel>
 
-        <div className="rounded-lg border border-border bg-card p-4 sm:p-6 md:p-8 shadow-sm">
+          <ConsolePanel corners={false} className="bg-card/70 p-3 sm:p-5 md:p-6">
+            <FrameCornerHandles className="size-2.5 bg-card" />
           {currentStep === 0 && (
             <>
               {mode === 'url' && <UrlStep formData={formData} onUpdate={updateFormData} />}
@@ -166,22 +196,22 @@ export default function NewDeckPage() {
               onGenerationAccessLost={handleGenerationAccessLost}
             />
           )}
-        </div>
+          </ConsolePanel>
 
         {currentStep < 2 && (
-          <div className="flex items-center justify-between gap-4 mt-8">
+          <div className="flex items-center justify-between gap-4 border-t border-dotted border-border/70 pt-4">
             <Button
               variant="outline"
               size="sm"
               onClick={handlePrevious}
               disabled={currentStep === 0}
-              className="gap-2"
+              className="h-9 gap-2 rounded-none border-dotted"
             >
               <ChevronLeft className="h-4 w-4" />
               {messages.common.previous}
             </Button>
 
-            <div className="text-sm text-muted-foreground">
+            <div className="font-mono text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">
               {messages.newDeck.stepCounter(currentStep + 1, steps.length)}
             </div>
 
@@ -189,14 +219,15 @@ export default function NewDeckPage() {
               size="sm"
               onClick={handleNext}
               disabled={!canProceed()}
-              className="gap-2"
+              className="h-9 gap-2 rounded-none"
             >
               {currentStep === 1 ? messages.common.generate : messages.common.next}
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         )}
+        </div>
       </div>
-    </div>
+    </SecureConsoleFrame>
   );
 }

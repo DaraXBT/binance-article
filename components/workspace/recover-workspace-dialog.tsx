@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { useLanguage } from '@/components/language-provider';
+import { FrameCornerHandles } from '@/components/console/secure-console-frame';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -63,15 +64,16 @@ export function RecoverWorkspaceDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{messages.workspace.recoverDialogTitle}</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="console-dialog max-h-[calc(100dvh-2rem)] overflow-y-auto border-dotted p-4 sm:p-5">
+        <FrameCornerHandles className="size-2.5 bg-card" />
+        <DialogHeader className="border-b border-dotted border-border/70 pb-3 pr-6">
+          <DialogTitle className="text-base sm:text-lg">{messages.workspace.recoverDialogTitle}</DialogTitle>
+          <DialogDescription className="text-xs leading-relaxed sm:text-sm">
             {messages.workspace.recoverDialogDescription}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3">
           <Input
             value={keyInput}
             onChange={(event) => {
@@ -83,18 +85,22 @@ export function RecoverWorkspaceDialog({
             }}
             placeholder={messages.workspace.recoverDialogPlaceholder}
             disabled={recoverWorkspace.isPending}
+            autoComplete="off"
+            className="h-11 rounded-none border-dotted bg-background/40 font-mono text-sm tracking-wide"
           />
 
           {message && (
             <p
-              className={`text-sm ${isError ? 'text-destructive' : 'text-muted-foreground'}`}
+              className={`border border-dotted px-2.5 py-2 text-sm ${isError ? 'border-destructive/45 bg-destructive/5 text-destructive' : 'border-emerald-600/35 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300'}`}
+              role={isError ? 'alert' : 'status'}
+              aria-live="polite"
             >
               {message}
             </p>
           )}
 
-          <DialogFooter>
-            <Button type="submit" disabled={recoverWorkspace.isPending}>
+          <DialogFooter className="pt-1">
+            <Button type="submit" disabled={recoverWorkspace.isPending} className="h-10 w-full rounded-none sm:w-auto">
               {recoverWorkspace.isPending
                 ? messages.workspace.recoverDialogRecovering
                 : messages.workspace.recoverDialogAction}

@@ -359,7 +359,7 @@ describe('DashboardHome', () => {
     render(React.createElement(DashboardHome));
 
     await waitFor(() => expect(createWorkspaceMutate).toHaveBeenCalledTimes(1));
-    expect(screen.getByText(messages.workspace.bootstrapLoadingTitle)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: messages.workspace.bootstrapLoadingTitle })).toBeTruthy();
   });
 
   it('renders a prompt-first home composer after a workspace is attached', async () => {
@@ -369,7 +369,8 @@ describe('DashboardHome', () => {
 
     expect(html).toContain(messages.dashboard.promptHomeTitle);
     expect(html).toContain(messages.dashboard.aiSuggest);
-    expect(html).toContain('ai-suggest-glow');
+    expect(html).not.toContain('ai-suggest-glow');
+    expect(html).toContain('border-primary');
     expect(html).toContain(messages.dashboard.generateAction);
   });
 
@@ -577,7 +578,7 @@ describe('DashboardHome', () => {
     expect(createWorkspaceMutate).not.toHaveBeenCalled();
   });
 
-  it('exports a helper that returns the AI suggest glow classes for idle and non-idle states', async () => {
+  it('exports a quiet AI suggest frame helper for idle and non-idle states', async () => {
     const module = await import('@/components/home/dashboard-home');
 
     expect(typeof (module as any).getAiSuggestGlowClassName).toBe('function');
@@ -587,26 +588,24 @@ describe('DashboardHome', () => {
     const noTopicClassName = (module as any).getAiSuggestGlowClassName({ hasTopic: false, isSuggesting: false });
 
     expect(idleClassName).toContain('opacity-100');
-    expect(idleClassName).toContain('motion-safe:animate-[ai-suggest-sweep');
+    expect(idleClassName).toContain('border-primary/40');
+    expect(idleClassName).not.toContain('gradient');
 
     expect(suggestingClassName).toContain('opacity-0');
-    expect(suggestingClassName).not.toContain('motion-safe:animate-[ai-suggest-glow');
     expect(suggestingClassName).not.toContain('ai-suggest-sweep');
 
     expect(noTopicClassName).toContain('opacity-0');
-    expect(noTopicClassName).not.toContain('motion-safe:animate-[ai-suggest-glow');
     expect(noTopicClassName).not.toContain('ai-suggest-sweep');
   });
 
-  it('uses warm gradient glow classes for the idle AI suggest state', async () => {
+  it('uses a structural border for the idle AI suggest state', async () => {
     const module = await import('@/components/home/dashboard-home');
 
     const className = (module as any).getAiSuggestGlowClassName({ hasTopic: true, isSuggesting: false });
 
-    expect(className).toContain('from-violet-500/30');
-    expect(className).toContain('via-indigo-400/70');
-    expect(className).toContain('to-cyan-400/30');
-    expect(className).toContain('[background-size:200%_100%]');
+    expect(className).toContain('border');
+    expect(className).toContain('border-primary/40');
+    expect(className).not.toContain('bg-gradient');
   });
 
   it('exports a helper that requests an AI prompt suggestion from the existing prompt API', async () => {

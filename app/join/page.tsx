@@ -1,4 +1,10 @@
 import { JoinForm } from '@/components/auth/join-form';
+import { LanguageToggle } from '@/components/language-toggle';
+import {
+  ConsoleHeader,
+  SecureConsoleFrame,
+} from '@/components/console/secure-console-frame';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export default async function JoinPage({
   searchParams,
@@ -9,8 +15,36 @@ export default async function JoinPage({
   const token = typeof params.token === 'string' ? params.token : null;
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-muted/30 px-4 py-12">
-      <JoinForm token={token} />
-    </main>
+    <SecureConsoleFrame
+      variant="checkpoint"
+      eyebrow="Enrollment checkpoint"
+      title="Request workspace access"
+      subtitle="Validate your invitation before enrolling a Google identity."
+      header={(
+        <ConsoleHeader
+          actions={(
+            <>
+              <LanguageToggle />
+              <ThemeToggle />
+            </>
+          )}
+        />
+      )}
+      panel={false}
+      contentClassName="flex items-center justify-center py-3 sm:py-5"
+      footer={(
+        <>
+          <span className="font-mono uppercase tracking-[0.12em]">Invitation required</span>
+          <span>Account enrollment</span>
+        </>
+      )}
+    >
+      <div className="mx-auto w-full max-w-md">
+        <JoinForm
+          token={token}
+          headingLevel={2}
+        />
+      </div>
+    </SecureConsoleFrame>
   );
 }

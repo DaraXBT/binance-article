@@ -19,6 +19,13 @@ import { LanguageToggle } from '@/components/language-toggle';
 import { useLanguage } from '@/components/language-provider';
 import { ThemeToggle } from '@/components/theme-toggle';
 import {
+  ConsolePanel,
+  ConsoleStatusRail,
+  FrameCornerHandles,
+  ScreenLine,
+  SecureConsoleFrame,
+} from '@/components/console/secure-console-frame';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -166,8 +173,8 @@ export function getAiSuggestGlowClassName({
   isSuggesting: boolean;
 }) {
   return hasTopic && !isSuggesting
-    ? 'ai-suggest-glow pointer-events-none absolute inset-0 rounded-md bg-gradient-to-r from-violet-500/30 via-indigo-400/70 to-cyan-400/30 [background-size:200%_100%] p-px opacity-100 transition-opacity duration-200 motion-safe:animate-[ai-suggest-sweep_2.2s_linear_infinite]'
-    : 'ai-suggest-glow pointer-events-none absolute inset-0 rounded-md bg-gradient-to-r from-violet-500/30 via-indigo-400/70 to-cyan-400/30 [background-size:200%_100%] p-px opacity-0 transition-opacity duration-200';
+    ? 'ai-suggest-frame pointer-events-none absolute inset-0 border border-primary/40 opacity-100 transition-opacity duration-150'
+    : 'ai-suggest-frame pointer-events-none absolute inset-0 border border-primary/20 opacity-0 transition-opacity duration-150';
 }
 
 function extractTitleFromContent(content: string): string {
@@ -347,9 +354,9 @@ function DeckSidebarRow({
 
   return (
     <SidebarMenuItem className="group/item">
-      <div className="relative">
+      <div className="group relative">
         {isRenaming ? (
-          <div className="flex min-w-0 items-start gap-2 rounded-md px-3 py-3 pr-12 text-sidebar-foreground">
+          <div className="flex min-w-0 items-start gap-2 border border-dotted border-sidebar-border/80 bg-sidebar-accent/25 px-3 py-3 pr-12 text-sidebar-foreground">
             <FolderOpenDot className="mt-1 h-4 w-4 shrink-0" />
             <div className="min-w-0 flex-1">
               <Input
@@ -387,7 +394,7 @@ function DeckSidebarRow({
             </div>
           </div>
         ) : (
-          <SidebarMenuButton asChild className="h-auto px-3 py-3 pr-12">
+          <SidebarMenuButton asChild className="h-auto rounded-none border border-transparent px-3 py-3 pr-12 transition-colors hover:border-dotted hover:border-sidebar-border/80 hover:bg-sidebar-accent/40">
             <Link href={`/articles/${deck.id}`}>
               <FolderOpenDot className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="min-w-0 flex-1">
@@ -407,7 +414,7 @@ function DeckSidebarRow({
               type="button"
               variant="ghost"
               size="icon-sm"
-              className="absolute right-2 top-2 z-10 opacity-0 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100 data-[state=open]:opacity-100"
+              className="absolute right-2 top-2 z-10 size-7 rounded-none opacity-0 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100 data-[state=open]:opacity-100"
               onClick={(event) => event.stopPropagation()}
               onPointerDown={(event) => event.stopPropagation()}
               aria-label={`${messages.common.rename} ${deck.title}`}
@@ -485,20 +492,20 @@ function DeckSidebarList({
 
   return (
     <>
-      <SidebarHeader className="gap-3 border-b border-sidebar-border/70 p-3">
-        <Link href="/workspace" className="flex min-w-0 items-center gap-3 px-2 py-2">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center bg-sidebar-primary text-sidebar-primary-foreground">
-            <Layers3 className="h-5 w-5" />
+      <SidebarHeader className="gap-2 border-b border-dotted border-sidebar-border/80 p-3">
+        <Link href="/workspace" className="flex min-w-0 items-center gap-2.5 px-1 py-1.5">
+          <div className="flex size-8 shrink-0 items-center justify-center border border-sidebar-foreground/70 bg-sidebar-foreground text-sidebar">
+            <Layers3 className="size-4" />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-sidebar-foreground">xArticle</p>
-            <p className="truncate text-xs text-sidebar-foreground/70">
+            <p className="truncate text-sm font-semibold tracking-tight text-sidebar-foreground">xArticle</p>
+            <p className="truncate font-mono text-[0.58rem] uppercase tracking-[0.12em] text-sidebar-foreground/60">
               {messages.dashboard.workspaceDashboard}
             </p>
           </div>
         </Link>
 
-        <Button asChild className="h-10 justify-start">
+        <Button asChild className="h-9 justify-start rounded-none border border-sidebar-primary/45 bg-sidebar-primary text-sidebar-primary-foreground hover:brightness-110">
           <Link href="/new">
             <MessageSquarePlus className="h-4 w-4" />
             {messages.common.newDeck}
@@ -506,20 +513,22 @@ function DeckSidebarList({
         </Button>
 
         <label className="relative block">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sidebar-foreground/60" />
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-sidebar-foreground/60" />
           <input
             type="search"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
             placeholder={messages.dashboard.searchDecks}
-            className="h-10 w-full border border-sidebar-border/70 bg-background pl-9 pr-3 text-sm text-foreground shadow-none outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/30"
+            className="h-9 w-full rounded-none border border-dotted border-sidebar-border/80 bg-background/50 pl-8 pr-3 text-sm text-foreground shadow-none outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/30"
           />
         </label>
       </SidebarHeader>
 
-      <SidebarContent className="px-2 py-3">
+      <SidebarContent className="px-2 py-2">
         <SidebarGroup className="pt-0">
-          <SidebarGroupLabel>{messages.dashboard.allDecks}</SidebarGroupLabel>
+          <SidebarGroupLabel className="h-7 px-2 font-mono text-[0.62rem] uppercase tracking-[0.14em] text-sidebar-foreground/60">
+            {messages.dashboard.allDecks}
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {isLoading ? (
@@ -527,13 +536,13 @@ function DeckSidebarList({
                   <SidebarMenuSkeleton key={index} showIcon width={width} />
                 ))
               ) : isError ? (
-                <div className="border border-destructive/20 bg-destructive/5 px-3 py-4 text-sm text-sidebar-foreground/80">
+                <div className="border border-dotted border-destructive/35 bg-destructive/5 px-3 py-3 text-sm text-sidebar-foreground/80">
                   {messages.dashboard.couldNotLoadDeckList}
                 </div>
               ) : decks.length > 0 ? (
                 decks.map((deck) => <DeckSidebarRow key={deck.id} deck={deck} language={language} />)
               ) : (
-                <div className="border border-sidebar-border/70 bg-background px-3 py-4 text-sm text-sidebar-foreground/70">
+                <div className="border border-dotted border-sidebar-border/80 bg-background/40 px-3 py-3 text-sm text-sidebar-foreground/70">
                   {query ? messages.dashboard.noMatchingDecks : messages.dashboard.noDecksYet}
                 </div>
               )}
@@ -1199,51 +1208,87 @@ export function DashboardHome({
         ? messages.dashboard.promptHintReady
         : messages.dashboard.promptHintEmpty;
 
+  const consoleStatuses = [
+    {
+      label: 'DRAFT',
+      value: resumeNeedsAction ? 'HELD' : prompt.trim() ? 'EDITING' : 'EMPTY',
+      tone: resumeNeedsAction ? 'warning' as const : prompt.trim() ? 'action' as const : 'neutral' as const,
+    },
+    {
+      label: 'IDENTITY',
+      value: actor ? 'VERIFIED' : 'SESSION',
+      tone: actor ? 'success' as const : 'neutral' as const,
+    },
+    {
+      label: 'WORKSPACE',
+      value: hasWorkspace ? 'READY' : 'CHECK',
+      tone: hasWorkspace ? 'success' as const : 'warning' as const,
+    },
+    {
+      label: 'AI ACCESS',
+      value: generationLocked ? 'LOCKED' : isSubmitting || isSuggesting ? 'ACTIVE' : 'READY',
+      tone: generationLocked ? 'warning' as const : isSubmitting || isSuggesting ? 'action' as const : 'success' as const,
+    },
+  ];
+
   if ((isWorkspaceLoading && !workspace) || isWorkspaceBusy) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-6">
-        <div className="max-w-md text-center">
-          <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
-          <h1 className="mt-4 text-xl font-semibold text-foreground">
-            {messages.workspace.bootstrapLoadingTitle}
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {messages.workspace.bootstrapLoadingDescription}
-          </p>
+      <SecureConsoleFrame
+        variant="private"
+        eyebrow="WORKSPACE CHECK"
+        title={messages.workspace.bootstrapLoadingTitle}
+        subtitle={messages.workspace.bootstrapLoadingDescription}
+        panelClassName="mx-auto w-full max-w-lg"
+        contentClassName="flex items-center"
+      >
+        <div className="flex min-h-28 items-center gap-3 px-1" role="status" aria-live="polite">
+          <span className="inline-flex size-9 shrink-0 items-center justify-center border border-dotted border-border text-primary">
+            <Loader2 className="size-4 animate-spin" />
+          </span>
+          <span className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">
+            CHECKING
+          </span>
         </div>
-      </main>
+      </SecureConsoleFrame>
     );
   }
 
   if (workspaceError && !workspace) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-6">
-        <div className="max-w-md border border-destructive/20 bg-destructive/5 p-6 text-center">
-          <h1 className="text-xl font-semibold text-foreground">
-            {messages.workspace.bootstrapErrorTitle}
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {workspaceError.message || messages.workspace.bootstrapErrorDescription}
+      <SecureConsoleFrame
+        variant="private"
+        eyebrow="WORKSPACE ERROR"
+        title={messages.workspace.bootstrapErrorTitle}
+        subtitle={workspaceError.message || messages.workspace.bootstrapErrorDescription}
+        panelClassName="mx-auto w-full max-w-lg border-destructive/45 bg-destructive/[0.025]"
+        contentClassName="flex items-center"
+      >
+        <div className="flex flex-col gap-3">
+          <p className="font-mono text-xs uppercase tracking-[0.12em] text-destructive" role="alert">
+            CONNECTION UNAVAILABLE
           </p>
-          <Button type="button" className="mt-4" onClick={() => void refetchWorkspace()}>
+          <Button type="button" className="w-fit rounded-none" onClick={() => void refetchWorkspace()}>
             {messages.common.retry}
           </Button>
         </div>
-      </main>
+      </SecureConsoleFrame>
     );
   }
 
   if (provisioningError && (!workspace || !hasWorkspace)) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-6">
-        <div className="max-w-md border border-destructive/20 bg-destructive/5 p-6 text-center">
-          <h1 className="text-xl font-semibold text-foreground">
-            {messages.workspace.bootstrapErrorTitle}
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">{provisioningError}</p>
+      <SecureConsoleFrame
+        variant="private"
+        eyebrow="WORKSPACE ERROR"
+        title={messages.workspace.bootstrapErrorTitle}
+        subtitle={provisioningError}
+        panelClassName="mx-auto w-full max-w-lg border-destructive/45 bg-destructive/[0.025]"
+        contentClassName="flex items-center"
+      >
+        <div className="flex flex-col gap-3">
           <Button
             type="button"
-            className="mt-4"
+            className="w-fit rounded-none"
             onClick={() => {
               autoProvisionAttemptedRef.current = false;
               setProvisioningError(null);
@@ -1253,7 +1298,7 @@ export function DashboardHome({
             {messages.common.retry}
           </Button>
         </div>
-      </main>
+      </SecureConsoleFrame>
     );
   }
 
@@ -1274,8 +1319,11 @@ export function DashboardHome({
     'Your draft is ready to continue.';
 
   return (
-    <SidebarProvider defaultOpen className="min-h-screen w-full bg-background">
-      <Sidebar className="z-30 border-r border-sidebar-border/70" collapsible="offcanvas">
+    <div data-console-frame="private" className="console-viewport">
+      <div aria-hidden="true" className="viewport-top-line" />
+      <div className="console-shell console-shell-private mx-auto max-w-7xl">
+    <SidebarProvider defaultOpen className="relative min-h-0 h-full w-full flex-1 bg-background">
+      <Sidebar className="z-30 border-r border-dotted border-sidebar-border/80 md:!absolute md:!inset-y-0" collapsible="offcanvas">
         <DeckSidebarList
           decks={filteredDecks}
           isLoading={isLoading}
@@ -1284,7 +1332,7 @@ export function DashboardHome({
           onQueryChange={setQuery}
           language={language}
         />
-        <SidebarFooter className="border-t border-sidebar-border/70">
+        <SidebarFooter className="border-t border-dotted border-sidebar-border/80">
           <WorkspaceSidebarFooter
             accessKeyPrefix={workspace.accessKeyPrefix ?? '—'}
             recoveryKey={workspace.recoveryKey ?? null}
@@ -1296,12 +1344,12 @@ export function DashboardHome({
 
       <RecoveryKeyDialog recoveryKey={workspace.recoveryKey ?? null} />
 
-      <SidebarInset className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(120,119,198,0.06),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(56,189,248,0.08),transparent_30%)]">
-        <header className="sticky top-0 z-10 border-b border-border/70 bg-background/85 backdrop-blur">
-          <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
-            <SidebarTrigger className="size-9 border border-border/70" />
+      <SidebarInset className="min-h-0 bg-background">
+        <header className="console-header sticky top-0 z-10 border-b border-dotted border-border/80 bg-background">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <SidebarTrigger className="size-8 rounded-none border border-border/70" />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-foreground sm:text-base">
+              <p className="truncate font-mono text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-foreground sm:text-xs">
                 {messages.dashboard.headerTitle}
               </p>
             </div>
@@ -1313,7 +1361,7 @@ export function DashboardHome({
                   type="button"
                   variant="outline"
                   size="icon-sm"
-                  className="rounded-full"
+                  className="size-8 rounded-none border-dotted"
                   aria-label={`Account: ${accountLabel}`}
                 >
                   {accountInitial || <UserRound className="h-4 w-4" />}
@@ -1362,7 +1410,7 @@ export function DashboardHome({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button asChild size="sm" className="px-4 sm:px-5">
+            <Button asChild size="sm" className="h-8 rounded-none px-3 sm:px-4">
               <Link href="/new">
                 <MessageSquarePlus className="h-4 w-4" />
                 <span className="hidden sm:inline">{messages.common.newDeck}</span>
@@ -1370,23 +1418,37 @@ export function DashboardHome({
             </Button>
           </div>
         </header>
+        <ScreenLine className="h-4" />
 
-        <div className="flex min-h-[calc(100vh-4rem)] flex-1 items-center justify-center px-4 py-10 sm:px-6 sm:py-14">
-          <section className="mx-auto w-full max-w-3xl">
-            <div className="mb-8 text-center">
-              <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+        <div className="flex min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-8 sm:py-6">
+          <section className="mx-auto flex w-full max-w-3xl flex-col self-start">
+            <div className="mb-4 min-w-0">
+              <p className="mb-2 font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-primary">
+                ARTICLE GENERATION / PRIVATE WORKSPACE
+              </p>
+              <h1 className="text-2xl font-semibold leading-tight tracking-normal text-foreground sm:text-3xl">
                 {messages.dashboard.promptHomeTitle}
               </h1>
-              <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
                 {messages.dashboard.promptHomeSubtitle}
               </p>
             </div>
 
-            <div className="overflow-hidden border border-border/70 bg-background/90 px-4 py-4 shadow-[0_30px_80px_-60px_rgba(15,23,42,0.45)] sm:px-5 sm:py-5">
+            <ConsoleStatusRail items={consoleStatuses} className="mb-3" />
+
+            <ConsolePanel className="overflow-hidden bg-card/70 p-3 sm:p-4">
+              <div className="mb-3 flex min-w-0 items-center justify-between gap-3 border-b border-dotted border-border/70 px-1 pb-2">
+                <span className="truncate font-mono text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-foreground">
+                  ARTICLE INPUT
+                </span>
+                <span className="shrink-0 font-mono text-[0.6rem] uppercase tracking-[0.12em] text-muted-foreground/75">
+                  LOCAL DRAFT
+                </span>
+              </div>
               {resumeNeedsAction ? (
-                <div className="mb-4 flex flex-col gap-3 border border-[var(--signal)]/20 bg-[var(--signal-soft)]/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-muted-foreground">{resumeContinueDescription}</p>
-                  <Button type="button" size="sm" onClick={handleResumeContinue}>
+                <div className="mb-3 flex flex-col gap-3 border border-dotted border-[var(--signal)]/40 bg-[var(--signal-soft)]/35 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm leading-relaxed text-muted-foreground">{resumeContinueDescription}</p>
+                  <Button type="button" size="sm" className="h-9 shrink-0 rounded-none" onClick={handleResumeContinue}>
                     {resumeContinueLabel}
                   </Button>
                 </div>
@@ -1406,10 +1468,6 @@ export function DashboardHome({
                 showSuggest
                 isGenerating={isSubmitting}
                 isSuggesting={isSuggesting}
-                suggestGlowClassName={getAiSuggestGlowClassName({
-                  hasTopic: Boolean(prompt.trim()),
-                  isSuggesting,
-                })}
                 labels={{
                   prompt: (messages.dashboard as typeof messages.dashboard & { promptLabel?: string }).promptLabel
                     ?? messages.dashboard.promptHomeTitle,
@@ -1430,23 +1488,34 @@ export function DashboardHome({
                 helperText={helperText}
                 error={composerError}
               />
-            </div>
+            </ConsolePanel>
           </section>
         </div>
+        <ScreenLine className="h-4" />
+        <footer className="console-footer border-t-0">
+          <span className="truncate font-mono text-[0.6rem] uppercase tracking-[0.12em]">PRIVATE WORKSPACE</span>
+          <span className="truncate font-mono text-[0.6rem] uppercase tracking-[0.12em] text-muted-foreground/65">
+            {accountLabel}
+          </span>
+        </footer>
       </SidebarInset>
 
       {workspaceChoiceOpen ? (
         <AlertDialog open onOpenChange={handleWorkspaceChoiceOpenChange}>
-          <AlertDialogContent>
+          <AlertDialogContent
+            className="console-dialog border-dotted p-4 sm:p-5"
+            onEscapeKeyDown={(event) => event.preventDefault()}
+          >
+            <FrameCornerHandles className="size-2.5 bg-card" />
             <AlertDialogHeader>
-              <AlertDialogTitle>{workspaceChoiceTitle}</AlertDialogTitle>
-              <AlertDialogDescription>{workspaceChoiceDescription}</AlertDialogDescription>
+              <AlertDialogTitle className="text-base sm:text-lg">{workspaceChoiceTitle}</AlertDialogTitle>
+              <AlertDialogDescription className="text-xs leading-relaxed sm:text-sm">{workspaceChoiceDescription}</AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={handleImportOldWorkspace}>
+            <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
+              <AlertDialogCancel className="h-10 rounded-none border-dotted" onClick={handleImportOldWorkspace}>
                 {importWorkspaceLabel}
               </AlertDialogCancel>
-              <AlertDialogAction onClick={handleContinueWithNewWorkspace}>
+              <AlertDialogAction className="h-10 rounded-none" onClick={handleContinueWithNewWorkspace}>
                 {continueWorkspaceLabel}
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -1468,5 +1537,7 @@ export function DashboardHome({
         onSuccess={handleAccessSuccess}
       />
     </SidebarProvider>
+      </div>
+    </div>
   );
 }

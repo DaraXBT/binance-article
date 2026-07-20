@@ -27,6 +27,26 @@ vi.mock('@/components/ui/button', () => ({
   Button: ({ children, ...props }: any) => React.createElement('button', props, children),
 }));
 
+vi.mock('@/components/language-toggle', () => ({
+  LanguageToggle: () => React.createElement('button', { type: 'button' }, 'Language'),
+}));
+
+vi.mock('@/components/theme-toggle', () => ({
+  ThemeToggle: () => React.createElement('button', { type: 'button' }, 'Theme'),
+}));
+
+vi.mock('@/components/console/secure-console-frame', () => ({
+  ConsoleHeader: ({ actions }: any) => React.createElement('header', null, actions),
+  ConsolePanel: ({ children }: any) => React.createElement('section', null, children),
+  SecureConsoleFrame: ({ children, title, subtitle }: any) => React.createElement(
+    'main',
+    null,
+    title ? React.createElement('h1', null, title) : null,
+    subtitle ? React.createElement('p', null, subtitle) : null,
+    children,
+  ),
+}));
+
 vi.mock('./recover-workspace-dialog', () => ({
   RecoverWorkspaceDialog: ({ open }: any) =>
     open ? React.createElement('div', { 'data-testid': 'recover-dialog' }, 'recover dialog') : null,
