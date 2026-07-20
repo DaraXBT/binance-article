@@ -1,6 +1,7 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useEffect, useRef } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 
 import {
   Sidebar,
@@ -9,6 +10,7 @@ import {
   SidebarProvider,
   SidebarRail,
   SidebarTrigger,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import {
   ScreenLine,
@@ -26,8 +28,22 @@ export interface ArticleStudioShellProps {
   headerActions?: ReactNode;
   footer?: ReactNode;
   children: ReactNode;
+  onMobileSidebarClose?: () => void;
+  onMobileSidebarCloseAutoFocus?: ComponentProps<typeof Sidebar>['onMobileCloseAutoFocus'];
   className?: string;
   mainClassName?: string;
+}
+
+function MobileSidebarCloseBridge({ onClose }: { onClose?: () => void }) {
+  const { openMobile } = useSidebar();
+  const wasOpenRef = useRef(openMobile);
+
+  useEffect(() => {
+    if (wasOpenRef.current && !openMobile) onClose?.();
+    wasOpenRef.current = openMobile;
+  }, [onClose, openMobile]);
+
+  return null;
 }
 
 const statusToneClasses: Record<NonNullable<ConsoleStatusItem['tone']>, string> = {
@@ -60,7 +76,7 @@ export function ArticleStudioStatusStrip({
       {items.map((item) => (
         <div
           key={`${item.label}-${item.value}`}
-          className="flex min-w-0 flex-1 items-center justify-between gap-2 border-border/60 px-2.5 py-2 first:border-l-0 sm:px-3"
+          className="flex min-w-0 flex-1 basis-[30%] items-center justify-between gap-2 border-border/60 px-2.5 py-2 first:border-l-0 max-[500px]:flex-col max-[500px]:items-start max-[500px]:gap-0.5 max-[500px]:px-2 sm:px-3"
         >
           <dt className="truncate font-mono text-[0.6rem] uppercase tracking-[0.12em] text-muted-foreground/75">
             {item.label}
@@ -92,6 +108,8 @@ export function ArticleStudioShell({
   headerActions,
   footer,
   children,
+  onMobileSidebarClose,
+  onMobileSidebarCloseAutoFocus,
   className,
   mainClassName,
 }: ArticleStudioShellProps) {
@@ -112,9 +130,13 @@ export function ArticleStudioShell({
           defaultOpen
           className="relative min-h-0 h-full w-full flex-1 bg-background"
         >
+          {onMobileSidebarClose ? <MobileSidebarCloseBridge onClose={onMobileSidebarClose} /> : null}
           <Sidebar
             data-article-studio-rail={mode === 'public' ? 'anonymous' : 'workspace'}
             aria-label={mode === 'public' ? 'Article navigation' : 'Article history'}
+            {...(onMobileSidebarCloseAutoFocus
+              ? { onMobileCloseAutoFocus: onMobileSidebarCloseAutoFocus }
+              : {})}
             className="z-30 border-r border-dotted border-sidebar-border/80 md:!absolute md:!inset-y-0"
             collapsible="offcanvas"
           >

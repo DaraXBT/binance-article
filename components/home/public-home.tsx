@@ -14,7 +14,7 @@ import { LanguageToggle } from '@/components/language-toggle';
 import { useLanguage } from '@/components/language-provider';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
-import { SidebarContent } from '@/components/ui/sidebar';
+import { SidebarContent, useSidebar } from '@/components/ui/sidebar';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,6 +54,133 @@ function getDraftTitle(prompt: string, fallback: string) {
   return (firstLine || fallback).slice(0, 52);
 }
 
+type AnonymousRailCopy = {
+  studioTitle: string;
+  newArticle: string;
+  localDraft: string;
+  untitledArticle: string;
+  noLocalDraft: string;
+  draftStateLocal: string;
+  draftStateHeld: string;
+  draftStateReady: string;
+  startersLabel: string;
+  starters: readonly string[];
+  signIn: string;
+  savedInTab: string;
+};
+
+function AnonymousStudioRail({
+  copy,
+  prompt,
+  resumeIntent,
+  signInHref,
+  onSignIn,
+  onNewArticle,
+  onStarterSelect,
+  onFocusPrompt,
+  onPrepareMobileCloseFocus,
+}: {
+  copy: AnonymousRailCopy;
+  prompt: string;
+  resumeIntent: AnonymousGenerationIntent | null;
+  signInHref: string;
+  onSignIn: (event: MouseEvent<HTMLAnchorElement>) => void;
+  onNewArticle: () => void;
+  onStarterSelect: (starter: string) => void;
+  onFocusPrompt: () => void;
+  onPrepareMobileCloseFocus: () => void;
+}) {
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  const handleStarter = (starter: string) => {
+    onStarterSelect(starter);
+    if (isMobile) {
+      onPrepareMobileCloseFocus();
+      setOpenMobile(false);
+    }
+  };
+
+  return (
+    <SidebarContent className="min-h-0 px-2 py-2">
+      <nav
+        aria-label={copy.studioTitle}
+        data-article-studio-rail="anonymous"
+        className="flex min-h-full flex-col"
+      >
+        <div className="border-b border-dotted border-sidebar-border/80 px-1 pb-3">
+          <Link href="/" className="flex min-w-0 items-center gap-2.5 px-1 py-1.5">
+            <span className="flex size-8 shrink-0 items-center justify-center border border-sidebar-foreground/70 bg-sidebar-foreground text-sidebar">
+              <Layers3 aria-hidden="true" className="size-4" />
+            </span>
+            <span className="truncate text-sm font-semibold tracking-tight text-sidebar-foreground">
+              xArticle
+            </span>
+          </Link>
+          <Button
+            type="button"
+            onClick={onNewArticle}
+            className="mt-2 h-9 w-full justify-start rounded-none border border-sidebar-primary/45 bg-sidebar-primary text-sidebar-primary-foreground hover:brightness-110"
+          >
+            <MessageSquarePlus aria-hidden="true" className="size-4" />
+            {copy.newArticle}
+          </Button>
+        </div>
+
+        <div className="mt-3 min-w-0">
+          <p className="px-1 font-mono text-[0.62rem] uppercase tracking-[0.14em] text-sidebar-foreground/60">
+            {copy.localDraft}
+          </p>
+          {prompt.trim() ? (
+            <button
+              type="button"
+              onClick={onFocusPrompt}
+              aria-label={`${copy.localDraft}: ${getDraftTitle(prompt, copy.untitledArticle)}`}
+              className="mt-1 flex w-full min-w-0 items-start gap-2 border border-dotted border-sidebar-border/80 bg-sidebar-accent/30 px-2.5 py-2.5 text-left text-sidebar-foreground transition-colors hover:border-sidebar-primary/50 hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50"
+            >
+              <FileText aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-sidebar-foreground/65" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">
+                  {getDraftTitle(prompt, copy.untitledArticle)}
+                </span>
+                <span className="mt-1 block font-mono text-[0.58rem] uppercase tracking-[0.12em] text-sidebar-foreground/60">
+                  {resumeIntent?.stage === 'submitted'
+                    ? copy.draftStateReady
+                    : resumeIntent
+                      ? copy.draftStateHeld
+                      : copy.draftStateLocal}
+                </span>
+              </span>
+            </button>
+          ) : (
+            <p className="mt-1 border border-dotted border-sidebar-border/70 px-2.5 py-2.5 text-xs leading-relaxed text-sidebar-foreground/55">
+              {copy.noLocalDraft}
+            </p>
+          )}
+        </div>
+
+        <div className="mt-5 min-w-0">
+          <p className="flex items-center gap-1.5 px-1 font-mono text-[0.62rem] uppercase tracking-[0.14em] text-sidebar-foreground/60">
+            <Lightbulb aria-hidden="true" className="size-3.5" />
+            {copy.startersLabel}
+          </p>
+          <div className="mt-1.5 grid gap-1">
+            {copy.starters.map((starter) => (
+              <button
+                key={starter}
+                type="button"
+                onClick={() => handleStarter(starter)}
+                className="min-w-0 border border-transparent px-2.5 py-2 text-left text-xs leading-relaxed text-sidebar-foreground/70 transition-colors hover:border-dotted hover:border-sidebar-border/80 hover:bg-sidebar-accent/45 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50"
+              >
+                <span className="line-clamp-2">{starter}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </nav>
+    </SidebarContent>
+  );
+}
+
 export function PublicHome({
   onNavigate,
   storage,
@@ -70,11 +197,13 @@ export function PublicHome({
   const [storageFailed, setStorageFailed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resumeIntentId, setResumeIntentId] = useState<string | null>(null);
+  const [resumeIntent, setResumeIntent] = useState<AnonymousGenerationIntent | null>(null);
   const intentRef = useRef<AnonymousGenerationIntent | null>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const autosaveTimerRef = useRef<number | null>(null);
   const submissionStartedRef = useRef(false);
   const hasUserEditedRef = useRef(false);
+  const focusPromptOnMobileCloseRef = useRef(false);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
 
   const getStorage = useCallback(
@@ -87,6 +216,7 @@ export function PublicHome({
       const existing = loadAnonymousGenerationIntent(getStorage());
       if (!existing || (existing.stage !== 'editing' && existing.stage !== 'submitted')) return;
       intentRef.current = existing;
+      setResumeIntent(existing);
       setResumeIntentId(existing.intentId);
       setPrompt(existing.prompt);
       setSlideCount(existing.slideCount);
@@ -125,6 +255,7 @@ export function PublicHome({
             });
         if (!existing) saveAnonymousGenerationIntent(getStorage(), next);
         intentRef.current = next;
+        setResumeIntent(next);
         setResumeIntentId(next.intentId);
         hasUserEditedRef.current = false;
       } catch {
@@ -169,6 +300,7 @@ export function PublicHome({
           });
       if (!existing) saveAnonymousGenerationIntent(getStorage(), submitted);
       intentRef.current = submitted;
+      setResumeIntent(submitted);
       setResumeIntentId(submitted.intentId);
       setError(null);
       setStorageFailed(false);
@@ -214,6 +346,7 @@ export function PublicHome({
         : createAnonymousGenerationIntent({ prompt, slideCount, illustrationStyle });
       if (!existing) saveAnonymousGenerationIntent(getStorage(), next);
       intentRef.current = next;
+      setResumeIntent(next);
       setResumeIntentId(next.intentId);
       hasUserEditedRef.current = false;
       const callback = `/workspace?resume=${encodeURIComponent(next.intentId)}`;
@@ -227,8 +360,30 @@ export function PublicHome({
   };
 
   const focusPrompt = () => {
-    promptRef.current?.focus();
-    window.setTimeout(() => promptRef.current?.focus(), 0);
+    let attempts = 0;
+    const focus = () => {
+      if (promptRef.current) {
+        promptRef.current.focus();
+        return;
+      }
+      if (attempts < 20) {
+        attempts += 1;
+        window.setTimeout(focus, 10);
+      }
+    };
+    focus();
+  };
+
+  const handleMobileSidebarCloseAutoFocus = (event: Event) => {
+    if (!focusPromptOnMobileCloseRef.current) return;
+    event.preventDefault();
+    focusPromptOnMobileCloseRef.current = false;
+    focusPrompt();
+  };
+
+  const handleMobileSidebarClosed = () => {
+    if (!focusPromptOnMobileCloseRef.current) return;
+    focusPrompt();
   };
 
   const handleNewArticle = () => {
@@ -256,6 +411,7 @@ export function PublicHome({
     submissionStartedRef.current = false;
     hasUserEditedRef.current = false;
     intentRef.current = null;
+    setResumeIntent(null);
     setResumeIntentId(null);
     setPrompt('');
     setError(null);
@@ -301,83 +457,19 @@ export function PublicHome({
         mode="public"
         headerTitle={copy.studioTitle}
         sidebar={(
-          <SidebarContent className="min-h-0 px-2 py-2">
-            <nav
-              aria-label={copy.studioTitle}
-              data-article-studio-rail="anonymous"
-              className="flex min-h-full flex-col"
-            >
-            <div className="border-b border-dotted border-sidebar-border/80 px-1 pb-3">
-              <Link href="/" className="flex min-w-0 items-center gap-2.5 px-1 py-1.5">
-                <span className="flex size-8 shrink-0 items-center justify-center border border-sidebar-foreground/70 bg-sidebar-foreground text-sidebar">
-                  <Layers3 aria-hidden="true" className="size-4" />
-                </span>
-                <span className="truncate text-sm font-semibold tracking-tight text-sidebar-foreground">
-                  xArticle
-                </span>
-              </Link>
-              <Button
-                type="button"
-                onClick={handleNewArticle}
-                className="mt-2 h-9 w-full justify-start rounded-none border border-sidebar-primary/45 bg-sidebar-primary text-sidebar-primary-foreground hover:brightness-110"
-              >
-                <MessageSquarePlus aria-hidden="true" className="size-4" />
-                {copy.newArticle}
-              </Button>
-            </div>
-
-            <div className="mt-3 min-w-0">
-              <p className="px-1 font-mono text-[0.62rem] uppercase tracking-[0.14em] text-sidebar-foreground/60">
-                {copy.localDraft}
-              </p>
-              {prompt.trim() ? (
-                <button
-                  type="button"
-                  onClick={focusPrompt}
-                  aria-label={`${copy.localDraft}: ${getDraftTitle(prompt, copy.untitledArticle)}`}
-                  className="mt-1 flex w-full min-w-0 items-start gap-2 border border-dotted border-sidebar-border/80 bg-sidebar-accent/30 px-2.5 py-2.5 text-left text-sidebar-foreground transition-colors hover:border-sidebar-primary/50 hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50"
-                >
-                  <FileText aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-sidebar-foreground/65" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">
-                      {getDraftTitle(prompt, copy.untitledArticle)}
-                    </span>
-                    <span className="mt-1 block font-mono text-[0.58rem] uppercase tracking-[0.12em] text-sidebar-foreground/60">
-                      {intentRef.current?.stage === 'submitted'
-                        ? copy.draftStateReady
-                        : resumeIntentId
-                          ? copy.draftStateHeld
-                          : copy.draftStateLocal}
-                    </span>
-                  </span>
-                </button>
-              ) : (
-                <p className="mt-1 border border-dotted border-sidebar-border/70 px-2.5 py-2.5 text-xs leading-relaxed text-sidebar-foreground/55">
-                  {copy.noLocalDraft}
-                </p>
-              )}
-            </div>
-
-            <div className="mt-5 min-w-0">
-              <p className="flex items-center gap-1.5 px-1 font-mono text-[0.62rem] uppercase tracking-[0.14em] text-sidebar-foreground/60">
-                <Lightbulb aria-hidden="true" className="size-3.5" />
-                {copy.startersLabel}
-              </p>
-              <div className="mt-1.5 grid gap-1">
-                {copy.starters.map((starter) => (
-                  <button
-                    key={starter}
-                    type="button"
-                    onClick={() => handleStarterSelect(starter)}
-                    className="min-w-0 border border-transparent px-2.5 py-2 text-left text-xs leading-relaxed text-sidebar-foreground/70 transition-colors hover:border-dotted hover:border-sidebar-border/80 hover:bg-sidebar-accent/45 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50"
-                  >
-                    <span className="line-clamp-2">{starter}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            </nav>
-          </SidebarContent>
+          <AnonymousStudioRail
+            copy={copy}
+            prompt={prompt}
+            resumeIntent={resumeIntent}
+            signInHref={signInHref}
+            onSignIn={handleHeaderSignIn}
+            onNewArticle={handleNewArticle}
+            onStarterSelect={handleStarterSelect}
+            onFocusPrompt={focusPrompt}
+            onPrepareMobileCloseFocus={() => {
+              focusPromptOnMobileCloseRef.current = true;
+            }}
+          />
         )}
         sidebarFooter={(
           <div className="space-y-2 p-1">
@@ -418,6 +510,8 @@ export function PublicHome({
             </span>
           </>
         )}
+        onMobileSidebarClose={handleMobileSidebarClosed}
+        onMobileSidebarCloseAutoFocus={handleMobileSidebarCloseAutoFocus}
         mainClassName="studio-main-public"
       >
         <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-center gap-4">
