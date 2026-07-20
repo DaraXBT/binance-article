@@ -1,6 +1,6 @@
 # xArticle
 
-xArticle is an invite-only article workspace with reviewed Binance Square publishing. The web app manages articles, assets, approvals, and device commands. A local companion uses the user's existing Chrome/Binance login and performs the final publish only after explicit approval.
+xArticle is an invite-only article workspace with reviewed Binance Square and X publishing workflows. The web app manages articles, assets, approvals, and device commands. Binance publication uses the local companion; X regular posts are exported as a validated local bundle and composed in the user's existing Chrome session for a final manual review and Post click.
 
 ## Trust boundaries
 
@@ -9,10 +9,10 @@ xArticle is an invite-only article workspace with reviewed Binance Square publis
 | Better Auth + Neon PostgreSQL | Users, sessions, workspace membership, article metadata/content, quotas, audit events, publication recipes, command status, and hashes of one-time secrets |
 | Private Cloudflare R2 | Article images and generated assets; no public `r2.dev` URLs |
 | User's operating-system keyring | Opaque publisher-device bearer token |
-| User's computer only | Binance cookies, Chrome profile/CDP state, local drafts/journal, prepared bundles, and local file paths |
+| User's computer only | Binance/X cookies, Chrome profile/CDP state, local drafts/journal, prepared bundles, and local file paths |
 | Telegram | Linked identity and bounded article/device/publication metadata only |
 
-Binance credentials never enter the web app, Neon, R2, Telegram, logs, or exports. Ambiguous post-click outcomes become terminal `outcome_unknown` and are never retried.
+Binance and X credentials never enter the web app, Neon, R2, Telegram, logs, or exports. Ambiguous Binance post-click outcomes become terminal `outcome_unknown` and are never retried; the X bundle flow does not automate or report the final click.
 
 ## Runtime architecture
 
@@ -52,6 +52,26 @@ invite-only product policy still caps enrollment at ten active users.
 6. Success requires a canonical Binance Square URL. Any uncertain post-click state is terminal and cannot be retried.
 
 Manual bundle export remains available through `.agents/skills/baoyu-post-to-binance-square`.
+
+## X publishing flow
+
+1. An authenticated member opens an article and chooses **X post** beside the Binance Square export action.
+2. The dialog preselects one generated `xSingle` caption and up to four generated slide images. The post remains editable and text-only posts are allowed.
+3. **Download X post bundle** creates a ZIP containing only `post.txt`, selected local images, and a strict SHA-256 manifest. It does not include cookies, access codes, workspace keys, or remote asset URLs.
+4. On the same computer, run the local X skill:
+
+   ```bash
+   cd .agents/skills/baoyu-post-to-x/scripts
+   bun install --frozen-lockfile # first run or after a skill update
+   cd ../../../..
+   bun .agents/skills/baoyu-post-to-x/scripts/main.ts --bundle ./article-x-post.zip --dry-run
+   bun .agents/skills/baoyu-post-to-x/scripts/main.ts --bundle ./article-x-post.zip
+   ```
+
+5. The skill validates paths, signatures, hashes, and bounded extraction sizes before opening a real Chrome draft. Temporary extracted files are removed after composition.
+6. Chrome stays open in preview mode. Review the text and images, then click **Post** manually. The app and skill never claim publication success or accept `--submit` for this bundle workflow.
+
+This integration currently supports regular X posts only. X threads and Premium X Articles are separate workflows.
 
 ## Local development
 

@@ -89,5 +89,25 @@ describe('createXPostBundle', () => {
         height: 1,
       })),
     })).rejects.toThrow(/maximum of 4 images/i);
+
+    await expect(createXPostBundle({
+      articleId: 'article-123',
+      text: 'Post',
+      images: [{
+        slideId: 'slide-1',
+        order: 0,
+        path: 'images/02-post.png',
+        bytes: PNG_BYTES,
+        mimeType: 'image/png',
+        width: 1,
+        height: 1,
+      }],
+    })).rejects.toThrow(/match its order/i);
+
+    await expect(createXPostBundle({
+      articleId: '../article',
+      text: 'Post',
+      images: [],
+    })).rejects.toThrow(/Article ID is invalid/i);
   });
 });

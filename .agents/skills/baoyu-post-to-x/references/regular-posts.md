@@ -63,8 +63,8 @@ Claude:
 2. Chrome opens with X compose page
 3. Text is typed into editor
 4. Image is copied to clipboard and pasted
-5. Browser stays open 30s for preview
-6. Reports: "Post composed. Use --submit to post."
+5. Browser stays open for manual preview and review
+6. Reports: "Post composed in preview mode. Review it and click Post manually."
 ```
 
 ## Troubleshooting

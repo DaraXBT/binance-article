@@ -15,8 +15,9 @@ import {
 } from './x-utils.js';
 
 const X_COMPOSE_URL = 'https://x.com/compose/post';
+export const MAX_X_POST_IMAGES = 4;
 
-interface XBrowserOptions {
+export interface XBrowserOptions {
   text?: string;
   images?: string[];
   submit?: boolean;
@@ -26,10 +27,21 @@ interface XBrowserOptions {
 }
 
 export async function postToX(options: XBrowserOptions): Promise<void> {
-  const { text, images = [], submit = false, timeoutMs = 120_000, profileDir = getDefaultProfileDir() } = options;
+  const {
+    text,
+    submit = false,
+    timeoutMs = 120_000,
+    profileDir = getDefaultProfileDir(),
+  } = options;
+  const images = [...(options.images ?? [])];
+
+  if (images.length > MAX_X_POST_IMAGES) {
+    throw new Error(`X posts support at most ${MAX_X_POST_IMAGES} images.`);
+  }
 
   const chromePath = options.chromePath ?? findChromeExecutable(CHROME_CANDIDATES_FULL);
   if (!chromePath) throw new Error('Chrome not found. Set X_BROWSER_CHROME_PATH env var.');
+  if (!fs.existsSync(chromePath)) throw new Error(`Chrome executable not found: ${chromePath}`);
 
   await mkdir(profileDir, { recursive: true });
 
@@ -47,6 +59,7 @@ export async function postToX(options: XBrowserOptions): Promise<void> {
   ], { stdio: 'ignore' });
 
   let cdp: CdpConnection | null = null;
+  let leaveBrowserOpen = false;
 
   try {
     const wsUrl = await waitForChromeDebugPort(port, 30_000, { includeLastError: true });
@@ -187,20 +200,28 @@ export async function postToX(options: XBrowserOptions): Promise<void> {
       await sleep(2000);
       console.log('[x-browser] Post submitted!');
     } else {
-      console.log('[x-browser] Post composed (preview mode). Add --submit to post.');
-      console.log('[x-browser] Browser will stay open for 30 seconds for preview...');
-      await sleep(30_000);
+      console.log('[x-browser] Post composed in preview mode. Review it and click Post manually.');
+      console.log('[x-browser] Chrome will remain open.');
+      leaveBrowserOpen = true;
     }
   } finally {
     if (cdp) {
-      try { await cdp.send('Browser.close', {}, { timeoutMs: 5_000 }); } catch {}
+      if (!leaveBrowserOpen) {
+        try { await cdp.send('Browser.close', {}, { timeoutMs: 5_000 }); } catch {}
+      }
       cdp.close();
     }
 
-    setTimeout(() => {
-      if (!chrome.killed) try { chrome.kill('SIGKILL'); } catch {}
-    }, 2_000).unref?.();
-    try { chrome.kill('SIGTERM'); } catch {}
+    if (leaveBrowserOpen) {
+      // The user owns the final review and Post click.  Detaching lets this
+      // command finish without closing their draft.
+      chrome.unref();
+    } else {
+      setTimeout(() => {
+        if (!chrome.killed) try { chrome.kill('SIGKILL'); } catch {}
+      }, 2_000).unref?.();
+      try { chrome.kill('SIGTERM'); } catch {}
+    }
   }
 }
 
@@ -214,6 +235,8 @@ Options:
   --image <path>   Add image (can be repeated, max 4)
   --submit         Actually post (default: preview only)
   --profile <dir>  Chrome profile directory
+  --chrome-path <path>
+                   Override Chrome executable path
   --help           Show this help
 
 Examples:
@@ -231,19 +254,32 @@ async function main(): Promise<void> {
   const images: string[] = [];
   let submit = false;
   let profileDir: string | undefined;
+  let chromePath: string | undefined;
   const textParts: string[] = [];
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
-    if (arg === '--image' && args[i + 1]) {
-      images.push(args[++i]!);
+    if (arg === '--image') {
+      const image = args[++i];
+      if (!image || image.startsWith('-')) throw new Error('--image requires a file path.');
+      images.push(image);
     } else if (arg === '--submit') {
       submit = true;
-    } else if (arg === '--profile' && args[i + 1]) {
+    } else if (arg === '--profile') {
       profileDir = args[++i];
+      if (!profileDir || profileDir.startsWith('-')) throw new Error('--profile requires a directory path.');
+    } else if (arg === '--chrome-path') {
+      chromePath = args[++i];
+      if (!chromePath || chromePath.startsWith('-')) throw new Error('--chrome-path requires an executable path.');
+    } else if (arg.startsWith('-')) {
+      throw new Error(`Unknown option: ${arg}`);
     } else if (!arg.startsWith('-')) {
       textParts.push(arg);
     }
+  }
+
+  if (images.length > MAX_X_POST_IMAGES) {
+    throw new Error(`X posts support at most ${MAX_X_POST_IMAGES} images.`);
   }
 
   const text = textParts.join(' ').trim() || undefined;
@@ -253,10 +289,12 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  await postToX({ text, images, submit, profileDir });
+  await postToX({ text, images, submit, profileDir, chromePath });
 }
 
-await main().catch((err) => {
-  console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-  process.exit(1);
-});
+if (import.meta.main) {
+  await main().catch((err) => {
+    console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
+  });
+}

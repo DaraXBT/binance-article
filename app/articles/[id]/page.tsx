@@ -9,6 +9,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CaptionViewer } from '@/components/caption-viewer';
 import { BinanceExportDialog } from '@/components/binance-export-dialog';
 import { GenerateAccessDialog } from '@/components/generate-access-dialog';
+import { XExportDialog } from '@/components/x-export-dialog';
 import {
   FrameCornerHandles,
   ScreenLine,
@@ -116,6 +117,7 @@ export default function DeckPage({ params }: DeckPageProps) {
   const [mobileTab, setMobileTab] = useState<'slides' | 'editor' | 'preview'>('slides');
   const [showAccessDialog, setShowAccessDialog] = useState(false);
   const [showBinanceExport, setShowBinanceExport] = useState(false);
+  const [showXExport, setShowXExport] = useState(false);
   const { data: workspace, refetch: refetchWorkspace } = useWorkspace();
   const [hasGenerationAccess, setHasGenerationAccess] = useState(
     workspace?.hasGenerationAccess ?? false
@@ -421,6 +423,19 @@ export default function DeckPage({ params }: DeckPageProps) {
               <Download className="h-4 w-4" />
               <span className="hidden sm:inline">Binance Square</span>
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-2 rounded-none border-dotted"
+              onClick={() => setShowXExport(true)}
+              aria-label="Prepare post for X"
+              data-testid="open-x-export"
+            >
+              <span aria-hidden="true" className="inline-flex size-4 items-center justify-center font-mono text-sm font-semibold">
+                X
+              </span>
+              <span className="hidden sm:inline">X post</span>
+            </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
@@ -602,6 +617,11 @@ export default function DeckPage({ params }: DeckPageProps) {
       <BinanceExportDialog
         open={showBinanceExport}
         onOpenChange={setShowBinanceExport}
+        deck={deck}
+      />
+      <XExportDialog
+        open={showXExport}
+        onOpenChange={setShowXExport}
         deck={deck}
       />
     </>

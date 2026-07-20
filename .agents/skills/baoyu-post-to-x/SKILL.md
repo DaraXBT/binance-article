@@ -21,6 +21,9 @@ Posts text, images, videos, and long-form articles to X via real Chrome browser 
 | Script | Purpose |
 |--------|---------|
 | `scripts/x-browser.ts` | Regular posts (text + images) |
+| `scripts/main.ts` | Reviewed xArticle bundle validation and draft composition |
+| `scripts/bundle.ts` | Bounded ZIP validation and extraction for reviewed bundles |
+| `scripts/bundle-publisher.ts` | Preview-only bundle handoff to `x-browser.ts` |
 | `scripts/x-video.ts` | Video posts (text + video) |
 | `scripts/x-quote.ts` | Quote tweet with comment |
 | `scripts/x-article.ts` | Long-form article publishing (Markdown) |
@@ -69,6 +72,13 @@ if (Test-Path "$HOME/.baoyu-skills/baoyu-post-to-x/EXTEND.md") { "user" }
 - `bun` runtime
 - First run: log in to X manually (session saved)
 
+Install the isolated script dependencies once after cloning or updating the skill:
+
+```bash
+cd ${SKILL_DIR}/scripts
+${BUN_X} install --frozen-lockfile
+```
+
 ## Pre-flight Check (Optional)
 
 Before first use, suggest running the environment check. User can skip if they prefer.
@@ -114,6 +124,45 @@ ${BUN_X} ${SKILL_DIR}/scripts/x-browser.ts "Hello!" --image ./photo.png
 | `--profile <dir>` | Custom Chrome profile |
 
 **Note**: Script opens browser with content filled in. User reviews and publishes manually.
+
+## Reviewed xArticle bundles
+
+The xArticle web app can export a regular X post as a local ZIP containing one
+caption (`post.txt`), up to four generated images, and a SHA-256 manifest. Use
+the bundle entry point on the same computer as Chrome:
+
+```bash
+${BUN_X} ${SKILL_DIR}/scripts/main.ts --bundle ./article-x-post.zip --dry-run
+${BUN_X} ${SKILL_DIR}/scripts/main.ts --bundle ./article-x-post.zip
+```
+
+`--dry-run` validates the archive without opening Chrome. The normal command
+extracts only the manifest-listed files into a private temporary directory,
+composes the text and images in a real Chrome X draft, and removes the temporary
+files after composition. Chrome remains open so the user can inspect the draft
+and click **Post** themselves.
+
+The reviewed bundle path is intentionally approval-gated:
+
+- `--submit` is rejected by `main.ts`.
+- No X cookies, access codes, workspace keys, or remote URLs are accepted from
+  the bundle.
+- ZIP paths, MIME signatures, SHA-256 hashes, image count, and extracted byte
+  limits are checked before Chrome is launched.
+- The web app cannot launch local Bun or Chrome; download the bundle first and
+  run this command locally.
+
+Optional local settings:
+
+```bash
+${BUN_X} ${SKILL_DIR}/scripts/main.ts \
+  --bundle ./article-x-post.zip \
+  --profile "$HOME/.local/share/x-browser-profile" \
+  --chrome-path "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+```
+
+This integration supports regular posts only. `xThread` captions are not
+published as a thread, and X Articles remain a separate Premium-only workflow.
 
 ---
 
@@ -200,7 +249,8 @@ pkill -f "Chrome.*remote-debugging-port" 2>/dev/null; pkill -f "Chromium.*remote
 ## Notes
 
 - First run: manual login required (session persists)
-- All scripts only fill content into the browser, user must review and publish manually
+- All scripts only fill content into the browser; the user must review and publish manually
+- The reviewed bundle entry point never accepts `--submit` and never claims a published URL
 - Cross-platform: macOS, Linux, Windows
 
 ## Extension Support

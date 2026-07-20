@@ -27,4 +27,23 @@ describe('prepareXPostBundle', () => {
     expect(remove).toHaveBeenCalledWith('/tmp/x-post-bundle');
     expect(result).toEqual({ composed: true, articleId: 'article-1', imageCount: 1 });
   });
+
+  test('cleans the extracted directory when browser composition fails', async () => {
+    const compose = mock(async () => {
+      throw new Error('Chrome unavailable');
+    });
+    const remove = mock(async () => undefined);
+    const extract = mock(async () => ({
+      bundleDir: '/tmp/x-post-bundle',
+      text: 'Reviewed X post',
+      imagePaths: [],
+      manifest: { articleId: 'article-1' },
+    }));
+
+    await expect(prepareXPostBundle(
+      { bundlePath: '/tmp/post.zip' },
+      { compose, extract, remove },
+    )).rejects.toThrow('Chrome unavailable');
+    expect(remove).toHaveBeenCalledWith('/tmp/x-post-bundle');
+  });
 });
