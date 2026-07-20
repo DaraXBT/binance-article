@@ -17,7 +17,7 @@ vi.mock('@/components/ui/sidebar', () => ({
   SidebarInset: ({ children, ...props }: React.ComponentProps<'main'>) => (
     <main {...props}>{children}</main>
   ),
-  SidebarProvider: ({ children, ...props }: React.ComponentProps<'div'>) => (
+  SidebarProvider: ({ children, defaultOpen: _defaultOpen, ...props }: any) => (
     <div data-testid="sidebar-provider" {...props}>{children}</div>
   ),
   SidebarRail: () => <button type="button">Resize rail</button>,
