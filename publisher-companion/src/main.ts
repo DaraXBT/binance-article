@@ -8,11 +8,13 @@ import {
   saveCompanionConfig,
 } from './config';
 import { KeyringCredentialStore } from './credential-store';
+import { formatCompanionDoctorReport, runCompanionDoctor } from './doctor';
 import { acquireCompanionLock } from './lock';
 import { runPublisherLoop } from './loop';
 import { runPublisherOnce } from './runner';
 import { BaoyuBinanceSkillAdapter } from './skill-adapter';
 import { LocalBundleWorkspace } from './workspace';
+import { BaoyuXSkillAdapter } from './x-adapter';
 
 const KEYRING_SERVICE = 'xarticle-publisher';
 
@@ -96,7 +98,10 @@ async function run(once: boolean): Promise<void> {
   const lock = await acquireCompanionLock(path.join(path.dirname(configPath), 'companion.lock'));
   const runOnce = () => runPublisherOnce({
     api,
-    adapter: new BaoyuBinanceSkillAdapter(),
+    adapters: {
+      'binance-square': new BaoyuBinanceSkillAdapter(),
+      x: new BaoyuXSkillAdapter(),
+    },
     workspace: new LocalBundleWorkspace(),
   });
   try {
@@ -120,9 +125,16 @@ async function run(once: boolean): Promise<void> {
   }
 }
 
+async function doctor(): Promise<void> {
+  const report = await runCompanionDoctor();
+  process.stdout.write(`${formatCompanionDoctorReport(report)}\n`);
+  if (!report.ready) throw new Error('Publisher companion doctor found blocking issues.');
+}
+
 export async function main(argv = process.argv.slice(2)): Promise<void> {
   const args = parseCompanionArguments(argv);
   if (args.command === 'pair') await pair(args.baseUrl);
+  else if (args.command === 'doctor') await doctor();
   else await run(args.once);
 }
 
@@ -130,7 +142,7 @@ if (import.meta.main) {
   main().catch((error) => {
     const message = error instanceof PublisherApiError
       ? error.message
-      : error instanceof Error && /keyring|pair|already running/i.test(error.message)
+      : error instanceof Error && /keyring|pair|doctor|already running/i.test(error.message)
         ? error.message
         : 'Publisher companion stopped safely.';
     process.stderr.write(`${message}\n`);

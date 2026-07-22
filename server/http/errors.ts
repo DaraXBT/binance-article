@@ -4,6 +4,16 @@ import { ZodError } from 'zod';
 import { logEvent } from '@/server/http/log';
 import { AppError, isAppError } from '@/server/http/app-error';
 
+const LOG_VALUE_LIMIT = 4_000;
+
+export function redactLogText(value: string): string {
+  return value
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [REDACTED]')
+    .replace(/((?:password|passwd|secret|token|api[_-]?key)\s*[:=]\s*)[^\s,;]+/gi, '$1[REDACTED]')
+    .replace(/([a-z][a-z0-9+.-]*:\/\/)([^/\s:@]+):([^@\s]+)@/gi, '$1[REDACTED]:[REDACTED]@')
+    .slice(0, LOG_VALUE_LIMIT);
+}
+
 export { AppError, isAppError } from '@/server/http/app-error';
 
 export function toAppError(
@@ -59,8 +69,8 @@ export function errorResponse(
   if (appError.status >= 500) {
     logEvent('error', 'api.error', {
       code: appError.code,
-      cause: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
+      cause: redactLogText(error instanceof Error ? error.message : String(error)),
+      stack: error instanceof Error && error.stack ? redactLogText(error.stack) : undefined,
     });
   }
 

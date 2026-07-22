@@ -62,6 +62,23 @@ describe('Binance publication drafts', () => {
     expect(repository.saveDraft).toHaveBeenCalledWith(expect.objectContaining({ expectedRevision: 0 }));
   });
 
+  it('does not require a client-selected cover asset because preparation binds the dedicated cover', async () => {
+    const repository = {
+      getDraft: vi.fn(),
+      saveDraft: vi.fn(async (input) => ({ ...input, revision: 1 })),
+    };
+    const input = validInput();
+    const { assetId: _ignored, ...focal } = input.cover;
+    await expect(saveBinanceDraft({
+      repository,
+      actorUserId: 'user_1', workspaceId: 'workspace_1', articleId: 'article_1',
+      draftId: 'draft_1', input: { ...input, expectedRevision: 0, cover: focal }, now,
+    })).resolves.toMatchObject({ revision: 1 });
+    expect(repository.saveDraft).toHaveBeenCalledWith(expect.objectContaining({
+      cover: { ...focal, targetWidth: 1000, targetHeight: 400 },
+    }));
+  });
+
   it('rejects invalid asset order, limits, and stale compare-and-swap results', async () => {
     const base = {
       actorUserId: 'user_1', workspaceId: 'workspace_1', articleId: 'article_1',

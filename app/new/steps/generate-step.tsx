@@ -286,7 +286,7 @@ export function GenerateStep({
 
       {phase === 'awaiting-code' ? (
         <div className="space-y-4">
-          <div className="border border-dotted border-[var(--access-signal)]/45 bg-[var(--access-signal)]/5 p-4 text-foreground">
+          <div className="rounded-xl border border-dotted border-[var(--access-signal)]/45 bg-[var(--access-signal)]/5 p-4 text-foreground">
             <div className="flex items-start gap-3">
               <Lock className="mt-0.5 h-5 w-5 shrink-0" />
               <div>
@@ -304,7 +304,7 @@ export function GenerateStep({
             onClick={() => setShowAccessDialog(true)}
             variant="outline"
             size="sm"
-            className="gap-2 rounded-none border-dotted"
+            className="gap-2 rounded-lg"
           >
             <Lock className="h-4 w-4" />
             {messages.generateAccess.submit}
@@ -312,7 +312,7 @@ export function GenerateStep({
         </div>
       ) : phase === 'error' ? (
         <div className="space-y-4">
-          <div className="flex items-start gap-3 border border-dotted border-destructive/30 bg-destructive/10 p-4">
+          <div className="flex items-start gap-3 rounded-xl border border-dotted border-destructive/30 bg-destructive/10 p-4">
             <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-medium text-destructive mb-1">
@@ -321,7 +321,7 @@ export function GenerateStep({
               <p className="text-sm text-destructive/80">{error}</p>
             </div>
           </div>
-          <Button onClick={handleGenerate} variant="outline" size="sm" className="gap-2 rounded-none border-dotted">
+          <Button onClick={handleGenerate} variant="outline" size="sm" className="gap-2 rounded-lg">
             {messages.newDeck.generateView.tryAgain}
           </Button>
         </div>
@@ -332,7 +332,7 @@ export function GenerateStep({
               <p className="text-sm font-medium">{messages.newDeck.generateView.progress}</p>
               <p className="text-sm text-muted-foreground tabular-nums">{progress}%</p>
             </div>
-            <div className="h-2.5 w-full overflow-hidden border border-dotted border-border bg-secondary/50">
+            <div className="h-2.5 w-full overflow-hidden rounded-full border border-dotted border-border bg-secondary/50">
               <div
                 className="h-full bg-primary transition-[width] duration-300"
                 style={{ width: `${progress}%` }}

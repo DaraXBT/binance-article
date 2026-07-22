@@ -27,10 +27,6 @@ vi.mock('@/components/ui/button', () => ({
   Button: ({ children, ...props }: any) => React.createElement('button', props, children),
 }));
 
-vi.mock('@/components/language-toggle', () => ({
-  LanguageToggle: () => React.createElement('button', { type: 'button' }, 'Language'),
-}));
-
 vi.mock('@/components/theme-toggle', () => ({
   ThemeToggle: () => React.createElement('button', { type: 'button' }, 'Theme'),
 }));

@@ -3,11 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
-import {
-  ConsoleStatusRail,
-  FrameCornerHandles,
-  type ConsoleStatusItem,
-} from '@/components/console/secure-console-frame';
 import { useLanguage } from '@/components/language-provider';
 import { Button } from '@/components/ui/button';
 import { authClient } from '@/lib/auth-client';
@@ -124,37 +119,6 @@ export function JoinForm({
       ? 'alert'
       : undefined;
   const Heading = headingLevel === 2 ? 'h2' : 'h1';
-  const invitationStatus = state.status === 'checking'
-    ? 'CHECKING'
-    : state.status === 'invalid'
-      ? 'INVALID'
-      : state.status === 'error' && state.retry === 'invitation'
-        ? 'UNAVAILABLE'
-        : 'VERIFIED';
-  const enrollmentStatus = state.status === 'signing-in'
-    ? 'OPENING'
-    : canStartGoogle
-      ? 'READY'
-      : 'LOCKED';
-  const statusItems: ConsoleStatusItem[] = [
-    {
-      label: 'Invitation',
-      value: invitationStatus,
-      tone: invitationStatus === 'VERIFIED'
-        ? 'success'
-        : invitationStatus === 'CHECKING'
-          ? 'action'
-          : 'danger',
-    },
-    {
-      label: 'Enrollment',
-      value: enrollmentStatus,
-      tone: enrollmentStatus === 'READY' ? 'success' : enrollmentStatus === 'OPENING' ? 'action' : 'neutral',
-    },
-    { label: 'Provider', value: 'GOOGLE', tone: 'neutral' },
-    { label: 'Session', value: 'PRIVATE', tone: 'success' },
-  ];
-
   return (
     <section
       aria-labelledby="join-form-title"
@@ -162,21 +126,12 @@ export function JoinForm({
       data-auth-state={state.status}
       aria-busy={state.status === 'checking' || state.status === 'signing-in'}
       className={cn(
-        'relative w-full max-w-md border border-dotted border-border bg-card/80 p-3.5 dark:border-border/70 dark:bg-card/60 sm:p-4',
+        'studio-auth-panel relative w-full max-w-md rounded-xl border border-dotted border-border bg-card/80 p-5 shadow-none dark:border-border/70 dark:bg-card/60 sm:p-6',
         className,
       )}
     >
-      <FrameCornerHandles className="size-2.5 bg-card" />
-      <div className="mb-3.5 border-b border-border/70 pb-3">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <span className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-primary">
-            INVITATION CHECKPOINT
-          </span>
-          <span className="font-mono text-[0.625rem] uppercase tracking-[0.12em] text-muted-foreground/70">
-            PRIVATE BETA
-          </span>
-        </div>
-        <Heading id="join-form-title" className="text-lg font-semibold leading-tight sm:text-xl">
+      <div className="mb-5 border-b border-border/70 pb-4">
+        <Heading id="join-form-title" className="text-xl font-semibold leading-tight sm:text-2xl">
           {copy.joinTitle}
         </Heading>
         <p role={messageRole} aria-live="polite" className={cn(
@@ -187,11 +142,9 @@ export function JoinForm({
         </p>
       </div>
 
-      <ConsoleStatusRail items={statusItems} className="mb-3.5" />
-
       <div className="space-y-2.5">
         <Button
-          className="h-11 w-full rounded-none font-medium"
+          className="h-11 w-full rounded-lg font-medium"
           disabled={!canStartGoogle}
           onClick={startGoogleEnrollment}
           type="button"
@@ -200,7 +153,7 @@ export function JoinForm({
         </Button>
         {state.status === 'error' && state.retry === 'invitation' ? (
           <Button
-            className="h-11 w-full rounded-none font-medium"
+            className="h-11 w-full rounded-lg font-medium"
             onClick={() => setValidationAttempt((attempt) => attempt + 1)}
             type="button"
             variant="outline"

@@ -1,23 +1,27 @@
-import { test, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
 
-test.describe('Asset Download', () => {
-  test('rejects unauthenticated asset requests', async ({ request }) => {
+import { authenticatedTest, authConfiguredTest } from './fixtures/authenticated';
+
+const NONEXISTENT_ARTICLE_ID = '00000000-0000-4000-8000-000000000001';
+
+authConfiguredTest.describe('Asset Download', () => {
+  authConfiguredTest('rejects unauthenticated asset requests', async ({ request }) => {
     // Try to access an asset without a workspace session
-    const res = await request.get('/api/articles/nonexistent-id/assets/test.png');
-    // Should return 401 or 404 (not 200)
-    expect([401, 404, 500]).toContain(res.status());
-    expect(res.status()).not.toBe(200);
+    const res = await request.get(`/api/articles/${NONEXISTENT_ARTICLE_ID}/assets/test.png`);
+    expect(res.status()).toBe(401);
   });
+});
 
-  test('returns 404 for non-existent article assets', async ({ request }) => {
+authenticatedTest.describe('Authenticated asset download', () => {
+  authenticatedTest('returns 404 for non-existent article assets', async ({ request }) => {
     // Ensure workspace exists
     await request.post('/api/workspace');
 
-    const res = await request.get('/api/articles/nonexistent-id/assets/test.png');
+    const res = await request.get(`/api/articles/${NONEXISTENT_ARTICLE_ID}/assets/test.png`);
     expect(res.status()).toBe(404);
   });
 
-  test('serves authorized asset with correct content type', async ({ request }) => {
+  authenticatedTest('serves authorized asset with correct content type', async ({ request }) => {
     await request.post('/api/workspace');
 
     // Create an article first
@@ -37,7 +41,7 @@ test.describe('Asset Download', () => {
     expect([404, 400]).toContain(assetRes.status());
   });
 
-  test('handles download query parameter', async ({ request }) => {
+  authenticatedTest('handles download query parameter', async ({ request }) => {
     await request.post('/api/workspace');
 
     const createRes = await request.post('/api/articles', {

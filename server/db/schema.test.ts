@@ -12,6 +12,7 @@ import {
   jobRun,
   publisherCommand,
   publisherDevice,
+  publicationDraft,
   publishApproval,
   rateLimitBucket,
   renderAsset,
@@ -19,6 +20,10 @@ import {
   slide,
   storageObject,
   telegramUpdate,
+  telegramAiMessage,
+  telegramAiTask,
+  telegramAssistantSettings,
+  telegramMedia,
   usageLedger,
   user,
   userQuota,
@@ -101,6 +106,10 @@ describe('Drizzle schema', () => {
       publishApproval,
       auditEvent,
       telegramUpdate,
+      telegramAssistantSettings,
+      telegramAiTask,
+      telegramAiMessage,
+      telegramMedia,
     ].map(tableName)).toEqual([
       'Invitation',
       'WorkspaceMember',
@@ -113,6 +122,10 @@ describe('Drizzle schema', () => {
       'PublishApproval',
       'AuditEvent',
       'TelegramUpdate',
+      'TelegramAssistantSettings',
+      'TelegramAiTask',
+      'TelegramAiMessage',
+      'TelegramMedia',
     ]);
 
     expect(workspaceMember.workspaceId.name).toBe('workspaceId');
@@ -121,6 +134,8 @@ describe('Drizzle schema', () => {
     expect(publisherCommand.recipeHash.name).toBe('recipeHash');
     expect(publishApproval.callbackTokenHash.name).toBe('callbackTokenHash');
     expect(telegramUpdate.updateId.name).toBe('updateId');
+    expect(telegramAiTask.inputText.name).toBe('inputText');
+    expect(Object.keys(telegramAssistantSettings)).not.toContain('apiKey');
   });
 
   it('classifies every workspace with the fail-closed WorkspaceOrigin enum', () => {
@@ -159,5 +174,24 @@ describe('Drizzle schema', () => {
     expect(forbiddenCloudColumns).not.toEqual(expect.arrayContaining([
       'binanceCookie', 'binancePassword', 'chromeProfile', 'storageUrl', 'signedUrl',
     ]));
+  });
+
+  it('stores target-specific publication payloads without browser credentials', () => {
+    expect(tableName(publicationDraft)).toBe('PublicationDraft');
+    expect(publicationDraft.target.name).toBe('target');
+    expect(publicationDraft.payload.name).toBe('payload');
+    expect(publisherCommand.publicationDraftId.name).toBe('publicationDraftId');
+    expect(Object.keys(publicationDraft)).not.toEqual(expect.arrayContaining([
+      'cookie', 'password', 'chromeProfile', 'accessToken', 'signedUrl',
+    ]));
+  });
+
+  it('defaults new approvals to the web review channel', () => {
+    const approvalChannel = (publishApproval as unknown as Record<string, {
+      default?: unknown;
+      hasDefault?: boolean;
+    }>).approvedVia;
+    expect(approvalChannel?.hasDefault).toBe(true);
+    expect(approvalChannel?.default).toBe('web');
   });
 });

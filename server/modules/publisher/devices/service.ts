@@ -18,6 +18,16 @@ export interface PublisherDeviceRecord {
   protocolVersion: number;
 }
 
+export type PublisherDeviceStatus = 'pending' | 'active' | 'revoked';
+
+export interface PublisherDeviceListItem {
+  id: string;
+  name: string;
+  status: PublisherDeviceStatus;
+  protocolVersion: number;
+  lastSeenAt: Date | null;
+}
+
 export interface PublisherDeviceRepository {
   createPending(input: {
     id: string;
@@ -39,6 +49,16 @@ export interface PublisherDeviceRepository {
     tokenHash: string;
     now: Date;
   }): Promise<PublisherDeviceRecord | null>;
+  listForUserWorkspace(input: {
+    actorUserId: string;
+    workspaceId: string;
+  }): Promise<PublisherDeviceListItem[]>;
+  revokeForUserWorkspace(input: {
+    actorUserId: string;
+    workspaceId: string;
+    deviceId: string;
+    now: Date;
+  }): Promise<boolean>;
 }
 
 function deviceError(code: string, message: string, status: number): AppError {
@@ -123,4 +143,34 @@ export async function authenticatePublisherDevice(input: {
     throw deviceError('PUBLISHER_AUTH_REQUIRED', 'Publisher device authentication is required.', 401);
   }
   return device;
+}
+
+export async function listPublisherDevices(input: {
+  repository: PublisherDeviceRepository;
+  actorUserId: string;
+  workspaceId: string;
+}): Promise<PublisherDeviceListItem[]> {
+  return input.repository.listForUserWorkspace({
+    actorUserId: IdentifierSchema.parse(input.actorUserId),
+    workspaceId: IdentifierSchema.parse(input.workspaceId),
+  });
+}
+
+export async function revokePublisherDevice(input: {
+  repository: PublisherDeviceRepository;
+  actorUserId: string;
+  workspaceId: string;
+  deviceId: string;
+  now?: Date;
+}) {
+  const revoked = await input.repository.revokeForUserWorkspace({
+    actorUserId: IdentifierSchema.parse(input.actorUserId),
+    workspaceId: IdentifierSchema.parse(input.workspaceId),
+    deviceId: IdentifierSchema.parse(input.deviceId),
+    now: input.now ?? new Date(),
+  });
+  if (!revoked) {
+    throw deviceError('PUBLISHER_DEVICE_NOT_FOUND', 'Publisher device not found.', 404);
+  }
+  return { revoked: true as const };
 }

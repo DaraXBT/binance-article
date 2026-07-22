@@ -99,7 +99,7 @@ export function SlideEditor({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="studio-slide-editor space-y-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold">
@@ -119,13 +119,13 @@ export function SlideEditor({
                 variant="destructive"
                 size="sm"
                 disabled={isSaving || isDeleting}
-                className="gap-2"
+                className="gap-2 rounded-lg"
               >
                 <Trash2 className="h-4 w-4" />
                 {messages.common.delete}
               </Button>
             </AlertDialogTrigger>
-            <AlertDialogContent>
+            <AlertDialogContent className="console-dialog">
               <AlertDialogHeader>
                 <AlertDialogTitle>{messages.slideEditor.deleteTitle}</AlertDialogTitle>
                 <AlertDialogDescription>
@@ -153,6 +153,7 @@ export function SlideEditor({
             value={draft.title}
             onChange={(event) => handleFieldChange('title', event.target.value)}
             disabled={isSaving || isDeleting}
+            className="h-10 rounded-lg border-border/70 bg-background/50"
           />
         </div>
 
@@ -165,6 +166,7 @@ export function SlideEditor({
             value={draft.subtitle}
             onChange={(event) => handleFieldChange('subtitle', event.target.value)}
             disabled={isSaving || isDeleting}
+            className="h-10 rounded-lg border-border/70 bg-background/50"
           />
         </div>
 
@@ -179,6 +181,7 @@ export function SlideEditor({
             placeholder={messages.slideEditor.bulletPlaceholder}
             rows={6}
             disabled={isSaving || isDeleting}
+            className="rounded-lg border-border/70 bg-background/50"
           />
           <p className="mt-1 text-xs text-muted-foreground">
             {messages.slideEditor.bulletHint}
@@ -196,6 +199,7 @@ export function SlideEditor({
             placeholder={messages.slideEditor.speakerNotesPlaceholder}
             rows={4}
             disabled={isSaving || isDeleting}
+            className="rounded-lg border-border/70 bg-background/50"
           />
         </div>
       </div>
@@ -205,7 +209,7 @@ export function SlideEditor({
           onClick={handleSave}
           size="sm"
           disabled={!isDirty || !draft.title.trim() || isSaving || isDeleting}
-          className="gap-2"
+          className="gap-2 rounded-lg"
         >
           <Save className="h-4 w-4" />
           {isSaving ? messages.slideEditor.saving : messages.slideEditor.save}
@@ -215,6 +219,7 @@ export function SlideEditor({
           size="sm"
           onClick={handleDiscard}
           disabled={!isDirty || isSaving || isDeleting}
+          className="rounded-lg"
         >
           {messages.slideEditor.discard}
         </Button>

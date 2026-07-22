@@ -5,8 +5,8 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/components/ui/sidebar', () => ({
-  Sidebar: ({ children, ...props }: React.ComponentProps<'aside'>) => (
-    <aside {...props}>{children}</aside>
+  Sidebar: ({ children, collapsible, ...props }: React.ComponentProps<'aside'> & { collapsible?: string }) => (
+    <aside data-collapsible-mode={collapsible} {...props}>{children}</aside>
   ),
   SidebarContent: ({ children, ...props }: React.ComponentProps<'div'>) => (
     <div {...props}>{children}</div>
@@ -21,21 +21,21 @@ vi.mock('@/components/ui/sidebar', () => ({
     <div data-testid="sidebar-provider" {...props}>{children}</div>
   ),
   SidebarRail: () => <button type="button">Resize rail</button>,
-  SidebarTrigger: () => <button type="button">Toggle rail</button>,
+  SidebarTrigger: ({ openLabel, closeLabel: _closeLabel, ...props }: React.ComponentProps<'button'> & { openLabel?: string; closeLabel?: string }) => (
+    <button type="button" aria-label={openLabel} {...props}>Toggle rail</button>
+  ),
 }));
 
 import { ArticleStudioShell } from './article-studio-shell';
 
 describe('ArticleStudioShell', () => {
-  it('renders one workspace landmark with rail, header, content, and footer slots', () => {
+  it('renders one workspace landmark with a rail and floating sidebar trigger', () => {
     const { container } = render(
       <ArticleStudioShell
         mode="public"
         headerTitle="Article Studio"
         sidebar={<nav aria-label="Drafts">Local draft</nav>}
         sidebarFooter={<button type="button">Sign in</button>}
-        headerActions={<button type="button">Theme</button>}
-        footer={<span>Saved in this tab</span>}
       >
         <section>Composer</section>
       </ArticleStudioShell>,
@@ -43,12 +43,18 @@ describe('ArticleStudioShell', () => {
 
     expect(container.querySelector('[data-article-studio-shell="public"]')).toBeTruthy();
     expect(container.querySelector('[data-article-studio-rail]')).toBeTruthy();
+    expect(container.querySelector('[data-collapsible-mode="icon"]')).toBeTruthy();
     expect(container.querySelector('[data-article-studio-workspace]')).toBeTruthy();
     expect(screen.getAllByRole('main')).toHaveLength(1);
     expect(screen.getAllByTestId('sidebar-provider')).toHaveLength(1);
     expect(screen.getByRole('navigation', { name: 'Drafts' })).toBeTruthy();
-    expect(screen.getByText('Article Studio')).toBeTruthy();
+    expect(container.querySelector('.console-header')).toBeNull();
+    expect(container.querySelector('[data-screen-line]')).toBeNull();
+    expect(container.querySelector('[data-article-studio-sidebar-trigger]')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Open article navigation' })).toBeTruthy();
     expect(screen.getByText('Composer')).toBeTruthy();
-    expect(screen.getByText('Saved in this tab')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Sign in' }).parentElement?.className)
+      .not.toContain('group-data-[collapsible=icon]:hidden');
   });
 });

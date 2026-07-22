@@ -12,6 +12,7 @@ const messages = {
     newArticle: 'New article',
     localDraft: 'Local draft',
     untitledArticle: 'Untitled article',
+    noLocalDraft: 'No draft yet.',
     draftStateLocal: 'LOCAL',
     draftStateHeld: 'HELD',
     draftStateReady: 'READY TO CONTINUE',
@@ -48,6 +49,12 @@ const messages = {
       'pixel-art': { name: 'Pixel Art' },
       'fantasy-animation': { name: 'Fantasy Animation' },
       'lab-notes': { name: 'Lab Notes' },
+      binance: { name: 'Binance' },
+      'binance-master': { name: 'ชื่อที่แปลแล้ว' },
+      'binance-briefing': { name: 'Binance Briefing' },
+      'binance-mondo-panoramic': { name: 'Binance Mondo Panoramic' },
+      'binance-sketch-notes': { name: 'Binance Sketch Notes' },
+      'binance-vector-illustration': { name: 'Binance Vector Illustration' },
     },
   },
 };
@@ -56,9 +63,6 @@ const mobileState = vi.hoisted(() => ({ value: false }));
 
 vi.mock('@/components/language-provider', () => ({
   useLanguage: () => ({ language: 'en', messages }),
-}));
-vi.mock('@/components/language-toggle', () => ({
-  LanguageToggle: () => <button type="button">Language</button>,
 }));
 vi.mock('@/components/theme-toggle', () => ({
   ThemeToggle: () => <button type="button">Theme</button>,
@@ -112,32 +116,99 @@ describe('PublicHome', () => {
     expect(container.querySelector('[data-console-status-rail]')).toBeNull();
   });
 
-  it('keeps the public header utility controls compact', () => {
+  it('moves public utility controls into the sidebar footer', () => {
     const { container } = render(<PublicHome onNavigate={vi.fn()} />);
-    const wordmark = screen.getByText('xArticle');
-    const signIn = screen.getAllByRole('link', { name: messages.publicHome.signIn })
-      .find((link) => link.classList.contains('h-8'));
-    expect(signIn).toBeTruthy();
-    const compactSignInLabel = signIn!.querySelector('span');
+    const wordmarks = screen.getAllByText('xArticle');
+    const wordmark = wordmarks.find((node) => node.classList.contains('text-sidebar-foreground'))
+      ?? wordmarks[0];
+    const signIn = screen.getByRole('link', { name: messages.publicHome.signIn });
 
-    expect(container.querySelector('.console-header')).toBeTruthy();
-    expect(wordmark.classList.contains('truncate')).toBe(true);
-    expect(signIn!.classList.contains('h-8')).toBe(true);
-    expect(signIn!.getAttribute('aria-label')).toBe(messages.publicHome.signIn);
-    expect(compactSignInLabel?.classList.contains('hidden')).toBe(true);
-    expect(compactSignInLabel?.classList.contains('min-[390px]:inline')).toBe(true);
+    expect(container.querySelector('.console-header')).toBeNull();
+    expect(container.querySelector('[data-studio-sidebar-logo]')?.classList.contains('rounded-lg')).toBe(true);
+    expect(wordmark?.classList.contains('truncate')).toBe(true);
+    expect(signIn.classList.contains('h-9')).toBe(true);
+    expect(signIn.getAttribute('aria-label')).toBe(messages.publicHome.signIn);
+    expect(screen.queryByRole('button', { name: 'Language' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Theme' })).toBeTruthy();
   });
 
   it('renders the compose-first Article Studio shell with an anonymous rail', () => {
     const { container } = render(<PublicHome onNavigate={vi.fn()} />);
+    const composer = container.querySelector('[data-article-studio-composer]');
 
     expect(container.querySelector('[data-article-studio-shell="public"]')).toBeTruthy();
     expect(container.querySelector('[data-article-studio-rail]')).toBeTruthy();
-    expect(container.querySelector('[data-article-studio-composer]')).toBeTruthy();
+    expect(composer).toBeTruthy();
+    const main = container.querySelector('[data-article-studio-main]');
+    expect(main?.classList.contains('px-4')).toBe(true);
+    expect(main?.classList.contains('sm:px-6')).toBe(true);
+    expect(main?.classList.contains('lg:px-8')).toBe(true);
+    expect(composer?.classList.contains('max-w-3xl')).toBe(true);
+    expect(composer?.classList.contains('mx-auto')).toBe(true);
+    expect(composer?.querySelector('[data-console-panel]')).toBeNull();
+    expect(composer?.querySelector('[data-slot="ai-prompt-box"]')?.classList.contains('rounded-2xl')).toBe(true);
+    expect(screen.getByRole('combobox', {
+      name: messages.publicHome.illustrationStyleLabel,
+    }).textContent).toContain('Binance All-In-One');
+    expect(container.querySelector('[data-studio-sidebar-logo] [data-binance-mark]')).toBeTruthy();
+    expect(container.querySelector('[data-article-studio-sidebar-trigger]')).toBeTruthy();
+    expect(container.querySelector('[data-screen-line]')).toBeNull();
     expect(container.querySelector('[data-article-studio-status-strip]')).toBeNull();
     expect(screen.getByRole('navigation', { name: /article/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: messages.publicHome.newArticle })).toBeTruthy();
-    expect(screen.getByText(/saved in this tab/i)).toBeTruthy();
+    expect(screen.getByText(messages.publicHome.noLocalDraft)).toBeTruthy();
+  });
+
+  it('keeps the anonymous rail copy in sentence case with clear idea hit targets', () => {
+    const { container } = render(<PublicHome onNavigate={vi.fn()} />);
+    const rail = container.querySelector('nav[data-article-studio-rail="anonymous"]');
+
+    expect(rail).toBeTruthy();
+    expect(rail?.querySelectorAll('.uppercase')).toHaveLength(0);
+    expect(screen.getByText(messages.publicHome.localDraft)).toBeTruthy();
+    expect(screen.getByText(messages.publicHome.startersLabel)).toBeTruthy();
+
+    for (const starter of messages.publicHome.starters) {
+      const button = screen.getByRole('button', { name: starter });
+      expect(button.className).toContain('rounded-lg');
+      expect(button.getAttribute('type')).toBe('button');
+    }
+  });
+
+  it('keeps the primary and footer actions visible when the desktop rail is collapsed', () => {
+    const { container } = render(<PublicHome onNavigate={vi.fn()} />);
+    const closeTrigger = container.querySelector('[data-studio-sidebar-brand-toggle]');
+
+    expect(closeTrigger).toBeTruthy();
+    expect(closeTrigger?.getAttribute('aria-label')).toBe('Close article navigation');
+    expect(closeTrigger?.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(closeTrigger!);
+
+    const rail = container.querySelector('[data-slot="sidebar"][data-state="collapsed"]');
+    const collapsedControl = container.querySelector('[data-studio-sidebar-collapsed-control]');
+    expect(rail?.getAttribute('data-collapsible')).toBe('icon');
+    expect(collapsedControl?.getAttribute('aria-label')).toBe('Open article navigation');
+    expect(collapsedControl?.getAttribute('aria-expanded')).toBe('false');
+    expect(collapsedControl?.getAttribute('data-visual')).toBe('logo');
+    expect(container.querySelector('[data-studio-sidebar-brand-toggle]')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'xArticle' })).toBeNull();
+
+    fireEvent.pointerEnter(collapsedControl!);
+    expect(collapsedControl?.getAttribute('data-visual')).toBe('open');
+    fireEvent.pointerLeave(collapsedControl!);
+    expect(collapsedControl?.getAttribute('data-visual')).toBe('logo');
+
+    const newArticleButton = screen.getByRole('button', { name: messages.publicHome.newArticle });
+    expect(newArticleButton.className).toContain('group-data-[collapsible=icon]:size-8');
+    expect(newArticleButton.className).toContain('group-data-[collapsible=icon]:justify-center');
+    expect(newArticleButton.className).toContain('group-data-[collapsible=icon]:p-0');
+    expect(newArticleButton.className).not.toContain('group-data-[collapsible=icon]:hidden');
+
+    const sidebarFooter = container.querySelector('[data-slot="sidebar-footer"]');
+    const signInButton = screen.getByRole('link', { name: messages.publicHome.signIn });
+    expect(sidebarFooter?.className).not.toContain('group-data-[collapsible=icon]:hidden');
+    expect(signInButton.className).toContain('group-data-[collapsible=icon]:size-8');
+    expect(signInButton.className).not.toContain('group-data-[collapsible=icon]:hidden');
   });
 
   it('restores one local draft into the anonymous rail without exposing prompt text in a URL', () => {
@@ -289,9 +360,10 @@ describe('PublicHome', () => {
   it('shows a visible keyboard focus ring on the prompt field', () => {
     render(<PublicHome onNavigate={vi.fn()} />);
     const prompt = screen.getByLabelText(messages.publicHome.promptLabel);
+    const promptBox = prompt.closest('[data-slot="ai-prompt-box"]');
 
-    expect(prompt.classList.contains('focus-visible:ring-0')).toBe(false);
-    expect(prompt.classList.contains('focus-visible:ring-[3px]')).toBe(true);
+    expect(prompt.classList.contains('focus-visible:ring-0!')).toBe(true);
+    expect(promptBox?.classList.contains('data-[focus-origin=keyboard]:has-[.ai-prompt-box-textarea:focus-visible]:ring-[3px]')).toBe(false);
     expect((prompt as HTMLTextAreaElement).minLength).toBe(10);
   });
 
@@ -387,17 +459,15 @@ describe('PublicHome', () => {
     }
   });
 
-  it('flushes the latest draft before an immediate header sign-in', () => {
+  it('flushes the latest draft before an immediate sidebar sign-in', () => {
     const onNavigate = vi.fn();
     const prompt = 'Explain tokenized gold settlement for crypto traders.';
     render(<PublicHome onNavigate={onNavigate} />);
     fireEvent.change(screen.getByLabelText(messages.publicHome.promptLabel), {
       target: { value: prompt },
     });
-    const headerSignIn = screen.getAllByRole('link', { name: messages.publicHome.signIn })
-      .find((link) => link.classList.contains('h-8'));
-    expect(headerSignIn).toBeTruthy();
-    fireEvent.click(headerSignIn!);
+    const sidebarSignIn = screen.getByRole('link', { name: messages.publicHome.signIn });
+    fireEvent.click(sidebarSignIn);
 
     const stored = JSON.parse(
       sessionStorage.getItem('xarticle:anonymous-generation-intent:v1') ?? '{}',

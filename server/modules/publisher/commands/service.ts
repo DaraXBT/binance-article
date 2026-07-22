@@ -2,8 +2,10 @@ import { z } from 'zod';
 
 import {
   hashPublicationRecipe,
+  publicationRecipeTarget,
   validatePublicationRecipe,
-  type PublicationRecipeV1,
+  type PublicationRecipe,
+  type PublicationTarget,
 } from '@/server/domain/publication-recipe';
 import { transitionPublisherCommand } from '@/server/domain/publisher-command';
 import { AppError } from '@/server/http/errors';
@@ -40,6 +42,7 @@ export interface PublisherCommandRecord {
   revision: number;
   recipeHash: string;
   expiresAt: Date;
+  target?: PublicationTarget;
 }
 
 export interface PublisherCommandRepository {
@@ -48,7 +51,7 @@ export interface PublisherCommandRepository {
     deviceId: string;
     commandId: string;
   }): Promise<{
-    command: Pick<PublisherCommandRecord, 'id' | 'deviceId' | 'state' | 'revision' | 'recipeHash'>;
+    command: Pick<PublisherCommandRecord, 'id' | 'deviceId' | 'state' | 'revision' | 'recipeHash' | 'target'>;
     recipe: unknown;
   } | null>;
   compareAndSwap(input: {
@@ -103,7 +106,7 @@ export async function loadPublisherRecipe(input: {
   deviceId: string;
   commandId: string;
   now?: Date;
-}): Promise<PublicationRecipeV1> {
+}): Promise<PublicationRecipe> {
   const deviceId = IdentifierSchema.parse(input.deviceId);
   const commandId = IdentifierSchema.parse(input.commandId);
   const loaded = await input.repository.loadRecipe({ deviceId, commandId });
@@ -118,6 +121,9 @@ export async function loadPublisherRecipe(input: {
     now: input.now ?? new Date(),
     expectedRevision: loaded.command.revision,
   });
+  if (publicationRecipeTarget(recipe) !== (loaded.command.target ?? 'binance-square')) {
+    throw commandError('PUBLICATION_RECIPE_MISMATCH', 'Publication recipe target verification failed.');
+  }
   const actualHash = await hashPublicationRecipe(recipe);
   if (!constantTimeHashEqual(actualHash, loaded.command.recipeHash)) {
     throw commandError('PUBLICATION_RECIPE_MISMATCH', 'Publication recipe verification failed.');
@@ -181,10 +187,23 @@ export async function reportPublishResult(input: {
   now?: Date;
 }) {
   const now = input.now ?? new Date();
+  const deviceId = IdentifierSchema.parse(input.deviceId);
+  const commandId = IdentifierSchema.parse(input.commandId);
+  const revision = RevisionSchema.parse(input.revision);
+  const command = await input.repository.loadStatus({ deviceId, commandId });
+  if (
+    !command
+    || command.deviceId !== deviceId
+    || command.revision !== revision
+    || command.state !== 'publishing'
+  ) {
+    throw commandError('PUBLISHER_COMMAND_STALE', 'Publisher command state changed.');
+  }
   const base = {
     state: 'publishing' as const,
-    revision: RevisionSchema.parse(input.revision),
-    assignedDeviceId: IdentifierSchema.parse(input.deviceId),
+    revision,
+    target: command.target ?? 'binance-square',
+    assignedDeviceId: deviceId,
     expiresAt: new Date(now.getTime() + 1),
   };
 
@@ -235,17 +254,34 @@ export async function getPublisherCommandStatus(input: {
 }) {
   const deviceId = IdentifierSchema.parse(input.deviceId);
   const commandId = IdentifierSchema.parse(input.commandId);
-  const command = await input.repository.loadStatus({ deviceId, commandId });
+  let command = await input.repository.loadStatus({ deviceId, commandId });
   if (!command || command.deviceId !== deviceId) {
     throw commandError('PUBLISHER_COMMAND_NOT_FOUND', 'Publisher command not found.', 404);
   }
   const now = input.now ?? new Date();
-  const state = command.expiresAt.getTime() <= now.getTime() && EXPIRABLE_STATES.has(command.state)
-    ? 'expired'
-    : command.state;
+  if (command.expiresAt.getTime() <= now.getTime() && EXPIRABLE_STATES.has(command.state)) {
+    const expired = await input.repository.compareAndSwap({
+      commandId,
+      deviceId,
+      revision: command.revision,
+      from: command.state,
+      to: 'expired',
+      now,
+    });
+    if (expired) {
+      command = { ...command, state: 'expired' };
+    } else {
+      const current = await input.repository.loadStatus({ deviceId, commandId });
+      if (!current || current.deviceId !== deviceId) {
+        throw commandError('PUBLISHER_COMMAND_NOT_FOUND', 'Publisher command not found.', 404);
+      }
+      command = current;
+    }
+  }
   return {
     id: command.id,
-    state,
+    target: command.target ?? 'binance-square',
+    state: command.state,
     revision: command.revision,
     recipeHash: command.recipeHash,
     expiresAt: command.expiresAt,

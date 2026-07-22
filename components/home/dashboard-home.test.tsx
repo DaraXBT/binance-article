@@ -36,6 +36,7 @@ const messages = {
     renameTitleRequired: 'Title is required.',
     renameArticleFailed: 'Failed to rename article',
     headerTitle: 'Dashboard',
+    settings: 'Localized settings',
     loadErrorTitle: 'Articles could not be loaded.',
     loadErrorDescription: 'The dashboard shell is available, but the list failed to load.',
     promptHomeTitle: 'What do you want to write about?',
@@ -71,6 +72,24 @@ const messages = {
       },
       'lab-notes': {
         name: 'Lab Notes',
+      },
+      binance: {
+        name: 'Binance',
+      },
+      'binance-master': {
+        name: 'ชื่อที่แปลแล้ว',
+      },
+      'binance-briefing': {
+        name: 'Binance Briefing',
+      },
+      'binance-mondo-panoramic': {
+        name: 'Binance Mondo Panoramic',
+      },
+      'binance-sketch-notes': {
+        name: 'Binance Sketch Notes',
+      },
+      'binance-vector-illustration': {
+        name: 'Binance Vector Illustration',
       },
     },
   },
@@ -128,9 +147,6 @@ vi.mock('@/components/language-provider', () => ({
   useLanguage: () => ({ language: 'en', messages }),
 }));
 
-vi.mock('@/components/language-toggle', () => ({
-  LanguageToggle: () => React.createElement('button', { type: 'button' }, 'Language'),
-}));
 
 vi.mock('@/components/theme-toggle', () => ({
   ThemeToggle: () => React.createElement('button', { type: 'button' }, 'Theme'),
@@ -197,7 +213,12 @@ vi.mock('@/components/ui/sidebar', () => ({
   SidebarProvider: ({ children }: any) => React.createElement('div', null, children),
   SidebarRail: () => React.createElement('div'),
   SidebarSeparator: () => React.createElement('hr'),
-  SidebarTrigger: () => React.createElement('button', { type: 'button' }, 'Toggle sidebar'),
+  SidebarTrigger: ({ openLabel, closeLabel: _closeLabel, ...props }: any) => React.createElement(
+    'button',
+    { type: 'button', 'aria-label': openLabel, ...props },
+    'Toggle sidebar',
+  ),
+  useSidebar: () => ({ isMobile: false, state: 'expanded' }),
 }));
 
 vi.mock('@/components/workspace/recovery-key-dialog', () => ({
@@ -208,8 +229,14 @@ vi.mock('@/components/workspace/recovery-key-dialog', () => ({
 }));
 
 vi.mock('@/components/workspace/workspace-sidebar-footer', () => ({
-  WorkspaceSidebarFooter: ({ accessKeyPrefix }: any) =>
-    React.createElement('div', { 'data-testid': 'workspace-sidebar-footer' }, accessKeyPrefix),
+  WorkspaceSidebarFooter: ({ accessKeyPrefix, settingsLabel, signOutLabel }: any) =>
+    React.createElement(
+      'div',
+      { 'data-testid': 'workspace-sidebar-footer' },
+      accessKeyPrefix,
+      React.createElement('span', null, settingsLabel),
+      React.createElement('span', null, signOutLabel),
+    ),
 }));
 
 vi.mock('@/components/workspace/workspace-onboarding', () => ({
@@ -370,7 +397,8 @@ describe('DashboardHome', () => {
     expect(html).toContain(messages.dashboard.promptHomeTitle);
     expect(html).toContain(messages.dashboard.aiSuggest);
     expect(html).not.toContain('ai-suggest-glow');
-    expect(html).toContain('border-primary');
+    expect(html).toContain('data-slot="ai-prompt-box"');
+    expect(html).toContain('rounded-2xl');
     expect(html).toContain(messages.dashboard.generateAction);
   });
 
@@ -382,6 +410,9 @@ describe('DashboardHome', () => {
     expect(html).toContain('data-article-studio-rail="workspace"');
     expect(html).not.toContain('data-article-studio-status-strip');
     expect(html).toContain('data-article-studio-composer');
+    expect(html).toContain('mx-auto w-full max-w-3xl');
+    expect(html).toContain('data-article-studio-sidebar-trigger');
+    expect(html).not.toContain('console-header');
     expect(html).toContain(messages.dashboard.searchDecks);
   });
 
@@ -692,7 +723,7 @@ describe('DashboardHome', () => {
         title: 'Institutional stablecoin adoption',
         description: 'Write a strategic article for CFOs about stablecoin settlement.',
         content: 'Write a strategic article for CFOs about stablecoin settlement.',
-        illustrationStyle: 'pixel-art',
+        illustrationStyle: 'binance-master',
       })
     );
     expect(fetchImpl).toHaveBeenNthCalledWith(
@@ -704,7 +735,7 @@ describe('DashboardHome', () => {
       JSON.stringify({
         articleContent: 'Write a strategic article for CFOs about stablecoin settlement.',
         slideCount: 1,
-        illustrationStyle: 'pixel-art',
+        illustrationStyle: 'binance-master',
         mode: 'prompt',
       })
     );
@@ -801,11 +832,11 @@ describe('DashboardHome', () => {
     }
   });
 
-  it('uses localized account-menu labels', async () => {
+  it('passes localized labels to the sidebar profile menu', async () => {
     const { DashboardHome } = await import('@/components/home/dashboard-home');
     render(React.createElement(DashboardHome));
 
-    expect(screen.getByText(messages.dashboard.connections)).toBeTruthy();
+    expect(screen.getByText(messages.dashboard.settings)).toBeTruthy();
     expect(screen.getByText(messages.dashboard.signOut)).toBeTruthy();
   });
 
@@ -845,7 +876,7 @@ describe('DashboardHome', () => {
     const styleTrigger = screen.getByRole('combobox', { name: /style/i });
 
     expect(slidesTrigger.textContent).toContain('1');
-    expect(styleTrigger.textContent).toContain('Pixel Art');
+    expect(styleTrigger.textContent).toContain('Binance All-In-One');
   });
 
   it('submits the selected slide count and illustration style through the existing generation flow', async () => {

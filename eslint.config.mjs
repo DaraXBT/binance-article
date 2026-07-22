@@ -7,6 +7,7 @@ const config = [
       '.agents/**',
       '.baoyu-skills/**',
       '.next/**',
+      '.next-playwright/**',
       'coverage/**',
       'node_modules/**',
       'app/.well-known/**',

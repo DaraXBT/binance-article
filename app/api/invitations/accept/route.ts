@@ -4,13 +4,14 @@ import { serializeInvitationEnrollmentCookie } from '@/server/auth/invitation-en
 import { assertAllowedOrigin } from '@/server/auth/origin';
 import { getRuntimeDatabase } from '@/server/db/runtime';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
+import { readBoundedJson } from '@/server/http/request-body';
 import { createInvitationAdminRepository } from '@/server/modules/admin/invitations/repository';
 import { inspectInvitation } from '@/server/modules/admin/invitations/service';
 
 export async function POST(request: NextRequest) {
   try {
     assertAllowedOrigin(request);
-    const body = await request.json();
+    const body = await readBoundedJson(request, 4_096) as Record<string, unknown>;
     const token = typeof body?.token === 'string' ? body.token : '';
     const repository = createInvitationAdminRepository(getRuntimeDatabase());
     const inspected = await inspectInvitation({ repository, token });

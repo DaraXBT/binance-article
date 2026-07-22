@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { CaptionViewer } from '@/components/caption-viewer';
+import { ArticleCoverCard } from '@/components/article-cover-card';
 import { BinanceExportDialog } from '@/components/binance-export-dialog';
 import { GenerateAccessDialog } from '@/components/generate-access-dialog';
 import { XExportDialog } from '@/components/x-export-dialog';
@@ -15,8 +16,10 @@ import {
   ScreenLine,
   SecureConsoleFrame,
 } from '@/components/console/secure-console-frame';
+import { StudioShell } from '@/components/studio/studio-shell';
 import { GenerateAccessError } from '@/lib/generate-access-error';
-import { LanguageToggle } from '@/components/language-toggle';
+import { DEFAULT_ILLUSTRATION_STYLE } from '@/lib/config';
+import type { PublishingMessages } from '@/lib/publishing-i18n';
 import { SlideEditor } from '@/components/slide-editor';
 import { SlideList } from '@/components/slide-list';
 import { SlidePreview } from '@/components/slide-preview';
@@ -56,6 +59,8 @@ interface DeckPageProps {
   params: Promise<{ id: string }>;
 }
 
+class LocalizedArticleError extends Error {}
+
 function buildMovedSlideOrder(
   slides: DeckSlide[],
   slideId: string,
@@ -81,7 +86,10 @@ function buildMovedSlideOrder(
   }));
 }
 
-async function waitForJob(jobId: string): Promise<JobSummary> {
+async function waitForJob(
+  jobId: string,
+  copy: PublishingMessages['articlePage'],
+): Promise<JobSummary> {
   const maxAttempts = 60;
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
@@ -91,7 +99,7 @@ async function waitForJob(jobId: string): Promise<JobSummary> {
     const job = (await response.json()) as JobSummary & { error?: string };
 
     if (!response.ok) {
-      throw new Error(job.error || 'Failed to fetch job status');
+      throw new LocalizedArticleError(copy.jobStatusFailed);
     }
 
     if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
@@ -101,7 +109,7 @@ async function waitForJob(jobId: string): Promise<JobSummary> {
     await new Promise((resolve) => setTimeout(resolve, 1500));
   }
 
-  throw new Error('Timed out while waiting for the background job to finish.');
+  throw new LocalizedArticleError(copy.jobTimedOut);
 }
 
 export default function DeckPage({ params }: DeckPageProps) {
@@ -109,13 +117,17 @@ export default function DeckPage({ params }: DeckPageProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { messages } = useLanguage();
+  const publishingCopy = messages.publishing;
   const [activeSlideId, setActiveSlideId] = useState<string | null>(null);
   const [retryFeedback, setRetryFeedback] = useState<string | null>(null);
   const [retryError, setRetryError] = useState<string | null>(null);
+  const [coverFeedback, setCoverFeedback] = useState<string | null>(null);
+  const [coverError, setCoverError] = useState<string | null>(null);
   const [editorFeedback, setEditorFeedback] = useState<string | null>(null);
   const [editorError, setEditorError] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<'slides' | 'editor' | 'preview'>('slides');
   const [showAccessDialog, setShowAccessDialog] = useState(false);
+  const [accessRetryTarget, setAccessRetryTarget] = useState<'slides' | 'cover'>('slides');
   const [showBinanceExport, setShowBinanceExport] = useState(false);
   const [showXExport, setShowXExport] = useState(false);
   const { data: workspace, refetch: refetchWorkspace } = useWorkspace();
@@ -138,7 +150,7 @@ export default function DeckPage({ params }: DeckPageProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          illustrationStyle: deck?.illustrationStyle || 'pixel-art',
+          illustrationStyle: deck?.illustrationStyle || DEFAULT_ILLUSTRATION_STYLE,
           mode: 'failed',
         }),
       });
@@ -151,7 +163,7 @@ export default function DeckPage({ params }: DeckPageProps) {
         throw new Error(data?.error || messages.deckPage.imageRetryFailed);
       }
 
-      return waitForJob(data.jobId);
+      return waitForJob(data.jobId, publishingCopy.articlePage);
     },
     onMutate: () => {
       setRetryFeedback(null);
@@ -180,12 +192,58 @@ export default function DeckPage({ params }: DeckPageProps) {
     },
     onError: (error) => {
       if (error instanceof GenerateAccessError) {
+        setAccessRetryTarget('slides');
         setHasGenerationAccess(false);
         void refetchWorkspace();
         setShowAccessDialog(true);
         return;
       }
       setRetryError(error instanceof Error ? error.message : messages.deckPage.imageRetryFailed);
+    },
+  });
+
+  const retryCover = useMutation({
+    mutationFn: async (): Promise<JobSummary> => {
+      const res = await fetch(`/api/articles/${deckId}/generate-cover`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const responseBody = await res.json().catch(() => null);
+      if (!res.ok) {
+        if (GenerateAccessError.isGenerateAccessResponse(res.status, responseBody)) {
+          throw new GenerateAccessError();
+        }
+        throw new LocalizedArticleError(publishingCopy.cover.startFailed);
+      }
+      return waitForJob(responseBody.jobId, publishingCopy.articlePage);
+    },
+    onMutate: () => {
+      setCoverFeedback(null);
+      setCoverError(null);
+    },
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.detail(deckId) });
+      await refetch();
+      if (result.status !== 'completed') {
+        setCoverError(publishingCopy.cover.resultFailed);
+        return;
+      }
+      setCoverFeedback(publishingCopy.cover.readyFeedback);
+    },
+    onError: (error) => {
+      if (error instanceof GenerateAccessError) {
+        setAccessRetryTarget('cover');
+        setHasGenerationAccess(false);
+        void refetchWorkspace();
+        setShowAccessDialog(true);
+        return;
+      }
+      setCoverError(
+        error instanceof LocalizedArticleError
+          ? error.message
+          : publishingCopy.cover.failed,
+      );
     },
   });
 
@@ -332,15 +390,15 @@ export default function DeckPage({ params }: DeckPageProps) {
     return (
       <SecureConsoleFrame
         variant="focus"
-        eyebrow="ARTICLE STUDIO"
-        title="Loading article"
+        eyebrow={publishingCopy.articlePage.loadingEyebrow}
+        title={publishingCopy.articlePage.loadingTitle}
         panelClassName="mx-auto w-full max-w-lg"
       >
         <div className="flex min-h-28 items-center gap-3" role="status" aria-live="polite">
           <span className="inline-flex size-9 items-center justify-center border border-dotted border-border text-primary">
             <Spinner />
           </span>
-          <span className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">CHECKING ARTICLE</span>
+          <span className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">{publishingCopy.articlePage.checkingArticle}</span>
         </div>
       </SecureConsoleFrame>
     );
@@ -350,11 +408,11 @@ export default function DeckPage({ params }: DeckPageProps) {
     return (
       <SecureConsoleFrame
         variant="focus"
-        eyebrow="ARTICLE ERROR"
+        eyebrow={publishingCopy.articlePage.errorEyebrow}
         title={messages.deckPage.failedToLoad}
         panelClassName="mx-auto w-full max-w-lg border-destructive/45 bg-destructive/[0.025]"
       >
-        <Button asChild variant="outline" size="sm" className="w-fit rounded-none border-dotted">
+        <Button asChild variant="outline" size="sm" className="w-fit">
           <Link href="/workspace">{messages.common.backToDashboard}</Link>
         </Button>
       </SecureConsoleFrame>
@@ -363,11 +421,14 @@ export default function DeckPage({ params }: DeckPageProps) {
 
   return (
     <>
-    <div data-console-frame="focus" className="console-viewport">
-      <div aria-hidden="true" className="viewport-top-line" />
-      <div className="console-shell mx-auto max-w-[96rem]">
+    <StudioShell
+      surface="editor"
+      frameVariant="focus"
+      className="studio-editor-shell"
+      shellClassName="max-w-[96rem]"
+    >
       <div className="flex min-h-0 flex-1 flex-col">
-      <header className="console-header sticky top-0 z-10 border-b border-dotted border-border/80 bg-background">
+      <header className="console-header studio-toolbar sticky top-0 z-10 border-b border-dotted border-border/80 bg-background">
         <div className="flex min-w-0 w-full flex-wrap items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
             <Link
@@ -379,14 +440,13 @@ export default function DeckPage({ params }: DeckPageProps) {
             </Link>
             <h1 className="truncate text-base font-semibold tracking-normal sm:text-lg">{deck.title}</h1>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <LanguageToggle />
+          <div className="studio-editor-actions flex flex-wrap items-center justify-end gap-1.5 sm:gap-2">
             <ThemeToggle />
             {failedSlides.length > 0 ? (
               <Button
                 size="sm"
                 variant="outline"
-                className="gap-2 rounded-none border-dotted"
+                className="gap-2 rounded-lg"
                 onClick={() => retryFailedImages.mutate()}
                 disabled={retryFailedImages.isPending || generationLocked}
               >
@@ -404,8 +464,11 @@ export default function DeckPage({ params }: DeckPageProps) {
               <Button
                 size="sm"
                 variant="outline"
-                className="gap-2 rounded-none border-dotted"
-                onClick={() => setShowAccessDialog(true)}
+                className="gap-2 rounded-lg"
+                onClick={() => {
+                  setAccessRetryTarget('slides');
+                  setShowAccessDialog(true);
+                }}
               >
                 <Lock className="h-4 w-4" />
                 {messages.generateAccess.submit}
@@ -414,34 +477,34 @@ export default function DeckPage({ params }: DeckPageProps) {
             <Button
               size="sm"
               variant="outline"
-              className="gap-2 rounded-none border-dotted"
+              className="gap-2 rounded-lg"
               onClick={() => setShowBinanceExport(true)}
               disabled={slides.length === 0}
-              aria-label="Export to Binance Square"
+              aria-label={publishingCopy.binance.prepare}
               data-testid="open-binance-export"
             >
               <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Binance Square</span>
+              <span className="hidden sm:inline">{publishingCopy.binance.prepare}</span>
             </Button>
             <Button
               size="sm"
               variant="outline"
-              className="gap-2 rounded-none border-dotted"
+              className="gap-2 rounded-lg"
               onClick={() => setShowXExport(true)}
-              aria-label="Prepare post for X"
+              aria-label={publishingCopy.x.prepare}
               data-testid="open-x-export"
             >
               <span aria-hidden="true" className="inline-flex size-4 items-center justify-center font-mono text-sm font-semibold">
                 X
               </span>
-              <span className="hidden sm:inline">X post</span>
+              <span className="hidden sm:inline">{publishingCopy.x.prepare}</span>
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
                   size="sm"
                   variant="destructive"
-                  className="gap-2 rounded-none"
+                  className="gap-2 rounded-lg"
                   disabled={deleteDeck.isPending}
                 >
                   <Trash2 className="h-4 w-4" />
@@ -449,7 +512,7 @@ export default function DeckPage({ params }: DeckPageProps) {
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent className="console-dialog border-dotted p-4 sm:p-5">
-                <FrameCornerHandles className="size-2.5 bg-card" />
+                <FrameCornerHandles />
                 <AlertDialogHeader>
                   <AlertDialogTitle>{messages.deckPage.deleteArticleTitle}</AlertDialogTitle>
                   <AlertDialogDescription>
@@ -457,8 +520,8 @@ export default function DeckPage({ params }: DeckPageProps) {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel className="rounded-none border-dotted">{messages.common.cancel}</AlertDialogCancel>
-                  <AlertDialogAction className="rounded-none" onClick={handleDeleteDeck}>
+                  <AlertDialogCancel className="rounded-lg">{messages.common.cancel}</AlertDialogCancel>
+                  <AlertDialogAction className="rounded-lg" onClick={handleDeleteDeck}>
                     {messages.common.delete}
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -467,11 +530,11 @@ export default function DeckPage({ params }: DeckPageProps) {
           </div>
         </div>
       </header>
-      <ScreenLine className="h-3" />
+      <ScreenLine />
 
-      {failedSlides.length > 0 || pendingSlides.length > 0 || retryFeedback || retryError || editorFeedback || editorError ? (
+      {failedSlides.length > 0 || pendingSlides.length > 0 || retryFeedback || retryError || coverFeedback || coverError || editorFeedback || editorError ? (
         <div className="border-b border-dotted border-border/80 bg-muted/20 px-4 py-2.5">
-          <div className="flex flex-wrap items-center gap-3 text-sm">
+        <div className="studio-feedback flex flex-wrap items-center gap-3 text-sm">
             {failedSlides.length > 0 ? (
               <p className="font-medium text-destructive">
                 {messages.deckPage.imagesFailed(failedSlides.length)}
@@ -484,17 +547,35 @@ export default function DeckPage({ params }: DeckPageProps) {
             ) : null}
             {retryFeedback ? <p className="font-medium text-primary">{retryFeedback}</p> : null}
             {retryError ? <p className="text-destructive">{retryError}</p> : null}
+            {coverFeedback ? <p className="font-medium text-primary">{coverFeedback}</p> : null}
+            {coverError ? <p className="text-destructive">{coverError}</p> : null}
             {editorFeedback ? <p className="font-medium text-primary">{editorFeedback}</p> : null}
             {editorError ? <p className="text-destructive">{editorError}</p> : null}
           </div>
         </div>
       ) : null}
 
-      <div className="border-b border-dotted border-border/80 bg-muted/20 md:hidden">
-        <div className="flex">
+      <ArticleCoverCard
+        articleId={deckId}
+        cover={deck.cover}
+        isRetrying={retryCover.isPending}
+        onRetry={() => {
+          if (generationLocked) {
+            setAccessRetryTarget('cover');
+            setShowAccessDialog(true);
+            return;
+          }
+          retryCover.mutate();
+        }}
+      />
+
+      <div className="border-b border-dotted border-border/80 bg-muted/20 lg:hidden">
+        <div className="flex" role="tablist" aria-label={publishingCopy.articlePage.editorViews}>
           {(['slides', 'editor', 'preview'] as const).map((tab) => (
             <button
               key={tab}
+              role="tab"
+              aria-selected={mobileTab === tab}
               onClick={() => setMobileTab(tab)}
               className={`flex-1 px-3 py-2.5 font-mono text-[0.62rem] font-medium uppercase tracking-[0.12em] transition-colors ${
                 mobileTab === tab
@@ -512,7 +593,7 @@ export default function DeckPage({ params }: DeckPageProps) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden md:hidden">
+      <div className="flex-1 overflow-hidden lg:hidden">
         {mobileTab === 'slides' ? (
           <SlideList
             articleId={deckId}
@@ -552,7 +633,7 @@ export default function DeckPage({ params }: DeckPageProps) {
         ) : null}
       </div>
 
-      <div className="hidden flex-1 overflow-hidden md:block">
+      <div className="hidden flex-1 overflow-hidden lg:block">
         <ResizablePanelGroup direction="horizontal">
           <ResizablePanel defaultSize="20%" minSize="15%" maxSize="30%">
             <SlideList
@@ -602,8 +683,7 @@ export default function DeckPage({ params }: DeckPageProps) {
         </ResizablePanelGroup>
       </div>
       </div>
-      </div>
-    </div>
+    </StudioShell>
       <GenerateAccessDialog
         open={showAccessDialog}
         onOpenChange={setShowAccessDialog}
@@ -611,7 +691,8 @@ export default function DeckPage({ params }: DeckPageProps) {
           setHasGenerationAccess(true);
           void refetchWorkspace();
           setShowAccessDialog(false);
-          retryFailedImages.mutate();
+          if (accessRetryTarget === 'cover') retryCover.mutate();
+          else retryFailedImages.mutate();
         }}
       />
       <BinanceExportDialog

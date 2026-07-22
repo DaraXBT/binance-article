@@ -10,6 +10,8 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
+import { DEFAULT_ILLUSTRATION_STYLE } from '../../../lib/config';
+
 const legacyTimestamp = (name: string) => timestamp(name, {
   mode: 'date',
   precision: 3,
@@ -77,7 +79,7 @@ export const deckProject = pgTable('DeckProject', {
   content: text('content').notNull(),
   theme: text('theme').default('default').notNull(),
   customTheme: jsonb('customTheme'),
-  illustrationStyle: text('illustrationStyle').default('pixel-art').notNull(),
+  illustrationStyle: text('illustrationStyle').default(DEFAULT_ILLUSTRATION_STYLE).notNull(),
   status: deckStatus('status').default('draft').notNull(),
   generationRevision: integer('generationRevision').default(0).notNull(),
   lastCompletedRevision: integer('lastCompletedRevision').default(0).notNull(),

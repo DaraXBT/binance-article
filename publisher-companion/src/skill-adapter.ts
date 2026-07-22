@@ -1,3 +1,7 @@
+import type { PublisherTarget } from './api-client';
+
+const CANONICAL_X_STATUS_URL = /^https:\/\/x\.com\/[A-Za-z0-9_]{1,15}\/status\/[0-9]+$/;
+
 type SkillModule = {
   prepareBundle(input: { bundlePath: string }): Promise<
     | { valid: true }
@@ -9,28 +13,62 @@ type SkillModule = {
   ): Promise<{ verified: true; reason: string; publishedUrl?: string }>;
 };
 
+export type PublisherAdapter = {
+  prepare(bundlePath: string): Promise<{ draftId: string }>;
+  publish(
+    draftId: string,
+    options: { beforeClick: () => Promise<void> },
+  ): Promise<{ verified: true; reason?: string; publishedUrl?: string }>;
+  discard?(draftId: string): Promise<void>;
+};
+
 async function loadSkill(): Promise<SkillModule> {
   const modulePath = '../../.agents/skills/baoyu-post-to-binance-square/scripts/bundle-publisher.ts';
   return await import(modulePath) as SkillModule;
+}
+
+export function canonicalXStatusUrl(value: string): string | null {
+  if (!CANONICAL_X_STATUS_URL.test(value)) return null;
+  try {
+    const url = new URL(value);
+    if (
+      url.protocol === 'https:'
+      && url.hostname === 'x.com'
+      && !url.port
+      && !url.username
+      && !url.password
+      && !url.search
+      && !url.hash
+      && /^\/[A-Za-z0-9_]{1,15}\/status\/[0-9]+$/.test(url.pathname)
+      && url.toString() === value
+    ) {
+      return value;
+    }
+  } catch {
+    // Invalid or noncanonical URLs are never success evidence.
+  }
+  return null;
 }
 
 export function classifySkillPublishResult(input: {
   verified: true;
   reason: string;
   publishedUrl?: string;
-}):
+}, target: PublisherTarget = 'binance-square'):
   | { outcome: 'succeeded'; publishedUrl: string }
   | { outcome: 'outcome_unknown'; failureReason: 'OUTCOME_UNVERIFIED' } {
   if (input.publishedUrl) {
     try {
       const url = new URL(input.publishedUrl);
-      if (
+      const canonicalBinanceUrl = target === 'binance-square' && (
         url.protocol === 'https:'
         && (url.hostname === 'binance.com' || url.hostname.endsWith('.binance.com'))
         && /\/square\/(?:post|article)\/[^/]+/i.test(url.pathname)
         && !url.username
         && !url.password
-      ) {
+      );
+      const canonicalXUrl = target === 'x' && canonicalXStatusUrl(input.publishedUrl) !== null;
+      if (canonicalBinanceUrl || canonicalXUrl) {
         return { outcome: 'succeeded', publishedUrl: url.toString() };
       }
     } catch {

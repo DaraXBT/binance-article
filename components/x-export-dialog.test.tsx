@@ -4,8 +4,17 @@ import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { LanguageProvider } from './language-provider';
 import type { DeckDetailResponse, DeckSlide } from '@/lib/schemas';
 import { XExportDialog } from './x-export-dialog';
+
+function EnglishLanguageProvider({ children }: React.PropsWithChildren) {
+  return <LanguageProvider initialLanguage="en">{children}</LanguageProvider>;
+}
+
+function renderInEnglish(ui: React.ReactElement) {
+  return render(ui, { wrapper: EnglishLanguageProvider });
+}
 
 vi.mock('@/components/ui/dialog', () => ({
   Dialog: ({ open, children }: React.PropsWithChildren<{ open: boolean }>) =>
@@ -40,6 +49,7 @@ const deck: DeckDetailResponse = {
   id: 'deck-1',
   status: 'ready',
   title: 'X export',
+  cover: null,
   slides: Array.from({ length: 5 }, (_, index) => slide(index + 1)),
   captions: {
     xSingle1: 'First generated X post.',
@@ -51,7 +61,7 @@ describe('XExportDialog', () => {
   afterEach(() => cleanup());
 
   it('prefills a generated caption and safely limits the default image selection to four', () => {
-    render(<XExportDialog open onOpenChange={vi.fn()} deck={deck} />);
+    renderInEnglish(<XExportDialog open onOpenChange={vi.fn()} deck={deck} />);
 
     expect(screen.getByRole('heading', { name: 'Prepare X post' })).toBeTruthy();
     expect((screen.getByLabelText('X post text') as HTMLTextAreaElement).value)
@@ -65,25 +75,25 @@ describe('XExportDialog', () => {
   it('lets the user choose another generated caption without posting anything', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     try {
-      render(<XExportDialog open onOpenChange={vi.fn()} deck={deck} />);
+      renderInEnglish(<XExportDialog open onOpenChange={vi.fn()} deck={deck} />);
       fireEvent.click(screen.getByRole('button', { name: 'Use post 2' }));
 
       expect((screen.getByLabelText('X post text') as HTMLTextAreaElement).value)
         .toBe('Second generated X post.');
-      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(fetchSpy.mock.calls.every(([, options]) => !options || options.method === undefined)).toBe(true);
     } finally {
       fetchSpy.mockRestore();
     }
   });
 
   it('blocks an empty bundle after all images are removed', () => {
-    render(<XExportDialog open onOpenChange={vi.fn()} deck={{ ...deck, captions: null }} />);
+    renderInEnglish(<XExportDialog open onOpenChange={vi.fn()} deck={{ ...deck, captions: null }} />);
     for (let index = 1; index <= 4; index += 1) {
       fireEvent.click(screen.getByLabelText(`Use Slide ${index} image`));
     }
 
     expect(screen.getByText('Add post text or select at least one image.')).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Download X post bundle' }) as HTMLButtonElement).disabled)
+    expect((screen.getByRole('button', { name: 'Download fallback ZIP' }) as HTMLButtonElement).disabled)
       .toBe(true);
   });
 });

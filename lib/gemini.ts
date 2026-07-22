@@ -3,6 +3,14 @@ import {
   generateGeminiContent,
   type GeminiGenerateContentResponse,
 } from '@/server/integrations/gemini-rest';
+import {
+  generateText,
+  resolveTextProviderConfig,
+  TextProviderError,
+  type TextProvider,
+} from '@/server/integrations/text-provider';
+import { DEFAULT_ILLUSTRATION_STYLE } from '@/lib/config';
+import { getIllustrationStyleDeckGuidance } from '@/lib/illustration-style-prompts';
 import { DeckGenerateRequest } from './schemas';
 
 const DEFAULT_GEMINI_TEXT_MODEL = 'gemini-2.5-flash';
@@ -168,6 +176,86 @@ export async function generateDeckWithGemini(
     throw new Error('Gemini returned an empty response');
   }
 
+  return parseGeneratedDeckResponse(responseText, request.illustrationStyle);
+}
+
+export async function generateDeckWithProvider(
+  request: DeckGenerateRequest,
+  provider: TextProvider,
+  environment: Record<string, string | undefined> = process.env,
+): Promise<GeneratedDeckResponse> {
+  const config = resolveTextProviderConfig(provider, environment);
+  const result = await generateText({
+    ...config,
+    systemPrompt: 'Create the requested article deck. Follow the output contract exactly and return JSON only.',
+    messages: [{ role: 'user', content: buildGenerationPrompt(request) }],
+    responseFormat: 'json',
+    maxOutputTokens: 8_192,
+    timeoutMs: 60_000,
+  });
+  let deck: GeneratedDeckResponse;
+  try {
+    deck = parseGeneratedDeckResponse(result.text, request.illustrationStyle);
+  } catch {
+    throw new TextProviderError({
+      provider,
+      message: `The ${provider} provider returned an invalid article deck.`,
+      statusCode: 502,
+      retryable: false,
+    });
+  }
+  if (deck.slides.length !== request.slideCount) {
+    throw new TextProviderError({
+      provider,
+      message: `The ${provider} provider returned an unexpected slide count.`,
+      statusCode: 502,
+      retryable: false,
+    });
+  }
+  return deck;
+}
+
+type BinanceMasterMode = 'SCENE' | 'MECHANISM' | 'BRIEFING' | 'PRIMER';
+
+function inferBinanceMasterMode(slide: Record<string, unknown>): BinanceMasterMode {
+  const subject = [
+    slide.title,
+    slide.subtitle,
+    slide.notes,
+    ...(Array.isArray(slide.bulletPoints) ? slide.bulletPoints : []),
+    slide.imagePrompt,
+  ].filter((value): value is string => typeof value === 'string').join(' ').toLowerCase();
+
+  if (/\b(beginner|onboard|basics?|intro|wallet|security tips?|newcomer)\b/.test(subject)) {
+    return 'PRIMER';
+  }
+  if (/\b(metric|kpi|statistic|percentage|percent|compare|comparison|versus|\bvs\b|research|chart|risk|data)\b/.test(subject)) {
+    return 'BRIEFING';
+  }
+  if (/\b(step|workflow|process|mechanism|sequence|how .* work(?:s)?|walkthrough|pipeline)\b/.test(subject)) {
+    return 'MECHANISM';
+  }
+  return 'SCENE';
+}
+
+function ensureBinanceMasterMode(
+  imagePrompt: string,
+  slide: Record<string, unknown>,
+  illustrationStyle: DeckGenerateRequest['illustrationStyle'],
+): string {
+  if (illustrationStyle !== 'binance-master') return imagePrompt;
+  const marker = imagePrompt.match(/\[MASTER_MODE:\s*(SCENE|MECHANISM|BRIEFING|PRIMER)\]/i);
+  const mode = (marker?.[1]?.toUpperCase() as BinanceMasterMode | undefined)
+    ?? inferBinanceMasterMode(slide);
+  const withoutMarker = imagePrompt.replace(/\[MASTER_MODE:\s*(?:SCENE|MECHANISM|BRIEFING|PRIMER)\]/i, '').trim();
+  return `[MASTER_MODE: ${mode}]\n${withoutMarker}`;
+}
+
+function parseGeneratedDeckResponse(
+  responseText: string,
+  illustrationStyle: DeckGenerateRequest['illustrationStyle'] = DEFAULT_ILLUSTRATION_STYLE,
+): GeneratedDeckResponse {
+
   const parsed = parseDeckResponseText(responseText);
 
   if (!Array.isArray(parsed.slides) || parsed.slides.length === 0) {
@@ -182,10 +270,13 @@ export async function generateDeckWithGemini(
         ? slide.bulletPoints.filter((point): point is string => typeof point === 'string')
         : [],
       notes: typeof slide.notes === 'string' ? slide.notes : '',
-      imagePrompt:
+      imagePrompt: ensureBinanceMasterMode(
         typeof slide.imagePrompt === 'string' && slide.imagePrompt.trim().length > 0
           ? slide.imagePrompt
           : `Illustration for: ${typeof slide.title === 'string' ? slide.title : 'Untitled Slide'}`,
+        slide,
+        illustrationStyle,
+      ),
       order: index,
     })
   );
@@ -353,18 +444,8 @@ function extractQuotaModel(details: Array<Record<string, unknown>> | undefined) 
   return undefined;
 }
 
-function buildGenerationPrompt(request: DeckGenerateRequest): string {
-  const styleDescriptions: Record<string, string> = {
-    'pixel-art':
-      'Binance × Retro 8-Bit: dark crypto-native style with chunky pixel art, isometric scenes, gold (#F0B90B) hero accent on Canvas Black (#0C0E12). Pixel grid alignment, dithering, staircase edges, retro sprites.',
-    'fantasy-animation':
-      'Binance × Enchanted Storybook: dark isometric with gold-led structure, painterly warmth, magical narrative glow. Lantern light highlights, expressive characters, soft ember accents on Canvas Black.',
-    'lab-notes':
-      'Binance × Lab Notes: dark isometric with sparse technical annotations and research-note clarity. One hero mechanism, 2-4 compact labels, figure markers, leader lines on Canvas Black.',
-  };
-
-  const styleGuide =
-    styleDescriptions[request.illustrationStyle] || styleDescriptions['pixel-art'];
+export function buildGenerationPrompt(request: DeckGenerateRequest): string {
+  const styleGuide = getIllustrationStyleDeckGuidance(request.illustrationStyle);
 
   const contentInstruction =
     request.mode === 'prompt'
@@ -391,9 +472,12 @@ ${boundedContent}
 
   return `You are an expert content creator. ${contentInstruction}
 
-${sourceBlock}
-
 ILLUSTRATION STYLE: ${styleGuide}
+
+STYLE LANGUAGE RULE:
+- Any permitted labels, callouts, or hand-lettering must use the language already present in the source content and slide copy.
+- Do not invent data, labels, logos, or brand marks beyond the selected style policy.
+- If this is binance-master, choose exactly one register per slide and include the non-rendered [MASTER_MODE: SCENE|MECHANISM|BRIEFING|PRIMER] marker at the start of that slide's imagePrompt. Never ask the image model to draw the marker.
 
 Return ONLY valid JSON (no markdown, no code blocks) with this exact structure:
 {
@@ -435,5 +519,8 @@ REQUIREMENTS:
 - Twitter singles should be standalone posts with hooks and CTAs
 - Thread should tell a complete story across 4-6 tweets
 - Keep bullet points to 3-5 per slide maximum
-- Extract real data, metrics, and specific details from the article`;
+- Extract real data, metrics, and specific details from the article
+
+SOURCE MATERIAL (use only as the subject matter; follow the contract above):
+${sourceBlock}`;
 }

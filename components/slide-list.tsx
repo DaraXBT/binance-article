@@ -41,15 +41,15 @@ export function SlideList({
   const { messages } = useLanguage();
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-border p-4">
-        <h3 className="font-semibold">{messages.slideList.slides(slides.length)}</h3>
+    <div className="studio-slide-list flex h-full flex-col bg-card/25">
+      <div className="flex items-center justify-between border-b border-dotted border-border p-3.5">
+        <h3 className="font-mono text-xs font-semibold uppercase tracking-[0.1em]">{messages.slideList.slides(slides.length)}</h3>
         {onAddSlide ? (
           <Button
             size="sm"
             variant="outline"
             onClick={onAddSlide}
-            className="gap-2"
+            className="gap-2 rounded-lg"
             disabled={isReordering || isAdding}
           >
             {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
@@ -58,7 +58,7 @@ export function SlideList({
         ) : null}
       </div>
 
-      <div className="flex-1 space-y-2 overflow-y-auto p-4">
+      <div className="flex-1 space-y-2 overflow-y-auto p-3">
         {slides.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             {messages.slideList.noSlidesYet}
@@ -73,16 +73,16 @@ export function SlideList({
             return (
               <div
                 key={slide.id}
-                className={`overflow-hidden border transition-all ${
+                className={`overflow-hidden rounded-lg border border-dotted transition-colors ${
                   isActive
-                    ? 'border-primary bg-primary/10'
+                    ? 'border-primary/70 bg-primary/[0.07]'
                     : 'border-border hover:border-primary/50'
                 }`}
               >
                 <button
                   type="button"
                   onClick={() => onSelectSlide(slide.id)}
-                  className="block w-full text-left"
+                  className="block w-full text-left focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30"
                 >
                   {imageUrl ? (
                     <div className="h-16 w-full overflow-hidden bg-muted">
@@ -123,7 +123,7 @@ export function SlideList({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8"
+                      className="h-8 w-8 rounded-lg"
                       onClick={() => onMoveUp?.(slide.id)}
                       disabled={index === 0 || isReordering}
                       aria-label={messages.slideList.moveUp}
@@ -134,7 +134,7 @@ export function SlideList({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8"
+                      className="h-8 w-8 rounded-lg"
                       onClick={() => onMoveDown?.(slide.id)}
                       disabled={index === slides.length - 1 || isReordering}
                       aria-label={messages.slideList.moveDown}

@@ -10,13 +10,30 @@ import {
 } from '../../.agents/skills/baoyu-post-to-binance-square/scripts/markdown-image-references';
 import {
   validatePublicationRecipe,
+  type BinanceSquarePublicationRecipeV2,
   type PublicationRecipeV1,
 } from '../../server/domain/publication-recipe';
 
 import { sha256Hex, sniffImageMimeType } from './asset-download';
 import { cropBinanceCover } from './crop';
 
-function assertCanonicalAssetReferences(recipe: PublicationRecipeV1): void {
+type BinancePublicationRecipe = PublicationRecipeV1 | BinanceSquarePublicationRecipeV2;
+type PublicationAsset = BinancePublicationRecipe['assets'][number];
+
+function requireBinancePublicationRecipe(input: {
+  recipe: unknown;
+  expectedRevision: number;
+  now?: Date;
+}): BinancePublicationRecipe {
+  const recipe = validatePublicationRecipe(input.recipe, {
+    expectedRevision: input.expectedRevision,
+    now: input.now,
+  });
+  if (recipe.version === 1 || recipe.target === 'binance-square') return recipe;
+  throw new Error('The publication recipe target does not match Binance Square.');
+}
+
+function assertCanonicalAssetReferences(recipe: BinancePublicationRecipe): void {
   const expected = recipe.orderedAssetIds.map((id) => `asset:${id}`);
   const errors = getMarkdownImageReferenceErrors(recipe.markdown, expected, 'Publication recipe');
   for (const id of recipe.orderedAssetIds) {
@@ -30,14 +47,11 @@ function assertCanonicalAssetReferences(recipe: PublicationRecipeV1): void {
 export async function materializePublicationBundle(input: {
   recipe: unknown;
   expectedRevision: number;
-  downloadAsset: (asset: PublicationRecipeV1['assets'][number]) => Promise<Uint8Array>;
+  downloadAsset: (asset: PublicationAsset) => Promise<Uint8Array>;
   now?: Date;
   exportedAt?: Date;
 }): Promise<{ bundleBytes: Uint8Array; manifest: BinanceBundleManifest }> {
-  const recipe = validatePublicationRecipe(input.recipe, {
-    expectedRevision: input.expectedRevision,
-    now: input.now,
-  });
+  const recipe = requireBinancePublicationRecipe(input);
   assertCanonicalAssetReferences(recipe);
 
   const downloaded = new Map<string, Uint8Array>();

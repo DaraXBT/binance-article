@@ -2,7 +2,14 @@ import type { Locale } from 'date-fns';
 import { formatDistanceToNow } from 'date-fns';
 import { enUS, km as kmLocale } from 'date-fns/locale';
 
+import { publishingTranslations } from '@/lib/publishing-i18n';
+
 export type Language = 'km' | 'en' | 'id' | 'lo' | 'my' | 'th' | 'fil';
+
+// The application chrome is intentionally English-only. The remaining
+// translation catalog is kept for article-language content and compatibility
+// with previously stored records, but it is not user-selectable in the UI.
+export const UI_LANGUAGE: Language = 'en';
 
 export const LANGUAGE_COOKIE_NAME = 'deckforge_language';
 
@@ -17,6 +24,7 @@ export const LANGUAGES: { code: Language; flag: string; name: string; nativeName
 ];
 
 const en = {
+  publishing: publishingTranslations.en,
   common: {
     back: 'Back',
     backToDashboard: 'Back to Dashboard',
@@ -40,7 +48,7 @@ const en = {
     newArticle: 'New article',
     localDraft: 'Local draft',
     untitledArticle: 'Untitled article',
-    noLocalDraft: 'Your next article will be saved in this tab.',
+    noLocalDraft: 'No draft yet.',
     draftStateLocal: 'Local',
     draftStateHeld: 'Ready to continue',
     draftStateReady: 'Ready to continue',
@@ -78,11 +86,8 @@ const en = {
   auth: {
     signInTitle: 'Sign in',
     signInGoogleDescription: 'Use Google to sign in to your account.',
-    signInTelegramDescription: 'Use Google, or a Telegram identity already linked to your account.',
     continueGoogle: 'Continue with Google',
     openingGoogle: 'Opening Google…',
-    continueTelegram: 'Continue with Telegram',
-    openingTelegram: 'Opening Telegram…',
     signInError: 'Sign-in could not be started. Please try again.',
     secureRedirect: 'Secure redirect · callback preserved',
     joinTitle: 'Join the private beta',
@@ -137,6 +142,7 @@ const en = {
     renameTitleRequired: 'Title is required.',
     renameArticleFailed: 'Failed to rename article',
     headerTitle: 'Dashboard',
+    settings: 'Settings',
     connections: 'Connections',
     importOldWorkspace: 'Import old workspace',
     signOut: 'Sign out',
@@ -226,6 +232,42 @@ const en = {
         description:
           'Technical annotated research diagrams with sparse note clarity',
         bestFor: 'Protocol explainers',
+      },
+      binance: {
+        name: 'Binance Isometric Flow',
+        description:
+          'Dark crypto-native isometric scenes with playful platforms and structured gold accents',
+        bestFor: 'Crypto ecosystems',
+      },
+      'binance-master': {
+        name: 'Binance All-In-One',
+        description:
+          'One gold-on-black system spanning Scene, Mechanism, Briefing, and Primer registers',
+        bestFor: 'Mixed crypto content',
+      },
+      'binance-briefing': {
+        name: 'Binance Technical Briefing',
+        description:
+          'Research-grade dark infographic with isometric diagrams and annotated callouts',
+        bestFor: 'Metrics and research',
+      },
+      'binance-mondo-panoramic': {
+        name: 'Binance Mondo Panoramic',
+        description:
+          'Dark screen-print storytelling with a left-to-right evolution across three zones',
+        bestFor: 'Transformation stories',
+      },
+      'binance-sketch-notes': {
+        name: 'Binance Sketch Notes',
+        description:
+          'Hand-lettered gold gel-pen and chalk notes on a dark crypto sketchbook page',
+        bestFor: 'Beginner onboarding',
+      },
+      'binance-vector-illustration': {
+        name: 'Binance Flat Vector',
+        description:
+          'Flat coloring-book scenes with bold gold and light-gray outlines and toy-model props',
+        bestFor: 'Friendly explainers',
       },
     },
     generateView: {
@@ -458,6 +500,7 @@ const en = {
 };
 
 const km: typeof en = {
+  publishing: publishingTranslations.km,
   common: {
     back: 'ត្រឡប់',
     backToDashboard: 'ត្រឡប់ទៅផ្ទាំងគ្រប់គ្រង',
@@ -538,6 +581,7 @@ const km: typeof en = {
     renameTitleRequired: 'ត្រូវការចំណងជើង។',
     renameArticleFailed: 'មិនអាចប្ដូរឈ្មោះអត្ថបទបានទេ',
     headerTitle: 'ផ្ទាំងគ្រប់គ្រង',
+    settings: 'ការកំណត់',
     connections: 'ការតភ្ជាប់',
     importOldWorkspace: 'នាំចូលផ្ទាំងការងារចាស់',
     signOut: 'ចាកចេញ',
@@ -610,6 +654,7 @@ const km: typeof en = {
       detailed: '១៥ ស្លាយ (លម្អិត)',
     },
     styleOptions: {
+      ...en.newDeck.styleOptions,
       'pixel-art': {
         name: 'ភីកសែលអាត',
         description:
@@ -852,6 +897,7 @@ const km: typeof en = {
 };
 
 const id: typeof en = {
+  publishing: publishingTranslations.id,
   common: {
     back: 'Kembali',
     backToDashboard: 'Kembali ke Dasbor',
@@ -932,6 +978,7 @@ const id: typeof en = {
     renameTitleRequired: 'Judul diperlukan.',
     renameArticleFailed: 'Gagal mengubah nama artikel',
     headerTitle: 'Dasbor',
+    settings: 'Pengaturan',
     connections: 'Koneksi',
     importOldWorkspace: 'Impor ruang kerja lama',
     signOut: 'Keluar',
@@ -1004,6 +1051,7 @@ const id: typeof en = {
       detailed: '15 slide (detail)',
     },
     styleOptions: {
+      ...en.newDeck.styleOptions,
       'pixel-art': {
         name: 'Pixel Art',
         description:
@@ -1246,6 +1294,7 @@ const id: typeof en = {
 };
 
 const lo: typeof en = {
+  publishing: publishingTranslations.lo,
   common: {
     back: 'ກັບຄືນ',
     backToDashboard: 'ກັບຄືນໜ້າຫຼັກ',
@@ -1326,6 +1375,7 @@ const lo: typeof en = {
     renameTitleRequired: 'ຕ້ອງມີຫົວຂໍ້.',
     renameArticleFailed: 'ການປ່ຽນຊື່ບົດຄວາມລົ້ມເຫຼວ',
     headerTitle: 'ໜ້າຫຼັກ',
+    settings: 'ການຕັ້ງຄ່າ',
     connections: 'ການເຊື່ອມຕໍ່',
     importOldWorkspace: 'ນຳເຂົ້າພື້ນທີ່ເຮັດວຽກເກົ່າ',
     signOut: 'ອອກຈາກລະບົບ',
@@ -1398,6 +1448,7 @@ const lo: typeof en = {
       detailed: '15 ສະໄລ້ (ລະອຽດ)',
     },
     styleOptions: {
+      ...en.newDeck.styleOptions,
       'pixel-art': {
         name: 'Pixel Art',
         description:
@@ -1640,6 +1691,7 @@ const lo: typeof en = {
 };
 
 const my: typeof en = {
+  publishing: publishingTranslations.my,
   common: {
     back: 'နောက်သို့',
     backToDashboard: 'ဒက်ရှ်ဘုတ်သို့ ပြန်',
@@ -1720,6 +1772,7 @@ const my: typeof en = {
     renameTitleRequired: 'ခေါင်းစဉ် လိုအပ်ပါသည်။',
     renameArticleFailed: 'ဆောင်းပါး အမည်ပြောင်း မအောင်မြင်ပါ',
     headerTitle: 'ဒက်ရှ်ဘုတ်',
+    settings: 'ဆက်တင်များ',
     connections: 'ချိတ်ဆက်မှုများ',
     importOldWorkspace: 'အလုပ်ခွင်ဟောင်း တင်သွင်းရန်',
     signOut: 'ထွက်ရန်',
@@ -1792,6 +1845,7 @@ const my: typeof en = {
       detailed: 'ဆလိုက် ၁၅ ခု (အသေးစိတ်)',
     },
     styleOptions: {
+      ...en.newDeck.styleOptions,
       'pixel-art': {
         name: 'Pixel Art',
         description:
@@ -2034,6 +2088,7 @@ const my: typeof en = {
 };
 
 const th: typeof en = {
+  publishing: publishingTranslations.th,
   common: {
     back: 'กลับ',
     backToDashboard: 'กลับไปแดชบอร์ด',
@@ -2114,6 +2169,7 @@ const th: typeof en = {
     renameTitleRequired: 'จำเป็นต้องมีชื่อเรื่อง',
     renameArticleFailed: 'เปลี่ยนชื่อบทความล้มเหลว',
     headerTitle: 'แดชบอร์ด',
+    settings: 'การตั้งค่า',
     connections: 'การเชื่อมต่อ',
     importOldWorkspace: 'นำเข้าพื้นที่ทำงานเก่า',
     signOut: 'ออกจากระบบ',
@@ -2186,6 +2242,7 @@ const th: typeof en = {
       detailed: '15 สไลด์ (ละเอียด)',
     },
     styleOptions: {
+      ...en.newDeck.styleOptions,
       'pixel-art': {
         name: 'Pixel Art',
         description:
@@ -2428,6 +2485,7 @@ const th: typeof en = {
 };
 
 const fil: typeof en = {
+  publishing: publishingTranslations.fil,
   common: {
     back: 'Bumalik',
     backToDashboard: 'Bumalik sa Dashboard',
@@ -2508,6 +2566,7 @@ const fil: typeof en = {
     renameTitleRequired: 'Kinakailangan ang pamagat.',
     renameArticleFailed: 'Hindi mapalitan ang pangalan ng artikulo',
     headerTitle: 'Dashboard',
+    settings: 'Mga setting',
     connections: 'Mga koneksyon',
     importOldWorkspace: 'I-import ang lumang workspace',
     signOut: 'Mag-sign out',
@@ -2580,6 +2639,7 @@ const fil: typeof en = {
       detailed: '15 slide (detalyado)',
     },
     styleOptions: {
+      ...en.newDeck.styleOptions,
       'pixel-art': {
         name: 'Pixel Art',
         description:

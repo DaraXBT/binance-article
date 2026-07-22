@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Download, Loader2, MoveDiagonal, ShieldCheck } from 'lucide-react';
 
+import { useLanguage } from '@/components/language-provider';
 import { Button } from '@/components/ui/button';
+import {
+  PublicationCommandPanel,
+  readPublicationResponse,
+  usePublicationCommand,
+} from '@/components/publication-command';
 import {
   Dialog,
   DialogContent,
@@ -14,7 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { buildArticleSlideAssetUrl } from '@/lib/article-assets';
+import { buildArticleSlideAssetUrl, parseArticleAssetReference } from '@/lib/article-assets';
 import {
   BINANCE_COVER_HEIGHT,
   BINANCE_COVER_WIDTH,
@@ -27,6 +33,7 @@ import {
   normalizeBinanceTags,
   sniffImageMimeType,
 } from '@/lib/binance-export';
+import type { PublishingMessages } from '@/lib/publishing-i18n';
 import type { DeckDetailResponse, DeckSlide } from '@/lib/schemas';
 
 type BinanceExportDialogProps = {
@@ -36,6 +43,9 @@ type BinanceExportDialogProps = {
 };
 
 type FocalPoint = { x: number; y: number };
+type BinanceCopy = PublishingMessages['binance'];
+
+class LocalizedExportError extends Error {}
 
 function inferImageMimeType(url: string | null): 'image/jpeg' | 'image/png' | 'image/webp' {
   const pathname = url?.split('?')[0]?.toLowerCase() ?? '';
@@ -74,15 +84,15 @@ function safeDownloadName(value: string): string {
   return `${safe || 'article'}-binance-square.zip`;
 }
 
-async function readBlob(url: string): Promise<Blob> {
+async function readBlob(url: string, copy: BinanceCopy): Promise<Blob> {
   const response = await fetch(url, { cache: 'no-store' });
-  if (!response.ok) throw new Error(`Asset request failed (${response.status}).`);
+  if (!response.ok) throw new LocalizedExportError(copy.assetRequestFailed(response.status));
   const blob = await response.blob();
-  if (!blob.size) throw new Error('Asset response was empty.');
+  if (!blob.size) throw new LocalizedExportError(copy.assetEmpty);
   return blob;
 }
 
-function loadImage(blob: Blob): Promise<HTMLImageElement> {
+function loadImage(blob: Blob, copy: BinanceCopy): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(blob);
     const image = new Image();
@@ -92,19 +102,22 @@ function loadImage(blob: Blob): Promise<HTMLImageElement> {
     };
     image.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error('The downloaded image could not be decoded.'));
+      reject(new LocalizedExportError(copy.decodeFailed));
     };
     image.src = url;
   });
 }
 
-async function getImageDimensions(blob: Blob): Promise<{ width: number; height: number }> {
-  const image = await loadImage(blob);
+async function getImageDimensions(
+  blob: Blob,
+  copy: BinanceCopy,
+): Promise<{ width: number; height: number }> {
+  const image = await loadImage(blob, copy);
   return { width: image.naturalWidth || image.width, height: image.naturalHeight || image.height };
 }
 
-async function cropCoverToJpeg(blob: Blob, focal: FocalPoint): Promise<Blob> {
-  const image = await loadImage(blob);
+async function cropCoverToJpeg(blob: Blob, focal: FocalPoint, copy: BinanceCopy): Promise<Blob> {
+  const image = await loadImage(blob, copy);
   const width = image.naturalWidth || image.width;
   const height = image.naturalHeight || image.height;
   const crop = calculateCoverCrop(width, height, focal.x, focal.y);
@@ -112,7 +125,7 @@ async function cropCoverToJpeg(blob: Blob, focal: FocalPoint): Promise<Blob> {
   canvas.width = BINANCE_COVER_WIDTH;
   canvas.height = BINANCE_COVER_HEIGHT;
   const context = canvas.getContext('2d');
-  if (!context) throw new Error('Your browser cannot create a cover preview.');
+  if (!context) throw new LocalizedExportError(copy.previewUnavailable);
   context.drawImage(
     image,
     crop.sourceX,
@@ -127,7 +140,7 @@ async function cropCoverToJpeg(blob: Blob, focal: FocalPoint): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob((result) => {
       if (result) resolve(result);
-      else reject(new Error('The cover crop could not be encoded as JPEG.'));
+      else reject(new LocalizedExportError(copy.cropFailed));
     }, 'image/jpeg', 0.92);
   });
 }
@@ -145,52 +158,133 @@ function getPreviewAssetUrl(articleId: string, storedImageUrl: string | null): s
   }
 }
 
+function canonicalPublicationBody(deck: DeckDetailResponse, markdown: string) {
+  let canonicalMarkdown = markdown;
+  const orderedAssetIds: string[] = [];
+  for (const [index, slide] of deck.slides.entries()) {
+    if (!slide.imageUrl || slide.imageStatus !== 'generated') continue;
+    let assetId: string;
+    try {
+      assetId = parseArticleAssetReference(slide.imageUrl).assetId;
+    } catch {
+      continue;
+    }
+    const imagePath = getSlideImagePath(index, inferImageMimeType(slide.imageUrl));
+    const canonicalReference = `asset:${assetId}`;
+    if (canonicalMarkdown.includes(`](${imagePath})`)) {
+      canonicalMarkdown = canonicalMarkdown.replace(`](${imagePath})`, `](${canonicalReference})`);
+      orderedAssetIds.push(assetId);
+    }
+  }
+  return { markdown: canonicalMarkdown, orderedAssetIds };
+}
+
 export function BinanceExportDialog({ open, onOpenChange, deck }: BinanceExportDialogProps) {
+  const { messages } = useLanguage();
+  const copy = messages.publishing.binance;
+  const publication = usePublicationCommand('binance-square', deck.id);
+  const resetPublication = publication.reset;
   const generatedSlides = useMemo(
     () => deck.slides.filter((slide) => Boolean(slide.imageUrl) && slide.imageStatus === 'generated'),
     [deck.slides],
   );
-  const firstCoverId = generatedSlides[0]?.id ?? null;
   const [title, setTitle] = useState(deck.captions?.blogTitle?.trim() || deck.title);
   const [markdown, setMarkdown] = useState(() => initialMarkdown(deck));
-  const [coverSlideId, setCoverSlideId] = useState<string | null>(firstCoverId);
   const [focal, setFocal] = useState<FocalPoint>({ x: 0.5, y: 0.5 });
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [draftRevision, setDraftRevision] = useState(0);
+  const [isDraftLoading, setIsDraftLoading] = useState(false);
 
   useEffect(() => {
     setTitle(deck.captions?.blogTitle?.trim() || deck.title);
     setMarkdown(initialMarkdown(deck));
-    setCoverSlideId(firstCoverId);
     setFocal({ x: 0.5, y: 0.5 });
     setDownloaded(false);
     setDownloadError(null);
-  }, [deck, firstCoverId]);
+    resetPublication();
+  }, [deck, resetPublication]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setIsDraftLoading(true);
+    void fetch(`/api/articles/${encodeURIComponent(deck.id)}/publications/binance`, {
+      cache: 'no-store',
+    }).then((response) => readPublicationResponse(response, copy.draftLoadFailed))
+      .then(({ draft }) => {
+        if (cancelled) return;
+        setDraftRevision(draft?.revision ?? 0);
+        if (draft) {
+          setTitle(draft.title);
+          setMarkdown(draft.markdown);
+          setFocal({ x: draft.cover.focalX, y: draft.cover.focalY });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setDraftRevision(0);
+      })
+      .finally(() => {
+        if (!cancelled) setIsDraftLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [copy.draftLoadFailed, deck.id, open]);
+
+  const dedicatedCoverReady = deck.cover?.status === 'generated' && Boolean(deck.cover.imageUrl);
+  const coverId = dedicatedCoverReady ? deck.cover?.id ?? null : null;
 
   const issues = useMemo(() => getBinanceExportIssues({
     title,
     markdown,
-    coverSlideId,
+    coverSlideId: coverId,
     slides: deck.slides.map((slide, index) => ({
       ...slide,
       imagePath: slide.imageUrl ? getSlideImagePath(index, inferImageMimeType(slide.imageUrl)) : null,
     })),
-  }), [coverSlideId, deck.slides, markdown, title]);
+  }, copy), [copy, coverId, deck.slides, markdown, title]);
   const contentWarnings = useMemo(() => assembleBinanceArticle({
     intro: deck.captions?.blogIntro,
     sections: deck.captions?.blogSections,
     tags: deck.captions?.blogTags,
     slides: deck.slides.map(toExportSlide),
-  }).warnings, [deck.captions, deck.slides]);
+  }, copy).warnings, [copy, deck.captions, deck.slides]);
   const warnings = [...new Set([...contentWarnings, ...issues.warnings])];
-  const coverSlide = deck.slides.find((slide) => slide.id === coverSlideId) ?? null;
-  const coverPreviewUrl = getPreviewAssetUrl(deck.id, coverSlide?.imageUrl ?? null);
+  const coverPreviewUrl = getPreviewAssetUrl(deck.id, deck.cover?.imageUrl ?? null);
   const normalizedTags = normalizeBinanceTags(deck.captions?.blogTags);
   const blocking = issues.errors.length > 0 || isDownloading;
+  const commandActive = publication.command && ![
+    'succeeded', 'failed', 'cancelled', 'expired', 'outcome_unknown',
+  ].includes(publication.command.state);
+
+  const handlePrepare = async () => {
+    if (issues.errors.length > 0 || isDraftLoading || commandActive) return;
+    const publicationBody = canonicalPublicationBody(deck, markdown);
+    await publication.prepare(async () => {
+      const savedResponse = await fetch(`/api/articles/${encodeURIComponent(deck.id)}/publications/binance`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expectedRevision: draftRevision,
+          title,
+          markdown: publicationBody.markdown,
+          cover: { focalX: focal.x, focalY: focal.y },
+          orderedAssetIds: publicationBody.orderedAssetIds,
+        }),
+      });
+      const saved = await readPublicationResponse(savedResponse, copy.draftSaveFailed);
+      setDraftRevision(saved.draft.revision);
+      const preparedResponse = await fetch(`/api/articles/${encodeURIComponent(deck.id)}/publications/binance/prepare`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expectedRevision: saved.draft.revision }),
+      });
+      return readPublicationResponse(preparedResponse, copy.prepareFailed);
+    });
+  };
 
   const handleDownload = async () => {
-    if (issues.errors.length > 0 || !coverSlide?.imageUrl) return;
+    if (issues.errors.length > 0 || !deck.cover?.imageUrl) return;
     setIsDownloading(true);
     setDownloaded(false);
     setDownloadError(null);
@@ -209,24 +303,24 @@ export function BinanceExportDialog({ open, onOpenChange, deck }: BinanceExportD
 
       for (const [order, slide] of deck.slides.entries()) {
         if (!slide.imageUrl || slide.imageStatus !== 'generated') continue;
-        const blob = await readBlob(buildArticleSlideAssetUrl(deck.id, slide.imageUrl));
+        const blob = await readBlob(buildArticleSlideAssetUrl(deck.id, slide.imageUrl), copy);
         const bytes = new Uint8Array(await blob.arrayBuffer());
         const mimeType = sniffImageMimeType(bytes);
         const path = getSlideImagePath(order, mimeType);
         const originalPath = getSlideImagePath(order, inferImageMimeType(slide.imageUrl));
         if (originalPath !== path) exportMarkdown = replaceImagePath(exportMarkdown, originalPath, path);
-        const dimensions = await getImageDimensions(blob);
+        const dimensions = await getImageDimensions(blob, copy);
         imageInputs.push({ slideId: slide.id, order, path, bytes: blob, mimeType, ...dimensions });
       }
 
-      const coverBlob = await readBlob(buildArticleSlideAssetUrl(deck.id, coverSlide.imageUrl));
-      const cover = await cropCoverToJpeg(coverBlob, focal);
+      const coverBlob = await readBlob(buildArticleSlideAssetUrl(deck.id, deck.cover.imageUrl), copy);
+      const cover = await cropCoverToJpeg(coverBlob, focal, copy);
       const bundle = await createBinanceBundle({
         articleId: deck.id,
         title,
         markdown: exportMarkdown,
         cover: {
-          sourceSlideId: coverSlide.id,
+          sourceSlideId: deck.cover.id,
           bytes: cover,
           mimeType: 'image/jpeg',
           width: BINANCE_COVER_WIDTH,
@@ -244,7 +338,7 @@ export function BinanceExportDialog({ open, onOpenChange, deck }: BinanceExportD
       URL.revokeObjectURL(url);
       setDownloaded(true);
     } catch (error) {
-      setDownloadError(error instanceof Error ? error.message : 'Could not create the Binance bundle.');
+      setDownloadError(error instanceof LocalizedExportError ? error.message : copy.bundleFailed);
     } finally {
       setIsDownloading(false);
     }
@@ -252,40 +346,40 @@ export function BinanceExportDialog({ open, onOpenChange, deck }: BinanceExportD
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-5xl overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle>Export to Binance Square</DialogTitle>
+          <DialogTitle>{copy.dialogTitle}</DialogTitle>
           <DialogDescription>
-            Edit the draft, choose a 5:2 cover, then download a reviewable bundle for the local publishing skill.
+            {copy.dialogDescription}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="binance-article-title">Article title</label>
+              <label className="text-sm font-medium" htmlFor="binance-article-title">{copy.articleTitle}</label>
               <Input
                 id="binance-article-title"
-                aria-label="Article title"
+                aria-label={copy.articleTitle}
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 maxLength={200}
               />
-              <p className="text-xs text-muted-foreground">{title.length}/200 characters</p>
+              <p className="text-xs text-muted-foreground">{copy.characters(title.length, 200)}</p>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="binance-article-markdown">Article Markdown</label>
+              <label className="text-sm font-medium" htmlFor="binance-article-markdown">{copy.articleMarkdown}</label>
               <Textarea
                 id="binance-article-markdown"
-                aria-label="Article Markdown"
+                aria-label={copy.articleMarkdown}
                 value={markdown}
                 onChange={(event) => setMarkdown(event.target.value)}
-                className="min-h-[28rem] font-mono text-xs"
+                className="min-h-64 font-mono text-xs sm:min-h-[28rem]"
                 spellCheck={false}
               />
               <p className={`text-xs ${markdown.length > 100_000 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                {markdown.length.toLocaleString()}/100,000 characters
+                {copy.characters(markdown.length, 100_000)}
               </p>
             </div>
 
@@ -303,33 +397,41 @@ export function BinanceExportDialog({ open, onOpenChange, deck }: BinanceExportD
             {downloaded ? (
               <div className="flex items-start gap-2 border border-primary/30 bg-primary/10 p-3 text-sm">
                 <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-                <p>Bundle downloaded. Ask the local agent to prepare it, review Binance’s draft, and wait for your explicit confirmation before publishing.</p>
+                <p>{copy.bundleReady}</p>
               </div>
             ) : null}
+            <PublicationCommandPanel
+              command={publication.command}
+              error={publication.error}
+              isApproving={publication.isApproving}
+              isCancelling={publication.isCancelling}
+              onApprove={() => void publication.approve()}
+              onCancel={() => void publication.cancel()}
+            />
           </div>
 
           <aside className="space-y-4">
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <MoveDiagonal className="h-4 w-4" />
-                Cover image (5:2)
+                {copy.coverTitle}
               </div>
               {coverPreviewUrl ? (
                 <div className="overflow-hidden border bg-muted">
                   <img
                     src={coverPreviewUrl}
-                    alt="Selected Binance cover preview"
+                    alt={copy.coverPreviewAlt}
                     className="aspect-[5/2] w-full object-cover"
                     style={{ objectPosition: `${focal.x * 100}% ${focal.y * 100}%` }}
                   />
                 </div>
               ) : (
-                <div className="flex aspect-[5/2] items-center justify-center border bg-muted text-xs text-muted-foreground">No generated cover available</div>
+                <div className="flex aspect-[5/2] items-center justify-center border bg-muted px-4 text-center text-xs text-muted-foreground">{copy.coverMissing}</div>
               )}
-              <label className="block text-xs text-muted-foreground" htmlFor="binance-cover-x">Horizontal focus</label>
+              <label className="block text-xs text-muted-foreground" htmlFor="binance-cover-x">{copy.horizontalFocus}</label>
               <input
                 id="binance-cover-x"
-                aria-label="Cover horizontal focus"
+                aria-label={copy.horizontalFocus}
                 type="range"
                 min="0"
                 max="100"
@@ -337,10 +439,10 @@ export function BinanceExportDialog({ open, onOpenChange, deck }: BinanceExportD
                 onChange={(event) => setFocal((current) => ({ ...current, x: Number(event.target.value) / 100 }))}
                 className="w-full"
               />
-              <label className="block text-xs text-muted-foreground" htmlFor="binance-cover-y">Vertical focus</label>
+              <label className="block text-xs text-muted-foreground" htmlFor="binance-cover-y">{copy.verticalFocus}</label>
               <input
                 id="binance-cover-y"
-                aria-label="Cover vertical focus"
+                aria-label={copy.verticalFocus}
                 type="range"
                 min="0"
                 max="100"
@@ -348,39 +450,32 @@ export function BinanceExportDialog({ open, onOpenChange, deck }: BinanceExportD
                 onChange={(event) => setFocal((current) => ({ ...current, y: Number(event.target.value) / 100 }))}
                 className="w-full"
               />
-              <div className="space-y-2 pt-2">
-                {deck.slides.map((slide, index) => {
-                  const available = Boolean(slide.imageUrl) && slide.imageStatus === 'generated';
-                  return (
-                    <label key={slide.id} className={`flex items-center gap-2 text-sm ${available ? '' : 'text-muted-foreground'}`}>
-                      <input
-                        type="radio"
-                        name="binance-cover-slide"
-                        aria-label={`Use ${slide.title} as cover`}
-                        checked={coverSlideId === slide.id}
-                        disabled={!available}
-                        onChange={() => setCoverSlideId(slide.id)}
-                      />
-                      <span>{index + 1}. {slide.title}</span>
-                    </label>
-                  );
-                })}
-              </div>
+              <p className="pt-2 text-xs leading-relaxed text-muted-foreground">
+                {copy.focusHint}
+              </p>
             </div>
 
             <div className="space-y-1 rounded border p-3 text-xs text-muted-foreground">
-              <p>{deck.slides.length} slides · {generatedSlides.length} images included</p>
-              <p>{normalizedTags.length} normalized hashtags</p>
-              <p>ZIP contains no login cookies, workspace keys, or server credentials.</p>
+              <p>{copy.assetSummary(deck.slides.length, generatedSlides.length)}</p>
+              <p>{copy.tagSummary(normalizedTags.length)}</p>
+              <p>{copy.fallbackSecurity}</p>
             </div>
           </aside>
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button type="button" onClick={handleDownload} disabled={blocking}>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{messages.common.cancel}</Button>
+          <Button type="button" variant="outline" onClick={handleDownload} disabled={blocking}>
             {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            {isDownloading ? 'Creating bundle...' : 'Download Binance bundle'}
+            {isDownloading ? copy.creatingFallback : copy.downloadFallback}
+          </Button>
+          <Button
+            type="button"
+            onClick={() => void handlePrepare()}
+            disabled={issues.errors.length > 0 || isDraftLoading || publication.isPreparing || Boolean(commandActive)}
+          >
+            {(isDraftLoading || publication.isPreparing) ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {publication.isPreparing ? copy.preparing : copy.prepare}
           </Button>
         </DialogFooter>
       </DialogContent>

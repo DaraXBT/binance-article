@@ -34,6 +34,13 @@ function conflictingDynamicSegments(directory: string): string[] {
 }
 
 describe('API authorization inventory', () => {
+  it('keeps publisher device lifecycle routes behind an active user session', () => {
+    expect(API_ROUTE_POLICIES).toMatchObject({
+      'app/api/publisher/devices/route.ts': 'active-user',
+      'app/api/publisher/devices/[id]/route.ts': 'active-user',
+    });
+  });
+
   it('uses one slug name for sibling dynamic route segments', () => {
     expect(conflictingDynamicSegments(path.join(root, 'app/api'))).toEqual([]);
   });
@@ -61,6 +68,29 @@ describe('API authorization inventory', () => {
         markers[policy].some((marker) => source.includes(marker)),
         `${file} does not implement its ${policy} boundary`,
       ).toBe(true);
+    }
+  });
+
+  it('bounds every publication mutation body before validation', () => {
+    for (const file of [
+      'app/api/articles/[id]/publications/binance/prepare/route.ts',
+      'app/api/articles/[id]/publications/binance/route.ts',
+      'app/api/articles/[id]/publications/x/prepare/route.ts',
+      'app/api/articles/[id]/publications/x/route.ts',
+      'app/api/publisher/commands/[id]/abort/route.ts',
+      'app/api/publisher/commands/[id]/approve/route.ts',
+      'app/api/publisher/commands/[id]/begin/route.ts',
+      'app/api/publisher/commands/[id]/editor-ready/route.ts',
+      'app/api/publisher/commands/[id]/result/route.ts',
+      'app/api/publisher/commands/[id]/route.ts',
+    ]) {
+      expect(readFileSync(path.join(root, file), 'utf8'), file).toContain('readBoundedJson');
+    }
+  });
+
+  it('does not parse unbounded JSON bodies in API routes', () => {
+    for (const file of routeFiles(path.join(root, 'app/api'))) {
+      expect(readFileSync(path.join(root, file), 'utf8'), file).not.toContain('request.json()');
     }
   });
 });

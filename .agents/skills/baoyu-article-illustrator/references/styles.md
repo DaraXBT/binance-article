@@ -34,7 +34,12 @@ Use Core Styles for most cases. See full Style Gallery below for granular contro
 | `fantasy-animation` | Ghibli/Disney-inspired hand-drawn | Storybook, magical, emotional |
 | `binance-fantasy-animation` | Dark crypto-native storybook blend with gold-led isometric structure and painterly magical warmth | Web3 explainers, crypto education, imaginative fintech, narrative tech, magical-but-structured concept art |
 | `binance-lab-notes` | Dark Binance-style technical lab-notes hybrid with one hero isometric mechanism, gold-led hierarchy, and sparse annotated explanation | Protocol explainers, system/workflow breakdowns, DeFi or exchange concept visuals, lighter-weight research-style Web3 education |
+| `binance` | Dark crypto-native isometric flow with floating platforms, topic icons, grounded micro-people, and structured gold accents | Crypto ecosystems, blockchain flows, DeFi, trading, exchange mechanics |
+| `binance-master` | Unified Binance system with Scene, Mechanism, Briefing, and Primer registers selected per slide | Mixed technical and approachable crypto/Web3 article series |
+| `binance-briefing` | Research-grade dark isometric diagram with annotated callouts, real charts, and a gold key-insight panel | Protocol research, metrics, comparisons, whitepaper figures |
 | `binance-mondo-panoramic` | Dark Mondo screen print with panoramic left→right evolution narrative, silhouette figures, gold accents intensifying across 3 zones | Crypto evolution stories, market transformation, before/after tech narratives, 21:9 covers, Web3 adoption arcs |
+| `binance-sketch-notes` | Dark hand-lettered gold-and-chalk sketchnote page with wobbly cards, doodles, and one takeaway | Beginner explainers, onboarding, wallet/security tips, quick summaries |
+| `binance-vector-illustration` | Flat front-on coloring-book scene with uniform gold/light-gray outlines and toy-model crypto props | Friendly DeFi education, feature announcements, approachable explainers |
 | `flat` | Modern bold geometric shapes | Modern digital, contemporary |
 | `flat-doodle` | Cute flat with bold outlines | Cute, friendly, approachable |
 | `intuition-machine` | Technical briefing with aged paper | Technical briefings, academic |
@@ -84,8 +89,9 @@ Full specifications: `references/styles/<style>.md`
 | vs, pros/cons, before/after, alternatives | comparison | vector-illustration, notion |
 | Story, emotion, journey, experience, personal | scene | warm, watercolor |
 | History, timeline, progress, evolution | timeline | elegant, warm |
-| Crypto, blockchain, exchange, trading, DeFi, Web3 | infographic | binance, binance-mondo-panoramic |
+| Crypto, blockchain, exchange, trading, DeFi, Web3 | infographic | binance-master, binance, binance-briefing |
 | Evolution, transformation, before/after, old vs new | timeline | binance-mondo-panoramic |
+| Beginner, onboarding, friendly how-to, wallet/security tips | scene | binance-sketch-notes, binance-vector-illustration, binance-master |
 | Productivity, SaaS, tool, app, software | infographic | notion, vector-illustration |
 | Business, professional, strategy, corporate | framework | elegant |
 | Biology, chemistry, medical, scientific | infographic | scientific |

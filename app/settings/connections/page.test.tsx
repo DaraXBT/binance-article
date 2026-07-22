@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -7,15 +9,19 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/server/auth/page-authorization', () => ({
   requireActivePageUser: mocks.requireActivePageUser,
 }));
-vi.mock('@/components/auth/telegram-connection-card', () => ({
-  TelegramConnectionCard: () => null,
-}));
-
 describe('/settings/connections', () => {
   it('is wrapped by the authenticated settings layout', async () => {
     const { default: SettingsLayout } = await import('../layout');
     const child = { type: 'child' } as never;
     await expect(SettingsLayout({ children: child })).resolves.toBe(child);
     expect(mocks.requireActivePageUser).toHaveBeenCalledWith('/settings/connections');
+  });
+
+  it('uses the web publisher pairing surface as its only connection workflow', () => {
+    const source = readFileSync(resolve(process.cwd(), 'app/settings/connections/page.tsx'), 'utf8');
+
+    expect(source).toContain('PublisherDevicePairingCard');
+    expect(source).toContain('Browser publisher');
+    expect(source).not.toMatch(/Telegram/i);
   });
 });

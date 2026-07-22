@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { sniffImageMimeType } from '@/lib/binance-export';
 
 export const X_POST_STANDARD_CHARACTERS = 280;
-export const X_POST_MAX_CHARACTERS = 25_000;
+export const X_POST_MAX_CHARACTERS = X_POST_STANDARD_CHARACTERS;
 export const X_POST_MAX_IMAGES = 4;
 export const X_POST_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 export const X_POST_MAX_BUNDLE_BYTES = 50 * 1024 * 1024;
@@ -99,6 +99,12 @@ export type XPostExportIssues = {
   warnings: string[];
 };
 
+export type XPostValidationMessages = {
+  contentRequired: string;
+  maxImages: (max: number) => string;
+  textTooLong: (max: number) => string;
+};
+
 function asBytes(input: XPostBinaryInput): Promise<Uint8Array> {
   if (input instanceof Uint8Array) return Promise.resolve(input);
   if (input instanceof ArrayBuffer) return Promise.resolve(new Uint8Array(input));
@@ -125,24 +131,31 @@ export function getXPostImagePath(order: number, mimeType: string): string {
   return `images/${String(order + 1).padStart(2, '0')}-post.${extension}`;
 }
 
-export function getXPostExportIssues(input: {
-  text: string;
-  selectedImageCount: number;
-}): XPostExportIssues {
+const DEFAULT_VALIDATION_MESSAGES: XPostValidationMessages = {
+  contentRequired: 'Add post text or select at least one image.',
+  maxImages: (max) => `X posts support at most ${max} images.`,
+  textTooLong: (max) => `X post text must be ${max.toLocaleString()} characters or fewer.`,
+};
+
+export function getXPostExportIssues(
+  input: {
+    text: string;
+    selectedImageCount: number;
+  },
+  messages: XPostValidationMessages = DEFAULT_VALIDATION_MESSAGES,
+): XPostExportIssues {
   const errors: string[] = [];
   const warnings: string[] = [];
   const text = input.text.trim();
 
   if (!text && input.selectedImageCount === 0) {
-    errors.push('Add post text or select at least one image.');
+    errors.push(messages.contentRequired);
   }
   if (input.selectedImageCount > X_POST_MAX_IMAGES) {
-    errors.push(`X posts support at most ${X_POST_MAX_IMAGES} images.`);
+    errors.push(messages.maxImages(X_POST_MAX_IMAGES));
   }
   if ([...text].length > X_POST_MAX_CHARACTERS) {
-    errors.push(`X post text must be ${X_POST_MAX_CHARACTERS.toLocaleString()} characters or fewer.`);
-  } else if ([...text].length > X_POST_STANDARD_CHARACTERS) {
-    warnings.push('This post exceeds 280 characters and requires an eligible X account.');
+    errors.push(messages.textTooLong(X_POST_MAX_CHARACTERS));
   }
 
   return { errors, warnings };

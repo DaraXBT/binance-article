@@ -20,6 +20,22 @@ Posts text, images, and long-form Markdown articles to Binance Square via real C
 
 This project-local copy is pinned to upstream commit `a37d82f6105f696d511ba11e36e6372fbb0c1644` and adds a validated export-bundle workflow. Keep bundles and draft state local; never upload them or print cookies, workspace keys, or CDP credentials.
 
+## xArticle paired-companion integration
+
+Inside this repository, the primary web workflow is the paired local publisher
+companion, not a downloaded content ZIP. The web app queues an immutable,
+revision-bound recipe; the companion downloads and verifies its private assets,
+materializes a local bundle, and invokes this skill's prepare adapter. After the
+live Binance editor is ready, the companion waits for approval of that exact
+revision in the web app. Only then does it invoke the publish adapter, with the
+server's `publishing` transition immediately before the one scoped click.
+
+The CLI bundle commands documented below remain the standalone/manual fallback.
+They keep their own review and fresh-confirmation rules and must not be treated
+as evidence that the web app can launch Chrome. Both paths use the locally
+managed baoyu Chrome profile; sign in manually on first use and override its
+location only with `BAOYU_CHROME_PROFILE_DIR` or `--profile`.
+
 ## User Input Tools
 
 When this skill needs the user to make a choice (publish confirmation, fallback selection, etc.):
@@ -103,7 +119,15 @@ If none found, use defaults.
 
 ## Publish Safety
 
-Never click Publish/Post without the user's explicit final confirmation in the current conversation. For generated article bundles, use the two-stage flow below. Preparation may open Chrome and compose a draft, but it must leave the browser open and return an expiring draft ID. Ask the user to review the live Binance editor; only then run `--publish-draft <id>`. If the editor changed, the draft expired, or success is ambiguous, stop and report the issue.
+Never click Publish/Post without explicit final confirmation. In the paired
+xArticle companion, authenticated web approval of the exact immutable revision
+is that confirmation, and the server must enter `publishing` immediately before
+the scoped click. In standalone agent/CLI use, confirmation must be fresh in the
+current conversation. For generated article bundles, use the two-stage flow
+below. Preparation may open Chrome and compose a draft, but it must leave the
+browser open and return an expiring draft ID. Ask the user to review the live
+Binance editor; only then run `--publish-draft <id>`. If the editor changed, the
+draft expired, or success is ambiguous, stop and report the issue.
 
 ## Browser-generated Article Bundles (recommended)
 

@@ -99,3 +99,5 @@ Create visual metaphors by combining elements:
 | `digital` | Precise, gradient hints, polished |
 | `pixel` | 8-bit chunky, grid-aligned |
 | `chalk` | Dusty, textured, board style |
+| `isometric` | Geometric forms on a 30° grid, flat fills, grounded platform hierarchy |
+| `screen-print` | Bold silhouettes, separated flat inks, restrained halftone and paper grain |

@@ -88,6 +88,39 @@ describe('publisher command state machine', () => {
     }, now)).toThrow(/terminal/i);
   });
 
+  it('accepts only canonical x.com status URLs for X commands', () => {
+    const publishing = {
+      ...base,
+      target: 'x' as const,
+      state: 'publishing' as const,
+      assignedDeviceId: 'device_a',
+    };
+    expect(transitionPublisherCommand(publishing, {
+      type: 'publish_succeeded',
+      deviceId: 'device_a',
+      revision: 3,
+      publishedUrl: 'https://x.com/xarticle/status/123456',
+    }, now)).toMatchObject({ state: 'succeeded' });
+    expect(() => transitionPublisherCommand(publishing, {
+      type: 'publish_succeeded',
+      deviceId: 'device_a',
+      revision: 3,
+      publishedUrl: 'https://twitter.com/xarticle/status/123456',
+    }, now)).toThrow(/canonical X/i);
+    expect(() => transitionPublisherCommand(publishing, {
+      type: 'publish_succeeded',
+      deviceId: 'device_a',
+      revision: 3,
+      publishedUrl: 'https://X.com/xarticle/status/123456',
+    }, now)).toThrow(/canonical X/i);
+    expect(() => transitionPublisherCommand(publishing, {
+      type: 'publish_succeeded',
+      deviceId: 'device_a',
+      revision: 3,
+      publishedUrl: 'https://x.com:443/xarticle/status/123456',
+    }, now)).toThrow(/canonical X/i);
+  });
+
   it('fails closed for expired commands and terminal-state replays', () => {
     expect(() => transitionPublisherCommand(
       { ...base, expiresAt: now },

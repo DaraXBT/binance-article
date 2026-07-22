@@ -67,9 +67,7 @@ export function DeckCard({
   };
 
   return (
-    <Card className="group overflow-hidden -[2rem] border-border/60 bg-background/80 py-0 shadow-[0_28px_80px_-56px_rgba(12,14,18,0.55)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_36px_96px_-56px_rgba(12,14,18,0.7)]">
-      <div className="h-1 w-full bg-gradient-to-r from-[#F0B90B] via-[#02C076] to-[#0EA5E9]" />
-
+    <Card className="group overflow-hidden -[2rem] border-border/60 bg-background/80 py-0 shadow-none transition-colors duration-150 hover:border-foreground/25">
       <CardHeader className="gap-2 px-4 pb-3 pt-4">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-2">

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { GenerateRequestSchema } from './schemas';
+import { DEFAULT_ILLUSTRATION_STYLE } from './config';
+import {
+  CreateDeckProjectSchema,
+  GenerateImagesRequestSchema,
+  GenerateRequestSchema,
+} from './schemas';
 
 function request(articleContent: string) {
   return {
@@ -12,6 +17,46 @@ function request(articleContent: string) {
 }
 
 describe('GenerateRequestSchema URL mode', () => {
+  it('uses Binance Master across generation and project defaults', () => {
+    expect(GenerateRequestSchema.parse({
+      articleContent: 'A sufficiently long article topic for validation.',
+    }).illustrationStyle).toBe(DEFAULT_ILLUSTRATION_STYLE);
+    expect(GenerateImagesRequestSchema.parse({}).illustrationStyle)
+      .toBe(DEFAULT_ILLUSTRATION_STYLE);
+    expect(CreateDeckProjectSchema.parse({
+      title: 'Article',
+      content: 'A sufficiently long article topic for validation.',
+    }).illustrationStyle).toBe(DEFAULT_ILLUSTRATION_STYLE);
+  });
+
+  it.each([
+    'pixel-art',
+    'fantasy-animation',
+    'lab-notes',
+    'binance',
+    'binance-master',
+    'binance-briefing',
+    'binance-mondo-panoramic',
+    'binance-sketch-notes',
+    'binance-vector-illustration',
+  ] as const)('accepts illustration style %s', (illustrationStyle) => {
+    expect(GenerateRequestSchema.parse({
+      articleContent: 'A sufficiently long article topic for validation.',
+      slideCount: 1,
+      illustrationStyle,
+      mode: 'prompt',
+    }).illustrationStyle).toBe(illustrationStyle);
+  });
+
+  it('rejects an unknown illustration style', () => {
+    expect(() => GenerateRequestSchema.parse({
+      articleContent: 'A sufficiently long article topic for validation.',
+      slideCount: 1,
+      illustrationStyle: 'binance-blueprint',
+      mode: 'prompt',
+    })).toThrow();
+  });
+
   it.each([
     'http://example.com/article',
     'ftp://example.com/article',

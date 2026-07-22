@@ -62,7 +62,7 @@ export function GenerateAccessDialog({ open, onOpenChange, onSuccess }: Generate
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="console-dialog border-dotted p-4 sm:max-w-md sm:p-5">
-        <FrameCornerHandles className="size-2.5 bg-card" />
+        <FrameCornerHandles />
         <DialogHeader className="border-b border-dotted border-border/70 pb-3 pr-6">
           <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
             <span className="inline-flex size-7 shrink-0 items-center justify-center border border-primary/45 bg-primary/10 text-primary">
@@ -94,7 +94,7 @@ export function GenerateAccessDialog({ open, onOpenChange, onSuccess }: Generate
               disabled={isSubmitting}
               autoComplete="off"
               autoFocus
-              className="h-11 rounded-none border-dotted bg-background/40 font-mono tracking-[0.12em]"
+              className="h-11 rounded-lg border-dotted bg-background/40 font-mono tracking-[0.12em]"
             />
           </div>
           {error ? (
@@ -110,7 +110,7 @@ export function GenerateAccessDialog({ open, onOpenChange, onSuccess }: Generate
             type="submit"
             size="sm"
             disabled={isSubmitting || !code.trim()}
-            className="h-10 w-full rounded-none"
+            className="h-10 w-full rounded-lg"
           >
             {isSubmitting ? (
               <>

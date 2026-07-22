@@ -3,16 +3,16 @@
 import {
   createContext,
   useContext,
+  useCallback,
   useEffect,
   useMemo,
-  useState,
   type ReactNode,
 } from 'react';
 
 import {
-  isLanguage,
   LANGUAGE_COOKIE_NAME,
   translations,
+  UI_LANGUAGE,
   type Language,
 } from '@/lib/i18n';
 
@@ -28,33 +28,38 @@ const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 export function LanguageProvider({
   children,
-  initialLanguage = 'km',
 }: {
   children: ReactNode;
   initialLanguage?: Language;
 }) {
-  const [language, setLanguage] = useState<Language>(() => {
-    if (typeof window === 'undefined') {
-      return initialLanguage;
-    }
-
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    return isLanguage(stored) ? stored : initialLanguage;
-  });
+  const language = UI_LANGUAGE;
+  const setLanguage = useCallback((_nextLanguage: Language) => {
+    // Kept as a no-op for context/API compatibility. The product chrome is
+    // intentionally English-only; article content may still carry its own
+    // source language.
+  }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, language);
-    document.cookie = `${LANGUAGE_COOKIE_NAME}=${language}; path=/; max-age=${60 * 60 * 24 * 365}`;
-    document.documentElement.lang = language;
-  }, [language]);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, UI_LANGUAGE);
+    } catch {
+      // The fixed English UI does not depend on browser storage availability.
+    }
+    try {
+      document.cookie = `${LANGUAGE_COOKIE_NAME}=${UI_LANGUAGE}; path=/; max-age=${60 * 60 * 24 * 365}`;
+    } catch {
+      // Hardened cookie settings cannot change the in-memory English locale.
+    }
+    document.documentElement.lang = UI_LANGUAGE;
+  }, []);
 
   const value = useMemo(
     () => ({
       language,
       setLanguage,
-      messages: translations[language],
+      messages: translations[UI_LANGUAGE],
     }),
-    [language],
+    [language, setLanguage],
   );
 
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;

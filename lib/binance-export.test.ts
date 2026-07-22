@@ -145,7 +145,7 @@ describe('getBinanceExportIssues', () => {
 
     expect(issues.errors).toEqual(expect.arrayContaining([
       'A Binance article title is required.',
-      'Choose a generated slide image for the 5:2 cover.',
+      'Generate the dedicated 5:2 article cover before preparing Binance.',
     ]));
     expect(issues.errors.some((message) => message.includes('100,000'))).toBe(true);
   });

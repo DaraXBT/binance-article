@@ -29,7 +29,7 @@ Isometric viewing angle (30°), relying purely on flat color fills and ground sh
 
 - **Platforms**: Isometric slabs, cylinders, rounded blocks.
 - **Micro-people**: Flat filled, zero outlines, mixed skin tones, in purposeful poses (pointing, analyzing, building, connecting). Always standing ON platforms. No facial features required.
-- **BNB mark**: 4-pointed star or 5-square diamond grid element.
+- **BNB mark**: 4-pointed star or 5-square diamond grid element only when the selected named style permits it; omit it for logo-forbidden styles.
 - **Topic icons**: Abstract coins, charts, wallets, shields, bridges, contracts, etc., resting on platforms.
 - **Data elements**: Geometric bar charts, donut charts, and connector arrows with rounded tips routing along the isometric grid.
 

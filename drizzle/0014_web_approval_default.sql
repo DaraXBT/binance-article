@@ -1,0 +1,1 @@
+ALTER TABLE "PublishApproval" ALTER COLUMN "approvedVia" SET DEFAULT 'web';

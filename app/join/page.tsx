@@ -1,5 +1,4 @@
 import { JoinForm } from '@/components/auth/join-form';
-import { LanguageToggle } from '@/components/language-toggle';
 import {
   ConsoleHeader,
   SecureConsoleFrame,
@@ -17,14 +16,10 @@ export default async function JoinPage({
   return (
     <SecureConsoleFrame
       variant="checkpoint"
-      eyebrow="Enrollment checkpoint"
-      title="Request workspace access"
-      subtitle="Validate your invitation before enrolling a Google identity."
       header={(
         <ConsoleHeader
           actions={(
             <>
-              <LanguageToggle />
               <ThemeToggle />
             </>
           )}
@@ -42,7 +37,6 @@ export default async function JoinPage({
       <div className="mx-auto w-full max-w-md">
         <JoinForm
           token={token}
-          headingLevel={2}
         />
       </div>
     </SecureConsoleFrame>

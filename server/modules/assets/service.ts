@@ -9,6 +9,9 @@ const FilenameSchema = z.string().min(1).max(200).refine((value) => (
   value === value.trim() && value !== '.' && value !== '..' && !/[\\/\u0000-\u001f\u007f]/.test(value)
 ), 'Invalid article asset filename.');
 const MimeTypeSchema = z.enum(['image/jpeg', 'image/png', 'image/webp']);
+const ArticleAssetPurposeSchema = z.enum(['slide_image', 'cover_image']);
+
+export type ArticleAssetPurpose = z.infer<typeof ArticleAssetPurposeSchema>;
 
 export interface ArticleAssetMetadata {
   r2Key: string;
@@ -23,12 +26,13 @@ export interface ReplacedArticleAsset {
 }
 
 export interface ArticleAssetRepository {
-  replaceSlideAsset(input: {
+  replaceAsset(input: {
     assetId: string;
     workspaceId: string;
     articleId: string;
     r2Key: string;
-    slideKeyPrefix: string;
+    assetKeyPrefix: string;
+    purpose: ArticleAssetPurpose;
     mimeType: z.infer<typeof MimeTypeSchema>;
     sizeBytes: number;
     sha256: string;
@@ -38,6 +42,7 @@ export interface ArticleAssetRepository {
     assetId: string;
     workspaceId: string;
     articleId: string;
+    purpose?: ArticleAssetPurpose;
   }): Promise<ArticleAssetMetadata | null>;
 }
 
@@ -94,7 +99,9 @@ export async function storeArticleAsset(input: {
   bucket: ArticleAssetBucket;
   workspaceId: string;
   articleId: string;
-  slideId: string;
+  slideId?: string;
+  purpose?: ArticleAssetPurpose;
+  assetScope?: string;
   assetId?: string;
   filename: string;
   mimeType: string;
@@ -103,7 +110,18 @@ export async function storeArticleAsset(input: {
 }) {
   const workspaceId = IdentifierSchema.parse(input.workspaceId);
   const articleId = IdentifierSchema.parse(input.articleId);
-  const slideId = IdentifierSchema.parse(input.slideId);
+  const purpose = ArticleAssetPurposeSchema.parse(input.purpose ?? 'slide_image');
+  const slideId = input.slideId === undefined ? undefined : IdentifierSchema.parse(input.slideId);
+  const assetScope = input.assetScope === undefined
+    ? undefined
+    : IdentifierSchema.parse(input.assetScope);
+  if (purpose === 'slide_image' && !slideId) {
+    throw new AppError({
+      code: 'ARTICLE_ASSET_SCOPE_INVALID',
+      message: 'Slide assets require a slide identifier.',
+      status: 400,
+    });
+  }
   const assetId = IdentifierSchema.parse(input.assetId ?? crypto.randomUUID());
   const filename = FilenameSchema.parse(input.filename);
   const mimeType = MimeTypeSchema.parse(input.mimeType);
@@ -118,11 +136,13 @@ export async function storeArticleAsset(input: {
   const extension = extensionFor(filename, mimeType);
   const now = input.now ?? new Date();
   const sha256 = await sha256Hex(bytes);
-  const slideKeyPrefix = `workspaces/${workspaceId}/articles/${articleId}/slides/${slideId}/`;
-  const r2Key = `${slideKeyPrefix}${assetId}${extension}`;
+  const assetKeyPrefix = purpose === 'slide_image'
+    ? `workspaces/${workspaceId}/articles/${articleId}/slides/${slideId}/`
+    : `workspaces/${workspaceId}/articles/${articleId}/covers/${assetScope ?? 'current'}/`;
+  const r2Key = `${assetKeyPrefix}${assetId}${extension}`;
   const stored = await input.bucket.put(r2Key, bytes, {
     httpMetadata: { contentType: mimeType },
-    customMetadata: { assetId, articleId, sha256 },
+    customMetadata: { assetId, articleId, purpose, sha256 },
   });
   if (stored.size !== bytes.byteLength) {
     await input.bucket.delete(r2Key).catch(() => undefined);
@@ -135,12 +155,13 @@ export async function storeArticleAsset(input: {
 
   let recorded: ReplacedArticleAsset | null;
   try {
-    recorded = await input.repository.replaceSlideAsset({
+    recorded = await input.repository.replaceAsset({
       assetId,
       workspaceId,
       articleId,
       r2Key,
-      slideKeyPrefix,
+      assetKeyPrefix,
+      purpose,
       mimeType,
       sizeBytes: bytes.byteLength,
       sha256,
@@ -170,11 +191,15 @@ export async function loadArticleAsset(input: {
   workspaceId: string;
   articleId: string;
   assetId: string;
+  purpose?: ArticleAssetPurpose;
 }) {
   const metadata = await input.repository.authorizeAsset({
     workspaceId: IdentifierSchema.parse(input.workspaceId),
     articleId: IdentifierSchema.parse(input.articleId),
     assetId: IdentifierSchema.parse(input.assetId),
+    purpose: input.purpose === undefined
+      ? undefined
+      : ArticleAssetPurposeSchema.parse(input.purpose),
   });
   if (!metadata) throw notFound();
   const object = await input.bucket.get(metadata.r2Key);

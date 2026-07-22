@@ -4,6 +4,7 @@ import { requireActiveUser } from '@/server/auth/authorization';
 import { assertAllowedOrigin } from '@/server/auth/origin';
 import { getRuntimeDatabase } from '@/server/db/runtime';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
+import { readBoundedJson } from '@/server/http/request-body';
 import { createInvitationAdminRepository } from '@/server/modules/admin/invitations/repository';
 import { createInvitation } from '@/server/modules/admin/invitations/service';
 
@@ -11,7 +12,7 @@ export async function POST(request: NextRequest) {
   try {
     assertAllowedOrigin(request);
     const actor = await requireActiveUser(request, { requireOwner: true });
-    const body = await request.json();
+    const body = await readBoundedJson(request, 4_096) as Record<string, unknown>;
     const repository = createInvitationAdminRepository(getRuntimeDatabase());
     const created = await createInvitation({
       repository,

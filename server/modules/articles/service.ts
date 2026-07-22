@@ -1,8 +1,11 @@
 import type { GeneratedDeckResponse } from '@/lib/gemini';
+import { DEFAULT_ILLUSTRATION_STYLE } from '@/lib/config';
 import type { DeckStatus } from '@/lib/schemas';
 import { getRuntimeDatabase } from '@/server/db/runtime';
 import { AppError } from '@/server/http/app-error';
 import { getLatestDeckJob, serializeJobRun } from '@/server/modules/jobs/service';
+import { createArticleCoverRepository } from '@/server/modules/covers/repository';
+import { getArticleCover } from '@/server/modules/covers/service';
 
 import {
   createArticleRepository,
@@ -95,7 +98,7 @@ export function createDeckProject(
     title,
     content,
     description: description ?? null,
-    illustrationStyle: illustrationStyle || 'pixel-art',
+    illustrationStyle: illustrationStyle || DEFAULT_ILLUSTRATION_STYLE,
     status: 'draft',
     now,
   } as const;
@@ -117,10 +120,16 @@ export function listDeckProjects(workspaceId: string, limit = 10) {
 export async function getDeckProject(id: string, workspaceId: string) {
   const bundle = await repository().getDeckBundle(workspaceId, id);
   if (!bundle) return null;
+  const cover = await getArticleCover({
+    repository: createArticleCoverRepository(getRuntimeDatabase()),
+    workspaceId,
+    articleId: id,
+  });
   return {
     ...bundle.deck,
     slides: bundle.slides.map(serializeSlide),
     captions: serializeCaptions(bundle.captions),
+    cover,
     renderAssets: bundle.renderAssets,
   };
 }

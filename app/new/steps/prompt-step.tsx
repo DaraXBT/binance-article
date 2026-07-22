@@ -112,7 +112,7 @@ export function PromptStep({
                 type="button"
                 size="sm"
                 variant="outline"
-                className="gap-2 self-start rounded-none border-dotted sm:self-auto"
+                className="gap-2 self-start rounded-lg sm:self-auto"
                 onClick={() => setShowAccessDialog(true)}
               >
                 <Lock className="h-4 w-4" />
@@ -127,7 +127,7 @@ export function PromptStep({
               value={formData.articleContent}
               onChange={(e) => onUpdate({ articleContent: e.target.value })}
               rows={8}
-              className={`min-h-[150px] resize-y rounded-none border-dotted text-sm leading-relaxed sm:pr-28 ${
+              className={`min-h-[150px] resize-y rounded-lg border-dotted text-sm leading-relaxed sm:pr-28 ${
                 isGenerating ? 'opacity-50' : ''
               }`}
               disabled={isGenerating}
@@ -147,7 +147,7 @@ export function PromptStep({
                   size="sm"
                   onClick={handleAutoGenerate}
                   disabled={!canGenerate}
-                  className="gap-2 rounded-none border-dotted"
+                  className="gap-2 rounded-lg"
                 >
                   {isGenerating ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

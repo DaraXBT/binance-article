@@ -21,7 +21,7 @@ describe('private R2 article asset service', () => {
   it('hashes, stores, records, and returns only an opaque reference', async () => {
     const storage = bucket();
     const repository = {
-      replaceSlideAsset: vi.fn(async () => ({ assetId: 'asset_1', retiredR2Keys: ['old/key.png'] })),
+      replaceAsset: vi.fn(async () => ({ assetId: 'asset_1', retiredR2Keys: ['old/key.png'] })),
       authorizeAsset: vi.fn(),
     };
 
@@ -39,7 +39,7 @@ describe('private R2 article asset service', () => {
       expect.any(Uint8Array),
       expect.objectContaining({ httpMetadata: { contentType: 'image/png' } }),
     );
-    expect(repository.replaceSlideAsset).toHaveBeenCalledWith(expect.objectContaining({
+    expect(repository.replaceAsset).toHaveBeenCalledWith(expect.objectContaining({
       assetId: 'asset_1', workspaceId: 'workspace_1', articleId: 'article_1',
       sizeBytes: 3, sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
     }));
@@ -49,7 +49,7 @@ describe('private R2 article asset service', () => {
   it('deletes the newly uploaded object when metadata persistence fails', async () => {
     const storage = bucket();
     const repository = {
-      replaceSlideAsset: vi.fn(async () => { throw new Error('database unavailable'); }),
+      replaceAsset: vi.fn(async () => { throw new Error('database unavailable'); }),
       authorizeAsset: vi.fn(),
     };
 
@@ -61,10 +61,40 @@ describe('private R2 article asset service', () => {
     expect(storage.delete).toHaveBeenCalledWith(expect.stringContaining('asset_1'));
   });
 
+  it('stores a dedicated cover under a revision-scoped cover prefix', async () => {
+    const storage = bucket();
+    const repository = {
+      replaceAsset: vi.fn(async () => ({ assetId: 'cover_asset', retiredR2Keys: [] })),
+      authorizeAsset: vi.fn(),
+    };
+    const stored = await storeArticleAsset({
+      repository,
+      bucket: storage,
+      workspaceId: 'workspace_1',
+      articleId: 'article_1',
+      purpose: 'cover_image',
+      assetScope: 'rev-2',
+      assetId: 'cover_asset',
+      filename: 'cover-source.png',
+      mimeType: 'image/png',
+      bytes: new Uint8Array([1, 2, 3]),
+    });
+    expect(stored.reference).toBe('r2://article-assets/cover_asset/cover-source.png');
+    expect(storage.put).toHaveBeenCalledWith(
+      expect.stringMatching(/\/covers\/rev-2\/cover_asset\.png$/),
+      expect.any(Uint8Array),
+      expect.objectContaining({ customMetadata: expect.objectContaining({ purpose: 'cover_image' }) }),
+    );
+    expect(repository.replaceAsset).toHaveBeenCalledWith(expect.objectContaining({
+      purpose: 'cover_image',
+      assetKeyPrefix: expect.stringContaining('/covers/rev-2/'),
+    }));
+  });
+
   it('loads only repository-authorized objects and verifies their size', async () => {
     const storage = bucket();
     const repository = {
-      replaceSlideAsset: vi.fn(),
+      replaceAsset: vi.fn(),
       authorizeAsset: vi.fn(async () => ({
         r2Key: 'private/key.png', mimeType: 'image/png' as const,
         sizeBytes: 3, sha256: 'a'.repeat(64),
@@ -81,7 +111,7 @@ describe('private R2 article asset service', () => {
   it('returns an opaque 404 for missing metadata, objects, or size mismatches', async () => {
     const storage = bucket();
     const repository = {
-      replaceSlideAsset: vi.fn(),
+      replaceAsset: vi.fn(),
       authorizeAsset: vi.fn(async (): Promise<ArticleAssetMetadata | null> => null),
     };
     const input = {

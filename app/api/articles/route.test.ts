@@ -97,6 +97,29 @@ describe('POST /api/articles', () => {
     );
   });
 
+  it('persists a new Binance illustration style without remapping it', async () => {
+    bodyMock.readBoundedJson.mockResolvedValueOnce({
+      title: 'Article title',
+      description: 'Article description',
+      content: 'Article content',
+      illustrationStyle: 'binance-briefing',
+    });
+    const { POST } = await import('@/app/api/articles/route');
+    const response = await POST(new Request('https://articles.example.com/api/articles', {
+      method: 'POST', headers: { origin: 'https://articles.example.com' }, body: '{}',
+    }) as never);
+
+    expect(response.status).toBe(201);
+    expect(dbMock.createDeckProject).toHaveBeenCalledWith(
+      'Article title',
+      'Article content',
+      'Article description',
+      'binance-briefing',
+      'workspace-1',
+      undefined,
+    );
+  });
+
   it('passes a bounded UUID idempotency key into workspace-scoped article creation', async () => {
     const { POST } = await import('@/app/api/articles/route');
     const idempotencyKey = '11111111-1111-4111-8111-111111111111';

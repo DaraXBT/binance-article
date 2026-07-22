@@ -1,6 +1,7 @@
 export type CompanionArguments =
   | { command: 'pair'; baseUrl: string }
-  | { command: 'run'; once: boolean };
+  | { command: 'run'; once: boolean }
+  | { command: 'doctor' };
 
 export function parseCompanionArguments(argv: string[]): CompanionArguments {
   if (argv.some((value) => /pairing[-_]?code|device[-_]?token/i.test(value))) {
@@ -17,5 +18,6 @@ export function parseCompanionArguments(argv: string[]): CompanionArguments {
     if (argv.length === 1) return { command: 'run', once: false };
     if (argv.length === 2 && argv[1] === '--once') return { command: 'run', once: true };
   }
-  throw new Error('Usage: run [--once] or pair --api https://your-private-app.example.');
+  if (command === 'doctor' && argv.length === 1) return { command: 'doctor' };
+  throw new Error('Usage: run [--once], doctor, or pair --api https://your-private-app.example.');
 }

@@ -3,7 +3,7 @@ import { describe, expect, it, mock } from 'bun:test';
 import { hashPublicationRecipe } from '../../server/domain/publication-recipe';
 import { runPublisherOnce } from '../src/runner';
 
-const recipe = {
+const legacyBinanceRecipe = {
   version: 1 as const,
   draftId: 'draft_1', articleId: 'article_1', revision: 3,
   expiresAt: '2026-07-19T00:15:00.000Z', title: 'Safe article',
@@ -13,8 +13,19 @@ const recipe = {
   assets: [{ id: 'asset_1', mimeType: 'image/png' as const, sizeBytes: 8, sha256: 'a'.repeat(64) }],
 };
 
-async function harness() {
+const xRecipe = {
+  version: 2 as const,
+  target: 'x' as const,
+  draftId: 'draft_1', articleId: 'article_1', revision: 3,
+  expiresAt: '2026-07-19T00:15:00.000Z',
+  text: 'A reviewed X post.',
+  orderedAssetIds: ['asset_1'],
+  assets: [{ id: 'asset_1', mimeType: 'image/png' as const, sizeBytes: 8, sha256: 'a'.repeat(64) }],
+};
+
+async function harness(target?: 'binance-square' | 'x') {
   const order: string[] = [];
+  const recipe = target === 'x' ? xRecipe : legacyBinanceRecipe;
   const recipeHash = await hashPublicationRecipe(recipe);
   const statuses = ['awaiting_review', 'awaiting_approval', 'approved', 'publishing'] as const;
   let statusIndex = 0;
@@ -22,6 +33,7 @@ async function harness() {
     claimCommand: mock(async () => ({
       id: 'command_1', draftId: 'draft_1', deviceId: 'device_1',
       revision: 3, recipeHash, expiresAt: recipe.expiresAt, state: 'claimed' as const,
+      ...(target ? { target } : {}),
     })),
     getRecipe: mock(async () => recipe),
     downloadAsset: mock(async () => new Response()),
@@ -29,6 +41,7 @@ async function harness() {
     getCommandStatus: mock(async () => ({
       id: 'command_1', state: statuses[statusIndex++] ?? 'approved', revision: 3,
       recipeHash, expiresAt: recipe.expiresAt,
+      ...(target ? { target } : {}),
     })),
     beginPublish: mock(async () => { order.push('begin'); }),
     reportResult: mock(async (_id: string, _revision: number, result: unknown) => {
@@ -90,6 +103,86 @@ describe('publisher companion runner', () => {
     });
   });
 
+  it('routes X metadata to the X adapter and accepts only its canonical status URL', async () => {
+    const h = await harness('x');
+    h.adapter.publish.mockImplementationOnce(async (_id, options) => {
+      h.order.push('revalidate');
+      await options.beforeClick();
+      h.order.push('click');
+      return {
+        verified: true as const,
+        publishedUrl: 'https://x.com/example/status/123456789',
+      };
+    });
+
+    await expect(runPublisherOnce({
+      ...h,
+      adapters: { x: h.adapter },
+      now: () => new Date('2026-07-19T00:00:00.000Z'),
+      sleep: async () => undefined,
+    })).resolves.toEqual({ outcome: 'succeeded', commandId: 'command_1' });
+    expect(h.order).toEqual([
+      'materialize', 'download', 'bundle', 'prepare', 'editor-ready',
+      'revalidate', 'begin', 'click', 'result:succeeded', 'cleanup',
+    ]);
+    expect(h.adapter.publish).toHaveBeenCalledTimes(1);
+  });
+
+  it('makes an ambiguous X click terminal outcome_unknown without retrying', async () => {
+    const h = await harness('x');
+    h.adapter.publish.mockImplementationOnce(async (_id, options) => {
+      await options.beforeClick();
+      h.order.push('click');
+      return { verified: true as const, publishedUrl: 'https://x.com/home' };
+    });
+
+    await expect(runPublisherOnce({
+      ...h,
+      adapters: { x: h.adapter },
+      now: () => new Date('2026-07-19T00:00:00.000Z'),
+      sleep: async () => undefined,
+    })).resolves.toEqual({ outcome: 'outcome_unknown', commandId: 'command_1' });
+    expect(h.api.reportResult).toHaveBeenCalledWith('command_1', 3, {
+      outcome: 'outcome_unknown', failureReason: 'OUTCOME_UNVERIFIED',
+    });
+    expect(h.adapter.publish).toHaveBeenCalledTimes(1);
+    expect(h.order.filter((item) => item === 'click')).toHaveLength(1);
+  });
+
+  it('rejects a recipe whose target differs from the claimed command before composition', async () => {
+    const h = await harness('x');
+    h.api.getRecipe.mockResolvedValueOnce(legacyBinanceRecipe);
+
+    await expect(runPublisherOnce({
+      ...h,
+      adapters: { x: h.adapter },
+      now: () => new Date('2026-07-19T00:00:00.000Z'),
+      sleep: async () => undefined,
+    })).resolves.toEqual({ outcome: 'cancelled', commandId: 'command_1' });
+    expect(h.materialize).not.toHaveBeenCalled();
+    expect(h.adapter.prepare).not.toHaveBeenCalled();
+    expect(h.api.abortCommand).toHaveBeenCalledWith('command_1', 3, 'ASSET_INTEGRITY_FAILED');
+  });
+
+  it('rejects target metadata changes while waiting for approval', async () => {
+    const h = await harness('x');
+    const recipeHash = await hashPublicationRecipe(xRecipe);
+    h.api.getCommandStatus.mockResolvedValueOnce({
+      id: 'command_1', state: 'awaiting_review', revision: 3,
+      recipeHash, expiresAt: xRecipe.expiresAt, target: 'binance-square',
+    });
+
+    await expect(runPublisherOnce({
+      ...h,
+      adapters: { x: h.adapter },
+      now: () => new Date('2026-07-19T00:00:00.000Z'),
+      sleep: async () => undefined,
+    })).resolves.toEqual({ outcome: 'cancelled', commandId: 'command_1' });
+    expect(h.adapter.publish).not.toHaveBeenCalled();
+    expect(h.api.beginPublish).not.toHaveBeenCalled();
+    expect(h.api.abortCommand).toHaveBeenCalledWith('command_1', 3, 'EDITOR_COMPOSITION_FAILED');
+  });
+
   it('aborts with a fixed code when local composition fails before begin', async () => {
     const h = await harness();
     h.adapter.prepare.mockRejectedValueOnce(new Error('/private/chrome/profile leaked detail'));
@@ -113,12 +206,12 @@ describe('publisher companion runner', () => {
 
   it('resolves an ambiguous begin response through status and never retries a click', async () => {
     const h = await harness();
-    const recipeHash = await hashPublicationRecipe(recipe);
+    const recipeHash = await hashPublicationRecipe(legacyBinanceRecipe);
     const states = ['awaiting_review', 'awaiting_approval', 'approved', 'publishing'] as const;
     let index = 0;
     h.api.getCommandStatus.mockImplementation(async () => ({
       id: 'command_1', state: states[index++] ?? 'publishing', revision: 3,
-      recipeHash, expiresAt: recipe.expiresAt,
+      recipeHash, expiresAt: legacyBinanceRecipe.expiresAt,
     }));
     h.api.beginPublish.mockRejectedValueOnce(new Error('response lost'));
     h.api.abortCommand.mockRejectedValueOnce(new Error('already publishing'));

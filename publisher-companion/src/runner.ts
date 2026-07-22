@@ -1,20 +1,26 @@
 import {
   hashPublicationRecipe,
+  publicationRecipeTarget,
   validatePublicationRecipe,
-  type PublicationRecipeV1,
+  type PublicationRecipe,
 } from '../../server/domain/publication-recipe';
 
 import type {
   PublisherAbortReason,
   PublisherCommandMetadata,
+  PublisherTarget,
 } from './api-client';
 import { downloadVerifiedAsset } from './asset-download';
 import { materializePublicationBundle } from './materialize';
-import { classifySkillPublishResult } from './skill-adapter';
+import {
+  classifySkillPublishResult,
+  type PublisherAdapter,
+} from './skill-adapter';
+import { materializeXPublicationBundle } from './x-materialize';
 
 type RunnerApi = {
   claimCommand(): Promise<PublisherCommandMetadata | null>;
-  getRecipe(commandId: string): Promise<PublicationRecipeV1>;
+  getRecipe(commandId: string): Promise<PublicationRecipe>;
   downloadAsset(commandId: string, assetId: string): Promise<Response>;
   reportEditorReady(commandId: string, revision: number): Promise<void>;
   getCommandStatus(commandId: string): Promise<PublisherCommandMetadata>;
@@ -29,20 +35,14 @@ type RunnerApi = {
   abortCommand(commandId: string, revision: number, reasonCode: PublisherAbortReason): Promise<void>;
 };
 
-type RunnerAdapter = {
-  prepare(bundlePath: string): Promise<{ draftId: string }>;
-  publish(
-    draftId: string,
-    options: { beforeClick: () => Promise<void> },
-  ): Promise<{ verified: true; reason?: string; publishedUrl?: string }>;
-};
-
 type Materializer = (input: {
   recipe: unknown;
   expectedRevision: number;
-  downloadAsset: (asset: PublicationRecipeV1['assets'][number]) => Promise<Uint8Array>;
+  downloadAsset: (asset: PublicationRecipe['assets'][number]) => Promise<Uint8Array>;
   now?: Date;
 }) => Promise<{ bundleBytes: Uint8Array; manifest: unknown }>;
+
+const LEGACY_PUBLICATION_TARGET: PublisherTarget = 'binance-square';
 
 function equalHash(left: string, right: string): boolean {
   let difference = left.length ^ right.length;
@@ -61,7 +61,12 @@ async function waitForApproval(input: {
 }) {
   while (input.now().getTime() < Date.parse(input.command.expiresAt)) {
     const status = await input.api.getCommandStatus(input.command.id);
-    if (status.revision !== input.command.revision || !equalHash(status.recipeHash, input.command.recipeHash)) {
+    if (
+      status.revision !== input.command.revision
+      || !equalHash(status.recipeHash, input.command.recipeHash)
+      || (status.target ?? LEGACY_PUBLICATION_TARGET)
+        !== (input.command.target ?? LEGACY_PUBLICATION_TARGET)
+    ) {
       throw new Error('Publisher command metadata changed while awaiting approval.');
     }
     if (status.state === 'approved') return status;
@@ -78,16 +83,18 @@ async function waitForApproval(input: {
 
 export async function runPublisherOnce(input: {
   api: RunnerApi;
-  adapter: RunnerAdapter;
+  adapter?: PublisherAdapter;
+  adapters?: Partial<Record<PublisherTarget, PublisherAdapter>>;
   workspace: {
     writeBundle(bytes: Uint8Array, commandId?: string): Promise<string>;
     removeBundle(path: string): Promise<void>;
   };
   materialize?: Materializer;
+  materializers?: Partial<Record<PublisherTarget, Materializer>>;
   downloadAsset?: (input: {
     api: RunnerApi;
     commandId: string;
-    asset: PublicationRecipeV1['assets'][number];
+    asset: PublicationRecipe['assets'][number];
   }) => Promise<Uint8Array>;
   now?: () => Date;
   sleep?: (milliseconds: number) => Promise<void>;
@@ -96,9 +103,15 @@ export async function runPublisherOnce(input: {
   if (!command) return { outcome: 'idle' };
   const now = input.now ?? (() => new Date());
   const sleep = input.sleep ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
-  const materialize = input.materialize ?? materializePublicationBundle;
+  const target = command.target ?? LEGACY_PUBLICATION_TARGET;
+  const adapter = input.adapters?.[target]
+    ?? (target === LEGACY_PUBLICATION_TARGET ? input.adapter : undefined);
+  const materialize = input.materialize
+    ?? input.materializers?.[target]
+    ?? (target === 'x' ? materializeXPublicationBundle : materializePublicationBundle);
   const download = input.downloadAsset ?? downloadVerifiedAsset;
   let bundlePath: string | null = null;
+  let preparedDraftId: string | null = null;
   let began = false;
   let stage: 'assets' | 'composition' | 'publish' = 'assets';
 
@@ -107,6 +120,9 @@ export async function runPublisherOnce(input: {
       expectedRevision: command.revision,
       now: now(),
     });
+    if (publicationRecipeTarget(recipe) !== target) {
+      throw new Error('Publication recipe target does not match the claimed command.');
+    }
     const actualHash = await hashPublicationRecipe(recipe);
     if (!equalHash(actualHash, command.recipeHash)) {
       throw new Error('Publication recipe hash does not match the claimed command.');
@@ -120,7 +136,9 @@ export async function runPublisherOnce(input: {
     bundlePath = await input.workspace.writeBundle(bundle.bundleBytes, command.id);
 
     stage = 'composition';
-    const prepared = await input.adapter.prepare(bundlePath);
+    if (!adapter) throw new Error(`No publisher adapter is configured for ${target}.`);
+    const prepared = await adapter.prepare(bundlePath);
+    preparedDraftId = prepared.draftId;
     await input.api.reportEditorReady(command.id, command.revision);
     const status = await waitForApproval({ api: input.api, command, now, sleep });
     if (status.state !== 'approved') {
@@ -128,7 +146,7 @@ export async function runPublisherOnce(input: {
     }
 
     stage = 'publish';
-    const skillResult = await input.adapter.publish(prepared.draftId, {
+    const skillResult = await adapter.publish(prepared.draftId, {
       beforeClick: async () => {
         await input.api.beginPublish(command.id, command.revision);
         began = true;
@@ -138,7 +156,7 @@ export async function runPublisherOnce(input: {
       verified: true,
       reason: skillResult.reason ?? 'No canonical URL was returned.',
       ...(skillResult.publishedUrl ? { publishedUrl: skillResult.publishedUrl } : {}),
-    });
+    }, target);
     await input.api.reportResult(command.id, command.revision, result);
     return { outcome: result.outcome, commandId: command.id };
   } catch {
@@ -170,6 +188,9 @@ export async function runPublisherOnce(input: {
       return { outcome: 'local_failure', commandId: command.id };
     }
   } finally {
+    if (preparedDraftId && adapter?.discard) {
+      await adapter.discard(preparedDraftId).catch(() => undefined);
+    }
     if (bundlePath) await input.workspace.removeBundle(bundlePath).catch(() => undefined);
   }
 }

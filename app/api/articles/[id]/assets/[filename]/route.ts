@@ -53,17 +53,31 @@ export async function GET(
       }
     });
 
-    if (!slide?.imageUrl) {
+    let storedImageUrl = slide?.imageUrl ?? null;
+    let purpose: 'slide_image' | 'cover_image' = 'slide_image';
+    if (!storedImageUrl && deck.cover?.imageUrl) {
+      try {
+        if (extractArticleAssetFilename(deck.cover.imageUrl) === filename) {
+          storedImageUrl = deck.cover.imageUrl;
+          purpose = 'cover_image';
+        }
+      } catch {
+        storedImageUrl = null;
+      }
+    }
+
+    if (!storedImageUrl) {
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
     }
 
-    const reference = parseArticleAssetReference(slide.imageUrl);
+    const reference = parseArticleAssetReference(storedImageUrl);
     const asset = await loadArticleAsset({
       repository: createArticleAssetRepository(getRuntimeDatabase()),
       bucket: getArticleAssetsBucket(),
       workspaceId,
       articleId: deckId,
       assetId: reference.assetId,
+      purpose,
     });
 
     const download = new URL(request.url).searchParams.get('download') === '1';

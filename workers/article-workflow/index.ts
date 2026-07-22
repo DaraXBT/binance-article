@@ -12,6 +12,10 @@ import type { ArticleWorkflowPayload } from '@/server/domain/article-workflow';
 interface ArticleWorkflowEnvironment {
   DATABASE_URL: string;
   GEMINI_API_KEY: string;
+  DEEPSEEK_API_KEY?: string;
+  GEMINI_TEXT_MODEL?: string;
+  GEMINI_IMAGE_MODEL?: string;
+  DEEPSEEK_TEXT_MODEL?: string;
   ARTICLE_ASSETS: R2Bucket;
 }
 
@@ -32,7 +36,13 @@ export class ArticleJobsWorkflow extends WorkflowEntrypoint<
       timeout: '15 minutes',
     }, async () => {
       try {
-        await dispatchArticleWorkflowJob(payload);
+        await dispatchArticleWorkflowJob(payload, {
+          GEMINI_API_KEY: this.env.GEMINI_API_KEY,
+          DEEPSEEK_API_KEY: this.env.DEEPSEEK_API_KEY,
+          GEMINI_TEXT_MODEL: this.env.GEMINI_TEXT_MODEL,
+          GEMINI_IMAGE_MODEL: this.env.GEMINI_IMAGE_MODEL,
+          DEEPSEEK_TEXT_MODEL: this.env.DEEPSEEK_TEXT_MODEL,
+        }, { assetBucket: this.env.ARTICLE_ASSETS });
       } catch (error) {
         if (error instanceof NonRetryableArticleJobError) {
           throw new NonRetryableError(error.message);

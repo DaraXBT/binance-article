@@ -14,8 +14,9 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
+import { DEFAULT_ILLUSTRATION_STYLE } from '../../../lib/config';
 import { user } from './auth';
-import { deckProject, workspace } from './legacy';
+import { deckProject, jobRun, slideImageStatus, workspace } from './legacy';
 
 const cloudTimestamp = (name: string) => timestamp(name, {
   mode: 'date',
@@ -29,9 +30,11 @@ export const usageKind = pgEnum('UsageKind', ['article', 'image', 'workflow_step
 export const usageStatus = pgEnum('UsageStatus', ['reserved', 'committed', 'released']);
 export const storageObjectPurpose = pgEnum('StorageObjectPurpose', [
   'slide_image',
+  'cover_image',
   'render',
   'publication',
   'backup',
+  'telegram_image',
 ]);
 export const publicationDraftStatus = pgEnum('PublicationDraftStatus', [
   'draft',
@@ -47,6 +50,7 @@ export const publicationDraftStatus = pgEnum('PublicationDraftStatus', [
   'expired',
   'outcome_unknown',
 ]);
+export const publicationTarget = pgEnum('PublicationTarget', ['binance-square', 'x']);
 export const publisherDeviceStatus = pgEnum('PublisherDeviceStatus', ['pending', 'active', 'revoked']);
 export const publisherCommandState = pgEnum('PublisherCommandState', [
   'queued',
@@ -68,12 +72,26 @@ export const publishApprovalState = pgEnum('PublishApprovalState', [
   'cancelled',
   'expired',
 ]);
+export const publishApprovalVia = pgEnum('PublishApprovalVia', ['web', 'telegram']);
 export const telegramUpdateStatus = pgEnum('TelegramUpdateStatus', [
   'processing',
   'processed',
   'rejected',
   'failed',
 ]);
+export const telegramTextProvider = pgEnum('TelegramTextProvider', ['gemini', 'deepseek']);
+export const telegramTaskKind = pgEnum('TelegramTaskKind', ['chat', 'article', 'image', 'prepare']);
+export const telegramTaskStatus = pgEnum('TelegramTaskStatus', [
+  'queued',
+  'running',
+  'generated',
+  'delivering',
+  'succeeded',
+  'failed',
+  'cancelled',
+  'outcome_unknown',
+]);
+export const telegramMessageRole = pgEnum('TelegramMessageRole', ['user', 'assistant']);
 
 export const invitation = pgTable('Invitation', {
   id: text('id').primaryKey(),
@@ -143,6 +161,103 @@ export const userQuota = pgTable('UserQuota', {
   check('UserQuota_slides_range_check', sql`${table.maxSlidesPerArticle} BETWEEN 1 AND 10`),
 ]);
 
+export const telegramAssistantSettings = pgTable('TelegramAssistantSettings', {
+  userId: text('userId').primaryKey().references(() => user.id, {
+    onDelete: 'cascade',
+    onUpdate: 'cascade',
+  }),
+  enabled: boolean('enabled').default(true).notNull(),
+  textProvider: telegramTextProvider('textProvider').default('gemini').notNull(),
+  defaultSlideCount: integer('defaultSlideCount').default(4).notNull(),
+  illustrationStyle: text('illustrationStyle').default(DEFAULT_ILLUSTRATION_STYLE).notNull(),
+  createdAt: cloudTimestamp('createdAt').defaultNow().notNull(),
+  updatedAt: cloudTimestamp('updatedAt').defaultNow().notNull(),
+}, (table) => [
+  check('TelegramAssistantSettings_defaultSlideCount_check', sql`${table.defaultSlideCount} BETWEEN 1 AND 8`),
+  check(
+    'TelegramAssistantSettings_illustrationStyle_check',
+    sql`${table.illustrationStyle} IN (
+      'pixel-art',
+      'fantasy-animation',
+      'lab-notes',
+      'binance',
+      'binance-master',
+      'binance-briefing',
+      'binance-mondo-panoramic',
+      'binance-sketch-notes',
+      'binance-vector-illustration'
+    )`,
+  ),
+]);
+
+export const telegramAiTask = pgTable('TelegramAiTask', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull().references(() => user.id, {
+    onDelete: 'cascade',
+    onUpdate: 'cascade',
+  }),
+  workspaceId: text('workspaceId').notNull().references(() => workspace.id, {
+    onDelete: 'cascade',
+    onUpdate: 'cascade',
+  }),
+  botId: text('botId').notNull(),
+  updateId: bigint('updateId', { mode: 'number' }).notNull(),
+  telegramUserId: text('telegramUserId').notNull(),
+  chatId: text('chatId').notNull(),
+  kind: telegramTaskKind('kind').notNull(),
+  status: telegramTaskStatus('status').default('queued').notNull(),
+  provider: telegramTextProvider('provider'),
+  model: text('model'),
+  inputText: text('inputText'),
+  articleId: text('articleId').references(() => deckProject.id, {
+    onDelete: 'set null',
+    onUpdate: 'cascade',
+  }),
+  jobId: text('jobId').references(() => jobRun.id, {
+    onDelete: 'set null',
+    onUpdate: 'cascade',
+  }),
+  placeholderMessageId: bigint('placeholderMessageId', { mode: 'number' }),
+  resultText: text('resultText'),
+  resultMetadata: jsonb('resultMetadata'),
+  temporaryAssetKey: text('temporaryAssetKey'),
+  errorCode: text('errorCode'),
+  errorMessage: text('errorMessage'),
+  expiresAt: cloudTimestamp('expiresAt').notNull(),
+  completedAt: cloudTimestamp('completedAt'),
+  createdAt: cloudTimestamp('createdAt').defaultNow().notNull(),
+  updatedAt: cloudTimestamp('updatedAt').defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('TelegramAiTask_botId_updateId_key').on(table.botId, table.updateId),
+  index('TelegramAiTask_userId_status_createdAt_idx').on(table.userId, table.status, table.createdAt),
+  index('TelegramAiTask_workspaceId_createdAt_idx').on(table.workspaceId, table.createdAt),
+  index('TelegramAiTask_expiresAt_idx').on(table.expiresAt),
+]);
+
+export const telegramAiMessage = pgTable('TelegramAiMessage', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull().references(() => user.id, {
+    onDelete: 'cascade',
+    onUpdate: 'cascade',
+  }),
+  workspaceId: text('workspaceId').notNull().references(() => workspace.id, {
+    onDelete: 'cascade',
+    onUpdate: 'cascade',
+  }),
+  taskId: text('taskId').references(() => telegramAiTask.id, {
+    onDelete: 'cascade',
+    onUpdate: 'cascade',
+  }),
+  telegramUserId: text('telegramUserId').notNull(),
+  role: telegramMessageRole('role').notNull(),
+  content: text('content').notNull(),
+  expiresAt: cloudTimestamp('expiresAt').notNull(),
+  createdAt: cloudTimestamp('createdAt').defaultNow().notNull(),
+}, (table) => [
+  index('TelegramAiMessage_userId_createdAt_idx').on(table.userId, table.createdAt),
+  index('TelegramAiMessage_expiresAt_idx').on(table.expiresAt),
+]);
+
 export const usageLedger = pgTable('UsageLedger', {
   id: text('id').primaryKey(),
   userId: text('userId').notNull().references(() => user.id, {
@@ -201,6 +316,106 @@ export const storageObject = pgTable('StorageObject', {
   check('StorageObject_sha256_check', sql`${table.sha256} ~ '^[a-f0-9]{64}$'`),
 ]);
 
+export const articleCover = pgTable('ArticleCover', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspaceId').notNull().references(() => workspace.id, {
+    onDelete: 'cascade',
+    onUpdate: 'cascade',
+  }),
+  articleId: text('articleId').notNull().references(() => deckProject.id, {
+    onDelete: 'cascade',
+    onUpdate: 'cascade',
+  }),
+  generationRevision: integer('generationRevision').default(0).notNull(),
+  style: text('style').default(DEFAULT_ILLUSTRATION_STYLE).notNull(),
+  styleMode: text('styleMode'),
+  prompt: text('prompt'),
+  status: slideImageStatus('status').default('pending').notNull(),
+  sourceAssetId: text('sourceAssetId').references(() => storageObject.id, {
+    onDelete: 'set null',
+    onUpdate: 'cascade',
+  }),
+  error: text('error'),
+  createdAt: cloudTimestamp('createdAt').defaultNow().notNull(),
+  updatedAt: cloudTimestamp('updatedAt').defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('ArticleCover_articleId_key').on(table.articleId),
+  index('ArticleCover_workspaceId_updatedAt_idx').on(table.workspaceId, table.updatedAt),
+  index('ArticleCover_status_updatedAt_idx').on(table.status, table.updatedAt),
+  check('ArticleCover_generationRevision_nonnegative_check', sql`${table.generationRevision} >= 0`),
+  check(
+    'ArticleCover_styleMode_check',
+    sql`${table.styleMode} IS NULL OR ${table.styleMode} IN ('scene', 'mechanism', 'briefing', 'primer')`,
+  ),
+]);
+
+export const telegramMedia = pgTable('TelegramMedia', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull().references(() => user.id, {
+    onDelete: 'cascade',
+    onUpdate: 'cascade',
+  }),
+  workspaceId: text('workspaceId').notNull().references(() => workspace.id, {
+    onDelete: 'cascade',
+    onUpdate: 'cascade',
+  }),
+  taskId: text('taskId').references(() => telegramAiTask.id, {
+    onDelete: 'set null',
+    onUpdate: 'cascade',
+  }),
+  storageObjectId: text('storageObjectId').notNull().references(() => storageObject.id, {
+    onDelete: 'cascade',
+    onUpdate: 'cascade',
+  }),
+  prompt: text('prompt'),
+  expiresAt: cloudTimestamp('expiresAt').notNull(),
+  createdAt: cloudTimestamp('createdAt').defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('TelegramMedia_storageObjectId_key').on(table.storageObjectId),
+  index('TelegramMedia_userId_createdAt_idx').on(table.userId, table.createdAt),
+  index('TelegramMedia_expiresAt_idx').on(table.expiresAt),
+]);
+
+export const publicationDraft = pgTable('PublicationDraft', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspaceId').notNull().references(() => workspace.id, {
+    onDelete: 'cascade',
+    onUpdate: 'cascade',
+  }),
+  articleId: text('articleId').notNull().references(() => deckProject.id, {
+    onDelete: 'cascade',
+    onUpdate: 'cascade',
+  }),
+  createdByUserId: text('createdByUserId').notNull().references(() => user.id, {
+    onDelete: 'restrict',
+    onUpdate: 'cascade',
+  }),
+  target: publicationTarget('target').notNull(),
+  version: integer('version').default(2).notNull(),
+  revision: integer('revision').default(1).notNull(),
+  status: publicationDraftStatus('status').default('draft').notNull(),
+  payload: jsonb('payload').notNull(),
+  recipeHash: text('recipeHash'),
+  expiresAt: cloudTimestamp('expiresAt').notNull(),
+  publishedUrl: text('publishedUrl'),
+  createdAt: cloudTimestamp('createdAt').defaultNow().notNull(),
+  updatedAt: cloudTimestamp('updatedAt').defaultNow().notNull(),
+}, (table) => [
+  index('PublicationDraft_workspaceId_updatedAt_idx').on(table.workspaceId, table.updatedAt),
+  index('PublicationDraft_articleId_target_revision_idx').on(table.articleId, table.target, table.revision),
+  uniqueIndex('PublicationDraft_workspaceId_articleId_target_key')
+    .on(table.workspaceId, table.articleId, table.target),
+  index('PublicationDraft_status_expiresAt_idx').on(table.status, table.expiresAt),
+  uniqueIndex('PublicationDraft_id_revision_key').on(table.id, table.revision),
+  check('PublicationDraft_version_check', sql`${table.version} = 2`),
+  check('PublicationDraft_revision_positive_check', sql`${table.revision} > 0`),
+  check(
+    'PublicationDraft_recipeHash_sha256_check',
+    sql`${table.recipeHash} IS NULL OR ${table.recipeHash} ~ '^[a-f0-9]{64}$'`,
+  ),
+]);
+
+/** @deprecated Compatibility table retained during the PublicationDraft expand-contract release. */
 export const binancePublicationDraft = pgTable('BinancePublicationDraft', {
   id: text('id').primaryKey(),
   workspaceId: text('workspaceId').notNull().references(() => workspace.id, {
@@ -265,10 +480,15 @@ export const publisherDevice = pgTable('PublisherDevice', {
 
 export const publisherCommand = pgTable('PublisherCommand', {
   id: text('id').primaryKey(),
-  draftId: text('draftId').notNull().references(() => binancePublicationDraft.id, {
+  draftId: text('draftId').references(() => binancePublicationDraft.id, {
     onDelete: 'cascade',
     onUpdate: 'cascade',
   }),
+  publicationDraftId: text('publicationDraftId').references(() => publicationDraft.id, {
+    onDelete: 'cascade',
+    onUpdate: 'cascade',
+  }),
+  target: publicationTarget('target').default('binance-square').notNull(),
   deviceId: text('deviceId').references(() => publisherDevice.id, {
     onDelete: 'set null',
     onUpdate: 'cascade',
@@ -289,7 +509,13 @@ export const publisherCommand = pgTable('PublisherCommand', {
   uniqueIndex('PublisherCommand_idempotencyKey_key').on(table.idempotencyKey),
   index('PublisherCommand_deviceId_state_createdAt_idx').on(table.deviceId, table.state, table.createdAt),
   index('PublisherCommand_draftId_revision_idx').on(table.draftId, table.revision),
+  index('PublisherCommand_publicationDraftId_revision_idx').on(table.publicationDraftId, table.revision),
+  index('PublisherCommand_target_state_createdAt_idx').on(table.target, table.state, table.createdAt),
   index('PublisherCommand_state_expiresAt_idx').on(table.state, table.expiresAt),
+  check(
+    'PublisherCommand_draft_reference_check',
+    sql`${table.draftId} IS NOT NULL OR ${table.publicationDraftId} IS NOT NULL`,
+  ),
   check('PublisherCommand_recipeHash_sha256_check', sql`${table.recipeHash} ~ '^[a-f0-9]{64}$'`),
 ]);
 
@@ -299,7 +525,11 @@ export const publishApproval = pgTable('PublishApproval', {
     onDelete: 'cascade',
     onUpdate: 'cascade',
   }),
-  draftId: text('draftId').notNull().references(() => binancePublicationDraft.id, {
+  draftId: text('draftId').references(() => binancePublicationDraft.id, {
+    onDelete: 'cascade',
+    onUpdate: 'cascade',
+  }),
+  publicationDraftId: text('publicationDraftId').references(() => publicationDraft.id, {
     onDelete: 'cascade',
     onUpdate: 'cascade',
   }),
@@ -307,8 +537,9 @@ export const publishApproval = pgTable('PublishApproval', {
     onDelete: 'cascade',
     onUpdate: 'cascade',
   }),
-  telegramUserId: text('telegramUserId').notNull(),
-  callbackTokenHash: text('callbackTokenHash').notNull(),
+  approvedVia: publishApprovalVia('approvedVia').default('web').notNull(),
+  telegramUserId: text('telegramUserId'),
+  callbackTokenHash: text('callbackTokenHash'),
   state: publishApprovalState('state').default('pending').notNull(),
   revision: integer('revision').notNull(),
   recipeHash: text('recipeHash').notNull(),
@@ -322,12 +553,25 @@ export const publishApproval = pgTable('PublishApproval', {
     .on(table.commandId)
     .where(sql`${table.state} IN ('pending', 'confirmation_required')`),
   index('PublishApproval_commandId_state_idx').on(table.commandId, table.state),
+  index('PublishApproval_publicationDraftId_state_idx').on(table.publicationDraftId, table.state),
   index('PublishApproval_userId_state_idx').on(table.userId, table.state),
   index('PublishApproval_state_expiresAt_idx').on(table.state, table.expiresAt),
-  check('PublishApproval_callbackTokenHash_sha256_check', sql`${table.callbackTokenHash} ~ '^[a-f0-9]{64}$'`),
+  check(
+    'PublishApproval_callbackTokenHash_sha256_check',
+    sql`${table.callbackTokenHash} IS NULL OR ${table.callbackTokenHash} ~ '^[a-f0-9]{64}$'`,
+  ),
   check('PublishApproval_recipeHash_sha256_check', sql`${table.recipeHash} ~ '^[a-f0-9]{64}$'`),
   check('PublishApproval_revision_positive_check', sql`${table.revision} > 0`),
   check('PublishApproval_expiry_after_creation_check', sql`${table.expiresAt} > ${table.createdAt}`),
+  check(
+    'PublishApproval_draft_reference_check',
+    sql`${table.draftId} IS NOT NULL OR ${table.publicationDraftId} IS NOT NULL`,
+  ),
+  check(
+    'PublishApproval_channel_metadata_check',
+    sql`(${table.approvedVia} = 'web' AND ${table.telegramUserId} IS NULL AND ${table.callbackTokenHash} IS NULL)
+      OR (${table.approvedVia} = 'telegram' AND ${table.telegramUserId} IS NOT NULL AND ${table.callbackTokenHash} IS NOT NULL)`,
+  ),
 ]);
 
 export const auditEvent = pgTable('AuditEvent', {

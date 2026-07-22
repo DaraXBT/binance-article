@@ -3,7 +3,11 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { SecureConsoleFrame } from './secure-console-frame';
+import {
+  ConsoleHeader,
+  FrameCornerHandles,
+  SecureConsoleFrame,
+} from './secure-console-frame';
 
 describe('SecureConsoleFrame', () => {
   afterEach(() => cleanup());
@@ -46,5 +50,37 @@ describe('SecureConsoleFrame', () => {
     expect(screen.getByRole('main').getAttribute('data-console-frame')).toBe('checkpoint');
     expect(screen.getByText('IDENTITY')).toBeTruthy();
     expect(screen.queryByRole('heading')).toBeNull();
+  });
+
+  it('uses the Binance brand mark in compact console headers', () => {
+    const { container } = render(<ConsoleHeader brandHref="/" brandLabel="xArticle" />);
+
+    expect(container.querySelector('[data-binance-mark]')).toBeTruthy();
+    expect(container.querySelector('.lucide-layers-3')).toBeNull();
+  });
+
+  it('centers standard-size corner handles on every panel corner', () => {
+    const { container } = render(
+      <div className="relative">
+        <FrameCornerHandles />
+      </div>,
+    );
+
+    const corners = Array.from(
+      container.querySelectorAll<HTMLElement>('[data-frame-corner]'),
+    );
+
+    expect(corners).toHaveLength(4);
+    for (const corner of corners) {
+      expect(corner.className).toContain('size-4');
+      expect(corner.className).toContain('rounded-[3px]');
+      expect(corner.className).toContain('border-border');
+      expect(corner.className).not.toContain('border-2');
+    }
+    expect(corners[0]?.className).toContain('-translate-x-1/2');
+    expect(corners[0]?.className).toContain('-translate-y-1/2');
+    expect(corners[3]?.className).toContain('translate-x-1/2');
+    expect(corners[3]?.className).toContain('translate-y-1/2');
+    expect(corners.some((corner) => corner.className.includes('[-5px]'))).toBe(false);
   });
 });

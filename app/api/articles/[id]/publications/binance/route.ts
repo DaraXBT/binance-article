@@ -4,6 +4,7 @@ import { requireActiveUser } from '@/server/auth/authorization';
 import { assertAllowedOrigin } from '@/server/auth/origin';
 import { getRuntimeDatabase } from '@/server/db/runtime';
 import { AppError, errorResponse, withNoStoreHeaders } from '@/server/http/errors';
+import { readBoundedJson } from '@/server/http/request-body';
 import { createBinanceDraftRepository } from '@/server/modules/publications/binance/draft-repository';
 import { getBinanceDraft, saveBinanceDraft } from '@/server/modules/publications/binance/draft-service';
 import { resolveArticleWorkspace } from '@/server/modules/workspace/membership';
@@ -49,7 +50,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       actorUserId: actor.id,
       workspaceId,
       articleId,
-      input: await request.json(),
+      input: await readBoundedJson(request, 256_000),
     });
     return NextResponse.json({ draft }, { headers: withNoStoreHeaders() });
   } catch (error) {

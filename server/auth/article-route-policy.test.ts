@@ -6,6 +6,7 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 const articleRoutes = [
   'app/api/articles/[id]/route.ts',
   'app/api/articles/[id]/generate/route.ts',
+  'app/api/articles/[id]/generate-cover/route.ts',
   'app/api/articles/[id]/generate-images/route.ts',
   'app/api/articles/[id]/render/route.ts',
   'app/api/articles/[id]/reorder/route.ts',
@@ -17,6 +18,7 @@ const articleRoutes = [
 const bodyRoutes = new Set([
   'app/api/articles/[id]/route.ts',
   'app/api/articles/[id]/generate/route.ts',
+  'app/api/articles/[id]/generate-cover/route.ts',
   'app/api/articles/[id]/generate-images/route.ts',
   'app/api/articles/[id]/reorder/route.ts',
   'app/api/articles/[id]/slides/route.ts',

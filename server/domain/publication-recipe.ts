@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 export const PUBLICATION_DRAFT_LIFETIME_MS = 15 * 60 * 1000;
+export const X_POST_MAX_CHARACTERS = 280;
+export const X_POST_MAX_IMAGES = 4;
 
 const MAX_ARTICLE_CHARACTERS = 100_000;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -9,6 +11,9 @@ const IDENTIFIER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,199}$/;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 
 const IdentifierSchema = z.string().regex(IDENTIFIER_PATTERN);
+
+export const PublicationTargetSchema = z.enum(['binance-square', 'x']);
+export type PublicationTarget = z.infer<typeof PublicationTargetSchema>;
 
 export const PublicationAssetV1Schema = z.object({
   id: IdentifierSchema,
@@ -25,18 +30,15 @@ export const PublicationCoverV1Schema = z.object({
   targetHeight: z.literal(400),
 }).strict();
 
-export const PublicationRecipeV1Schema = z.object({
-  version: z.literal(1),
-  draftId: IdentifierSchema,
-  articleId: IdentifierSchema,
-  revision: z.number().int().nonnegative().safe(),
-  expiresAt: z.string().datetime({ offset: true }),
-  title: z.string().trim().min(1).max(200),
-  markdown: z.string().min(1).max(MAX_ARTICLE_CHARACTERS),
-  cover: PublicationCoverV1Schema,
-  orderedAssetIds: z.array(IdentifierSchema).max(MAX_BODY_ASSETS),
-  assets: z.array(PublicationAssetV1Schema).min(1).max(MAX_BODY_ASSETS + 1),
-}).strict().superRefine((recipe, context) => {
+function validateAssetReferences(
+  recipe: {
+    assets: Array<z.infer<typeof PublicationAssetV1Schema>>;
+    orderedAssetIds: string[];
+    cover?: z.infer<typeof PublicationCoverV1Schema>;
+    markdown?: string;
+  },
+  context: z.RefinementCtx,
+): void {
   const assetsById = new Map<string, z.infer<typeof PublicationAssetV1Schema>>();
   for (const asset of recipe.assets) {
     if (assetsById.has(asset.id)) {
@@ -59,9 +61,7 @@ export const PublicationRecipeV1Schema = z.object({
       });
     }
     orderedIds.add(assetId);
-
-    const asset = assetsById.get(assetId);
-    if (!asset) {
+    if (!assetsById.has(assetId)) {
       context.addIssue({
         code: 'custom',
         path: ['orderedAssetIds', index],
@@ -70,8 +70,7 @@ export const PublicationRecipeV1Schema = z.object({
     }
   }
 
-  const coverAsset = assetsById.get(recipe.cover.assetId);
-  if (!coverAsset) {
+  if (recipe.cover && !assetsById.has(recipe.cover.assetId)) {
     context.addIssue({
       code: 'custom',
       path: ['cover', 'assetId'],
@@ -79,28 +78,104 @@ export const PublicationRecipeV1Schema = z.object({
     });
   }
 
-  const usedAssetIds = new Set([...orderedIds, recipe.cover.assetId]);
+  const usedAssetIds = new Set([
+    ...orderedIds,
+    ...(recipe.cover ? [recipe.cover.assetId] : []),
+  ]);
   if (recipe.assets.some((asset) => !usedAssetIds.has(asset.id))) {
     context.addIssue({
       code: 'custom',
       path: ['assets'],
-      message: 'Every asset must be used by the cover or article body.',
+      message: 'Every asset must be used by the publication.',
     });
   }
 
-  for (const reference of recipe.markdown.matchAll(/asset:([A-Za-z0-9][A-Za-z0-9_-]{0,199})/g)) {
-    const assetId = reference[1];
-    if (!orderedIds.has(assetId)) {
-      context.addIssue({
-        code: 'custom',
-        path: ['markdown'],
-        message: `Markdown references unknown body asset ${assetId}.`,
-      });
+  if (recipe.markdown) {
+    for (const reference of recipe.markdown.matchAll(/asset:([A-Za-z0-9][A-Za-z0-9_-]{0,199})/g)) {
+      const assetId = reference[1];
+      if (!orderedIds.has(assetId)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['markdown'],
+          message: `Markdown references unknown body asset ${assetId}.`,
+        });
+      }
     }
+  }
+}
+
+/** Legacy Binance-only recipe accepted by one companion compatibility release. */
+export const PublicationRecipeV1Schema = z.object({
+  version: z.literal(1),
+  draftId: IdentifierSchema,
+  articleId: IdentifierSchema,
+  revision: z.number().int().nonnegative().safe(),
+  expiresAt: z.string().datetime({ offset: true }),
+  title: z.string().trim().min(1).max(200),
+  markdown: z.string().min(1).max(MAX_ARTICLE_CHARACTERS),
+  cover: PublicationCoverV1Schema,
+  orderedAssetIds: z.array(IdentifierSchema).max(MAX_BODY_ASSETS),
+  assets: z.array(PublicationAssetV1Schema).min(1).max(MAX_BODY_ASSETS + 1),
+}).strict().superRefine(validateAssetReferences);
+
+const PublicationRecipeV2CommonShape = {
+  version: z.literal(2),
+  draftId: IdentifierSchema,
+  articleId: IdentifierSchema,
+  revision: z.number().int().positive().safe(),
+  expiresAt: z.string().datetime({ offset: true }),
+  assets: z.array(PublicationAssetV1Schema),
+};
+
+export const BinanceSquarePublicationRecipeV2Schema = z.object({
+  ...PublicationRecipeV2CommonShape,
+  target: z.literal('binance-square'),
+  title: z.string().trim().min(1).max(200),
+  markdown: z.string().min(1).max(MAX_ARTICLE_CHARACTERS),
+  cover: PublicationCoverV1Schema,
+  orderedAssetIds: z.array(IdentifierSchema).max(MAX_BODY_ASSETS),
+  assets: z.array(PublicationAssetV1Schema).min(1).max(MAX_BODY_ASSETS + 1),
+}).strict();
+
+export const XPublicationRecipeV2Schema = z.object({
+  ...PublicationRecipeV2CommonShape,
+  target: z.literal('x'),
+  text: z.string().trim().refine(
+    (value) => [...value].length <= X_POST_MAX_CHARACTERS,
+    `X post text must be ${X_POST_MAX_CHARACTERS} characters or fewer.`,
+  ),
+  orderedAssetIds: z.array(IdentifierSchema).max(X_POST_MAX_IMAGES),
+  assets: z.array(PublicationAssetV1Schema).max(X_POST_MAX_IMAGES),
+}).strict();
+
+export const PublicationRecipeV2Schema = z.discriminatedUnion('target', [
+  BinanceSquarePublicationRecipeV2Schema,
+  XPublicationRecipeV2Schema,
+]).superRefine((recipe, context) => {
+  validateAssetReferences(recipe, context);
+  if (recipe.target === 'x' && recipe.text.length === 0 && recipe.orderedAssetIds.length === 0) {
+    context.addIssue({
+      code: 'custom',
+      path: ['text'],
+      message: 'An X publication requires text or at least one image.',
+    });
   }
 });
 
+export const PublicationRecipeSchema = z.union([
+  PublicationRecipeV2Schema,
+  PublicationRecipeV1Schema,
+]);
+
 export type PublicationRecipeV1 = z.infer<typeof PublicationRecipeV1Schema>;
+export type PublicationRecipeV2 = z.infer<typeof PublicationRecipeV2Schema>;
+export type BinanceSquarePublicationRecipeV2 = z.infer<typeof BinanceSquarePublicationRecipeV2Schema>;
+export type XPublicationRecipeV2 = z.infer<typeof XPublicationRecipeV2Schema>;
+export type PublicationRecipe = z.infer<typeof PublicationRecipeSchema>;
+
+export function publicationRecipeTarget(recipe: PublicationRecipe): PublicationTarget {
+  return recipe.version === 1 ? 'binance-square' : recipe.target;
+}
 
 function canonicalJson(value: unknown): string {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') {
@@ -121,7 +196,7 @@ function canonicalJson(value: unknown): string {
 }
 
 export function canonicalizePublicationRecipe(input: unknown): string {
-  return canonicalJson(PublicationRecipeV1Schema.parse(input));
+  return canonicalJson(PublicationRecipeSchema.parse(input));
 }
 
 export async function hashPublicationRecipe(input: unknown): Promise<string> {
@@ -133,8 +208,8 @@ export async function hashPublicationRecipe(input: unknown): Promise<string> {
 export function validatePublicationRecipe(
   input: unknown,
   options: { now?: Date; expectedRevision: number },
-): PublicationRecipeV1 {
-  const recipe = PublicationRecipeV1Schema.parse(input);
+): PublicationRecipe {
+  const recipe = PublicationRecipeSchema.parse(input);
   const now = options.now ?? new Date();
 
   if (!(now instanceof Date) || !Number.isFinite(now.getTime())) {

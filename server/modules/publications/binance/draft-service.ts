@@ -10,7 +10,7 @@ const DraftInputSchema = z.object({
   title: z.string().trim().min(1).max(200),
   markdown: z.string().min(1).max(100_000),
   cover: z.object({
-    assetId: IdentifierSchema,
+    assetId: IdentifierSchema.optional(),
     focalX: z.number().finite().min(0).max(1),
     focalY: z.number().finite().min(0).max(1),
   }).strict(),
@@ -53,7 +53,7 @@ export interface BinanceDraftRepository {
     title: string;
     markdown: string;
     cover: {
-      assetId: string;
+      assetId?: string;
       focalX: number;
       focalY: number;
       targetWidth: 1000;
@@ -89,7 +89,6 @@ export async function saveBinanceDraft(input: {
   const parsed = DraftInputSchema.safeParse(input.input);
   if (!parsed.success) throw invalidDraft();
   const now = input.now ?? new Date();
-
   const saved = await input.repository.saveDraft({
     actorUserId,
     workspaceId,
@@ -98,11 +97,7 @@ export async function saveBinanceDraft(input: {
     expectedRevision: parsed.data.expectedRevision,
     title: parsed.data.title,
     markdown: parsed.data.markdown,
-    cover: {
-      ...parsed.data.cover,
-      targetWidth: 1000,
-      targetHeight: 400,
-    },
+    cover: { ...parsed.data.cover, targetWidth: 1000, targetHeight: 400 },
     orderedAssetIds: parsed.data.orderedAssetIds,
     expiresAt: new Date(now.getTime() + PUBLICATION_DRAFT_LIFETIME_MS),
     now,

@@ -40,6 +40,21 @@ describe('anonymous generation draft storage', () => {
     ]));
   });
 
+  it('round-trips a newly added Binance style', () => {
+    const draft = createAnonymousGenerationIntent({
+      intentId: '33333333-3333-4333-8333-333333333333',
+      prompt: 'Compare exchange custody models.',
+      slideCount: 5,
+      illustrationStyle: 'binance-briefing',
+      now: NOW,
+    });
+    saveAnonymousGenerationIntent(sessionStorage, draft);
+    expect(loadAnonymousGenerationIntent(sessionStorage, {
+      intentId: draft.intentId,
+      now: NOW + 1_000,
+    })?.illustrationStyle).toBe('binance-briefing');
+  });
+
   it('rejects expired, mismatched, malformed, or unknown-version records and removes them', () => {
     const draft = intent();
     saveAnonymousGenerationIntent(sessionStorage, draft);

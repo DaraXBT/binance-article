@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { Layers3 } from 'lucide-react';
 
+import { BinanceMark } from '@/components/icons/binance-mark';
+import { StudioShell, type StudioSurface } from '@/components/studio/studio-shell';
 import { cn } from '@/lib/utils';
 
 export type ConsoleFrameVariant = 'public' | 'checkpoint' | 'private' | 'focus';
@@ -14,10 +15,10 @@ export interface ConsoleStatusItem {
 }
 
 const cornerPositions = [
-  'left-[-5px] top-[-5px]',
-  'right-[-5px] top-[-5px]',
-  'bottom-[-5px] left-[-5px]',
-  'bottom-[-5px] right-[-5px]',
+  'left-0 top-0 -translate-x-1/2 -translate-y-1/2',
+  'right-0 top-0 translate-x-1/2 -translate-y-1/2',
+  'bottom-0 left-0 -translate-x-1/2 translate-y-1/2',
+  'bottom-0 right-0 translate-x-1/2 translate-y-1/2',
 ] as const;
 
 const statusToneClasses: Record<ConsoleStatusTone, string> = {
@@ -37,7 +38,7 @@ export function FrameCornerHandles({ className }: { className?: string }) {
           aria-hidden="true"
           data-frame-corner
           className={cn(
-            'pointer-events-none absolute size-2 border border-border bg-background',
+            'pointer-events-none absolute z-10 size-4 rounded-[3px] border border-border bg-card',
             position,
             className,
           )}
@@ -64,7 +65,7 @@ export function ConsolePanel({
 }) {
   return (
     <Component data-console-panel className={cn('console-panel border-dotted', className)}>
-      {corners ? <FrameCornerHandles className="size-2.5 bg-card" /> : null}
+      {corners ? <FrameCornerHandles /> : null}
       {children}
     </Component>
   );
@@ -114,16 +115,20 @@ export function ConsoleHeader({
   backHref,
   backLabel,
   brandLabel = 'xArticle',
+  brandHref = '/',
+  contextLabel,
   className,
 }: {
   actions?: ReactNode;
   backHref?: string;
   backLabel?: string;
   brandLabel?: string;
+  brandHref?: string;
+  contextLabel?: string;
   className?: string;
 }) {
   return (
-    <header className={cn('console-header', className)}>
+    <header className={cn('console-header studio-console-header', className)}>
       <div className="flex min-w-0 items-center gap-2.5">
         {backHref ? (
           <Link
@@ -134,12 +139,20 @@ export function ConsoleHeader({
             <span aria-hidden="true">←</span>
           </Link>
         ) : null}
-        <Link href="/" className="flex min-w-0 items-center gap-2 font-semibold tracking-tight">
-          <span className="inline-flex size-8 shrink-0 items-center justify-center border border-foreground/80 bg-foreground text-background">
-            <Layers3 aria-hidden="true" className="size-4" />
+        <Link href={brandHref} className="flex min-w-0 items-center gap-2 font-semibold tracking-tight">
+          <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-brand-binance-border bg-brand-binance text-brand-binance-foreground">
+            <BinanceMark aria-hidden="true" className="size-[1.05rem]" />
           </span>
           <span className="truncate max-[350px]:hidden">{brandLabel}</span>
         </Link>
+        {contextLabel ? (
+          <>
+            <span aria-hidden="true" className="hidden h-4 border-l border-border/80 sm:block" />
+            <span className="hidden truncate font-mono text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground sm:block">
+              {contextLabel}
+            </span>
+          </>
+        ) : null}
       </div>
       {actions ? <div className="ml-auto flex min-w-0 items-center gap-1.5">{actions}</div> : null}
     </header>
@@ -157,8 +170,10 @@ export interface SecureConsoleFrameProps {
   footer?: ReactNode;
   panel?: boolean;
   className?: string;
+  shellClassName?: string;
   contentClassName?: string;
   panelClassName?: string;
+  surface?: StudioSurface;
 }
 
 export function SecureConsoleFrame({
@@ -172,25 +187,34 @@ export function SecureConsoleFrame({
   footer,
   panel = true,
   className,
+  shellClassName,
   contentClassName,
   panelClassName,
+  surface,
 }: SecureConsoleFrameProps) {
   const shellWidth = variant === 'private' || variant === 'focus' ? 'max-w-7xl' : 'max-w-4xl';
   const contentWidth = variant === 'private' || variant === 'focus' ? 'max-w-none' : 'max-w-2xl';
+  const resolvedSurface: StudioSurface = surface ?? (
+    variant === 'public'
+      ? 'public'
+      : variant === 'private'
+        ? 'workspace'
+        : variant === 'focus'
+          ? 'editor'
+          : 'checkpoint'
+  );
 
   return (
-    <main
-      data-console-frame={variant}
-      className={cn('console-viewport', className)}
+    <StudioShell
+      surface={resolvedSurface}
+      frameVariant={variant}
+      className={className}
+      shellClassName={cn(
+        shellWidth,
+        variant === 'private' || variant === 'focus' ? 'console-shell-private' : null,
+        shellClassName,
+      )}
     >
-      <div aria-hidden="true" className="viewport-top-line" />
-      <div
-        className={cn(
-          'console-shell',
-          shellWidth,
-          variant === 'private' || variant === 'focus' ? 'console-shell-private' : null,
-        )}
-      >
         {header}
         {header ? <ScreenLine /> : null}
         <div className={cn('min-h-0 flex-1 overflow-y-auto px-4 py-4 max-[390px]:px-3 max-[390px]:py-2 sm:px-6 sm:py-5', contentClassName)}>
@@ -224,7 +248,6 @@ export function SecureConsoleFrame({
             <footer className="console-footer">{footer}</footer>
           </>
         ) : null}
-      </div>
-    </main>
+    </StudioShell>
   );
 }

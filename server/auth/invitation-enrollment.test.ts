@@ -45,8 +45,8 @@ describe('invitation OAuth enrollment gate', () => {
   it.each([
     ['missing cookie', googleContext('')],
     ['missing request', {}],
-    ['Telegram-first signup', {
-      request: new Request('https://articles.example.com/api/auth/oauth2/callback/telegram', {
+    ['non-Google signup', {
+      request: new Request('https://articles.example.com/api/auth/callback/github', {
         headers: { cookie: `${INVITATION_ENROLLMENT_COOKIE}=${rawToken}` },
       }),
     }],

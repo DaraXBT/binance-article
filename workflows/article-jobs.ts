@@ -1,9 +1,9 @@
-import { generateDeckWithGemini, normalizeGeminiError } from '@/lib/gemini';
+import { generateDeckWithProvider, normalizeGeminiError } from '@/lib/gemini';
+import { buildArticleCoverPrompt } from '@/lib/article-cover';
 import {
   assertImagePipelineReady,
   buildImagePrompt,
   generateImage,
-  getStyleDescription,
   normalizeImageGenerationError,
 } from '@/lib/image-gen';
 import {
@@ -20,9 +20,21 @@ import { getRuntimeDatabase } from '@/server/db/runtime';
 import { AppError } from '@/server/http/app-error';
 import { logEvent } from '@/server/http/log';
 import { createArticleAssetRepository } from '@/server/modules/assets/repository';
+import type { ArticleAssetBucket } from '@/server/modules/assets/service';
 import { storeArticleAsset } from '@/server/modules/assets/service';
 import { getJobRunById, appendJobLog, completeJobRun, failJobRun, markJobProgress, markJobRunning } from '@/server/modules/jobs/service';
-import { type DeckGenerateRequest } from '@/lib/schemas';
+import { IllustrationStyleSchema } from '@/lib/schemas';
+import {
+  DEFAULT_ILLUSTRATION_STYLE,
+  type IllustrationStyleId,
+} from '@/lib/config';
+import { TextProviderError, TextProviderSchema } from '@/server/integrations/text-provider';
+import { createArticleCoverRepository } from '@/server/modules/covers/repository';
+import {
+  initializeArticleCover,
+  markArticleCoverFailed,
+  markArticleCoverGenerated,
+} from '@/server/modules/covers/service';
 
 type ImageGenerationMode = 'missing' | 'failed';
 type ImageErrorType = 'quota_exceeded' | 'configuration' | 'unknown';
@@ -51,6 +63,20 @@ type FailedSlideResult = {
 
 type SlideResult = GeneratedSlideResult | FailedSlideResult;
 
+type CoverResult =
+  | { status: 'generated'; imageUrl: string; error: null }
+  | {
+      status: 'failed';
+      imageUrl: null;
+      error: string;
+      errorType: ImageErrorType;
+      providerCode?: number;
+      providerStatus?: string;
+      retryAfterSeconds?: number;
+      model?: string;
+    }
+  | { status: 'skipped'; imageUrl: null; error: string };
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -61,6 +87,14 @@ function readString(value: unknown, fallback = '') {
 
 function readNumber(value: unknown, fallback = 0) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function readIllustrationStyle(value: unknown): IllustrationStyleId {
+  const parsed = IllustrationStyleSchema.safeParse(value ?? DEFAULT_ILLUSTRATION_STYLE);
+  if (!parsed.success) {
+    throw new NonRetryableArticleJobError('Invalid illustration style in job payload.');
+  }
+  return parsed.data;
 }
 
 function classifyImageError(
@@ -156,8 +190,9 @@ async function generateImagesForDeck(input: {
   jobId: string;
   deckId: string;
   workspaceId: string;
-  illustrationStyle: string;
+  illustrationStyle: IllustrationStyleId;
   mode: ImageGenerationMode;
+  assetBucket?: ArticleAssetBucket;
 }) {
   const deck = await listSlidesForImageGeneration(input.deckId, input.workspaceId);
 
@@ -200,12 +235,12 @@ async function generateImagesForDeck(input: {
     return buildAggregateImageResult(input.deckId, input.mode, results);
   }
 
-  const styleDescription = getStyleDescription(input.illustrationStyle);
   const results: SlideResult[] = [];
   const total = targetSlides.length;
   const chunkSize = 4;
 
   for (let index = 0; index < targetSlides.length; index += chunkSize) {
+    if ((await getJobRunById(input.jobId))?.status !== 'running') break;
     const chunk = targetSlides.slice(index, index + chunkSize);
     const chunkResults = await Promise.all(
       chunk.map(async (slide) => {
@@ -222,13 +257,13 @@ async function generateImagesForDeck(input: {
         }
 
         try {
-          const fullPrompt = buildImagePrompt(styleDescription, slide.imagePrompt);
+          const fullPrompt = buildImagePrompt(input.illustrationStyle, slide.imagePrompt);
           const imageResult = await generateImage(fullPrompt);
           const extension = imageResult.mimeType === 'image/jpeg' ? 'jpg' : 'png';
           const filename = `slide-${String(slide.order + 1).padStart(2, '0')}.${extension}`;
           const storedAsset = await storeArticleAsset({
             repository: createArticleAssetRepository(getRuntimeDatabase()),
-            bucket: getArticleAssetsBucket(),
+            bucket: input.assetBucket ?? getArticleAssetsBucket(),
             workspaceId: input.workspaceId,
             articleId: input.deckId,
             slideId: slide.id,
@@ -283,14 +318,128 @@ async function generateImagesForDeck(input: {
   return buildAggregateImageResult(input.deckId, input.mode, results);
 }
 
-export async function handleArticleGenerationJob(jobId: string) {
-  const job = await getJobRunById(jobId);
+export async function generateCoverForDeck(input: {
+  deckId: string;
+  workspaceId: string;
+  illustrationStyle: IllustrationStyleId;
+  assetBucket?: ArticleAssetBucket;
+}): Promise<CoverResult> {
+  const database = getRuntimeDatabase();
+  const coverRepository = createArticleCoverRepository(database);
+  let generationRevision: number | null = null;
 
-  if (!job || !isRecord(job.payload)) {
+  try {
+    const deck = await listSlidesForImageGeneration(input.deckId, input.workspaceId);
+    if (!deck) {
+      return { status: 'skipped', imageUrl: null, error: 'Article not found.' };
+    }
+    generationRevision = deck.generationRevision;
+
+    const coverPrompt = buildArticleCoverPrompt({
+      title: deck.title,
+      description: deck.description,
+      content: deck.content,
+      style: input.illustrationStyle,
+      slides: deck.slides.map((slide) => ({
+        title: slide.title,
+        subtitle: slide.subtitle,
+        bullets: slide.bullets,
+      })),
+    });
+    const initialized = await initializeArticleCover({
+      repository: coverRepository,
+      workspaceId: input.workspaceId,
+      articleId: input.deckId,
+      generationRevision: deck.generationRevision,
+      style: input.illustrationStyle,
+      styleMode: coverPrompt.styleMode,
+      prompt: coverPrompt.prompt,
+    });
+    if (!initialized) {
+      return {
+        status: 'skipped',
+        imageUrl: null,
+        error: 'A newer article revision replaced this cover request.',
+      };
+    }
+
+    const pipeline = assertImagePipelineReady();
+    const imageResult = await generateImage(coverPrompt.prompt, pipeline, {
+      aspectRatio: '21:9',
+      imageSize: '2K',
+    });
+    const extension = imageResult.mimeType === 'image/jpeg' ? 'jpg' : 'png';
+    const filename = `cover-source.${extension}`;
+    const storedAsset = await storeArticleAsset({
+      repository: createArticleAssetRepository(database),
+      bucket: input.assetBucket ?? getArticleAssetsBucket(),
+      workspaceId: input.workspaceId,
+      articleId: input.deckId,
+      purpose: 'cover_image',
+      assetScope: `rev-${deck.generationRevision}`,
+      filename,
+      mimeType: imageResult.mimeType,
+      bytes: imageResult.buffer,
+    });
+    const generated = await markArticleCoverGenerated({
+      repository: coverRepository,
+      workspaceId: input.workspaceId,
+      articleId: input.deckId,
+      generationRevision: deck.generationRevision,
+      sourceAssetId: storedAsset.assetId,
+    });
+    if (!generated) {
+      return {
+        status: 'skipped',
+        imageUrl: null,
+        error: 'A newer article revision replaced this generated cover.',
+      };
+    }
+    return { status: 'generated', imageUrl: storedAsset.reference, error: null };
+  } catch (error) {
+    const normalizedError = normalizeImageGenerationError(
+      error,
+      'The dedicated article cover could not be generated.',
+    );
+    const errorType = classifyImageError(normalizedError);
+    if (generationRevision !== null) {
+      await markArticleCoverFailed({
+        repository: coverRepository,
+        workspaceId: input.workspaceId,
+        articleId: input.deckId,
+        generationRevision,
+        error: normalizedError.message,
+      }).catch(() => null);
+    }
+    return {
+      status: 'failed',
+      imageUrl: null,
+      error: normalizedError.message,
+      errorType,
+      providerCode: normalizedError.providerCode,
+      providerStatus: normalizedError.providerStatus,
+      retryAfterSeconds: normalizedError.retryAfterSeconds,
+      model: normalizedError.model,
+    };
+  }
+}
+
+export async function handleArticleGenerationJob(
+  jobId: string,
+  providerEnvironment: Record<string, string | undefined> = process.env,
+  runtime: { assetBucket?: ArticleAssetBucket } = {},
+) {
+  const existingJob = await getJobRunById(jobId);
+
+  if (!existingJob || !isRecord(existingJob.payload)) {
     throw new NonRetryableArticleJobError('Job payload not found.');
   }
 
-  await markJobRunning(jobId);
+  const job = await markJobRunning(jobId) ?? await getJobRunById(jobId);
+  if (!job || job.status !== 'running') return;
+  if (!isRecord(job.payload)) {
+    throw new NonRetryableArticleJobError('Job payload not found.');
+  }
   await appendJobLog(jobId, 'Started article generation workflow.');
   await markDeckStatus(job.deckId, job.workspaceId, 'generating');
 
@@ -302,21 +451,24 @@ export async function handleArticleGenerationJob(jobId: string) {
     await markJobProgress(jobId, 10, 'Preparing article content.');
 
     const mode = readString(payload.mode, 'text');
-    const illustrationStyle = readString(payload.illustrationStyle, 'pixel-art');
+    const illustrationStyle = readIllustrationStyle(payload.illustrationStyle);
     const slideCount = readNumber(payload.slideCount, 1);
     const rawArticleContent = readString(payload.articleContent);
+    const textProvider = TextProviderSchema.parse(readString(payload.textProvider, 'gemini'));
 
     const articleContent =
       mode === 'url' ? await fetchArticleSourceText(rawArticleContent) : rawArticleContent;
 
-    await markJobProgress(jobId, 25, 'Requesting Gemini slide generation.');
+    await markJobProgress(jobId, 25, `Requesting ${textProvider} slide generation.`);
 
-    const generated = await generateDeckWithGemini({
+    const generated = await generateDeckWithProvider({
       articleContent,
       slideCount,
-      illustrationStyle: illustrationStyle as DeckGenerateRequest['illustrationStyle'],
+      illustrationStyle,
       mode: mode as 'text' | 'url' | 'prompt',
-    });
+    }, textProvider, providerEnvironment);
+
+    if ((await getJobRunById(jobId))?.status !== 'running') return;
 
     await markJobProgress(jobId, 45, 'Persisting generated slides and captions.');
 
@@ -337,18 +489,28 @@ export async function handleArticleGenerationJob(jobId: string) {
       return;
     }
 
-    const imageSummary = await generateImagesForDeck({
-      jobId,
-      deckId: job.deckId,
-      workspaceId: job.workspaceId,
-      illustrationStyle,
-      mode: 'missing',
-    });
+    const [imageSummary, coverSummary] = await Promise.all([
+      generateImagesForDeck({
+        jobId,
+        deckId: job.deckId,
+        workspaceId: job.workspaceId,
+        illustrationStyle,
+        mode: 'missing',
+        assetBucket: runtime.assetBucket,
+      }),
+      generateCoverForDeck({
+        deckId: job.deckId,
+        workspaceId: job.workspaceId,
+        illustrationStyle,
+        assetBucket: runtime.assetBucket,
+      }),
+    ]);
 
     await completeJobRun(jobId, {
       deckId: job.deckId,
       slideCount: generated.slides.length,
       imageSummary,
+      coverSummary,
     });
 
     logEvent('info', 'workflow.article_generation.complete', {
@@ -356,12 +518,33 @@ export async function handleArticleGenerationJob(jobId: string) {
       deckId: job.deckId,
       slideCount: generated.slides.length,
       imageStatus: imageSummary.status,
+      coverStatus: coverSummary.status,
     });
   } catch (error) {
+    if (error instanceof NonRetryableArticleJobError) {
+      logEvent('error', 'workflow.article_generation.failed', {
+        jobId,
+        deckId: job.deckId,
+        code: 'INVALID_JOB_PAYLOAD',
+        message: error.message,
+      });
+      await markDeckStatus(job.deckId, job.workspaceId, 'failed');
+      await failJobRun(jobId, 'INVALID_JOB_PAYLOAD', error.message);
+      return;
+    }
+
     if (error instanceof AppError) {
       logEvent('error', 'workflow.article_generation.failed', { jobId, deckId: job.deckId, code: error.code, message: error.message });
       await markDeckStatus(job.deckId, job.workspaceId, 'failed');
       await failJobRun(jobId, error.code, error.message);
+      return;
+    }
+
+    if (error instanceof TextProviderError) {
+      const code = `${error.provider.toUpperCase()}_${error.statusCode}`;
+      logEvent('error', 'workflow.article_generation.failed', { jobId, deckId: job.deckId, code, message: error.message });
+      await markDeckStatus(job.deckId, job.workspaceId, 'failed');
+      await failJobRun(jobId, code, error.message);
       return;
     }
 
@@ -372,24 +555,58 @@ export async function handleArticleGenerationJob(jobId: string) {
   }
 }
 
-export async function handleArticleImageRetryJob(jobId: string) {
-  const job = await getJobRunById(jobId);
+export async function handleArticleImageRetryJob(
+  jobId: string,
+  runtime: { assetBucket?: ArticleAssetBucket } = {},
+) {
+  const existingJob = await getJobRunById(jobId);
 
-  if (!job || !isRecord(job.payload)) {
+  if (!existingJob || !isRecord(existingJob.payload)) {
     throw new NonRetryableArticleJobError('Job payload not found.');
   }
 
-  await markJobRunning(jobId);
+  const job = await markJobRunning(jobId) ?? await getJobRunById(jobId);
+  if (!job || job.status !== 'running') return;
+  if (!isRecord(job.payload)) {
+    throw new NonRetryableArticleJobError('Job payload not found.');
+  }
   await appendJobLog(jobId, 'Started image generation workflow.');
 
   logEvent('info', 'workflow.image_retry.start', { jobId, deckId: job.deckId });
 
   const payload = job.payload;
   const mode = readString(payload.mode, 'missing') as ImageGenerationMode;
-  const illustrationStyle = readString(payload.illustrationStyle, 'pixel-art');
+  const scope = readString(payload.scope, 'slides');
 
   try {
+    const illustrationStyle = readIllustrationStyle(payload.illustrationStyle);
     await markJobProgress(jobId, 15, 'Preparing image generation.');
+
+    if (scope === 'cover') {
+      const coverSummary = await generateCoverForDeck({
+        deckId: job.deckId,
+        workspaceId: job.workspaceId,
+        illustrationStyle,
+        assetBucket: runtime.assetBucket,
+      });
+      if (coverSummary.status !== 'generated') {
+        await failJobRun(
+          jobId,
+          coverSummary.status === 'failed' ? coverSummary.errorType : 'STALE_REVISION',
+          coverSummary.error,
+          'failed',
+          { coverSummary },
+        );
+        return;
+      }
+      await completeJobRun(jobId, { coverSummary });
+      logEvent('info', 'workflow.cover_retry.complete', {
+        jobId,
+        deckId: job.deckId,
+        coverStatus: coverSummary.status,
+      });
+      return;
+    }
 
     const imageSummary = await generateImagesForDeck({
       jobId,
@@ -397,6 +614,7 @@ export async function handleArticleImageRetryJob(jobId: string) {
       workspaceId: job.workspaceId,
       illustrationStyle,
       mode,
+      assetBucket: runtime.assetBucket,
     });
 
     if (imageSummary.status === 'failed') {
@@ -420,6 +638,17 @@ export async function handleArticleImageRetryJob(jobId: string) {
       failed: imageSummary.failed,
     });
   } catch (error) {
+    if (error instanceof NonRetryableArticleJobError) {
+      logEvent('error', 'workflow.image_retry.failed', {
+        jobId,
+        deckId: job.deckId,
+        code: 'INVALID_JOB_PAYLOAD',
+        message: error.message,
+      });
+      await failJobRun(jobId, 'INVALID_JOB_PAYLOAD', error.message);
+      return;
+    }
+
     if (error instanceof AppError) {
       logEvent('error', 'workflow.image_retry.failed', { jobId, deckId: job.deckId, code: error.code, message: error.message });
       await failJobRun(jobId, error.code, error.message);

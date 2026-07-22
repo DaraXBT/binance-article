@@ -7,6 +7,8 @@ import {
   activatePublisherDevice,
   authenticatePublisherDevice,
   createPublisherDevicePairing,
+  listPublisherDevices,
+  revokePublisherDevice,
 } from './service';
 
 const now = new Date('2026-07-19T00:00:00.000Z');
@@ -20,6 +22,8 @@ function repository(overrides: Record<string, unknown> = {}) {
     authenticate: vi.fn(async () => ({
       id: 'device_1', userId: 'user_1', workspaceId: 'workspace_1', status: 'active' as const, protocolVersion: 1,
     })),
+    listForUserWorkspace: vi.fn(async () => []),
+    revokeForUserWorkspace: vi.fn(async () => true),
     ...overrides,
   };
 }
@@ -93,5 +97,56 @@ describe('publisher device authentication', () => {
   it.each([null, '', 'Basic abc', 'Bearer bad token'])('rejects malformed authorization: %s', async (authorization) => {
     await expect(authenticatePublisherDevice({ repository: repository(), authorization, now }))
       .rejects.toMatchObject({ code: 'PUBLISHER_AUTH_REQUIRED', status: 401 });
+  });
+});
+
+describe('publisher device lifecycle', () => {
+  it('lists only the actor devices in the resolved workspace', async () => {
+    const devices = [{
+      id: 'device_1',
+      name: 'Studio Mac',
+      status: 'active' as const,
+      protocolVersion: 1,
+      lastSeenAt: new Date('2026-07-22T03:00:00.000Z'),
+    }];
+    const repo = repository({ listForUserWorkspace: vi.fn(async () => devices) });
+
+    await expect(listPublisherDevices({
+      repository: repo,
+      actorUserId: 'user_1',
+      workspaceId: 'workspace_1',
+    })).resolves.toEqual(devices);
+    expect(repo.listForUserWorkspace).toHaveBeenCalledWith({
+      actorUserId: 'user_1',
+      workspaceId: 'workspace_1',
+    });
+  });
+
+  it('revokes an active or pending device owned by the actor workspace', async () => {
+    const repo = repository();
+
+    await expect(revokePublisherDevice({
+      repository: repo,
+      actorUserId: 'user_1',
+      workspaceId: 'workspace_1',
+      deviceId: 'device_1',
+      now,
+    })).resolves.toEqual({ revoked: true });
+    expect(repo.revokeForUserWorkspace).toHaveBeenCalledWith({
+      actorUserId: 'user_1',
+      workspaceId: 'workspace_1',
+      deviceId: 'device_1',
+      now,
+    });
+  });
+
+  it('does not reveal whether a device is revoked or belongs to another user', async () => {
+    await expect(revokePublisherDevice({
+      repository: repository({ revokeForUserWorkspace: vi.fn(async () => false) }),
+      actorUserId: 'user_1',
+      workspaceId: 'workspace_1',
+      deviceId: 'device_2',
+      now,
+    })).rejects.toMatchObject({ code: 'PUBLISHER_DEVICE_NOT_FOUND', status: 404 });
   });
 });

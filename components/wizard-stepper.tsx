@@ -25,8 +25,8 @@ export function WizardStepper({
   onStepClick,
 }: WizardStepperProps) {
   return (
-    <div className="w-full">
-      <div className="relative">
+    <div className="w-full min-w-0 overflow-hidden pb-1" aria-label="Article creation steps">
+      <div className="relative min-w-0">
         <div
           className="grid items-start gap-3"
           style={{
@@ -76,6 +76,8 @@ export function WizardStepper({
               <div key={step.id} className="relative z-10 flex min-w-0 flex-col items-center">
                 <button
                   type="button"
+                  aria-current={isCurrent ? 'step' : undefined}
+                  aria-label={`${index + 1}. ${step.title}`}
                   onClick={() => onStepClick?.(index)}
                   disabled={index > currentStep}
                   className={cn(

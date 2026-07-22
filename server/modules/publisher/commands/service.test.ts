@@ -36,7 +36,11 @@ function repository(overrides: Record<string, unknown> = {}) {
       revision: 3, recipeHash: 'a'.repeat(64), expiresAt: new Date('2026-07-19T00:15:00.000Z'),
     })),
     loadRecipe: vi.fn(async () => null),
-    loadStatus: vi.fn(async () => null),
+    loadStatus: vi.fn(async () => ({
+      id: 'command_1', draftId: 'draft_1', deviceId: 'device_1', target: 'binance-square' as const,
+      state: 'publishing' as const, revision: 3, recipeHash: 'a'.repeat(64),
+      expiresAt: new Date('2026-07-19T00:15:00.000Z'),
+    })),
     abort: vi.fn(async () => true),
     compareAndSwap: vi.fn(async () => true),
     ...overrides,
@@ -142,19 +146,24 @@ describe('publisher command service', () => {
     await expect(getPublisherCommandStatus({
       repository: repo, deviceId: 'device_1', commandId: 'command_1', now,
     })).resolves.toEqual({
-      id: 'command_1', state: 'approved', revision: 3,
+      id: 'command_1', target: 'binance-square', state: 'approved', revision: 3,
       recipeHash: 'a'.repeat(64), expiresAt: new Date('2026-07-19T00:15:00Z'),
     });
 
-    await expect(getPublisherCommandStatus({
-      repository: repository({
+    const expiredRepository = repository({
         loadStatus: vi.fn(async () => ({
           id: 'command_1', draftId: 'draft_1', deviceId: 'device_1', state: 'awaiting_review' as const,
           revision: 3, recipeHash: 'a'.repeat(64), expiresAt: now,
         })),
-      }),
+      });
+    await expect(getPublisherCommandStatus({
+      repository: expiredRepository,
       deviceId: 'device_1', commandId: 'command_1', now,
     })).resolves.toMatchObject({ state: 'expired' });
+    expect(expiredRepository.compareAndSwap).toHaveBeenCalledWith({
+      commandId: 'command_1', deviceId: 'device_1', revision: 3,
+      from: 'awaiting_review', to: 'expired', now,
+    });
   });
 
   it('aborts only pre-click states with a fixed safe reason code', async () => {

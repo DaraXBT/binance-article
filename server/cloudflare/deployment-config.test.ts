@@ -16,6 +16,7 @@ describe('Cloudflare web Worker deployment configuration', () => {
       compatibility_flags: string[];
       assets: { binding: string; directory: string };
       secrets: { required: string[] };
+      observability?: { enabled: boolean };
     };
 
     expect(config.main).toBe('.open-next/worker.js');
@@ -36,6 +37,7 @@ describe('Cloudflare web Worker deployment configuration', () => {
       'GOOGLE_CLIENT_SECRET',
       'GEMINI_API_KEY',
     ]);
+    expect(config.observability).toEqual({ enabled: true });
   });
 
   it('binds article assets to private R2 without embedding credentials or a public URL', () => {
@@ -92,7 +94,10 @@ describe('Cloudflare web Worker deployment configuration', () => {
     expect(config.r2_buckets).toContainEqual({
       binding: 'ARTICLE_ASSETS', bucket_name: 'binance-article-assets',
     });
-    expect(config.secrets.required).toEqual(['DATABASE_URL', 'GEMINI_API_KEY']);
+    expect(config.secrets.required).toEqual([
+      'DATABASE_URL',
+      'GEMINI_API_KEY',
+    ]);
     expect(config.routes).toBeUndefined();
     expect(source).not.toMatch(/r2\.dev|access[_-]?key|secret[_-]?access/i);
 

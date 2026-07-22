@@ -18,6 +18,27 @@ const workspaceOriginMigrationPath = `${root}drizzle/0007_workspace_origin.sql`;
 const workspaceOriginSql = existsSync(workspaceOriginMigrationPath)
   ? readFileSync(workspaceOriginMigrationPath, 'utf8')
   : '';
+const telegramAiMigrationPath = `${root}drizzle/0008_telegram_ai_workflow.sql`;
+const telegramAiSql = existsSync(telegramAiMigrationPath)
+  ? readFileSync(telegramAiMigrationPath, 'utf8')
+  : '';
+const telegramIllustrationStylesMigrationPath = `${root}drizzle/0009_telegram_illustration_styles.sql`;
+const telegramIllustrationStylesSql = existsSync(telegramIllustrationStylesMigrationPath)
+  ? readFileSync(telegramIllustrationStylesMigrationPath, 'utf8')
+  : '';
+const binanceMasterDefaultMigrationPath = `${root}drizzle/0010_binance_master_default.sql`;
+const binanceMasterDefaultSql = existsSync(binanceMasterDefaultMigrationPath)
+  ? readFileSync(binanceMasterDefaultMigrationPath, 'utf8')
+  : '';
+const publicationV2Sql = readFileSync(`${root}drizzle/0012_fresh_lady_deathstrike.sql`, 'utf8');
+const publicationBackfillSql = readFileSync(
+  `${root}drizzle/0013_publication_draft_backfill.sql`,
+  'utf8',
+);
+const webApprovalDefaultMigrationPath = `${root}drizzle/0014_web_approval_default.sql`;
+const webApprovalDefaultSql = existsSync(webApprovalDefaultMigrationPath)
+  ? readFileSync(webApprovalDefaultMigrationPath, 'utf8')
+  : '';
 const migrationJournal = JSON.parse(
   readFileSync(`${root}drizzle/meta/_journal.json`, 'utf8'),
 ) as { entries?: Array<{ idx?: number; tag?: string }> };
@@ -148,6 +169,117 @@ describe('Neon migration history', () => {
     expect(migrationJournal.entries).toContainEqual(expect.objectContaining({
       idx: 7,
       tag: '0007_workspace_origin',
+    }));
+  });
+
+  it('adds Telegram AI preferences, idempotent tasks, short-lived messages, and private media without provider keys', () => {
+    expect(telegramAiSql, 'drizzle/0008_telegram_ai_workflow.sql must exist').not.toBe('');
+    for (const table of ['TelegramAssistantSettings', 'TelegramAiTask', 'TelegramAiMessage', 'TelegramMedia']) {
+      expect(telegramAiSql).toContain(`CREATE TABLE "${table}"`);
+    }
+    expect(telegramAiSql).toContain('TelegramAiTask_botId_updateId_key');
+    expect(telegramAiSql).toContain("ALTER TYPE \"public\".\"StorageObjectPurpose\" ADD VALUE 'telegram_image'");
+    expect(telegramAiSql).not.toMatch(/apiKey|botToken|clientSecret/i);
+    expect(migrationJournal.entries).toContainEqual(expect.objectContaining({
+      idx: 8,
+      tag: '0008_telegram_ai_workflow',
+    }));
+  });
+
+  it('widens the Telegram illustration-style constraint without rewriting history', () => {
+    expect(
+      telegramIllustrationStylesSql,
+      'drizzle/0009_telegram_illustration_styles.sql must exist',
+    ).not.toBe('');
+    expect(telegramIllustrationStylesSql).toContain(
+      'DROP CONSTRAINT "TelegramAssistantSettings_illustrationStyle_check"',
+    );
+    expect(telegramIllustrationStylesSql).toMatch(
+      /ALTER TABLE "TelegramAssistantSettings"[\s\S]*ADD CONSTRAINT "TelegramAssistantSettings_illustrationStyle_check"[\s\S]*CHECK/,
+    );
+    for (const style of [
+      'pixel-art',
+      'fantasy-animation',
+      'lab-notes',
+      'binance',
+      'binance-master',
+      'binance-briefing',
+      'binance-mondo-panoramic',
+      'binance-sketch-notes',
+      'binance-vector-illustration',
+    ]) {
+      expect(telegramIllustrationStylesSql).toContain(`'${style}'`);
+    }
+    expect(telegramIllustrationStylesSql).not.toMatch(
+      /ALTER TABLE "(?:Workspace|WorkspaceSession|DeckProject|Slide|CaptionPackage|RenderAsset|JobRun)"/i,
+    );
+    expect(telegramIllustrationStylesSql).not.toMatch(/CREATE TABLE|DROP TABLE|ALTER TYPE/i);
+    expect(migrationJournal.entries).toContainEqual(expect.objectContaining({
+      idx: 9,
+      tag: '0009_telegram_illustration_styles',
+    }));
+  });
+
+  it('makes Binance Master the persistence default without rewriting saved styles', () => {
+    expect(
+      binanceMasterDefaultSql,
+      'drizzle/0010_binance_master_default.sql must exist',
+    ).not.toBe('');
+    for (const table of ['DeckProject', 'TelegramAssistantSettings']) {
+      expect(binanceMasterDefaultSql).toContain(
+        `ALTER TABLE "${table}" ALTER COLUMN "illustrationStyle" SET DEFAULT 'binance-master'`,
+      );
+    }
+    expect(binanceMasterDefaultSql).not.toMatch(/\bUPDATE\b|DROP TABLE|ALTER TYPE/i);
+    expect(migrationJournal.entries).toContainEqual(expect.objectContaining({
+      idx: 10,
+      tag: '0010_binance_master_default',
+    }));
+  });
+
+  it('expands publication storage for Binance Square and X without dropping the legacy table', () => {
+    expect(publicationV2Sql).toContain(
+      `CREATE TYPE "public"."PublicationTarget" AS ENUM('binance-square', 'x')`,
+    );
+    expect(publicationV2Sql).toContain('CREATE TABLE "PublicationDraft"');
+    expect(publicationV2Sql).toContain('ADD COLUMN "publicationDraftId" text');
+    expect(publicationV2Sql).toContain('ADD COLUMN "approvedVia" "PublishApprovalVia"');
+    expect(publicationV2Sql).not.toMatch(/DROP TABLE|DROP COLUMN/i);
+    expect(publicationBackfillSql).toMatch(/INSERT INTO "PublicationDraft"/);
+    expect(publicationBackfillSql).toContain(`'binance-square'::"PublicationTarget"`);
+    expect(publicationBackfillSql).toMatch(/ON CONFLICT DO NOTHING/);
+    expect(publicationBackfillSql).toMatch(
+      /jsonb_build_object\([\s\S]*\),\s*NULL,\s*legacy\."expiresAt"/,
+    );
+    expect(publicationBackfillSql).toMatch(
+      /command\."state" IN \([\s\S]*'succeeded'[\s\S]*'outcome_unknown'[\s\S]*\)/,
+    );
+    expect(publicationBackfillSql).not.toMatch(
+      /command\."state" IN \([\s\S]*'queued'::"PublisherCommandState"/,
+    );
+    expect(publicationBackfillSql).not.toMatch(/DROP TABLE|DROP COLUMN|ALTER TABLE/i);
+    expect(migrationJournal.entries).toContainEqual(expect.objectContaining({
+      idx: 12,
+      tag: '0012_fresh_lady_deathstrike',
+    }));
+    expect(migrationJournal.entries).toContainEqual(expect.objectContaining({
+      idx: 13,
+      tag: '0013_publication_draft_backfill',
+    }));
+  });
+
+  it('defaults new approval records to the web-only review flow while retaining legacy rows', () => {
+    expect(
+      webApprovalDefaultSql,
+      'drizzle/0014_web_approval_default.sql must exist',
+    ).not.toBe('');
+    expect(webApprovalDefaultSql).toContain(
+      `ALTER TABLE "PublishApproval" ALTER COLUMN "approvedVia" SET DEFAULT 'web'`,
+    );
+    expect(webApprovalDefaultSql).not.toMatch(/\bUPDATE\b|DROP TABLE|DROP COLUMN|ALTER TYPE/i);
+    expect(migrationJournal.entries).toContainEqual(expect.objectContaining({
+      idx: 14,
+      tag: '0014_web_approval_default',
     }));
   });
 

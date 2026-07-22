@@ -20,13 +20,13 @@ describe('getXPostImagePath', () => {
 });
 
 describe('getXPostExportIssues', () => {
-  it('requires content, enforces four images, and treats the standard post limit as guidance', () => {
+  it('requires content and enforces the regular-post text and image limits', () => {
     expect(getXPostExportIssues({ text: '', selectedImageCount: 0 }).errors)
       .toContain('Add post text or select at least one image.');
     expect(getXPostExportIssues({ text: 'Post', selectedImageCount: 5 }).errors)
       .toContain('X posts support at most 4 images.');
-    expect(getXPostExportIssues({ text: 'x'.repeat(281), selectedImageCount: 0 }).warnings)
-      .toContain('This post exceeds 280 characters and requires an eligible X account.');
+    expect(getXPostExportIssues({ text: 'x'.repeat(281), selectedImageCount: 0 }).errors)
+      .toContain('X post text must be 280 characters or fewer.');
     expect(getXPostExportIssues({
       text: 'x'.repeat(X_POST_MAX_CHARACTERS + 1),
       selectedImageCount: 0,

@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { betterAuthMock, drizzleAdapterMock, genericOAuthMock } = vi.hoisted(() => ({
+const { betterAuthMock, drizzleAdapterMock } = vi.hoisted(() => ({
   betterAuthMock: vi.fn((options: unknown) => ({ options, handler: vi.fn() })),
   drizzleAdapterMock: vi.fn(() => ({ adapter: 'drizzle' })),
-  genericOAuthMock: vi.fn((options: unknown) => ({ plugin: 'generic-oauth', options })),
 }));
 
 vi.mock('better-auth', () => ({ betterAuth: betterAuthMock }));
 vi.mock('@better-auth/drizzle-adapter', () => ({ drizzleAdapter: drizzleAdapterMock }));
-vi.mock('better-auth/plugins', () => ({ genericOAuth: genericOAuthMock }));
 
 import { createBetterAuth } from './better-auth';
 
@@ -17,10 +15,6 @@ const environment = {
   baseUrl: 'https://articles.example.com',
   googleClientId: 'google-client-id',
   googleClientSecret: 'google-client-secret',
-  telegram: {
-    clientId: 'telegram-client-id',
-    clientSecret: 'telegram-client-secret',
-  },
   secureCookies: true,
 };
 
@@ -59,43 +53,6 @@ describe('Better Auth factory', () => {
         }),
       },
     }));
-  });
-
-  it('registers Telegram as strict OIDC with PKCE and profile-only scopes', () => {
-    createBetterAuth({
-      database: {} as never,
-      environment,
-      enrollmentGate: { beforeUserCreate: vi.fn(), afterUserCreate: vi.fn() },
-    });
-
-    expect(genericOAuthMock).toHaveBeenCalledWith({
-      config: [expect.objectContaining({
-        providerId: 'telegram',
-        discoveryUrl: 'https://oauth.telegram.org/.well-known/openid-configuration',
-        issuer: 'https://oauth.telegram.org',
-        requireIssuerValidation: true,
-        scopes: ['openid', 'profile'],
-        pkce: true,
-        disableImplicitSignUp: true,
-        mapProfileToUser: expect.any(Function),
-      })],
-    });
-  });
-
-  it('does not register Telegram when its optional credential pair is absent', () => {
-    const {
-      telegram: _telegram,
-      ...googleOnlyEnvironment
-    } = environment;
-
-    createBetterAuth({
-      database: {} as never,
-      environment: { ...googleOnlyEnvironment, telegram: null },
-      enrollmentGate: { beforeUserCreate: vi.fn(), afterUserCreate: vi.fn() },
-    });
-
-    expect(genericOAuthMock).not.toHaveBeenCalled();
-    expect(betterAuthMock).toHaveBeenCalledWith(expect.objectContaining({ plugins: [] }));
   });
 
   it('calls the invitation enrollment gate before and after user creation', async () => {

@@ -2,18 +2,20 @@
 
 ## Purpose
 
-Validate all 6 dimensions + aspect ratio.
+Validate the optional named style/mode, all 6 dimensions, and aspect ratio.
+
+Resolution priority is: explicit request flags → project EXTEND.md → user EXTEND.md → content auto-selection. Explicit flags never rewrite saved preferences.
 
 ## Skip Conditions
 
 | Condition | Skipped Questions | Still Asked |
 |-----------|-------------------|-------------|
-| `--quick` flag | Type, Palette, Rendering, Text, Mood, Font | **Aspect Ratio** (unless `--aspect` specified) |
+| `--quick` flag | Named style/mode, Type, Palette, Rendering, Text, Mood, Font | Aspect only when neither `--aspect` nor `default_aspect` is available |
 | All 6 dimensions + `--aspect` specified | All | None |
-| `quick_mode: true` in EXTEND.md | Type, Palette, Rendering, Text, Mood, Font | **Aspect Ratio** (unless `--aspect` specified) |
-| Otherwise | None | All 7 questions |
+| `quick_mode: true` in EXTEND.md | Named style/mode, Type, Palette, Rendering, Text, Mood, Font | Aspect only when neither `--aspect` nor `default_aspect` is available |
+| Otherwise | None | Named style plus unresolved settings |
 
-**Important**: Aspect ratio is ALWAYS asked unless explicitly specified via `--aspect` CLI flag. User presets in EXTEND.md are shown as recommended option, not auto-selected.
+**Important**: In confirmation mode, saved values are shown as the recommended choice. In quick mode, saved values are selected directly. An explicit `--aspect` always overrides `default_aspect` for ordinary styles. The six Binance named styles have a fixed 5:2 final-cover contract; if they are combined with another explicit aspect, report the incompatibility and ask the user to change the style or use 5:2 rather than silently overriding either request.
 
 ## Quick Mode Output
 
@@ -21,6 +23,8 @@ When skipping 6 dimensions:
 
 ```
 Quick Mode: Auto-selected dimensions
+• Style: [style or custom] ([explicit flag / project preference / user preference / content reason])
+• Mode: [mode] ([reason]; show only when applicable)
 • Type: [type] ([reason])
 • Palette: [palette] ([reason])
 • Rendering: [rendering] ([reason])
@@ -28,16 +32,42 @@ Quick Mode: Auto-selected dimensions
 • Mood: [mood] ([reason])
 • Font: [font] ([reason])
 
-[Then ask Question 7: Aspect Ratio]
+[Ask Aspect only if unresolved]
 ```
 
 ## Confirmation Flow
 
 **Language**: Auto-determined (user's input language > saved preference > source language). No need to ask.
 
-Present ALL options in a **single AskUserQuestion call** (4 questions max).
+Present options in batches of at most three questions.
 
-Skip any question where the dimension is already specified via CLI flag or `--style` preset.
+Skip any question where the dimension is already specified via an explicit flag. A named style supplies palette/rendering and its hard visual rules; do not ask those two questions unless the user explicitly chooses independent dimensions.
+
+### Q0: Named Style (skip if `--style`)
+
+```yaml
+header: "Style"
+question: "Which named cover style?"
+multiSelect: false
+options:
+  - label: "[saved or auto-recommended style] (Recommended)"
+    description: "[preference source or reason based on content signals]"
+  - label: "binance-master"
+    description: "Gold-on-black crypto system; mode selected from the article"
+  - label: "No named style"
+    description: "Choose palette and rendering independently"
+```
+
+When `binance-master` is selected, resolve exactly one mode:
+
+| Signals | Mode |
+|---------|------|
+| Architecture, ecosystem, connections, general crypto | `scene` |
+| Workflow, sequence, how-it-works, one focused concept | `mechanism` |
+| Metrics, research, comparisons, real data | `briefing` |
+| Beginner, onboarding, approachable explainer | `primer` |
+
+An explicit `--style-mode` wins. Otherwise use a saved `preferred_style_mode`; when null, use the signal table. Show the resolved mode and reason rather than asking an extra question unless signals are genuinely ambiguous.
 
 ### Q1: Type (skip if `--type`)
 
@@ -52,11 +82,9 @@ options:
     description: "Large visual impact, title overlay - product launch, announcements"
   - label: "conceptual"
     description: "Concept visualization - technical, architecture"
-  - label: "typography"
-    description: "Text-focused layout - opinions, quotes"
 ```
 
-### Q2: Palette (skip if `--palette` or `--style`)
+### Q2: Palette (skip if `--palette` or a named style is selected)
 
 ```yaml
 header: "Palette"
@@ -67,13 +95,11 @@ options:
     description: "[reason based on content signals]"
   - label: "warm"
     description: "Friendly - orange, golden yellow, terracotta"
-  - label: "elegant"
-    description: "Sophisticated - soft coral, muted teal, dusty rose"
   - label: "cool"
     description: "Technical - engineering blue, navy, cyan"
 ```
 
-### Q3: Rendering (skip if `--rendering` or `--style`)
+### Q3: Rendering (skip if `--rendering` or a named style is selected)
 
 Show compatible renderings (✓✓ first from compatibility matrix):
 
@@ -88,8 +114,6 @@ options:
     description: "Clean outlines, flat fills, geometric icons"
   - label: "hand-drawn"
     description: "Sketchy, organic, imperfect strokes"
-  - label: "digital"
-    description: "Polished, precise, subtle gradients"
 ```
 
 ### Q4: Font (skip if `--font`)
@@ -105,15 +129,13 @@ options:
     description: "Modern geometric sans-serif - tech, professional"
   - label: "handwritten"
     description: "Warm hand-lettered - personal, friendly"
-  - label: "serif"
-    description: "Classic elegant - editorial, luxury"
-  - label: "display"
-    description: "Bold decorative - announcements, entertainment"
 ```
 
 ### Q5: Other Settings (skip if all remaining dimensions already specified)
 
-Combine remaining settings into one question. Include: Output Dir (if no preference + file path input), Text, Mood, Aspect. Show auto-selected values as recommended option. User can accept all or type adjustments via "Other".
+Combine remaining settings into one question. Include: Output Dir (if no preference + file path input), Text, Mood, Aspect. Show resolved saved/auto values as recommended. User can accept all or type adjustments via "Other".
+
+For any Binance named style, recommend `none / balanced / 5:2` unless explicitly overridden. The project's Binance cover contract uses no embedded text and produces an exact 1000x400 JPEG after generation.
 
 **When output dir needs asking** (no `default_output_dir` preference + file path input):
 

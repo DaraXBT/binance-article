@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useLanguage } from '@/components/language-provider';
-import { LanguageToggle } from '@/components/language-toggle';
 import { ThemeToggle } from '@/components/theme-toggle';
 import {
   ConsoleHeader,
@@ -21,25 +20,20 @@ export function WorkspaceOnboarding({ notice }: { notice?: string | null } = {})
   return (
     <SecureConsoleFrame
       variant="private"
+      surface="checkpoint"
       eyebrow="WORKSPACE SETUP"
       title={messages.workspace.onboardingTitle}
       subtitle={messages.workspace.onboardingDescription}
       header={(
         <ConsoleHeader
+          brandHref="/workspace"
           actions={(
             <>
-              <LanguageToggle />
               <ThemeToggle />
             </>
           )}
         />
       )}
-      statuses={[
-        { label: 'Draft', value: 'HELD' },
-        { label: 'Identity', value: 'VERIFIED', tone: 'success' },
-        { label: 'Workspace', value: 'PENDING', tone: 'warning' },
-        { label: 'AI access', value: 'LOCKED', tone: 'warning' },
-      ]}
       panel={false}
       footer={(
         <>
@@ -55,7 +49,7 @@ export function WorkspaceOnboarding({ notice }: { notice?: string | null } = {})
       ) : null}
 
       <div className="grid gap-3 md:grid-cols-2">
-        <ConsolePanel className="flex flex-col gap-4">
+        <ConsolePanel className="flex flex-col gap-4 rounded-xl">
           <div className="space-y-2">
             <h2 className="text-base font-semibold">{messages.workspace.createWorkspaceTitle}</h2>
             <p className="text-sm leading-relaxed text-muted-foreground">
@@ -67,7 +61,7 @@ export function WorkspaceOnboarding({ notice }: { notice?: string | null } = {})
             size="sm"
             onClick={() => createWorkspace.mutate()}
             disabled={createWorkspace.isPending}
-            className="mt-auto h-10 w-full rounded-none"
+            className="mt-auto h-10 w-full rounded-lg"
           >
             {createWorkspace.isPending
               ? messages.workspace.createWorkspaceLoading
@@ -75,14 +69,14 @@ export function WorkspaceOnboarding({ notice }: { notice?: string | null } = {})
           </Button>
         </ConsolePanel>
 
-        <ConsolePanel className="flex flex-col gap-4">
+        <ConsolePanel className="flex flex-col gap-4 rounded-xl">
           <div className="space-y-2">
             <h2 className="text-base font-semibold">{messages.workspace.recoverWorkspaceTitle}</h2>
             <p className="text-sm leading-relaxed text-muted-foreground">
               {messages.workspace.recoverWorkspaceDescription}
             </p>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={() => setRecoverOpen(true)} className="mt-auto h-10 w-full rounded-none border-dotted">
+          <Button type="button" variant="outline" size="sm" onClick={() => setRecoverOpen(true)} className="mt-auto h-10 w-full rounded-lg">
             {messages.workspace.openRecoverDialogAction}
           </Button>
         </ConsolePanel>

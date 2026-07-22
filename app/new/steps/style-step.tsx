@@ -31,12 +31,11 @@ export function StyleStep({ formData, onUpdate }: StyleStepProps) {
         <div className="grid gap-4">
           {ILLUSTRATION_STYLES.map((style) => {
             const isSelected = formData.illustrationStyle === style.id;
-            const localizedStyle = messages.newDeck.styleOptions[style.id as keyof typeof messages.newDeck.styleOptions];
             return (
               <button
                 key={style.id}
                 onClick={() => onUpdate({ illustrationStyle: style.id })}
-                className={`relative border border-dotted p-4 text-left transition-colors duration-150 ${
+                className={`relative rounded-xl border border-dotted p-4 text-left transition-colors duration-150 ${
                   isSelected
                     ? 'border-primary/65 bg-primary/[0.04]'
                     : 'border-border hover:border-primary/40 hover:bg-accent/5'
@@ -47,10 +46,10 @@ export function StyleStep({ formData, onUpdate }: StyleStepProps) {
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-base">{localizedStyle.name}</h3>
+                      <h3 className="font-semibold text-base">{style.name}</h3>
                     </div>
                     <p className="text-sm text-muted-foreground mb-3">
-                      {localizedStyle.description}
+                      {style.description}
                     </p>
 
                     <div className="flex items-center gap-2">
@@ -63,13 +62,13 @@ export function StyleStep({ formData, onUpdate }: StyleStepProps) {
                         />
                       ))}
                       <span className="text-xs text-muted-foreground ml-2">
-                        {localizedStyle.bestFor}
+                        {style.bestFor}
                       </span>
                     </div>
                   </div>
 
                   {isSelected && (
-                    <div className="absolute right-3 top-3 border border-primary/60 bg-primary px-1.5 py-1 text-primary-foreground">
+                    <div className="absolute right-3 top-3 rounded-md border border-primary/60 bg-primary px-1.5 py-1 text-primary-foreground">
                       <Check className="size-3.5" />
                     </div>
                   )}

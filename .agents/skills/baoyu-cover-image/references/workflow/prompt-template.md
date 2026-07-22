@@ -5,6 +5,8 @@ Save to `prompts/cover.md`:
 ```markdown
 ---
 type: cover
+style: [confirmed named style, or custom]
+style_mode: [scene | mechanism | briefing | primer; include only for binance-master]
 palette: [confirmed palette]
 rendering: [confirmed rendering]
 references:
@@ -23,6 +25,8 @@ Keywords: [5-8 key terms extracted from content]
 
 # Visual Design
 Cover theme: [2-3 words visual interpretation]
+Named style: [confirmed style or custom]
+Style mode: [resolved mode; include only when the style defines modes]
 Type: [confirmed type]
 Palette: [confirmed palette]
 Rendering: [confirmed rendering]
@@ -31,6 +35,11 @@ Text level: [confirmed text level]
 Mood: [confirmed mood]
 Aspect ratio: [confirmed ratio]
 Language: [confirmed language]
+
+# Style Contract
+Authoritative style reference: [../styles/{style}.md, or "none"]
+Hard requirements: [concise style-specific composition, palette, iconography, text, logo, and rendering rules]
+Conflict rule: Named-style rules override conflicting generic guidance. Explicit request flags override saved preferences.
 
 # Text Elements
 [Based on text level:]
@@ -66,10 +75,31 @@ Rendering notes: [key characteristics from rendering definition — lines, textu
 Type notes: [key characteristics from type definition]
 Palette notes: [key characteristics from palette definition]
 
+# Output Contract
+[For any binance* style: "Compose all essential elements inside a centered 5:2 safe frame within the generated 2.35:1 source. Keep the thin crop bands at the top and bottom free of essential content. Final output is a verified 1000x400 JPEG, quality 92, at most 10 MiB."]
+
 [Watermark section if enabled]
 
 [Reference images section if provided — REQUIRED, see below]
 ```
+
+Omit `style_mode` entirely unless the chosen named style defines modes. For `binance-master`, include exactly one of `scene`, `mechanism`, `briefing`, or `primer`.
+
+When `style: custom`, omit the authoritative style reference and resolve the ordinary dimensions as before.
+
+For `text: none`, require **no embedded text, letters, labels, numerals, watermarks, or wordmarks**. This is the default for this project's Binance cover workflow. Permit a purely pictorial mark only when the selected named style explicitly requires or allows one.
+
+## Priority Order
+
+Resolve conflicts in this order:
+
+1. Explicit request flags and direct user requirements
+2. Hard rules in the selected named style reference
+3. Project EXTEND.md preferences
+4. User EXTEND.md preferences
+5. Generic cover dimensions and reference-image guidance
+
+Explicit flags select the desired contract; they do not silently mutate saved preferences. If a requested combination is forbidden by the selected named style, report the conflict instead of weakening the style unnoticed.
 
 ## Reference-Driven Design ⚠️ HIGH PRIORITY
 

@@ -15,21 +15,27 @@ function context(overrides: Record<string, unknown> = {}) {
       id: 'draft_1',
       workspaceId: 'workspace_1',
       articleId: 'article_1',
+      target: 'binance-square' as const,
       revision: 3,
-      title: 'Reviewed article',
-      markdown: '## Thesis\n\n![Chart](asset:asset_1)',
-      cover: {
-        assetId: 'asset_1', focalX: 0.5, focalY: 0.5, targetWidth: 1000 as const, targetHeight: 400 as const,
+      payload: {
+        title: 'Reviewed article',
+        markdown: '## Thesis\n\n![Chart](asset:asset_1)',
+        cover: {
+          assetId: 'asset_1', focalX: 0.5, focalY: 0.5,
+          targetWidth: 1000 as const, targetHeight: 400 as const,
+        },
+        orderedAssetIds: ['asset_1'],
       },
-      orderedAssetIds: ['asset_1'],
       expiresAt: new Date('2026-07-19T00:15:00.000Z'),
     },
     assets: [{
       id: 'asset_1',
+      purpose: 'cover_image',
       mimeType: 'image/png' as const,
       sizeBytes: 2048,
       sha256: 'a'.repeat(64),
     }],
+    generatedCoverAssetId: 'asset_1',
     quota: {
       articlesPerMonth: 3,
       imagesPerMonth: 24,
@@ -67,7 +73,8 @@ describe('prepareBinancePublication', () => {
     });
 
     expect(result.recipe).toMatchObject({
-      version: 1,
+      version: 2,
+      target: 'binance-square',
       draftId: 'draft_1',
       articleId: 'article_1',
       revision: 3,
@@ -81,6 +88,7 @@ describe('prepareBinancePublication', () => {
       draftId: 'draft_1',
       deviceId: 'device_1',
       state: 'queued',
+      target: 'binance-square',
       revision: 3,
       recipeHash: result.recipeHash,
       expiresAt: new Date('2026-07-19T00:15:00.000Z'),
@@ -140,8 +148,18 @@ describe('prepareBinancePublication', () => {
     await expect(prepareBinancePublication({
       repository: repository({
         loadPreparationContext: vi.fn(async () => context({
-          draft: { ...context().draft, cover: { ...context().draft.cover, assetId: ids[0] }, orderedAssetIds: ids },
-          assets,
+          draft: {
+            ...context().draft,
+            payload: {
+              ...(context().draft.payload as Record<string, unknown>),
+              orderedAssetIds: ids,
+            },
+          },
+          assets: assets.map((asset, index) => ({
+            ...asset,
+            purpose: index === 0 ? 'cover_image' : 'slide_image',
+          })),
+          generatedCoverAssetId: ids[0],
         })),
       }),
       actorUserId: 'user_1', workspaceId: 'workspace_1', articleId: 'article_1',

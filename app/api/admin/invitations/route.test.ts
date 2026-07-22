@@ -58,6 +58,6 @@ describe('POST /api/admin/invitations', () => {
       body: '{bad json',
     }) as never);
     expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({ code: 'INVITATION_CREATE_FAILED' });
+    expect(await response.json()).toMatchObject({ code: 'INVALID_JSON_BODY' });
   });
 });

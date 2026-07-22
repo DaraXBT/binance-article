@@ -41,7 +41,7 @@ No EXTEND.md found
 
 **Language**: Use user's input language or saved language preference.
 
-Use AskUserQuestion with ALL questions in ONE call:
+Ask the questions in batches of at most three. Preserve the answers across batches and do not continue to content analysis until setup is saved.
 
 ### Question 1: Watermark
 
@@ -67,7 +67,23 @@ options:
     description: "Concept visualization - technical, architecture"
 ```
 
-### Question 3: Preferred Palette
+### Question 3: Preferred Named Style
+
+Before palette/rendering, ask for a named style. If a named style is chosen, derive its palette/rendering from `style-presets.md` and skip the separate palette/rendering questions.
+
+```yaml
+header: "Style"
+question: "Default named cover style?"
+options:
+  - label: "Auto-select (Recommended)"
+    description: "Choose a style or ordinary dimensions from the content"
+  - label: "binance-master"
+    description: "Dark gold-on-black system with Scene, Mechanism, Briefing, and Primer modes"
+  - label: "No named style"
+    description: "Choose palette and rendering independently"
+```
+
+### Question 4: Preferred Palette
 
 ```yaml
 header: "Palette"
@@ -79,11 +95,9 @@ options:
     description: "Sophisticated - soft coral, muted teal, dusty rose"
   - label: "warm"
     description: "Friendly - orange, golden yellow, terracotta"
-  - label: "cool"
-    description: "Technical - engineering blue, navy, cyan"
 ```
 
-### Question 4: Preferred Rendering
+### Question 5: Preferred Rendering
 
 ```yaml
 header: "Rendering"
@@ -95,11 +109,9 @@ options:
     description: "Sketchy organic illustration with personal touch"
   - label: "flat-vector"
     description: "Clean modern vector with geometric shapes"
-  - label: "digital"
-    description: "Polished precise digital illustration"
 ```
 
-### Question 5: Default Aspect Ratio
+### Question 6: Default Aspect Ratio
 
 ```yaml
 header: "Aspect"
@@ -109,15 +121,13 @@ options:
     description: "Standard widescreen - YouTube, presentations, versatile"
   - label: "2.35:1"
     description: "Cinematic widescreen - article headers, blog posts"
-  - label: "1:1"
-    description: "Square - Instagram, WeChat, social cards"
-  - label: "3:4"
-    description: "Portrait - Xiaohongshu, Pinterest, mobile content"
+  - label: "5:2"
+    description: "Exact Binance article cover - finalized as 1000x400 JPEG"
 ```
 
-Note: More ratios (4:3, 3:2) available during generation. This sets the default recommendation.
+Note: More ratios (4:3, 3:2, 1:1, 3:4) are available through "Other" and during generation. This sets the default recommendation.
 
-### Question 6: Default Output Directory
+### Question 7: Default Output Directory
 
 ```yaml
 header: "Output"
@@ -131,7 +141,7 @@ options:
     description: "{article-dir}/imgs/ - images folder near article"
 ```
 
-### Question 7: Quick Mode
+### Question 8: Quick Mode
 
 ```yaml
 header: "Quick"
@@ -143,7 +153,7 @@ options:
     description: "Skip confirmation, use auto-selection"
 ```
 
-### Question 8: Save Location
+### Question 9: Save Location
 
 ```yaml
 header: "Save"
@@ -173,18 +183,20 @@ options:
 
 ```yaml
 ---
-version: 3
+version: 4
 watermark:
   enabled: [true/false]
   content: "[user input or empty]"
   position: bottom-right
   opacity: 0.7
 preferred_type: [selected type or null]
+preferred_style: [selected named style or null]
+preferred_style_mode: null
 preferred_palette: [selected palette or null]
 preferred_rendering: [selected rendering or null]
-preferred_text: title-only
+preferred_text: none
 preferred_mood: balanced
-default_aspect: [16:9/2.35:1/1:1/3:4]
+default_aspect: [16:9/2.35:1/5:2/1:1/3:4]
 default_output_dir: [independent/same-dir/imgs-subdir]
 quick_mode: [true/false]
 language: null
@@ -199,4 +211,4 @@ Users can edit EXTEND.md directly or run setup again:
 - Edit YAML frontmatter for quick changes
 - Full schema: `preferences-schema.md`
 
-**EXTEND.md Supports**: Watermark | Preferred type | Preferred palette | Preferred rendering | Preferred text | Preferred mood | Default aspect ratio | Default output directory | Quick mode | Custom palette definitions | Language preference
+**EXTEND.md Supports**: Watermark | Preferred named style/mode | Preferred type | Preferred palette | Preferred rendering | Preferred text | Preferred mood | Default aspect ratio | Default output directory | Quick mode | Custom palette definitions | Language preference

@@ -1,10 +1,9 @@
 import type { Metadata } from 'next'
-import { cookies } from 'next/headers'
 import { Geist, Geist_Mono } from 'next/font/google'
 import localFont from 'next/font/local'
 
 import { Providers } from '@/components/providers'
-import { isLanguage } from '@/lib/i18n'
+import { UI_LANGUAGE } from '@/lib/i18n'
 import './globals.css'
 
 const geist = Geist({
@@ -62,16 +61,12 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const cookieStore = await cookies()
-  const cookieLanguage = cookieStore.get('deckforge_language')?.value
-  const initialLanguage = isLanguage(cookieLanguage) ? cookieLanguage : 'km'
-
   return (
-    <html lang={initialLanguage} suppressHydrationWarning>
+    <html lang={UI_LANGUAGE} suppressHydrationWarning>
       <body
         className={`${geist.variable} ${geistMono.variable} ${interKhmerLooped.variable} bg-background font-sans text-foreground antialiased`}
       >
-        <Providers initialLanguage={initialLanguage}>
+        <Providers initialLanguage={UI_LANGUAGE}>
           {children}
         </Providers>
       </body>

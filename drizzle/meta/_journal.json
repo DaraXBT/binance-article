@@ -57,6 +57,55 @@
       "when": 1784524293245,
       "tag": "0007_workspace_origin",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784661343226,
+      "tag": "0008_telegram_ai_workflow",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784703840353,
+      "tag": "0009_telegram_illustration_styles",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784711659727,
+      "tag": "0010_binance_master_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784722739360,
+      "tag": "0011_grey_vision",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784724732393,
+      "tag": "0012_fresh_lady_deathstrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1784724751776,
+      "tag": "0013_publication_draft_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1784741035216,
+      "tag": "0014_web_approval_default",
+      "breakpoints": true
     }
   ]
 }

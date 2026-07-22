@@ -46,7 +46,7 @@ export function RecoveryKeyDialog({ recoveryKey }: RecoveryKeyDialogProps) {
         onEscapeKeyDown={(e) => e.preventDefault()}
         onPointerDownOutside={(e) => e.preventDefault()}
       >
-        <FrameCornerHandles className="size-2.5 bg-card" />
+        <FrameCornerHandles />
         <DialogHeader className="border-b border-dotted border-border/70 pb-3 pr-6">
           <DialogTitle className="text-base sm:text-lg">{messages.workspace.recoveryDialogTitle}</DialogTitle>
           <DialogDescription className="text-xs leading-relaxed sm:text-sm">
@@ -66,7 +66,7 @@ export function RecoveryKeyDialog({ recoveryKey }: RecoveryKeyDialogProps) {
             type="button"
             variant="outline"
             onClick={handleCopy}
-            className="h-10 w-full gap-2 rounded-none border-dotted"
+            className="h-10 w-full gap-2 rounded-lg"
           >
             {copied ? (
               <Check className="h-4 w-4" />
@@ -88,7 +88,7 @@ export function RecoveryKeyDialog({ recoveryKey }: RecoveryKeyDialogProps) {
             type="button"
             disabled={!copied}
             onClick={() => setAcknowledged(true)}
-            className="h-10 w-full rounded-none"
+            className="h-10 w-full rounded-lg"
           >
             {messages.workspace.recoveryDialogAcknowledge}
           </Button>

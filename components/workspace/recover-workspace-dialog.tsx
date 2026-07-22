@@ -65,7 +65,7 @@ export function RecoverWorkspaceDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="console-dialog max-h-[calc(100dvh-2rem)] overflow-y-auto border-dotted p-4 sm:p-5">
-        <FrameCornerHandles className="size-2.5 bg-card" />
+        <FrameCornerHandles />
         <DialogHeader className="border-b border-dotted border-border/70 pb-3 pr-6">
           <DialogTitle className="text-base sm:text-lg">{messages.workspace.recoverDialogTitle}</DialogTitle>
           <DialogDescription className="text-xs leading-relaxed sm:text-sm">
@@ -86,7 +86,7 @@ export function RecoverWorkspaceDialog({
             placeholder={messages.workspace.recoverDialogPlaceholder}
             disabled={recoverWorkspace.isPending}
             autoComplete="off"
-            className="h-11 rounded-none border-dotted bg-background/40 font-mono text-sm tracking-wide"
+            className="h-11 rounded-lg border-dotted bg-background/40 font-mono text-sm tracking-wide"
           />
 
           {message && (
@@ -100,7 +100,7 @@ export function RecoverWorkspaceDialog({
           )}
 
           <DialogFooter className="pt-1">
-            <Button type="submit" disabled={recoverWorkspace.isPending} className="h-10 w-full rounded-none sm:w-auto">
+            <Button type="submit" disabled={recoverWorkspace.isPending} className="h-10 w-full rounded-lg sm:w-auto">
               {recoverWorkspace.isPending
                 ? messages.workspace.recoverDialogRecovering
                 : messages.workspace.recoverDialogAction}

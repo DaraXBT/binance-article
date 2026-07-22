@@ -83,6 +83,22 @@ export type BinanceExportInput = {
   slides: readonly BinanceExportSlide[];
 };
 
+export type BinanceArticleMessages = {
+  slideNoImage: (index: number) => string;
+  slideUsesCopy: (index: number) => string;
+  slideNoCopy: (index: number) => string;
+};
+
+export type BinanceValidationMessages = {
+  titleRequired: string;
+  titleTooLong: (max: number) => string;
+  markdownRequired: string;
+  markdownTooLong: string;
+  coverRequired: string;
+  slideNoImage: (index: number) => string;
+  markdownImagesInvalid?: string;
+};
+
 export type BinanceExportIssues = {
   errors: string[];
   warnings: string[];
@@ -185,7 +201,16 @@ export function getSlideImagePath(order: number, mimeType: string): string {
   return `images/${String(order + 1).padStart(2, '0')}-slide.${extension}`;
 }
 
-export function assembleBinanceArticle(input: BinanceExportInput): {
+const DEFAULT_ARTICLE_MESSAGES: BinanceArticleMessages = {
+  slideNoImage: (index) => `Slide ${index} has no generated image and will be exported as text only.`,
+  slideUsesCopy: (index) => `Slide ${index} uses slide content because its blog section is missing.`,
+  slideNoCopy: (index) => `Slide ${index} has no blog section or slide copy.`,
+};
+
+export function assembleBinanceArticle(
+  input: BinanceExportInput,
+  messages: BinanceArticleMessages = DEFAULT_ARTICLE_MESSAGES,
+): {
   markdown: string;
   warnings: string[];
 } {
@@ -205,15 +230,15 @@ export function assembleBinanceArticle(input: BinanceExportInput): {
       block.push(section);
     } else if (fallback) {
       block.push(fallback);
-      warnings.push(`Slide ${index + 1} uses slide content because its blog section is missing.`);
+      warnings.push(messages.slideUsesCopy(index + 1));
     } else {
-      warnings.push(`Slide ${index + 1} has no blog section or slide copy.`);
+      warnings.push(messages.slideNoCopy(index + 1));
     }
 
     if (slide.imagePath) {
       block.push(`![${cleanImageAlt(slide.title)}](${slide.imagePath})`);
     } else {
-      warnings.push(`Slide ${index + 1} has no generated image and will be exported as text only.`);
+      warnings.push(messages.slideNoImage(index + 1));
     }
 
     if (body || slide.imagePath) blocks.push(block.join('\n\n'));
@@ -280,34 +305,55 @@ async function sha256(input: Uint8Array): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-export function getBinanceExportIssues(input: BinanceExportValidationInput): BinanceExportIssues {
+const DEFAULT_VALIDATION_MESSAGES: BinanceValidationMessages = {
+  titleRequired: 'A Binance article title is required.',
+  titleTooLong: (max) => `The Binance article title must be ${max} characters or fewer.`,
+  markdownRequired: 'Article Markdown cannot be empty.',
+  markdownTooLong: 'Article Markdown exceeds Binance\'s 100,000-character limit.',
+  coverRequired: 'Generate the dedicated 5:2 article cover before preparing Binance.',
+  slideNoImage: DEFAULT_ARTICLE_MESSAGES.slideNoImage,
+};
+
+export function getBinanceExportIssues(
+  input: BinanceExportValidationInput,
+  messages: BinanceValidationMessages = DEFAULT_VALIDATION_MESSAGES,
+): BinanceExportIssues {
   const errors: string[] = [];
   const warnings: string[] = [];
   const title = input.title.trim();
   const markdown = input.markdown.trim();
 
-  if (!title) errors.push('A Binance article title is required.');
+  if (!title) errors.push(messages.titleRequired);
   if (title.length > BINANCE_TITLE_MAX_CHARACTERS) {
-    errors.push(`The Binance article title must be ${BINANCE_TITLE_MAX_CHARACTERS} characters or fewer.`);
+    errors.push(messages.titleTooLong(BINANCE_TITLE_MAX_CHARACTERS));
   }
-  if (!markdown) errors.push('Article Markdown cannot be empty.');
+  if (!markdown) errors.push(messages.markdownRequired);
   if (markdown.length > BINANCE_ARTICLE_MAX_CHARACTERS) {
-    errors.push('Article Markdown exceeds Binance\'s 100,000-character limit.');
+    errors.push(messages.markdownTooLong);
   }
 
   const cover = input.slides.find((slide) => slide.id === input.coverSlideId);
   if (!cover?.imageUrl || cover.imageStatus !== 'generated') {
-    errors.push('Choose a generated slide image for the 5:2 cover.');
+    errors.push(messages.coverRequired);
   }
   const expectedImagePaths: string[] = [];
   for (const [index, slide] of input.slides.entries()) {
     if (!slide.imageUrl || slide.imageStatus !== 'generated') {
-      warnings.push(`Slide ${index + 1} has no generated image and will be exported as text only.`);
+      warnings.push(messages.slideNoImage(index + 1));
     } else if (slide.imagePath) {
       expectedImagePaths.push(slide.imagePath);
     }
   }
-  errors.push(...getMarkdownImageReferenceErrors(markdown, expectedImagePaths, 'Article Markdown'));
+  const markdownImageErrors = getMarkdownImageReferenceErrors(
+    markdown,
+    expectedImagePaths,
+    'Article Markdown',
+  );
+  if (markdownImageErrors.length > 0 && messages.markdownImagesInvalid) {
+    errors.push(messages.markdownImagesInvalid);
+  } else {
+    errors.push(...markdownImageErrors);
+  }
   return { errors, warnings };
 }
 

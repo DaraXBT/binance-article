@@ -129,6 +129,23 @@ describe('POST /api/articles/[id]/generate-images', () => {
     );
   });
 
+  it('passes a new Binance style through to the image job payload', async () => {
+    const { POST } = await import('@/app/api/articles/[id]/generate-images/route');
+    await POST(
+      new Request('http://localhost/api/articles/deck-1/generate-images', {
+        method: 'POST',
+        body: JSON.stringify({ illustrationStyle: 'binance-vector-illustration' }),
+      }) as never,
+      { params: Promise.resolve({ id: 'deck-1' }) }
+    );
+
+    expect(jobServiceMock.createJobRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({ illustrationStyle: 'binance-vector-illustration' }),
+      })
+    );
+  });
+
   it('returns error when article is not found', async () => {
     dbMock.getCurrentRevisionContext.mockRejectedValue(
       new Error('Article not found.')

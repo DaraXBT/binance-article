@@ -20,7 +20,7 @@ Controls text density and information hierarchy on cover images.
 
 ### none
 
-Pure visual cover with no text elements.
+Pure visual cover with no embedded text elements. This also excludes letters, labels, numerals, wordmarks, and watermarks. A purely pictorial mark is allowed only when the selected named style explicitly requires or permits one.
 
 **Use Cases**:
 - Photography-focused covers
@@ -38,7 +38,7 @@ Pure visual cover with no text elements.
 Single headline, maximum impact.
 
 **Use Cases**:
-- Most article covers (default)
+- Article covers that explicitly request an embedded headline
 - Clear single message
 - Strong brand recognition
 
@@ -123,8 +123,8 @@ When `--text` is omitted, select based on signals:
 | Signals | Text Level |
 |---------|------------|
 | Visual-only, photography, abstract, art | `none` |
-| Article, blog, standard cover | `title-only` |
-| Series, tutorial, technical with context | `title-subtitle` |
-| Announcement, features, multiple points, infographic | `text-rich` |
+| Explicit request for an embedded headline | `title-only` |
+| Explicit request for title plus supporting context | `title-subtitle` |
+| Explicit request for promotional copy, tags, or infographic labels | `text-rich` |
 
-Default: `title-only`
+Default: `none`. Select another level only when the user explicitly requests embedded copy or the chosen text-led cover type requires it.

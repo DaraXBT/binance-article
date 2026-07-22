@@ -24,8 +24,6 @@ const env = {
   BETTER_AUTH_URL: 'https://articles.example.com',
   GOOGLE_CLIENT_ID: 'google-id',
   GOOGLE_CLIENT_SECRET: 'google-secret',
-  TELEGRAM_CLIENT_ID: 'telegram-id',
-  TELEGRAM_CLIENT_SECRET: 'telegram-secret',
 };
 
 describe('auth runtime', () => {

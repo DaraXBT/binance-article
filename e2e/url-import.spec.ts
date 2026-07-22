@@ -1,4 +1,6 @@
-import { test, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+
+import { authenticatedTest as test } from './fixtures/authenticated';
 
 test.describe('URL Import', () => {
   test('creates article from a URL via the new article page', async ({ page }) => {

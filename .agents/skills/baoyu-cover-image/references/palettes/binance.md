@@ -20,7 +20,8 @@ Dark crypto-native style with gold accents focused on conveying Web3 topics thro
 
 - Use canvas black strictly as the background, never light.
 - Limit gold to hero elements, active fills, and section titles to ensure focus.
-- Use a faint isometric dot grid on the background in mid-tone `#2B3139` without decorative noise.
+- Match the faint `#2B3139` background structure to the rendering: isometric dot grid for `isometric`, flat square dot grid for `flat-vector`/`hand-drawn`, and restrained halftone/paper grain for `screen-print`.
+- Keep teal, blue, maroon, or brown subordinate when a style specification permits them; gold must remain the primary hierarchy signal.
 
 ## Best For
 

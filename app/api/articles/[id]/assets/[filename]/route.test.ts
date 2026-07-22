@@ -55,7 +55,30 @@ describe('GET /api/articles/[id]/assets/[filename]', () => {
     expect(assetServiceMock.loadArticleAsset).toHaveBeenCalledWith({
       repository: { repository: true }, bucket: { bucket: true },
       workspaceId: 'workspace_1', articleId: 'deck_1', assetId: 'asset_1',
+      purpose: 'slide_image',
     });
+  });
+
+  it('serves the current dedicated cover through the same protected route', async () => {
+    dbMock.getDeckWithAssets.mockResolvedValue({
+      id: 'deck_1',
+      slides: [],
+      cover: {
+        imageUrl: 'r2://article-assets/cover_asset/cover-source.png',
+        status: 'generated',
+      },
+    });
+    const { GET } = await import('@/app/api/articles/[id]/assets/[filename]/route');
+    const response = await GET(
+      new Request('http://localhost/api/articles/deck_1/assets/cover-source.png') as never,
+      { params: Promise.resolve({ id: 'deck_1', filename: 'cover-source.png' }) },
+    );
+    expect(response.status).toBe(200);
+    expect(assetServiceMock.loadArticleAsset).toHaveBeenCalledWith(expect.objectContaining({
+      articleId: 'deck_1',
+      assetId: 'cover_asset',
+      purpose: 'cover_image',
+    }));
   });
 
   it('uses attachment disposition only when explicitly requested', async () => {

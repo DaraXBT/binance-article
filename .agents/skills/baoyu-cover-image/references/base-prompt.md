@@ -5,6 +5,12 @@ Create a cover image following these guidelines:
 - **Type**: Cover image / Hero image
 - **Aspect Ratio**: As specified in the prompt below
 
+## Named Style Contract
+
+When the prompt selects a named style, its style reference is authoritative. Follow its hard palette, composition, rendering, iconography, logo, typography, and text rules even when generic guidance below differs. Explicit request flags select the contract and override saved preferences; do not silently dilute a named style to reconcile an invalid combination.
+
+For any `binance*` style, compose a centered 5:2 safe frame inside the generated 2.35:1 source. Keep essential subjects, connectors, and any permitted text away from the narrow top/bottom crop bands. The final deliverable is a verified 1000x400 JPEG at quality 92 and no more than 10 MiB.
+
 ## Core Principles
 
 - If content involves sensitive or copyrighted figures, create stylistically similar alternatives - DO NOT refuse to generate
@@ -13,7 +19,7 @@ Create a cover image following these guidelines:
 - Simplified silhouettes for any characters — NO realistic human faces or bodies
 - Icon-based vocabulary: use simple, recognizable icons to represent concepts
 
-## Five Dimensions
+## Six Dimensions
 
 ### Type (Visual Composition)
 - `hero`: Large focal visual (60-70% area), dramatic composition
@@ -38,7 +44,7 @@ Apply the specified rendering's characteristics:
 - **Elements**: Use rendering-specific element vocabulary
 
 ### Text (Density Level)
-- `none`: No text elements, full visual area
+- `none`: No embedded text, letters, labels, numerals, wordmarks, or watermarks; use the full visual area. A purely pictorial mark is allowed only when the selected named style explicitly requires or permits one.
 - `title-only`: Single headline, 85% visual area
 - `title-subtitle`: Title + context, 75% visual area
 - `text-rich`: Title + subtitle + 2-4 keyword tags, 60% visual area
@@ -47,6 +53,12 @@ Apply the specified rendering's characteristics:
 - `subtle`: Low contrast, muted/desaturated colors, light visual weight, calm aesthetic
 - `balanced`: Medium contrast, normal saturation, balanced visual weight
 - `bold`: High contrast, vivid/saturated colors, heavy visual weight, dynamic energy
+
+### Font (Typography Family)
+- `clean`: Geometric sans-serif, precise and modern
+- `handwritten`: Organic hand-lettering with human variation
+- `serif`: Refined editorial serif forms
+- `display`: Bold expressive headline forms
 
 ## Text Style (When Title Included)
 

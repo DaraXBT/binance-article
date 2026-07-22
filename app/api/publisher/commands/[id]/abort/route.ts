@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getRuntimeDatabase } from '@/server/db/runtime';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
+import { readBoundedJson } from '@/server/http/request-body';
 import { createPublisherCommandRepository } from '@/server/modules/publisher/commands/repository';
 import { abortPublisherCommand } from '@/server/modules/publisher/commands/service';
 import { createPublisherDeviceRepository } from '@/server/modules/publisher/devices/repository';
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       repository: createPublisherDeviceRepository(database),
       authorization: request.headers.get('authorization'),
     });
-    const payload = await request.json() as { revision?: unknown; reasonCode?: unknown };
+    const payload = await readBoundedJson(request, 4_096) as { revision?: unknown; reasonCode?: unknown };
     const { id: commandId } = await context.params;
     const result = await abortPublisherCommand({
       repository: createPublisherCommandRepository(database),

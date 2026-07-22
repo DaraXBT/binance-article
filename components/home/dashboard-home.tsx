@@ -4,22 +4,14 @@ import { useDeferredValue, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  ArrowRightLeft,
   FolderOpenDot,
-  Layers3,
   Loader2,
-  LogOut,
   MessageSquarePlus,
   MoreHorizontal,
   Search,
-  Settings2,
-  UserRound,
 } from 'lucide-react';
-import { LanguageToggle } from '@/components/language-toggle';
 import { useLanguage } from '@/components/language-provider';
-import { ThemeToggle } from '@/components/theme-toggle';
 import {
-  ConsolePanel,
   FrameCornerHandles,
   SecureConsoleFrame,
 } from '@/components/console/secure-console-frame';
@@ -57,7 +49,10 @@ import { RecoveryKeyDialog } from '@/components/workspace/recovery-key-dialog';
 import { WorkspaceOnboarding } from '@/components/workspace/workspace-onboarding';
 import { WorkspaceSidebarFooter } from '@/components/workspace/workspace-sidebar-footer';
 import { RecoverWorkspaceDialog } from '@/components/workspace/recover-workspace-dialog';
-import { ILLUSTRATION_STYLES, type IllustrationStyleId } from '@/lib/config';
+import {
+  DEFAULT_ILLUSTRATION_STYLE,
+  type IllustrationStyleId,
+} from '@/lib/config';
 import { formatRelativeTime, type Language } from '@/lib/i18n';
 import {
   useCreateWorkspace,
@@ -85,6 +80,7 @@ import {
 import {
   ArticleStudioShell,
 } from './article-studio-shell';
+import { StudioSidebarBrand } from './studio-sidebar-brand';
 
 type DeckListItem = {
   id: string;
@@ -114,7 +110,7 @@ interface SubmitPromptArticleOptions {
 }
 
 const DEFAULT_HOME_SLIDE_COUNT = 1;
-const DEFAULT_HOME_ILLUSTRATION_STYLE: IllustrationStyleId = 'pixel-art';
+const DEFAULT_HOME_ILLUSTRATION_STYLE = DEFAULT_ILLUSTRATION_STYLE;
 const sidebarSkeletonWidths = ['88%', '64%', '76%', '58%', '71%', '67%'] as const;
 
 async function readHomeResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
@@ -183,7 +179,7 @@ export async function submitPromptArticle({
   title,
   prompt,
   slideCount = 1,
-  illustrationStyle = 'pixel-art',
+  illustrationStyle = DEFAULT_ILLUSTRATION_STYLE,
   idempotencyKey,
   articleId: existingArticleId,
   onStage,
@@ -389,7 +385,7 @@ function DeckSidebarRow({
             </div>
           </div>
         ) : (
-          <SidebarMenuButton asChild className="h-auto rounded-none border border-transparent px-3 py-3 pr-12 transition-colors hover:border-dotted hover:border-sidebar-border/80 hover:bg-sidebar-accent/40">
+          <SidebarMenuButton asChild className="h-auto rounded-lg border border-transparent px-3 py-3 pr-12 transition-colors hover:border-dotted hover:border-sidebar-border/80 hover:bg-sidebar-accent/40">
             <Link href={`/articles/${deck.id}`}>
               <FolderOpenDot className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="min-w-0 flex-1">
@@ -409,7 +405,7 @@ function DeckSidebarRow({
               type="button"
               variant="ghost"
               size="icon-sm"
-              className="absolute right-2 top-2 z-10 size-7 rounded-none opacity-0 transition-opacity group-hover/item:opacity-100 group-focus-within/item:opacity-100 data-[state=open]:opacity-100"
+              className="absolute right-2 top-2 z-10 size-7 rounded-lg opacity-100 lg:opacity-0 lg:group-hover/item:opacity-100 lg:group-focus-within/item:opacity-100 data-[state=open]:opacity-100"
               onClick={(event) => event.stopPropagation()}
               onPointerDown={(event) => event.stopPropagation()}
               aria-label={`${messages.common.rename} ${deck.title}`}
@@ -487,39 +483,43 @@ function DeckSidebarList({
 
   return (
     <>
-      <SidebarHeader className="gap-2 border-b border-dotted border-sidebar-border/80 p-3">
-        <Link href="/workspace" className="flex min-w-0 items-center gap-2.5 px-1 py-1.5">
-          <div className="flex size-8 shrink-0 items-center justify-center border border-sidebar-foreground/70 bg-sidebar-foreground text-sidebar">
-            <Layers3 className="size-4" />
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold tracking-tight text-sidebar-foreground">xArticle</p>
-            <p className="truncate font-mono text-[0.58rem] uppercase tracking-[0.12em] text-sidebar-foreground/60">
-              {messages.dashboard.workspaceDashboard}
-            </p>
-          </div>
-        </Link>
+      <SidebarHeader className="gap-2 border-b border-dotted border-sidebar-border/80 p-3 group-data-[collapsible=icon]:border-b-0 group-data-[collapsible=icon]:p-2">
+        <StudioSidebarBrand
+          href="/workspace"
+          description={messages.dashboard.workspaceDashboard}
+          openLabel="Open article history"
+          closeLabel="Close article history"
+        />
 
-        <Button asChild className="h-9 justify-start rounded-none border border-sidebar-primary/45 bg-sidebar-primary text-sidebar-primary-foreground hover:brightness-110">
-          <Link href="/new">
+        <Button
+          asChild
+          className="h-9 justify-start rounded-lg group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
+        >
+          <Link
+            href="/new"
+            aria-label={messages.common.newDeck}
+            title={messages.common.newDeck}
+          >
             <MessageSquarePlus className="h-4 w-4" />
-            {messages.common.newDeck}
+            <span className="group-data-[collapsible=icon]:hidden">
+              {messages.common.newDeck}
+            </span>
           </Link>
         </Button>
 
-        <label className="relative block">
+        <label className="relative block group-data-[collapsible=icon]:hidden">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-sidebar-foreground/60" />
           <input
             type="search"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
             placeholder={messages.dashboard.searchDecks}
-            className="h-9 w-full rounded-none border border-dotted border-sidebar-border/80 bg-background/50 pl-8 pr-3 text-sm text-foreground shadow-none outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/30"
+            className="h-9 w-full rounded-lg border border-dotted border-sidebar-border/80 bg-background/50 pl-8 pr-3 text-sm text-foreground shadow-none outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/30"
           />
         </label>
       </SidebarHeader>
 
-      <SidebarContent className="px-2 py-2">
+      <SidebarContent className="px-2 py-2 group-data-[collapsible=icon]:hidden">
         <SidebarGroup className="pt-0">
           <SidebarGroupLabel className="h-7 px-2 font-mono text-[0.62rem] uppercase tracking-[0.14em] text-sidebar-foreground/60">
             {messages.dashboard.allDecks}
@@ -644,7 +644,6 @@ export function DashboardHome({
   );
   const isWorkspaceBusy = isProvisioningWorkspace || Boolean(createWorkspace.isPending);
   const accountLabel = actor?.name?.trim() || actor?.email?.trim() || 'Account';
-  const accountInitial = accountLabel.slice(0, 1).toUpperCase();
 
   useEffect(() => {
     setHasGenerationAccess(workspace?.hasGenerationAccess ?? false);
@@ -852,6 +851,12 @@ export function DashboardHome({
     setWorkspaceChoiceOpen(false);
     recoverySucceededRef.current = false;
     recoveryReturnsToChoiceRef.current = true;
+    setRecoverWorkspaceOpen(true);
+  };
+
+  const handleSidebarImport = () => {
+    recoverySucceededRef.current = false;
+    recoveryReturnsToChoiceRef.current = false;
     setRecoverWorkspaceOpen(true);
   };
 
@@ -1239,7 +1244,7 @@ export function DashboardHome({
           <p className="font-mono text-xs uppercase tracking-[0.12em] text-destructive" role="alert">
             CONNECTION UNAVAILABLE
           </p>
-          <Button type="button" className="w-fit rounded-none" onClick={() => void refetchWorkspace()}>
+          <Button type="button" className="w-fit" onClick={() => void refetchWorkspace()}>
             {messages.common.retry}
           </Button>
         </div>
@@ -1260,7 +1265,7 @@ export function DashboardHome({
         <div className="flex flex-col gap-3">
           <Button
             type="button"
-            className="w-fit rounded-none"
+            className="w-fit"
             onClick={() => {
               autoProvisionAttemptedRef.current = false;
               setProvisioningError(null);
@@ -1310,154 +1315,71 @@ export function DashboardHome({
             accessKeyPrefix={workspace.accessKeyPrefix ?? '—'}
             recoveryKey={workspace.recoveryKey ?? null}
             showRecovery={workspace.workspaceOrigin !== 'account'}
+            accountLabel={accountLabel}
+            accountEmail={actor?.email}
+            settingsLabel={messages.dashboard.settings}
+            {...(workspace.canReplaceWithLegacy
+              ? {
+                  importOldWorkspaceLabel: messages.dashboard.importOldWorkspace,
+                  onImportOldWorkspace: handleSidebarImport,
+                }
+              : {})}
+            signOutLabel={messages.dashboard.signOut}
+            signingOutLabel={messages.dashboard.signingOut}
+            isSigningOut={isSigningOut}
+            onSignOut={handleSignOut}
           />
-        )}
-        headerActions={(
-          <>
-            <LanguageToggle />
-            <ThemeToggle />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  className="size-8 rounded-none border-dotted"
-                  aria-label={`Account: ${accountLabel}`}
-                >
-                  {accountInitial || <UserRound className="h-4 w-4" />}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64">
-                <div className="border-b border-border/70 px-2 py-2">
-                  <p className="truncate text-sm font-medium">{accountLabel}</p>
-                  {actor?.email ? (
-                    <p className="truncate text-xs text-muted-foreground">{actor.email}</p>
-                  ) : null}
-                </div>
-                <DropdownMenuItem asChild>
-                  <Link href="/settings/connections">
-                    <Settings2 className="h-4 w-4" />
-                    {messages.dashboard.connections}
-                  </Link>
-                </DropdownMenuItem>
-                {workspace.canReplaceWithLegacy ? (
-                  <DropdownMenuItem
-                    onSelect={(event) => {
-                      event.preventDefault();
-                      recoverySucceededRef.current = false;
-                      recoveryReturnsToChoiceRef.current = false;
-                      setRecoverWorkspaceOpen(true);
-                    }}
-                  >
-                    <ArrowRightLeft className="h-4 w-4" />
-                    {messages.dashboard.importOldWorkspace}
-                  </DropdownMenuItem>
-                ) : null}
-                <DropdownMenuItem
-                  variant="destructive"
-                  disabled={isSigningOut}
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    void handleSignOut();
-                  }}
-                >
-                  {isSigningOut ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <LogOut className="h-4 w-4" />
-                  )}
-                  {isSigningOut ? messages.dashboard.signingOut : messages.dashboard.signOut}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button asChild size="sm" className="h-8 rounded-none px-3 sm:px-4">
-              <Link href="/new">
-                <MessageSquarePlus className="h-4 w-4" />
-                <span className="hidden sm:inline">{messages.common.newDeck}</span>
-              </Link>
-            </Button>
-          </>
-        )}
-        footer={(
-          <>
-            <span className="truncate font-mono text-[0.6rem] uppercase tracking-[0.12em]">
-              PRIVATE WORKSPACE
-            </span>
-            <span className="truncate font-mono text-[0.6rem] uppercase tracking-[0.12em] text-muted-foreground/65">
-              {accountLabel}
-            </span>
-          </>
         )}
         mainClassName="studio-main-workspace"
       >
-        <section className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-center gap-4">
-          <div className="min-w-0 text-center">
-            <p className="mb-2 font-mono text-[0.64rem] font-semibold uppercase tracking-[0.16em] text-primary">
-              ARTICLE GENERATION / PRIVATE WORKSPACE
-            </p>
-            <h1 className="text-2xl font-semibold leading-tight tracking-normal text-foreground sm:text-3xl">
+        <section className="studio-home-canvas flex min-h-full w-full flex-col justify-center gap-6">
+          <div className="studio-intro min-w-0 text-center">
+            <h1 className="mx-auto max-w-[24ch] text-balance text-3xl font-semibold leading-[1.08] tracking-normal text-foreground sm:text-4xl lg:text-[2.65rem]">
               {messages.dashboard.promptHomeTitle}
             </h1>
-            <p className="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
               {messages.dashboard.promptHomeSubtitle}
             </p>
           </div>
 
-          <div data-article-studio-composer>
-            <ConsolePanel className="studio-composer-panel overflow-hidden bg-card/70 p-3 sm:p-5">
-              <div className="mb-3 flex min-w-0 items-center justify-between gap-3 border-b border-dotted border-border/70 px-1 pb-2.5">
-                <span className="truncate font-mono text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-foreground">
-                  ARTICLE INPUT
-                </span>
-                <span className="shrink-0 font-mono text-[0.6rem] uppercase tracking-[0.12em] text-muted-foreground/75">
-                  LOCAL DRAFT
-                </span>
+          <div data-article-studio-composer className="mx-auto w-full max-w-3xl space-y-3">
+            {resumeNeedsAction ? (
+              <div className="flex flex-col gap-3 rounded-xl border border-[var(--signal)]/40 bg-[var(--signal-soft)]/35 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm leading-relaxed text-muted-foreground">{resumeContinueDescription}</p>
+                <Button type="button" size="sm" className="h-9 shrink-0 rounded-lg" onClick={handleResumeContinue}>
+                  {resumeContinueLabel}
+                </Button>
               </div>
-              {resumeNeedsAction ? (
-                <div className="mb-3 flex flex-col gap-3 border border-dotted border-[var(--signal)]/40 bg-[var(--signal-soft)]/35 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm leading-relaxed text-muted-foreground">{resumeContinueDescription}</p>
-                  <Button type="button" size="sm" className="h-9 shrink-0 rounded-none" onClick={handleResumeContinue}>
-                    {resumeContinueLabel}
-                  </Button>
-                </div>
-              ) : null}
-              <PromptComposer
-                prompt={prompt}
-                onPromptChange={(value) => {
-                  setPrompt(value);
-                  if (composerError) setComposerError(null);
-                }}
-                slideCount={slideCount}
-                onSlideCountChange={setSlideCount}
-                illustrationStyle={illustrationStyle}
-                onIllustrationStyleChange={setIllustrationStyle}
-                onGenerate={handleSubmit}
-                onSuggest={handleSuggest}
-                showSuggest
-                isGenerating={isSubmitting}
-                isSuggesting={isSuggesting}
-                labels={{
-                  prompt: (messages.dashboard as typeof messages.dashboard & { promptLabel?: string }).promptLabel
-                    ?? messages.dashboard.promptHomeTitle,
-                  placeholder: messages.dashboard.promptPlaceholder,
-                  slideCount: messages.dashboard.slideCountLabel,
-                  illustrationStyle: messages.dashboard.illustrationStyleLabel,
-                  generate: messages.dashboard.generateAction,
-                  generating: messages.dashboard.generateLoading,
-                  suggest: messages.dashboard.aiSuggest,
-                  suggesting: messages.dashboard.aiSuggestLoading,
-                  styleNames: Object.fromEntries(
-                    ILLUSTRATION_STYLES.map((style) => [
-                      style.id,
-                      messages.newDeck.styleOptions[style.id as keyof typeof messages.newDeck.styleOptions].name,
-                    ]),
-                  ) as Record<IllustrationStyleId, string>,
-                }}
-                helperText={helperText}
-                error={composerError}
-              />
-            </ConsolePanel>
+            ) : null}
+            <PromptComposer
+              prompt={prompt}
+              onPromptChange={(value) => {
+                setPrompt(value);
+                if (composerError) setComposerError(null);
+              }}
+              slideCount={slideCount}
+              onSlideCountChange={setSlideCount}
+              illustrationStyle={illustrationStyle}
+              onIllustrationStyleChange={setIllustrationStyle}
+              onGenerate={handleSubmit}
+              onSuggest={handleSuggest}
+              showSuggest
+              isGenerating={isSubmitting}
+              isSuggesting={isSuggesting}
+              labels={{
+                prompt: (messages.dashboard as typeof messages.dashboard & { promptLabel?: string }).promptLabel
+                  ?? messages.dashboard.promptHomeTitle,
+                placeholder: messages.dashboard.promptPlaceholder,
+                slideCount: messages.dashboard.slideCountLabel,
+                illustrationStyle: messages.dashboard.illustrationStyleLabel,
+                generate: messages.dashboard.generateAction,
+                generating: messages.dashboard.generateLoading,
+                suggest: messages.dashboard.aiSuggest,
+                suggesting: messages.dashboard.aiSuggestLoading,
+              }}
+              helperText={helperText}
+              error={composerError}
+            />
           </div>
         </section>
       </ArticleStudioShell>
@@ -1470,16 +1392,16 @@ export function DashboardHome({
             className="console-dialog border-dotted p-4 sm:p-5"
             onEscapeKeyDown={(event) => event.preventDefault()}
           >
-            <FrameCornerHandles className="size-2.5 bg-card" />
+            <FrameCornerHandles />
             <AlertDialogHeader>
               <AlertDialogTitle className="text-base sm:text-lg">{workspaceChoiceTitle}</AlertDialogTitle>
               <AlertDialogDescription className="text-xs leading-relaxed sm:text-sm">{workspaceChoiceDescription}</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
-              <AlertDialogCancel className="h-10 rounded-none border-dotted" onClick={handleImportOldWorkspace}>
+              <AlertDialogCancel className="h-10 rounded-lg" onClick={handleImportOldWorkspace}>
                 {importWorkspaceLabel}
               </AlertDialogCancel>
-              <AlertDialogAction className="h-10 rounded-none" onClick={handleContinueWithNewWorkspace}>
+              <AlertDialogAction className="h-10 rounded-lg" onClick={handleContinueWithNewWorkspace}>
                 {continueWorkspaceLabel}
               </AlertDialogAction>
             </AlertDialogFooter>

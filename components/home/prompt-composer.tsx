@@ -1,8 +1,13 @@
 'use client';
 
-import type { FormEvent, Ref } from 'react';
-import { Loader2, Send, Sparkles } from 'lucide-react';
+import { useId, type FormEvent, type KeyboardEvent, type Ref } from 'react';
+import { ArrowUp, Layers3, Loader2, Palette, Sparkles } from 'lucide-react';
 
+import {
+  AiPromptBox,
+  AiPromptBoxTextarea,
+  AiPromptBoxToolbar,
+} from '@/components/ui/ai-prompt-box';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -11,8 +16,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { ILLUSTRATION_STYLES, type IllustrationStyleId } from '@/lib/config';
+import { cn } from '@/lib/utils';
 
 export const COMPOSER_SLIDE_COUNTS = [1, 3, 5, 7, 10, 15] as const;
 export type ComposerSlideCount = (typeof COMPOSER_SLIDE_COUNTS)[number];
@@ -31,6 +41,50 @@ export function parseComposerIllustrationStyle(value: string): IllustrationStyle
     : null;
 }
 
+type PromptComposerLabels = {
+  prompt: string;
+  placeholder: string;
+  slideCount: string;
+  illustrationStyle: string;
+  generate: string;
+  generating: string;
+};
+
+type PromptComposerBaseProps = {
+  textareaRef?: Ref<HTMLTextAreaElement>;
+  prompt: string;
+  onPromptChange: (value: string) => void;
+  slideCount: ComposerSlideCount;
+  onSlideCountChange: (value: ComposerSlideCount) => void;
+  illustrationStyle: IllustrationStyleId;
+  onIllustrationStyleChange: (value: IllustrationStyleId) => void;
+  onGenerate: () => void | Promise<void>;
+  helperText?: string;
+  error?: string | null;
+  isGenerating?: boolean;
+  isSuggesting?: boolean;
+  suggestGlowClassName?: string;
+};
+
+export type PromptComposerProps = PromptComposerBaseProps & (
+  | {
+      showSuggest: true;
+      onSuggest: () => void | Promise<void>;
+      labels: PromptComposerLabels & {
+        suggest: string;
+        suggesting: string;
+      };
+    }
+  | {
+      showSuggest?: false;
+      onSuggest?: () => void | Promise<void>;
+      labels: PromptComposerLabels & {
+        suggest?: string;
+        suggesting?: string;
+      };
+    }
+);
+
 export function PromptComposer({
   textareaRef,
   prompt,
@@ -47,143 +101,196 @@ export function PromptComposer({
   isGenerating = false,
   isSuggesting = false,
   showSuggest = false,
-}: {
-  textareaRef?: Ref<HTMLTextAreaElement>;
-  prompt: string;
-  onPromptChange: (value: string) => void;
-  slideCount: ComposerSlideCount;
-  onSlideCountChange: (value: ComposerSlideCount) => void;
-  illustrationStyle: IllustrationStyleId;
-  onIllustrationStyleChange: (value: IllustrationStyleId) => void;
-  onGenerate: () => void | Promise<void>;
-  onSuggest?: () => void | Promise<void>;
-  labels: {
-    prompt: string;
-    placeholder: string;
-    slideCount: string;
-    illustrationStyle: string;
-    generate: string;
-    generating: string;
-    suggest?: string;
-    suggesting?: string;
-    styleNames: Record<IllustrationStyleId, string>;
-  };
-  helperText?: string;
-  error?: string | null;
-  isGenerating?: boolean;
-  isSuggesting?: boolean;
-  showSuggest?: boolean;
-  suggestGlowClassName?: string;
-}) {
+}: PromptComposerProps) {
+  const instanceId = useId();
+  const promptId = `article-prompt-${instanceId}`;
+  const feedbackId = `composer-feedback-${instanceId}`;
   const busy = isGenerating || isSuggesting;
   const feedback = error || helperText;
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (busy || !prompt.trim()) return;
     void onGenerate();
   };
+  const handlePromptKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (
+      event.key !== 'Enter'
+      || (!event.metaKey && !event.ctrlKey)
+      || event.nativeEvent.isComposing
+      || busy
+      || !prompt.trim()
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  };
+  const currentGenerateLabel = isGenerating ? labels.generating : labels.generate;
+  const currentSuggestLabel = showSuggest
+    ? (isSuggesting ? labels.suggesting : labels.suggest)
+    : undefined;
 
   return (
     <form
       onSubmit={handleSubmit}
       data-article-studio-composer-form
       className="studio-prompt-form relative min-w-0"
-      aria-describedby={feedback ? 'composer-feedback' : undefined}
+      aria-describedby={feedback ? feedbackId : undefined}
+      aria-busy={busy || undefined}
       noValidate
     >
-      <label htmlFor="article-prompt" className="sr-only">{labels.prompt}</label>
-      <Textarea
-        ref={textareaRef}
-        id="article-prompt"
-        name="prompt"
-        value={prompt}
-        onChange={(event) => onPromptChange(event.target.value)}
-        placeholder={labels.placeholder}
-        minLength={MINIMUM_PROMPT_LENGTH}
-        maxLength={50_000}
-        rows={5}
-        disabled={busy}
-        aria-invalid={Boolean(error)}
-        aria-describedby={feedback ? 'composer-feedback' : undefined}
-        className="studio-prompt-input min-h-24 max-h-56 resize-none rounded-xl border border-border/70 bg-background/45 px-4 py-3.5 text-base leading-7 shadow-none placeholder:text-muted-foreground/60 focus-visible:border-primary/65 focus-visible:bg-background focus-visible:ring-[3px] focus-visible:ring-ring/25 focus-visible:ring-offset-0 max-[390px]:min-h-20 max-[390px]:rounded-lg max-[390px]:py-3 sm:min-h-28 sm:text-[1.02rem]"
-      />
+      <label htmlFor={promptId} className="sr-only">{labels.prompt}</label>
+      <AiPromptBox busy={busy} invalid={Boolean(error)}>
+        <AiPromptBoxTextarea
+          ref={textareaRef}
+          id={promptId}
+          name="prompt"
+          value={prompt}
+          onChange={(event) => onPromptChange(event.target.value)}
+          onKeyDown={handlePromptKeyDown}
+          placeholder={labels.placeholder}
+          minLength={MINIMUM_PROMPT_LENGTH}
+          maxLength={50_000}
+          rows={3}
+          disabled={busy}
+          aria-invalid={Boolean(error)}
+          aria-describedby={feedback ? feedbackId : undefined}
+          aria-keyshortcuts="Control+Enter Meta+Enter"
+          className="studio-prompt-input"
+        />
 
-      <div className="mt-3 flex flex-col gap-2.5 border-t border-border/60 pt-3 max-[390px]:flex-row max-[390px]:items-center max-[390px]:justify-between max-[390px]:gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5 max-[390px]:flex-1 max-[390px]:flex-nowrap">
-          <Select
-            value={String(slideCount)}
-            onValueChange={(value) => {
-              const next = parseComposerSlideCount(value);
-              if (next !== null) onSlideCountChange(next);
-            }}
-            disabled={busy}
-          >
-            <SelectTrigger aria-label={labels.slideCount} size="sm" className="studio-composer-chip min-w-24 rounded-lg border-dotted bg-background/55 px-2.5 text-xs max-[390px]:min-w-0 max-[390px]:flex-1 max-[390px]:px-2">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {COMPOSER_SLIDE_COUNTS.map((count) => (
-                <SelectItem key={count} value={String(count)}>{count}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={illustrationStyle}
-            onValueChange={(value) => {
-              const next = parseComposerIllustrationStyle(value);
-              if (next !== null) onIllustrationStyleChange(next);
-            }}
-            disabled={busy}
-          >
-            <SelectTrigger aria-label={labels.illustrationStyle} size="sm" className="studio-composer-chip min-w-40 rounded-lg border-dotted bg-background/55 px-2.5 text-xs max-[390px]:min-w-0 max-[390px]:flex-[1.5] max-[390px]:px-2">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {ILLUSTRATION_STYLES.map((style) => (
-                <SelectItem key={style.id} value={style.id}>
-                  {labels.styleNames[style.id]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-1.5 max-[390px]:gap-1">
-          {showSuggest && onSuggest ? (
-            <div className="inline-flex">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => void onSuggest()}
-                disabled={busy || !prompt.trim()}
-                aria-label={isSuggesting ? labels.suggesting : labels.suggest}
-                className="studio-composer-chip rounded-lg border-dotted px-2.5 text-xs max-[390px]:size-8 max-[390px]:p-0"
+        <AiPromptBoxToolbar
+          leading={(
+            <div className="grid min-w-0 grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)] gap-1.5 sm:flex sm:flex-wrap sm:items-center">
+              <Select
+                value={String(slideCount)}
+                onValueChange={(value) => {
+                  const next = parseComposerSlideCount(value);
+                  if (next !== null) onSlideCountChange(next);
+                }}
+                disabled={busy}
               >
-                {isSuggesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                <span className="max-[390px]:hidden">{isSuggesting ? labels.suggesting : labels.suggest}</span>
-              </Button>
+                <SelectTrigger
+                  aria-label={labels.slideCount}
+                  size="sm"
+                  className="studio-composer-chip w-full min-w-0 rounded-full border-border/70 bg-background/65 px-2.5 text-xs shadow-none sm:w-auto sm:min-w-24"
+                >
+                  <Layers3 aria-hidden="true" className="size-3.5" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent
+                  align="start"
+                  sideOffset={6}
+                  collisionPadding={12}
+                  className="rounded-2xl border-border/80 shadow-lg"
+                >
+                  {COMPOSER_SLIDE_COUNTS.map((count) => (
+                    <SelectItem key={count} value={String(count)} className="rounded-xl">
+                      {count}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={illustrationStyle}
+                onValueChange={(value) => {
+                  const next = parseComposerIllustrationStyle(value);
+                  if (next !== null) onIllustrationStyleChange(next);
+                }}
+                disabled={busy}
+              >
+                <SelectTrigger
+                  aria-label={labels.illustrationStyle}
+                  size="sm"
+                  className="studio-composer-chip w-full min-w-0 rounded-full border-border/70 bg-background/65 px-2.5 text-xs shadow-none sm:w-auto sm:min-w-40"
+                >
+                  <Palette aria-hidden="true" className="size-3.5" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent
+                  align="start"
+                  sideOffset={6}
+                  collisionPadding={12}
+                  className="rounded-2xl border-border/80 shadow-lg"
+                >
+                  {ILLUSTRATION_STYLES.map((style) => (
+                    <SelectItem key={style.id} value={style.id} className="rounded-xl">
+                      {style.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          ) : null}
-          <Button
-            type="submit"
-            size="sm"
-            disabled={busy || !prompt.trim()}
-            className="studio-submit-button h-9 rounded-lg bg-primary px-3.5 text-primary-foreground shadow-none hover:bg-primary/90 max-[390px]:size-8 max-[390px]:w-8 max-[390px]:shrink-0 max-[390px]:p-0 sm:px-4"
-            aria-label={isGenerating ? labels.generating : labels.generate}
-          >
-            {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            <span className="max-[390px]:hidden">{isGenerating ? labels.generating : labels.generate}</span>
-          </Button>
-        </div>
-      </div>
+          )}
+          trailing={(
+            <div
+              className={cn(
+                'min-w-0 items-center justify-end gap-1.5',
+                showSuggest && onSuggest
+                  ? 'grid grid-cols-[minmax(0,1fr)_auto] sm:flex'
+                  : 'flex',
+              )}
+            >
+              {showSuggest && onSuggest ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  shape="pill"
+                  onClick={() => void onSuggest()}
+                  disabled={busy || !prompt.trim()}
+                  aria-label={currentSuggestLabel}
+                  className="studio-composer-chip min-w-0 shrink px-3 text-xs sm:w-auto"
+                >
+                  {isSuggesting ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="size-4" />
+                  )}
+                  <span className="truncate">{currentSuggestLabel}</span>
+                </Button>
+              ) : null}
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    shape="pill"
+                    disabled={busy || !prompt.trim()}
+                    className="studio-submit-button h-9 px-3.5 max-[389px]:size-9 max-[389px]:p-0"
+                    aria-label={currentGenerateLabel}
+                  >
+                    {isGenerating ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <ArrowUp className="size-4" />
+                    )}
+                    <span className="hidden min-[390px]:inline">{currentGenerateLabel}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="bottom"
+                  align="end"
+                  sideOffset={10}
+                  className="rounded-lg shadow-md"
+                >
+                  {currentGenerateLabel}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          )}
+        />
+      </AiPromptBox>
 
       {feedback ? (
         <p
-          id="composer-feedback"
+          id={feedbackId}
           role={error ? 'alert' : undefined}
           aria-live="polite"
-          className={`mt-2 min-h-5 text-xs leading-relaxed ${error ? 'text-destructive' : 'text-muted-foreground'}`}
+          className={`mt-2 min-h-5 text-xs leading-relaxed ${error ? 'text-destructive-text' : 'text-muted-foreground'}`}
         >
           {feedback}
         </p>

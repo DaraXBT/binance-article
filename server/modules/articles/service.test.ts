@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { repositoryMock, latestJobMock, serializeJobMock } = vi.hoisted(() => ({
+const { repositoryMock, coverRepositoryMock, latestJobMock, serializeJobMock } = vi.hoisted(() => ({
   repositoryMock: {
     createDeck: vi.fn(),
     createDeckIdempotently: vi.fn(),
@@ -24,6 +24,7 @@ const { repositoryMock, latestJobMock, serializeJobMock } = vi.hoisted(() => ({
     getRenderAssets: vi.fn(),
     getCaptions: vi.fn(),
   },
+  coverRepositoryMock: { findByArticle: vi.fn() },
   latestJobMock: vi.fn(),
   serializeJobMock: vi.fn((job: unknown) => job),
 }));
@@ -37,6 +38,9 @@ vi.mock('@/server/db/runtime', () => ({
 vi.mock('@/server/modules/jobs/service', () => ({
   getLatestDeckJob: latestJobMock,
   serializeJobRun: serializeJobMock,
+}));
+vi.mock('@/server/modules/covers/repository', () => ({
+  createArticleCoverRepository: vi.fn(() => coverRepositoryMock),
 }));
 
 import type { GeneratedDeckResponse } from '@/lib/gemini';
@@ -116,6 +120,7 @@ describe('Worker-safe article service', () => {
     repositoryMock.markSlideImageFailed.mockResolvedValue(fakeSlide({ imageStatus: 'failed' }));
     repositoryMock.markSlideImageGenerated.mockResolvedValue(fakeSlide({ imageStatus: 'generated' }));
     latestJobMock.mockResolvedValue(null);
+    coverRepositoryMock.findByArticle.mockResolvedValue(null);
   });
 
   afterEach(() => vi.useRealTimers());
@@ -128,7 +133,7 @@ describe('Worker-safe article service', () => {
     expect(repositoryMock.createDeck).toHaveBeenCalledWith({
       id: '00000000-0000-4000-8000-000000000001', workspaceId: 'workspace_1',
       title: 'Title', content: 'Body', description: null,
-      illustrationStyle: 'pixel-art', status: 'draft',
+      illustrationStyle: 'binance-master', status: 'draft',
       now: new Date('2026-07-19T12:00:00.000Z'),
     });
   });

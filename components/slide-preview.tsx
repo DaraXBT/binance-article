@@ -19,7 +19,7 @@ export function SlidePreview({ articleId, slide, theme = 'default' }: SlidePrevi
 
   if (!slide) {
     return (
-      <div className="h-full flex items-center justify-center bg-muted border border-border ">
+      <div className="flex h-full items-center justify-center rounded-xl border border-dotted border-border bg-muted/35">
         <p className="text-muted-foreground">{messages.slidePreview.selectSlide}</p>
       </div>
     );
@@ -43,7 +43,7 @@ export function SlidePreview({ articleId, slide, theme = 'default' }: SlidePrevi
       {/* Generated Image */}
       {imageUrl ? (
         <Dialog>
-          <div className="w-full relative overflow-hidden border border-border shadow-md flex-shrink-0 group">
+          <div className="group relative w-full flex-shrink-0 overflow-hidden rounded-xl border border-dotted border-border bg-card/50">
             <DialogTrigger asChild>
               <button type="button" className="w-full cursor-pointer">
                 <img
@@ -55,22 +55,22 @@ export function SlidePreview({ articleId, slide, theme = 'default' }: SlidePrevi
               </button>
             </DialogTrigger>
             {/* Overlay buttons */}
-            <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+            <div className="pointer-events-none absolute right-2 top-2 flex max-w-[calc(100%-1rem)] gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
               <DialogTrigger asChild>
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="gap-2 bg-background/80 hover:bg-background/95 backdrop-blur-sm shadow-sm pointer-events-auto"
+                  className="pointer-events-auto size-10 gap-2 rounded-lg p-0 sm:h-9 sm:w-auto sm:px-3"
                 >
                   <Expand className="w-4 h-4" />
-                  {messages.slidePreview.viewFullImage}
+                  <span className="sr-only sm:not-sr-only">{messages.slidePreview.viewFullImage}</span>
                 </Button>
               </DialogTrigger>
               <Button
                 variant="secondary"
                 size="sm"
                 asChild
-                className="gap-2 bg-background/80 hover:bg-background/95 backdrop-blur-sm shadow-sm pointer-events-auto"
+                className="pointer-events-auto size-10 gap-2 rounded-lg p-0 sm:h-9 sm:w-auto sm:px-3"
               >
                 <a
                   href={downloadUrl ?? undefined}
@@ -80,7 +80,7 @@ export function SlidePreview({ articleId, slide, theme = 'default' }: SlidePrevi
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Download className="w-4 h-4" />
-                  Download
+                  <span className="sr-only sm:not-sr-only">Download</span>
                 </a>
               </Button>
             </div>
@@ -96,7 +96,7 @@ export function SlidePreview({ articleId, slide, theme = 'default' }: SlidePrevi
         </Dialog>
       ) : (
         <div
-          className="w-full  border border-dashed border-border flex items-center justify-center bg-muted/50 flex-shrink-0"
+          className="flex w-full flex-shrink-0 items-center justify-center rounded-xl border border-dashed border-border bg-muted/35"
           style={{ aspectRatio: '16 / 9' }}
         >
           <div className="flex flex-col items-center gap-2 text-muted-foreground">
@@ -118,7 +118,7 @@ export function SlidePreview({ articleId, slide, theme = 'default' }: SlidePrevi
       )}
 
       {/* Slide content card */}
-      <div className="bg-card border border-border  p-6 flex-shrink-0">
+      <div className="flex-shrink-0 break-words rounded-xl border border-dotted border-border bg-card/70 p-4 [overflow-wrap:anywhere] sm:p-6">
         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
           <span>{messages.slidePreview.slide(slide.order + 1)}</span>
           {theme && <span className="capitalize">• {theme}</span>}

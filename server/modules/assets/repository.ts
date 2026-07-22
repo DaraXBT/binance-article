@@ -8,11 +8,11 @@ import type {
 
 export function createArticleAssetRepository(database: AppDatabase): ArticleAssetRepository {
   return {
-    async replaceSlideAsset(input): Promise<ReplacedArticleAsset | null> {
+    async replaceAsset(input): Promise<ReplacedArticleAsset | null> {
       const [, result] = await database.$client.transaction((transaction) => [
         transaction`
           SELECT pg_advisory_xact_lock(
-            hashtextextended(${input.slideKeyPrefix}, 7419283)
+            hashtextextended(${input.assetKeyPrefix}, 7419283)
           )
         `,
         transaction`
@@ -27,9 +27,9 @@ export function createArticleAssetRepository(database: AppDatabase): ArticleAsse
           FROM article
           WHERE asset."workspaceId" = ${input.workspaceId}
             AND asset."articleId" = article."id"
-            AND asset."purpose" = 'slide_image'::"StorageObjectPurpose"
+            AND asset."purpose" = ${input.purpose}::"StorageObjectPurpose"
             AND asset."deletedAt" IS NULL
-            AND asset."r2Key" LIKE ${input.slideKeyPrefix} || '%'
+            AND asset."r2Key" LIKE ${input.assetKeyPrefix} || '%'
             AND asset."r2Key" <> ${input.r2Key}
           RETURNING asset."r2Key"
         ), inserted AS (
@@ -39,7 +39,7 @@ export function createArticleAssetRepository(database: AppDatabase): ArticleAsse
           )
           SELECT
             ${input.assetId}, ${input.workspaceId}, article."id", ${input.r2Key},
-            'slide_image'::"StorageObjectPurpose", ${input.mimeType}, ${input.sizeBytes},
+            ${input.purpose}::"StorageObjectPurpose", ${input.mimeType}, ${input.sizeBytes},
             ${input.sha256}, NULL, ${input.now}
           FROM article
           RETURNING "id"
@@ -71,7 +71,13 @@ export function createArticleAssetRepository(database: AppDatabase): ArticleAsse
         WHERE asset."id" = ${input.assetId}
           AND asset."workspaceId" = ${input.workspaceId}
           AND asset."articleId" = ${input.articleId}
-          AND asset."purpose" = 'slide_image'::"StorageObjectPurpose"
+          AND (
+            (${input.purpose ?? null}::text IS NULL AND asset."purpose" IN (
+              'slide_image'::"StorageObjectPurpose",
+              'cover_image'::"StorageObjectPurpose"
+            ))
+            OR asset."purpose" = ${input.purpose ?? null}::"StorageObjectPurpose"
+          )
           AND asset."deletedAt" IS NULL
         LIMIT 1
       `;

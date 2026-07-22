@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   PUBLICATION_DRAFT_LIFETIME_MS,
+  PublicationRecipeV2Schema,
   PublicationRecipeV1Schema,
   canonicalizePublicationRecipe,
   hashPublicationRecipe,
@@ -127,5 +128,70 @@ describe('PublicationRecipeV1', () => {
     })],
   ])('rejects %s', (_name, mutate) => {
     expect(() => PublicationRecipeV1Schema.parse(mutate())).toThrow();
+  });
+});
+
+describe('PublicationRecipeV2', () => {
+  it('discriminates Binance Square from a regular X post', () => {
+    const legacy = validRecipe();
+    expect(PublicationRecipeV2Schema.parse({
+      ...legacy,
+      version: 2,
+      target: 'binance-square',
+    })).toMatchObject({ version: 2, target: 'binance-square' });
+
+    expect(PublicationRecipeV2Schema.parse({
+      version: 2,
+      target: 'x',
+      draftId: 'draft_x',
+      articleId: 'article_123',
+      revision: 2,
+      expiresAt: legacy.expiresAt,
+      text: 'A regular X post',
+      orderedAssetIds: ['asset_body'],
+      assets: [legacy.assets[1]],
+    })).toMatchObject({ target: 'x', text: 'A regular X post' });
+  });
+
+  it('enforces the regular X limits and rejects Binance-only fields', () => {
+    const legacy = validRecipe();
+    const xRecipe = {
+      version: 2,
+      target: 'x',
+      draftId: 'draft_x',
+      articleId: 'article_123',
+      revision: 2,
+      expiresAt: legacy.expiresAt,
+      text: 'x'.repeat(281),
+      orderedAssetIds: [],
+      assets: [],
+    };
+    expect(() => PublicationRecipeV2Schema.parse(xRecipe)).toThrow();
+    expect(() => PublicationRecipeV2Schema.parse({
+      ...xRecipe,
+      text: 'post',
+      markdown: 'must not be accepted',
+    })).toThrow();
+    expect(() => PublicationRecipeV2Schema.parse({
+      ...xRecipe,
+      text: '',
+    })).toThrow(/text|image/i);
+  });
+
+  it('keeps canonical hashes target-bound', async () => {
+    const legacy = validRecipe();
+    const binance = { ...legacy, version: 2 as const, target: 'binance-square' as const };
+    const x = {
+      version: 2 as const,
+      target: 'x' as const,
+      draftId: legacy.draftId,
+      articleId: legacy.articleId,
+      revision: legacy.revision,
+      expiresAt: legacy.expiresAt,
+      text: legacy.markdown,
+      orderedAssetIds: legacy.orderedAssetIds,
+      assets: legacy.assets.slice(1),
+    };
+    expect(await hashPublicationRecipe(binance)).not.toBe(await hashPublicationRecipe(x));
   });
 });

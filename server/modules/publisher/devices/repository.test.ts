@@ -51,4 +51,46 @@ describe('publisher device repository liveness', () => {
       tokenHash: 'c'.repeat(64), now: new Date('2026-07-19T00:00:00.000Z'),
     })).resolves.toBeNull();
   });
+
+  it('lists and revokes devices only inside the active actor workspace membership', async () => {
+    const captured: Array<{ text: string; values: unknown[] }> = [];
+    const lastSeenAt = new Date('2026-07-22T03:00:00.000Z');
+    const client = vi.fn(async (strings: TemplateStringsArray, ...values: unknown[]) => {
+      captured.push({ text: strings.join('?'), values });
+      return captured.length === 1
+        ? [{
+            id: 'device_1', name: 'Studio Mac', status: 'active',
+            protocolVersion: 1, lastSeenAt,
+          }]
+        : [{ id: 'device_1' }];
+    });
+    const repository = createPublisherDeviceRepository({ $client: client } as never);
+    const now = new Date('2026-07-22T03:05:00.000Z');
+
+    await expect(repository.listForUserWorkspace({
+      actorUserId: 'user_1',
+      workspaceId: 'workspace_1',
+    })).resolves.toEqual([{
+      id: 'device_1', name: 'Studio Mac', status: 'active',
+      protocolVersion: 1, lastSeenAt,
+    }]);
+    await expect(repository.revokeForUserWorkspace({
+      actorUserId: 'user_1',
+      workspaceId: 'workspace_1',
+      deviceId: 'device_1',
+      now,
+    })).resolves.toBe(true);
+
+    expect(client).toHaveBeenCalledTimes(2);
+    for (const query of captured) {
+      expect(query.text).toMatch(/device\."userId" =/);
+      expect(query.text).toMatch(/device\."workspaceId" =/);
+      expect(query.text).toMatch(/"WorkspaceMember"/);
+      expect(query.values).toEqual(expect.arrayContaining(['user_1', 'workspace_1']));
+    }
+    expect(captured[0]?.text).toMatch(/SELECT[\s\S]*device\."lastSeenAt"/);
+    expect(captured[1]?.text).toMatch(/UPDATE "PublisherDevice"/);
+    expect(captured[1]?.text).toMatch(/device\."status" IN \('pending', 'active'\)/);
+    expect(captured[1]?.text).toMatch(/"revokedAt" =/);
+  });
 });

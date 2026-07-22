@@ -79,7 +79,7 @@ function InputGroupAddon({
 }
 
 const inputGroupButtonVariants = cva(
-  'text-sm shadow-none flex gap-2 items-center',
+  'flex items-center gap-2 text-sm',
   {
     variants: {
       size: {

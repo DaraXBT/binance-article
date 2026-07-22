@@ -1,5 +1,10 @@
 # Workspace Access Security Implementation Plan
 
+> **Historical / superseded:** This dated implementation plan records an older
+> access and recovery-key design. It is not an operating guide. The current
+> account, workspace, language, and publishing contract is documented in
+> [the architecture guide](../architecture.md).
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add a minimal access-code gate for private app usage and restore a compact workspace security card on the dashboard so users can save or recover their workspace key.

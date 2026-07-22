@@ -14,15 +14,16 @@ export function createPublisherAssetRepository(
           asset."sizeBytes"::int AS "sizeBytes",
           asset."sha256"
         FROM "PublisherCommand" command
-        INNER JOIN "BinancePublicationDraft" draft ON draft."id" = command."draftId"
+        LEFT JOIN "PublicationDraft" draft ON draft."id" = command."publicationDraftId"
+        LEFT JOIN "BinancePublicationDraft" legacy_draft ON legacy_draft."id" = command."draftId"
         INNER JOIN "StorageObject" asset
           ON asset."id" = ${assetId}
-          AND asset."workspaceId" = draft."workspaceId"
+          AND asset."workspaceId" = COALESCE(draft."workspaceId", legacy_draft."workspaceId")
           AND asset."deletedAt" IS NULL
         WHERE command."id" = ${commandId}
           AND command."deviceId" = ${deviceId}
           AND command."expiresAt" > now()
-          AND draft."expiresAt" > now()
+          AND COALESCE(draft."expiresAt", legacy_draft."expiresAt") > now()
           AND command."state" IN (
             'claimed'::"PublisherCommandState",
             'awaiting_review'::"PublisherCommandState",
@@ -31,8 +32,10 @@ export function createPublisherAssetRepository(
             'publishing'::"PublisherCommandState"
           )
           AND (
-            draft."cover"->>'assetId' = ${assetId}
-            OR draft."orderedAssetIds" ? ${assetId}
+            draft."payload"->'cover'->>'assetId' = ${assetId}
+            OR draft."payload"->'orderedAssetIds' ? ${assetId}
+            OR legacy_draft."cover"->>'assetId' = ${assetId}
+            OR legacy_draft."orderedAssetIds" ? ${assetId}
           )
         LIMIT 1
       `;

@@ -9,6 +9,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Allow browser tests to run beside an existing developer server without
+  // sharing Next's build cache or dev-server lock. Production keeps `.next`.
+  distDir: process.env.NEXT_DIST_DIR?.trim() || '.next',
+  // Keep the local UI preview visually identical to production. Compile and
+  // runtime errors still surface through Next.js without the floating badge.
+  devIndicators: false,
   turbopack: {
     root: __dirname,
   },

@@ -32,8 +32,8 @@ describe('Binance draft repository', () => {
     })).resolves.toMatchObject({ id: 'draft_1', revision: 3 });
 
     expect(captured).toHaveLength(1);
-    expect(captured[0]?.text).toMatch(/INSERT INTO "BinancePublicationDraft"/);
-    expect(captured[0]?.text).toMatch(/ON CONFLICT \("workspaceId", "articleId"\) DO UPDATE/);
+    expect(captured[0]?.text).toMatch(/INSERT INTO "PublicationDraft"/);
+    expect(captured[0]?.text).toMatch(/ON CONFLICT \("workspaceId", "articleId", "target"\) DO UPDATE/);
     expect(captured[0]?.text).toMatch(/"WorkspaceMember"/);
     expect(captured[0]?.text).toMatch(/"DeckProject"/);
     expect(captured[0]?.text).not.toContain('user_1');

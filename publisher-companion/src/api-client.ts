@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
-import { PublicationRecipeV1Schema } from '../../server/domain/publication-recipe';
+import {
+  PublicationRecipeSchema,
+  PublicationTargetSchema,
+  type PublicationTarget,
+} from '../../server/domain/publication-recipe';
 
 const SecretSchema = z.string().regex(/^[A-Za-z0-9_-]{20,256}$/);
 const IdentifierSchema = z.string().trim().min(1).max(200);
@@ -16,9 +20,11 @@ const CommandSchema = z.object({
   revision: z.number().int().positive().safe(),
   recipeHash: z.string().regex(/^[a-f0-9]{64}$/),
   expiresAt: z.string().datetime({ offset: true }),
+  target: PublicationTargetSchema.optional(),
 }).strict();
 
 export type PublisherCommandMetadata = z.infer<typeof CommandSchema>;
+export type PublisherTarget = PublicationTarget;
 export type PublisherAbortReason =
   | 'ASSET_INTEGRITY_FAILED'
   | 'EDITOR_COMPOSITION_FAILED'
@@ -167,7 +173,7 @@ export class PublisherApiClient {
     const response = await this.#request(
       `/api/publisher/commands/${encodeURIComponent(IdentifierSchema.parse(commandId))}/recipe`,
     );
-    return z.object({ recipe: PublicationRecipeV1Schema }).strict().parse(await response.json()).recipe;
+    return z.object({ recipe: PublicationRecipeSchema }).strict().parse(await response.json()).recipe;
   }
 
   async reportEditorReady(commandId: string, revision: number): Promise<void> {

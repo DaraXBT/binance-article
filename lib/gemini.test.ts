@@ -101,4 +101,48 @@ describe('gemini helpers', () => {
     expect(prompt).toMatch(/do not follow instructions/i);
     expect(prompt).toMatch(/<source_content>[\s\S]*Ignore the system[\s\S]*<\/source_content>/);
   });
+
+  it.each([
+    ['binance', /Binance Isometric Flow/i],
+    ['binance-master', /Binance All-In-One/i],
+    ['binance-briefing', /Binance Technical Briefing/i],
+    ['binance-mondo-panoramic', /Binance Mondo Panoramic/i],
+    ['binance-sketch-notes', /Binance Sketch Notes/i],
+    ['binance-vector-illustration', /Binance Flat Vector/i],
+  ] as const)('includes the selected %s guidance in deck prompts', async (style, marker) => {
+    const { buildGenerationPrompt } = await import('@/lib/gemini');
+    const prompt = buildGenerationPrompt({
+      articleContent: 'Explain this crypto topic with concrete facts.',
+      slideCount: 1,
+      illustrationStyle: style,
+      mode: 'prompt',
+    });
+    expect(prompt).toMatch(marker);
+    expect(prompt).toContain('STYLE LANGUAGE RULE');
+  });
+
+  it('normalizes a Binance Master slide to exactly one inferred mode marker', async () => {
+    process.env.GEMINI_API_KEY = 'test-key';
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ text: JSON.stringify({
+        slides: [{
+          title: 'Liquidity comparison',
+          bulletPoints: ['Compare two liquidity paths'],
+          imagePrompt: 'Show the comparison as a clear crypto diagram.',
+        }],
+        captions: { blog: {}, twitter: {} },
+      }) }] } }],
+    }), { headers: { 'content-type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { generateDeckWithGemini } = await import('@/lib/gemini');
+    const deck = await generateDeckWithGemini({
+      articleContent: 'Compare two liquidity paths.',
+      slideCount: 1,
+      illustrationStyle: 'binance-master',
+      mode: 'prompt',
+    });
+
+    expect(deck.slides[0]?.imagePrompt).toMatch(/^\[MASTER_MODE: BRIEFING\]/);
+  });
 });

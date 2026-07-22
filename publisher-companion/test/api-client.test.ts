@@ -50,6 +50,42 @@ describe('publisher companion API client', () => {
     });
   });
 
+  it('accepts exact target metadata while keeping target-less V1 commands as legacy Binance', async () => {
+    const responses = [
+      {
+        command: {
+          id: 'command_x', state: 'claimed', revision: 3, recipeHash: 'a'.repeat(64),
+          expiresAt: '2026-07-19T00:15:00.000Z', target: 'x',
+        },
+      },
+      {
+        command: {
+          id: 'command_legacy', state: 'approved', revision: 3, recipeHash: 'b'.repeat(64),
+          expiresAt: '2026-07-19T00:15:00.000Z',
+        },
+      },
+      {
+        command: {
+          id: 'command_binance', state: 'approved', revision: 3, recipeHash: 'c'.repeat(64),
+          expiresAt: '2026-07-19T00:15:00.000Z', target: 'binance-square',
+        },
+      },
+    ];
+    const client = new PublisherApiClient({
+      baseUrl: 'https://articles.example.com',
+      getDeviceToken: async () => 'A'.repeat(43),
+      fetchImpl: mock(async () => Response.json(responses.shift())),
+    });
+
+    await expect(client.claimCommand()).resolves.toMatchObject({ id: 'command_x', target: 'x' });
+    const legacy = await client.getCommandStatus('command_legacy');
+    expect(legacy).toMatchObject({ id: 'command_legacy' });
+    expect(legacy.target).toBeUndefined();
+    await expect(client.getCommandStatus('command_binance')).resolves.toMatchObject({
+      id: 'command_binance', target: 'binance-square',
+    });
+  });
+
   it('turns 401 and 429 into stable control-flow errors without response details', async () => {
     const unauthorized = new PublisherApiClient({
       baseUrl: 'https://articles.example.com',

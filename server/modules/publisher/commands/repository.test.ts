@@ -25,6 +25,9 @@ describe('publisher command repository', () => {
     await expect(repository.claimNext({ deviceId: 'device_1', now: new Date() }))
       .resolves.toMatchObject({ id: 'command_1', state: 'claimed' });
     expect(captured[0]?.text).toMatch(/FOR UPDATE SKIP LOCKED/);
+    expect(captured[0]?.text).toMatch(/WITH expired_commands AS/);
+    expect(captured[0]?.text).toMatch(/UPDATE "PublishApproval"/);
+    expect(captured[0]?.text).not.toMatch(/'publishing'/);
     expect(captured[0]?.text).toMatch(/UPDATE "PublisherCommand"/);
     expect(captured[0]?.text).not.toContain('device_1');
     expect(captured[0]?.values).toContain('device_1');
@@ -54,6 +57,20 @@ describe('publisher command repository', () => {
     await repository.loadStatus({ deviceId: 'device_1', commandId: 'command_1' });
     expect(captured[0].text).toMatch(/"deviceId" = \?/);
     expect(captured[0].text).not.toMatch(/markdown|r2Key|tokenHash|failureReason/i);
+  });
+
+  it('persists expiry across command, draft, and open approval without touching publishing', async () => {
+    const { client, captured } = clientReturning([{ id: 'command_1' }]);
+    const repository = createPublisherCommandRepository({ $client: client } as never);
+    await expect(repository.compareAndSwap({
+      commandId: 'command_1', deviceId: 'device_1', revision: 3,
+      from: 'awaiting_review', to: 'expired', now: new Date(),
+    })).resolves.toBe(true);
+    expect(captured[0].text).toMatch(/"state" = \?::"PublisherCommandState"/);
+    expect(captured[0].values).toContain('expired');
+    expect(captured[0].text).toMatch(/'expired'::"PublicationDraftStatus"/);
+    expect(captured[0].text).toMatch(/'expired'::"PublishApprovalState"/);
+    expect(captured[0].text).toMatch(/UPDATE "PublishApproval"/);
   });
 
   it('atomically aborts command, draft, and any open approval before publishing', async () => {

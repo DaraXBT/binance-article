@@ -4,13 +4,11 @@ import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react
 import Link from 'next/link';
 import {
   FileText,
-  Layers3,
   Lightbulb,
   LogIn,
   MessageSquarePlus,
 } from 'lucide-react';
 
-import { LanguageToggle } from '@/components/language-toggle';
 import { useLanguage } from '@/components/language-provider';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
@@ -26,9 +24,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  ConsolePanel,
-} from '@/components/console/secure-console-frame';
-import type { IllustrationStyleId } from '@/lib/config';
+  DEFAULT_ILLUSTRATION_STYLE,
+  type IllustrationStyleId,
+} from '@/lib/config';
 import {
   AnonymousDraftStorageError,
   createAnonymousGenerationIntent,
@@ -42,6 +40,7 @@ import {
   ArticleStudioShell,
 } from './article-studio-shell';
 import { PromptComposer, type ComposerSlideCount } from './prompt-composer';
+import { StudioSidebarBrand } from './studio-sidebar-brand';
 
 function getDraftTitle(prompt: string, fallback: string) {
   const firstLine = prompt
@@ -64,7 +63,6 @@ type AnonymousRailCopy = {
   startersLabel: string;
   starters: readonly string[];
   signIn: string;
-  savedInTab: string;
 };
 
 function AnonymousStudioRail({
@@ -101,27 +99,26 @@ function AnonymousStudioRail({
         data-article-studio-rail="anonymous"
         className="flex min-h-full flex-col"
       >
-        <div className="border-b border-dotted border-sidebar-border/80 px-1 pb-3">
-          <Link href="/" className="flex min-w-0 items-center gap-2.5 px-1 py-1.5">
-            <span className="flex size-8 shrink-0 items-center justify-center border border-sidebar-foreground/70 bg-sidebar-foreground text-sidebar">
-              <Layers3 aria-hidden="true" className="size-4" />
-            </span>
-            <span className="truncate text-sm font-semibold tracking-tight text-sidebar-foreground">
-              xArticle
-            </span>
-          </Link>
+        <div className="border-b border-dotted border-sidebar-border/80 px-1 pb-3 group-data-[collapsible=icon]:border-b-0 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pb-0">
+          <StudioSidebarBrand
+            href="/"
+            openLabel="Open article navigation"
+            closeLabel="Close article navigation"
+          />
           <Button
             type="button"
             onClick={onNewArticle}
-            className="mt-2 h-9 w-full justify-start rounded-none border border-sidebar-primary/45 bg-sidebar-primary text-sidebar-primary-foreground hover:brightness-110"
+            aria-label={copy.newArticle}
+            title={copy.newArticle}
+            className="mt-2 h-9 w-full justify-start rounded-lg group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
           >
             <MessageSquarePlus aria-hidden="true" className="size-4" />
-            {copy.newArticle}
+            <span className="group-data-[collapsible=icon]:hidden">{copy.newArticle}</span>
           </Button>
         </div>
 
-        <div className="mt-3 min-w-0">
-          <p className="px-1 font-mono text-[0.62rem] uppercase tracking-[0.14em] text-sidebar-foreground/60">
+        <div className="mt-3 min-w-0 group-data-[collapsible=icon]:hidden">
+          <p className="px-1 text-xs font-medium text-sidebar-foreground/65">
             {copy.localDraft}
           </p>
           {prompt.trim() ? (
@@ -129,14 +126,14 @@ function AnonymousStudioRail({
               type="button"
               onClick={onFocusPrompt}
               aria-label={`${copy.localDraft}: ${getDraftTitle(prompt, copy.untitledArticle)}`}
-              className="mt-1 flex w-full min-w-0 items-start gap-2 border border-dotted border-sidebar-border/80 bg-sidebar-accent/30 px-2.5 py-2.5 text-left text-sidebar-foreground transition-colors hover:border-sidebar-primary/50 hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50"
+              className="mt-1 flex w-full min-w-0 items-start gap-2 rounded-lg border border-sidebar-border/70 bg-sidebar-accent/30 px-2.5 py-2.5 text-left text-sidebar-foreground transition-colors hover:border-sidebar-primary/50 hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50"
             >
               <FileText aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-sidebar-foreground/65" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">
                   {getDraftTitle(prompt, copy.untitledArticle)}
                 </span>
-                <span className="mt-1 block font-mono text-[0.58rem] uppercase tracking-[0.12em] text-sidebar-foreground/60">
+                <span className="mt-1 block text-[0.68rem] font-medium text-sidebar-foreground/60">
                   {resumeIntent?.stage === 'submitted'
                     ? copy.draftStateReady
                     : resumeIntent
@@ -146,14 +143,14 @@ function AnonymousStudioRail({
               </span>
             </button>
           ) : (
-            <p className="mt-1 border border-dotted border-sidebar-border/70 px-2.5 py-2.5 text-xs leading-relaxed text-sidebar-foreground/55">
+            <p className="mt-1 rounded-lg border border-sidebar-border/60 bg-sidebar-accent/20 px-2.5 py-2.5 text-xs leading-relaxed text-sidebar-foreground/65">
               {copy.noLocalDraft}
             </p>
           )}
         </div>
 
-        <div className="mt-5 min-w-0">
-          <p className="flex items-center gap-1.5 px-1 font-mono text-[0.62rem] uppercase tracking-[0.14em] text-sidebar-foreground/60">
+        <div className="mt-5 min-w-0 group-data-[collapsible=icon]:hidden">
+          <p className="flex items-center gap-1.5 px-1 text-xs font-medium text-sidebar-foreground/65">
             <Lightbulb aria-hidden="true" className="size-3.5" />
             {copy.startersLabel}
           </p>
@@ -163,7 +160,7 @@ function AnonymousStudioRail({
                 key={starter}
                 type="button"
                 onClick={() => handleStarter(starter)}
-                className="min-w-0 border border-transparent px-2.5 py-2 text-left text-xs leading-relaxed text-sidebar-foreground/70 transition-colors hover:border-dotted hover:border-sidebar-border/80 hover:bg-sidebar-accent/45 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50"
+                className="min-w-0 rounded-lg px-2.5 py-2 text-left text-xs leading-relaxed text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/45 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50"
               >
                 <span className="line-clamp-2">{starter}</span>
               </button>
@@ -186,7 +183,9 @@ export function PublicHome({
   const copy = messages.publicHome;
   const [prompt, setPrompt] = useState('');
   const [slideCount, setSlideCount] = useState<ComposerSlideCount>(5);
-  const [illustrationStyle, setIllustrationStyle] = useState<IllustrationStyleId>('lab-notes');
+  const [illustrationStyle, setIllustrationStyle] = useState<IllustrationStyleId>(
+    DEFAULT_ILLUSTRATION_STYLE,
+  );
   const [error, setError] = useState<string | null>(null);
   const [storageFailed, setStorageFailed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -339,7 +338,7 @@ export function PublicHome({
     else window.location.assign(destination);
   };
 
-  const handleHeaderSignIn = (event: MouseEvent<HTMLAnchorElement>) => {
+  const handleSignIn = (event: MouseEvent<HTMLAnchorElement>) => {
     if (!prompt.trim()) return;
     event.preventDefault();
     try {
@@ -451,12 +450,6 @@ export function PublicHome({
     : '/workspace';
   const signInHref = `/login?callbackURL=${encodeURIComponent(signInCallback)}`;
 
-  const styleNames = {
-    'pixel-art': messages.newDeck.styleOptions['pixel-art'].name,
-    'fantasy-animation': messages.newDeck.styleOptions['fantasy-animation'].name,
-    'lab-notes': messages.newDeck.styleOptions['lab-notes'].name,
-  };
-
   return (
     <>
       <a
@@ -483,52 +476,35 @@ export function PublicHome({
           />
         )}
         sidebarFooter={(
-          <div className="space-y-2 p-1">
+          <div className="space-y-2 p-1 group-data-[collapsible=icon]:p-0">
             <Link
               href={signInHref}
-              onClick={handleHeaderSignIn}
+              onClick={handleSignIn}
               aria-label={copy.signIn}
-              className="flex h-9 w-full items-center justify-start gap-2 border border-sidebar-border/80 bg-sidebar-accent/30 px-2.5 text-sm font-medium text-sidebar-foreground transition-colors hover:border-sidebar-primary/50 hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50"
+              title={copy.signIn}
+              className="flex h-9 w-full items-center justify-start gap-2 rounded-lg border border-sidebar-border/80 bg-sidebar-accent/30 px-2.5 text-sm font-medium text-sidebar-foreground transition-colors hover:border-sidebar-primary/50 hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
             >
               <LogIn aria-hidden="true" className="size-4" />
-              {copy.signIn}
+              <span className="group-data-[collapsible=icon]:hidden">{copy.signIn}</span>
             </Link>
-            <p className="px-1 font-mono text-[0.58rem] uppercase tracking-[0.11em] text-sidebar-foreground/55">
-              {copy.savedInTab}
-            </p>
+            <div className="flex items-center justify-end gap-1.5 group-data-[collapsible=icon]:hidden">
+              <ThemeToggle />
+            </div>
           </div>
-        )}
-        headerActions={(
-          <>
-            <LanguageToggle />
-            <ThemeToggle />
-            <Button asChild size="sm" className="h-8 rounded-none px-2 min-[390px]:px-3">
-              <Link href={signInHref} onClick={handleHeaderSignIn} aria-label={copy.signIn}>
-                <LogIn aria-hidden="true" className="size-4 min-[390px]:hidden" />
-                <span className="hidden min-[390px]:inline">{copy.signIn}</span>
-              </Link>
-            </Button>
-          </>
         )}
         onMobileSidebarClose={handleMobileSidebarClosed}
         onMobileSidebarCloseAutoFocus={handleMobileSidebarCloseAutoFocus}
         mainClassName="studio-main-public"
       >
-        <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-center gap-4">
-          <section className="min-w-0 text-center">
-            <h1 className="text-2xl font-semibold leading-tight tracking-normal sm:text-3xl">
+        <div className="studio-home-canvas flex min-h-full w-full flex-col justify-center gap-6">
+          <section className="studio-intro min-w-0 text-center">
+            <h1 className="mx-auto max-w-[24ch] text-balance text-3xl font-semibold leading-[1.08] tracking-normal sm:text-4xl lg:text-[2.65rem]">
               {copy.studioGreeting || copy.title}
             </h1>
           </section>
 
-          <div data-article-studio-composer>
-            <ConsolePanel className="studio-composer-panel bg-card/70 p-3 sm:p-5">
+          <div data-article-studio-composer className="mx-auto w-full max-w-3xl">
             <div id="public-composer" className="scroll-mt-4">
-              <div className="mb-3 flex items-center justify-between gap-3 border-b border-dotted border-border/70 px-1 pb-2.5">
-                <span className="truncate font-mono text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-foreground">
-                  {copy.promptLabel}
-                </span>
-              </div>
               <PromptComposer
                 textareaRef={promptRef}
                 prompt={prompt}
@@ -555,14 +531,13 @@ export function PublicHome({
                   illustrationStyle: copy.illustrationStyleLabel,
                   generate: copy.createAction,
                   generating: copy.createAction,
-                  styleNames,
                 }}
                 error={error}
                 isGenerating={isSubmitting}
               />
 
               {storageFailed ? (
-                <div className="mt-3 flex flex-wrap items-center justify-end gap-3 border-t border-dotted border-border/70 pt-3 text-sm">
+                <div className="mt-3 flex flex-wrap items-center justify-end gap-3 rounded-xl border border-border/70 bg-card/70 px-3 py-3 text-sm">
                   <button
                     type="button"
                     onClick={handleCreate}
@@ -580,7 +555,6 @@ export function PublicHome({
                 </div>
               ) : null}
             </div>
-            </ConsolePanel>
           </div>
         </div>
       </ArticleStudioShell>
@@ -592,10 +566,10 @@ export function PublicHome({
             <AlertDialogDescription>{copy.discardDraftDescription}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
-            <AlertDialogCancel className="h-10 rounded-none border-dotted">
+            <AlertDialogCancel className="h-10 rounded-lg">
               {copy.keepDraft}
             </AlertDialogCancel>
-            <AlertDialogAction className="h-10 rounded-none" onClick={handleDiscardDraft}>
+            <AlertDialogAction className="h-10 rounded-lg" onClick={handleDiscardDraft}>
               {copy.discardDraft}
             </AlertDialogAction>
           </AlertDialogFooter>

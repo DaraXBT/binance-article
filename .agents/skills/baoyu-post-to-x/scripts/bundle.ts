@@ -14,7 +14,7 @@ export const X_BUNDLE_LIMITS = {
   maxImageBytes: 10 * 1024 * 1024,
   maxPostBytes: 100 * 1024,
   maxManifestBytes: 64 * 1024,
-  maxPostCharacters: 25_000,
+  maxPostCharacters: 280,
 } as const;
 
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
@@ -448,7 +448,7 @@ export async function validateXPostBundleArchive(bundlePath: string): Promise<Va
     throw new XBundleValidationError('post.txt is not valid UTF-8.');
   }
   if ([...text].length > X_BUNDLE_LIMITS.maxPostCharacters) {
-    throw new XBundleValidationError('post.txt exceeds the X post character limit.');
+    throw new XBundleValidationError('post.txt exceeds 280 characters, the X post limit.');
   }
   if (!text.trim() && manifest.images.length === 0) {
     throw new XBundleValidationError('The X post bundle has no text or images.');

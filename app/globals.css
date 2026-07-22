@@ -24,6 +24,7 @@
   --accent-foreground: #141413;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
+  --destructive-text: #b91c1c;
   --border: #d6d0bf;
   --input: #bbb3a3;
   --ring: #315ef6;
@@ -33,6 +34,42 @@
   --chart-4: #7c3aed;
   --chart-5: #dc2626;
   --radius: 0.5rem;
+  --brand-binance: #f0b90b;
+  --brand-binance-foreground: #181a20;
+  --brand-binance-border: #c99400;
+  --button-material-highlight: rgb(255 255 255 / 0.28);
+  --button-material-edge: rgb(0 0 0 / 0.2);
+  --button-material-shadow:
+    0 1px 2px rgb(20 20 19 / 0.14),
+    0 2px 4px rgb(20 20 19 / 0.08);
+  --button-material-shadow-hover:
+    0 2px 4px rgb(20 20 19 / 0.16),
+    0 4px 8px rgb(20 20 19 / 0.1);
+  --button-material-shadow-pressed: 0 1px 2px rgb(20 20 19 / 0.12);
+  --button-primary-from: #44403c;
+  --button-primary-to: #292524;
+  --button-primary-hover-from: #57534e;
+  --button-primary-hover-to: #292524;
+  --button-primary-border: #1c1917;
+  --button-primary-foreground: #fafaf9;
+  --button-secondary-from: #ece8de;
+  --button-secondary-to: #d6d0bf;
+  --button-secondary-hover-from: #f4f1e9;
+  --button-secondary-hover-to: #ddd7c8;
+  --button-secondary-border: #b9b19f;
+  --button-secondary-foreground: #1c1917;
+  --button-outline-from: #fffefa;
+  --button-outline-to: #efede4;
+  --button-outline-hover-from: #ffffff;
+  --button-outline-hover-to: #e8e4d9;
+  --button-outline-border: #c8c1b1;
+  --button-outline-foreground: #292524;
+  --button-destructive-from: #ef4444;
+  --button-destructive-to: #b91c1c;
+  --button-destructive-hover-from: #f05252;
+  --button-destructive-hover-to: #c81e1e;
+  --button-destructive-border: #991b1b;
+  --button-destructive-foreground: #ffffff;
   --sidebar: #faf9f5;
   --sidebar-foreground: #141413;
   --sidebar-primary: #315ef6;
@@ -41,6 +78,9 @@
   --sidebar-accent-foreground: #141413;
   --sidebar-border: #d6d0bf;
   --sidebar-ring: #315ef6;
+  --studio-rail-width: 16rem;
+  --studio-header-height: 3.5rem;
+  --studio-panel-radius: 0.75rem;
 }
 
 .dark {
@@ -65,6 +105,7 @@
   --accent-foreground: #f0e3de;
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
+  --destructive-text: #f87171;
   --border: rgb(240 227 222 / 0.14);
   --input: rgb(240 227 222 / 0.22);
   --ring: #c8fc34;
@@ -73,6 +114,39 @@
   --chart-3: #f2b84b;
   --chart-4: #a78bfa;
   --chart-5: #ef4444;
+  --button-material-highlight: rgb(255 255 255 / 0.3);
+  --button-material-edge: rgb(0 0 0 / 0.24);
+  --button-material-shadow:
+    0 1px 2px rgb(0 0 0 / 0.28),
+    0 2px 5px rgb(0 0 0 / 0.14);
+  --button-material-shadow-hover:
+    0 2px 4px rgb(0 0 0 / 0.3),
+    0 4px 9px rgb(0 0 0 / 0.16);
+  --button-material-shadow-pressed: 0 1px 2px rgb(0 0 0 / 0.22);
+  --button-primary-from: #f8d33a;
+  --button-primary-to: #f0b90b;
+  --button-primary-hover-from: #ffe169;
+  --button-primary-hover-to: #f8c82a;
+  --button-primary-border: #a87800;
+  --button-primary-foreground: #141413;
+  --button-secondary-from: #3a3835;
+  --button-secondary-to: #272624;
+  --button-secondary-hover-from: #45423e;
+  --button-secondary-hover-to: #2e2c29;
+  --button-secondary-border: rgb(240 227 222 / 0.28);
+  --button-secondary-foreground: #f0e3de;
+  --button-outline-from: #242321;
+  --button-outline-to: #1a1918;
+  --button-outline-hover-from: #302e2b;
+  --button-outline-hover-to: #22211f;
+  --button-outline-border: rgb(240 227 222 / 0.3);
+  --button-outline-foreground: #f0e3de;
+  --button-destructive-from: #f05252;
+  --button-destructive-to: #c02626;
+  --button-destructive-hover-from: #fb6a6a;
+  --button-destructive-hover-to: #d12d2d;
+  --button-destructive-border: #7f1d1d;
+  --button-destructive-foreground: #ffffff;
   --sidebar: #191817;
   --sidebar-foreground: #f0e3de;
   --sidebar-primary: #c8fc34;
@@ -81,6 +155,9 @@
   --sidebar-accent-foreground: #f0e3de;
   --sidebar-border: rgb(240 227 222 / 0.14);
   --sidebar-ring: #c8fc34;
+  --studio-rail-width: 16rem;
+  --studio-header-height: 3.5rem;
+  --studio-panel-radius: 0.75rem;
 }
 
 @theme inline {
@@ -102,9 +179,13 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-text: var(--destructive-text);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-brand-binance: var(--brand-binance);
+  --color-brand-binance-foreground: var(--brand-binance-foreground);
+  --color-brand-binance-border: var(--brand-binance-border);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -133,22 +214,176 @@
   }
   body {
     @apply bg-background text-foreground;
-    min-width: 320px;
+    min-width: 0;
   }
   ::selection {
     color: var(--primary-foreground);
     background: var(--primary);
   }
+  button,
+  [role='button'],
+  [data-slot='button'] {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  /* Every enabled action advertises clickability. Keep disabled and
+   * specialized resize controls authoritative through their own utilities. */
+  :where(
+    button:not(:disabled):not([aria-disabled='true']):not([data-disabled]),
+    a[href]:not([disabled]):not([aria-disabled='true']):not([data-disabled]),
+    select:not(:disabled):not([aria-disabled='true']),
+    [role='button']:not([aria-disabled='true']):not([data-disabled]),
+    [role='link']:not([aria-disabled='true']):not([data-disabled]),
+    [role='menuitem']:not([aria-disabled='true']):not([data-disabled]),
+    [role='menuitemcheckbox']:not([aria-disabled='true']):not([data-disabled]),
+    [role='menuitemradio']:not([aria-disabled='true']):not([data-disabled]),
+    [role='option']:not([aria-disabled='true']):not([data-disabled]),
+    [role='tab']:not([aria-disabled='true']):not([data-disabled]),
+    [role='switch']:not([aria-disabled='true']):not([data-disabled]),
+    [role='checkbox']:not([aria-disabled='true']):not([data-disabled]),
+    [role='radio']:not([aria-disabled='true']):not([data-disabled]),
+    [role='slider']:not([aria-disabled='true']):not([data-disabled]),
+    summary,
+    input[type='button']:not(:disabled),
+    input[type='submit']:not(:disabled),
+    input[type='reset']:not(:disabled),
+    input[type='image']:not(:disabled),
+    input[type='file']:not(:disabled),
+    input[type='color']:not(:disabled),
+    input[type='range']:not(:disabled),
+    input[type='checkbox']:not(:disabled),
+    input[type='radio']:not(:disabled),
+    label[for],
+    label:has(input:not(:disabled), select:not(:disabled), textarea:not(:disabled))
+  ) {
+    cursor: pointer;
+  }
+
+}
+
+/* Disabled affordances intentionally sit outside Tailwind's cascade layers,
+ * so semantic disabled state wins over a generic cursor utility. Enabled
+ * rules remain zero-specificity, allowing controls such as the sidebar rail
+ * to retain their specialized resize cursor. */
+:where(
+  button:disabled,
+  a[href][disabled],
+  select:disabled,
+  input:disabled,
+  textarea:disabled,
+  [aria-disabled='true'],
+  [data-disabled],
+  [data-state='disabled']
+) {
+  cursor: not-allowed;
 }
 
 @layer components {
+  .ai-prompt-box-textarea:focus,
+  .ai-prompt-box-textarea:focus-visible {
+    border-color: transparent !important;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  .button-material {
+    --button-material-inset:
+      inset 0 1px 0 var(--button-material-highlight),
+      inset 0 -1px 0 var(--button-material-edge);
+    position: relative;
+    isolation: isolate;
+    border-color: var(--button-material-border);
+    background: linear-gradient(
+      to bottom,
+      var(--button-material-from),
+      var(--button-material-to)
+    );
+    color: var(--button-material-foreground);
+    box-shadow: var(--button-material-shadow);
+  }
+
+  .button-material::after {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: var(--button-material-inset);
+    pointer-events: none;
+    content: '';
+  }
+
+  .button-material-primary {
+    --button-material-from: var(--button-primary-from);
+    --button-material-to: var(--button-primary-to);
+    --button-material-hover-from: var(--button-primary-hover-from);
+    --button-material-hover-to: var(--button-primary-hover-to);
+    --button-material-border: var(--button-primary-border);
+    --button-material-foreground: var(--button-primary-foreground);
+  }
+
+  .button-material-secondary {
+    --button-material-from: var(--button-secondary-from);
+    --button-material-to: var(--button-secondary-to);
+    --button-material-hover-from: var(--button-secondary-hover-from);
+    --button-material-hover-to: var(--button-secondary-hover-to);
+    --button-material-border: var(--button-secondary-border);
+    --button-material-foreground: var(--button-secondary-foreground);
+  }
+
+  .button-material-outline {
+    --button-material-from: var(--button-outline-from);
+    --button-material-to: var(--button-outline-to);
+    --button-material-hover-from: var(--button-outline-hover-from);
+    --button-material-hover-to: var(--button-outline-hover-to);
+    --button-material-border: var(--button-outline-border);
+    --button-material-foreground: var(--button-outline-foreground);
+  }
+
+  .button-material-destructive {
+    --button-material-from: var(--button-destructive-from);
+    --button-material-to: var(--button-destructive-to);
+    --button-material-hover-from: var(--button-destructive-hover-from);
+    --button-material-hover-to: var(--button-destructive-hover-to);
+    --button-material-border: var(--button-destructive-border);
+    --button-material-foreground: var(--button-destructive-foreground);
+  }
+
+  .button-material:not(:disabled):hover {
+    background: linear-gradient(
+      to bottom,
+      var(--button-material-hover-from),
+      var(--button-material-hover-to)
+    );
+    box-shadow: var(--button-material-shadow-hover);
+  }
+
+  .button-material:not(:disabled):active {
+    box-shadow: var(--button-material-shadow-pressed);
+  }
+
+  .button-material:disabled {
+    box-shadow: none;
+    filter: saturate(0.72);
+  }
+
+  .button-flat {
+    box-shadow: none;
+  }
+
   .console-viewport {
     position: relative;
+    isolation: isolate;
     min-height: 100dvh;
     overflow: hidden;
     padding: 0.5rem 0.5rem 0;
     background: var(--background);
     color: var(--foreground);
+  }
+
+  /* Only the compose shell is edge-to-edge. Standalone checkpoint surfaces
+   * keep their small outer frame inset. */
+  .studio-compose-viewport {
+    padding-inline: 0;
   }
 
   .viewport-top-line {
@@ -198,37 +433,41 @@
 
   .screen-line {
     position: relative;
-    height: 1.25rem;
+    /* Separators are deliberately quiet: one structural rule, no pattern. */
+    height: 1px;
+    width: 100%;
     flex-shrink: 0;
-  }
-
-  .screen-line::before {
-    position: absolute;
-    inset-block: 0;
-    right: calc(-50vw + 50%);
-    left: calc(-50vw + 50%);
-    pointer-events: none;
-    content: '';
-    background-image:
-      repeating-linear-gradient(
-        315deg,
-        color-mix(in srgb, var(--border) 44%, transparent) 0,
-        color-mix(in srgb, var(--border) 44%, transparent) 1px,
-        transparent 1px,
-        transparent 8px
-      ),
-      linear-gradient(var(--border), var(--border)),
-      linear-gradient(var(--border), var(--border));
-    background-repeat: repeat, no-repeat, no-repeat;
-    background-position: 0 0, top, bottom;
-    background-size: auto, 100% 1px, 100% 1px;
+    background: var(--border);
   }
 
   .console-panel {
     position: relative;
     border: 1px dotted var(--border);
     background: color-mix(in srgb, var(--card) 84%, transparent);
+    box-shadow: none;
     padding: 0.875rem;
+  }
+
+  .studio-intro {
+    text-wrap: pretty;
+  }
+
+  .studio-home-canvas {
+    width: 100%;
+    max-width: none;
+  }
+
+  .studio-auth-panel {
+    box-shadow: none;
+  }
+
+  .studio-toolbar {
+    min-height: var(--studio-header-height);
+    background: color-mix(in srgb, var(--background) 94%, var(--card));
+  }
+
+  .studio-editor-shell {
+    background: var(--background);
   }
 
   .console-data-card {
@@ -241,6 +480,7 @@
     width: 100%;
     border: 1px dotted var(--border);
     background: color-mix(in srgb, var(--background) 50%, transparent);
+    box-shadow: none;
     padding: 0.75rem 0.875rem;
     text-align: left;
     transition: border-color 150ms ease, background-color 150ms ease;
@@ -254,6 +494,7 @@
     max-height: calc(100dvh - 2rem);
     overflow-y: auto;
     border-style: dotted;
+    border-radius: var(--studio-panel-radius);
     background: var(--card);
     box-shadow: none;
   }
@@ -264,7 +505,6 @@
     }
 
     .console-header {
-      min-height: 3.5rem;
       padding-inline: 1rem;
     }
 
@@ -282,5 +522,11 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .button-material,
+  .button-material:not(:disabled):hover,
+  .button-material:not(:disabled):active {
+    transform: none;
   }
 }

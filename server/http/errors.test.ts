@@ -126,6 +126,19 @@ describe('errorResponse', () => {
     spy.mockRestore();
   });
 
+  it('redacts bearer tokens, credentials, and secret-shaped values from server logs', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const raw = new Error(
+      'Bearer abcdefghijklmnopqrstuvwxyz123456 password=super-secret postgres://user:pass@db.example.com/app',
+    );
+    errorResponse(raw);
+    const logged = JSON.parse(spy.mock.calls[0][0] as string) as { cause: string };
+    expect(logged.cause).not.toContain('abcdefghijklmnopqrstuvwxyz123456');
+    expect(logged.cause).not.toContain('super-secret');
+    expect(logged.cause).not.toContain('user:pass');
+    spy.mockRestore();
+  });
+
   it('does not log client errors (4xx)', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const err = new AppError({ code: 'BAD_REQUEST', message: 'Invalid input', status: 400 });

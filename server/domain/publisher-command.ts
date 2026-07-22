@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { PublicationTargetSchema } from './publication-recipe';
+
 const IdentifierSchema = z.string().trim().min(1).max(200);
 const RevisionSchema = z.number().int().nonnegative().safe();
 
@@ -18,6 +20,7 @@ export const PublisherCommandStateSchema = z.object({
     'outcome_unknown',
   ]),
   revision: RevisionSchema,
+  target: PublicationTargetSchema.default('binance-square'),
   assignedDeviceId: IdentifierSchema.nullable(),
   expiresAt: z.date(),
   publishedUrl: z.string().url().optional(),
@@ -69,18 +72,21 @@ function assertDevice(command: PublisherCommandState, deviceId: string): void {
   }
 }
 
-function assertBinancePublishedUrl(value: string): void {
+function assertPublishedUrl(target: z.infer<typeof PublicationTargetSchema>, value: string): void {
   let url: URL;
   try {
     url = new URL(value);
   } catch {
-    throw new Error('Published URL is not a valid Binance URL.');
+    throw new Error(`Published URL is not a valid ${target === 'x' ? 'X' : 'Binance'} URL.`);
   }
 
-  const isBinanceHost = url.hostname === 'binance.com' || url.hostname.endsWith('.binance.com');
-  const isPublishedPath = /\/square\/(?:post|article)\/[^/]+/i.test(url.pathname);
-  if (url.protocol !== 'https:' || !isBinanceHost || !isPublishedPath || url.username || url.password) {
-    throw new Error('Published URL is not a canonical Binance Square URL.');
+  const valid = target === 'x'
+    ? /^https:\/\/x\.com\/[A-Za-z0-9_]{1,15}\/status\/[0-9]+$/.test(value)
+    : url.protocol === 'https:'
+      && (url.hostname === 'binance.com' || url.hostname.endsWith('.binance.com'))
+      && /\/square\/(?:post|article)\/[^/]+/i.test(url.pathname);
+  if (!valid || url.username || url.password) {
+    throw new Error(`Published URL is not a canonical ${target === 'x' ? 'X status' : 'Binance Square'} URL.`);
   }
 }
 
@@ -95,7 +101,7 @@ function assertTransition(
 }
 
 export function transitionPublisherCommand(
-  commandInput: PublisherCommandState,
+  commandInput: z.input<typeof PublisherCommandStateSchema>,
   eventInput: PublisherCommandEvent,
   now = new Date(),
 ): PublisherCommandState {
@@ -147,7 +153,7 @@ export function transitionPublisherCommand(
     case 'publish_succeeded':
       assertTransition(command, event, 'publishing');
       assertDevice(command, event.deviceId);
-      assertBinancePublishedUrl(event.publishedUrl);
+      assertPublishedUrl(command.target, event.publishedUrl);
       return { ...command, state: 'succeeded', publishedUrl: event.publishedUrl };
 
     case 'publish_failed':

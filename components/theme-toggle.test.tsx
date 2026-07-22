@@ -62,4 +62,12 @@ describe('ThemeToggle', () => {
 
     expect(themeMock.setTheme).toHaveBeenCalledWith('light');
   });
+
+  it('shows the next theme action when embedded in the sidebar', () => {
+    render(<ThemeToggle showLabel className="sidebar-theme" />);
+
+    const toggle = screen.getByRole('button', { name: 'Toggle theme' });
+    expect(toggle.textContent).toContain('Dark');
+    expect(toggle.classList.contains('sidebar-theme')).toBe(true);
+  });
 });

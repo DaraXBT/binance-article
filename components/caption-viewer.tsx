@@ -43,13 +43,13 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
   };
 
   return (
-    <Tabs defaultValue="blog" className="h-full flex flex-col">
-      <TabsList className="w-full  border-b border-border bg-transparent">
+    <Tabs defaultValue="blog" className="flex h-full flex-col bg-card/20">
+      <TabsList className="w-full rounded-none border-b border-dotted border-border bg-transparent">
         <TabsTrigger value="blog">{messages.captions.blog}</TabsTrigger>
         <TabsTrigger value="twitter">{messages.captions.twitter}</TabsTrigger>
       </TabsList>
 
-      <TabsContent value="blog" className="flex-1 overflow-y-auto p-4">
+      <TabsContent value="blog" className="flex-1 break-words overflow-y-auto p-4 [overflow-wrap:anywhere]">
         <div className="space-y-6">
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -57,6 +57,7 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
               <Button
                 size="sm"
                 variant="ghost"
+                className="rounded-lg"
                 onClick={() => handleCopy(blog.seoTitle, 'seo-title')}
               >
                 {copiedIndex === 'seo-title' ? (
@@ -66,7 +67,7 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
                 )}
               </Button>
             </div>
-            <p className="text-sm bg-muted p-3 ">{blog.seoTitle}</p>
+            <p className="rounded-lg border border-dotted border-border bg-muted/40 p-3 text-sm">{blog.seoTitle}</p>
             <p className="text-xs text-muted-foreground mt-1">
               {messages.captions.characters(blog.seoTitle.length, 60)}
             </p>
@@ -78,6 +79,7 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
               <Button
                 size="sm"
                 variant="ghost"
+                className="rounded-lg"
                 onClick={() => handleCopy(blog.metaDescription, 'meta')}
               >
                 {copiedIndex === 'meta' ? (
@@ -87,7 +89,7 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
                 )}
               </Button>
             </div>
-            <p className="text-sm bg-muted p-3 ">{blog.metaDescription}</p>
+            <p className="rounded-lg border border-dotted border-border bg-muted/40 p-3 text-sm">{blog.metaDescription}</p>
             <p className="text-xs text-muted-foreground mt-1">
               {messages.captions.characters(blog.metaDescription.length, 160)}
             </p>
@@ -99,6 +101,7 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
               <Button
                 size="sm"
                 variant="ghost"
+                className="rounded-lg"
                 onClick={() => handleCopy(blog.introText, 'intro')}
               >
                 {copiedIndex === 'intro' ? (
@@ -108,7 +111,7 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
                 )}
               </Button>
             </div>
-            <p className="text-sm bg-muted p-3  whitespace-pre-wrap">
+            <p className="whitespace-pre-wrap rounded-lg border border-dotted border-border bg-muted/40 p-3 text-sm">
               {blog.introText}
             </p>
           </div>
@@ -120,6 +123,7 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
                 <Button
                   size="sm"
                   variant="ghost"
+                  className="rounded-lg"
                   onClick={() => handleCopy(blog.tags.join(', '), 'tags')}
                 >
                   {copiedIndex === 'tags' ? (
@@ -131,7 +135,7 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
               </div>
               <div className="flex flex-wrap gap-2">
                 {blog.tags.map((tag: string) => (
-                  <span key={tag} className="inline-block bg-secondary text-secondary-foreground px-3 py-1  text-xs">
+                  <span key={tag} className="inline-block rounded-md bg-secondary px-3 py-1 text-xs text-secondary-foreground">
                     #{tag}
                   </span>
                 ))}
@@ -141,7 +145,7 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
         </div>
       </TabsContent>
 
-      <TabsContent value="twitter" className="flex-1 overflow-y-auto p-4">
+      <TabsContent value="twitter" className="flex-1 break-words overflow-y-auto p-4 [overflow-wrap:anywhere]">
         <div className="space-y-6">
           {twitter.singles && twitter.singles.length > 0 && (
             <div>
@@ -156,6 +160,7 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
                       <Button
                         size="sm"
                         variant="ghost"
+                        className="rounded-lg"
                         onClick={() => handleCopy(tweet, `tweet-${idx}`)}
                       >
                         {copiedIndex === `tweet-${idx}` ? (
@@ -165,7 +170,7 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
                         )}
                       </Button>
                     </div>
-                    <p className="text-sm bg-muted p-3 ">{tweet}</p>
+                    <p className="rounded-lg border border-dotted border-border bg-muted/40 p-3 text-sm">{tweet}</p>
                   </div>
                 ))}
               </div>
@@ -179,6 +184,7 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
                 <Button
                   size="sm"
                   variant="ghost"
+                  className="rounded-lg"
                   onClick={() => handleCopy(twitter.thread, 'thread')}
                 >
                   {copiedIndex === 'thread' ? (
@@ -188,7 +194,7 @@ export function CaptionViewer({ captions }: CaptionViewerProps) {
                   )}
                 </Button>
               </div>
-              <p className="text-sm bg-muted p-3  whitespace-pre-wrap">
+              <p className="whitespace-pre-wrap rounded-lg border border-dotted border-border bg-muted/40 p-3 text-sm">
                 {twitter.thread}
               </p>
             </div>

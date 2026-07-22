@@ -64,4 +64,28 @@ describe('image generation provider boundary', () => {
     expect(normalized.message).toMatch(/retry failed images/i);
     expect(normalized.message).not.toContain('Quota exceeded');
   });
+
+  it('resolves every Binance style to distinct image guidance and policy-aware prompts', async () => {
+    const { buildImagePrompt, getStyleDescription } = await import('@/lib/image-gen');
+    const styles = [
+      'binance',
+      'binance-master',
+      'binance-briefing',
+      'binance-mondo-panoramic',
+      'binance-sketch-notes',
+      'binance-vector-illustration',
+    ] as const;
+
+    const descriptions = styles.map((style) => getStyleDescription(style));
+    expect(new Set(descriptions).size).toBe(styles.length);
+    expect(descriptions.join('\n')).toContain('#0C0E12');
+
+    expect(buildImagePrompt('binance', 'A liquidity platform')).toMatch(/exactly one BNB mark/i);
+    expect(buildImagePrompt(getStyleDescription('binance'), 'A liquidity platform'))
+      .toMatch(/exactly one BNB mark/i);
+    expect(buildImagePrompt('binance-briefing', 'A protocol comparison')).toMatch(/article-language labels/i);
+    expect(buildImagePrompt('binance-mondo-panoramic', 'An exchange evolution')).toMatch(/no captions or labels/i);
+    expect(buildImagePrompt('binance-sketch-notes', 'Wallet safety')).toMatch(/hand-lettered/i);
+    expect(buildImagePrompt('binance-vector-illustration', 'A wallet')).toMatch(/short article-language labels/i);
+  });
 });

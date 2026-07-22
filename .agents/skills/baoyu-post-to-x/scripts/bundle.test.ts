@@ -178,6 +178,12 @@ describe('X post bundle validation', () => {
       }));
       await expect(validateXPostBundleArchive(mismatch)).rejects.toThrow(/SHA-256 mismatch/i);
 
+      const longPost = path.join(root, 'long-post.zip');
+      await fs.writeFile(longPost, makeArchive({
+        text: new TextEncoder().encode('x'.repeat(281)),
+      }));
+      await expect(validateXPostBundleArchive(longPost)).rejects.toThrow(/280 characters/i);
+
       const oversizedText = new Uint8Array(100 * 1024 + 1).fill(0x78);
       const oversized = path.join(root, 'oversized.zip');
       await fs.writeFile(oversized, makeArchive({ text: oversizedText }));

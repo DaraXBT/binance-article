@@ -2,30 +2,33 @@
 
 ✓✓ = highly recommended | ✓ = compatible | ✗ = not recommended
 
+The matrices cover all 10 built-in palettes and all 8 built-in renderings. Existing combinations remain unchanged; the Binance palette and isometric/screen-print renderings are additive.
+
 ## Palette × Rendering
 
-| | flat-vector | hand-drawn | painterly | digital | pixel | chalk |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| warm | ✓✓ | ✓✓ | ✓ | ✓ | ✓ | ✓ |
-| elegant | ✓ | ✓✓ | ✓ | ✓✓ | ✗ | ✗ |
-| cool | ✓✓ | ✓ | ✗ | ✓✓ | ✓ | ✓ |
-| dark | ✓ | ✓ | ✓ | ✓✓ | ✓ | ✓✓ |
-| earth | ✓ | ✓✓ | ✓✓ | ✓ | ✗ | ✗ |
-| vivid | ✓✓ | ✓ | ✓ | ✓ | ✓✓ | ✓ |
-| pastel | ✓✓ | ✓✓ | ✓✓ | ✓ | ✗ | ✗ |
-| mono | ✓✓ | ✓ | ✗ | ✓✓ | ✓ | ✓ |
-| retro | ✓✓ | ✓✓ | ✓ | ✓✓ | ✓ | ✗ |
+| | flat-vector | hand-drawn | painterly | digital | pixel | chalk | isometric | screen-print |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| warm | ✓✓ | ✓✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| elegant | ✓ | ✓✓ | ✓ | ✓✓ | ✗ | ✗ | ✓ | ✓ |
+| cool | ✓✓ | ✓ | ✗ | ✓✓ | ✓ | ✓ | ✓✓ | ✓ |
+| dark | ✓ | ✓ | ✓ | ✓✓ | ✓ | ✓✓ | ✓✓ | ✓✓ |
+| earth | ✓ | ✓✓ | ✓✓ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| vivid | ✓✓ | ✓ | ✓ | ✓ | ✓✓ | ✓ | ✓ | ✓✓ |
+| pastel | ✓✓ | ✓✓ | ✓✓ | ✓ | ✗ | ✗ | ✓ | ✓ |
+| mono | ✓✓ | ✓ | ✗ | ✓✓ | ✓ | ✓ | ✓✓ | ✓✓ |
+| retro | ✓✓ | ✓✓ | ✓ | ✓✓ | ✓ | ✗ | ✓ | ✓✓ |
+| binance | ✓✓ | ✓✓ | ✗ | ✓ | ✓ | ✓ | ✓✓ | ✓✓ |
 
 ## Type × Rendering
 
-| | flat-vector | hand-drawn | painterly | digital | pixel | chalk |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| hero | ✓ | ✓✓ | ✓✓ | ✓✓ | ✓ | ✓ |
-| conceptual | ✓✓ | ✓ | ✗ | ✓✓ | ✓ | ✓ |
-| typography | ✓✓ | ✓ | ✓ | ✓✓ | ✓ | ✓ |
-| metaphor | ✓ | ✓✓ | ✓✓ | ✓ | ✗ | ✓ |
-| scene | ✗ | ✓ | ✓✓ | ✓ | ✓ | ✗ |
-| minimal | ✓✓ | ✓ | ✓ | ✓✓ | ✗ | ✗ |
+| | flat-vector | hand-drawn | painterly | digital | pixel | chalk | isometric | screen-print |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| hero | ✓ | ✓✓ | ✓✓ | ✓✓ | ✓ | ✓ | ✓✓ | ✓✓ |
+| conceptual | ✓✓ | ✓ | ✗ | ✓✓ | ✓ | ✓ | ✓✓ | ✓ |
+| typography | ✓✓ | ✓ | ✓ | ✓✓ | ✓ | ✓ | ✓ | ✓✓ |
+| metaphor | ✓ | ✓✓ | ✓✓ | ✓ | ✗ | ✓ | ✓ | ✓✓ |
+| scene | ✗ | ✓ | ✓✓ | ✓ | ✓ | ✗ | ✓ | ✓✓ |
+| minimal | ✓✓ | ✓ | ✓ | ✓✓ | ✗ | ✗ | ✓✓ | ✓ |
 
 ## Type × Text
 
@@ -51,9 +54,9 @@
 
 ## Font × Rendering
 
-| | flat-vector | hand-drawn | painterly | digital | pixel | chalk |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| clean | ✓✓ | ✗ | ✗ | ✓✓ | ✓ | ✗ |
-| handwritten | ✓ | ✓✓ | ✓✓ | ✓ | ✗ | ✓✓ |
-| serif | ✓ | ✗ | ✓ | ✓✓ | ✗ | ✗ |
-| display | ✓✓ | ✓ | ✓ | ✓✓ | ✓✓ | ✓ |
+| | flat-vector | hand-drawn | painterly | digital | pixel | chalk | isometric | screen-print |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| clean | ✓✓ | ✗ | ✗ | ✓✓ | ✓ | ✗ | ✓✓ | ✓ |
+| handwritten | ✓ | ✓✓ | ✓✓ | ✓ | ✗ | ✓✓ | ✗ | ✓ |
+| serif | ✓ | ✗ | ✓ | ✓✓ | ✗ | ✗ | ✓ | ✓ |
+| display | ✓✓ | ✓ | ✓ | ✓✓ | ✓✓ | ✓ | ✓ | ✓✓ |

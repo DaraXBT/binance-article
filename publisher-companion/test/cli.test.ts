@@ -12,5 +12,6 @@ describe('publisher companion CLI', () => {
     expect(parseCompanionArguments(['pair', '--api', 'https://articles.example.com']))
       .toEqual({ command: 'pair', baseUrl: 'https://articles.example.com' });
     expect(parseCompanionArguments(['run', '--once'])).toEqual({ command: 'run', once: true });
+    expect(parseCompanionArguments(['doctor'])).toEqual({ command: 'doctor' });
   });
 });

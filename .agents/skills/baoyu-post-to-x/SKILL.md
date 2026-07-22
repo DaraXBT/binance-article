@@ -7,6 +7,23 @@ description: Posts content and articles to X (Twitter). Supports regular posts w
 
 Posts text, images, videos, and long-form articles to X via real Chrome browser (bypasses anti-bot detection).
 
+## xArticle paired-companion integration
+
+Inside this repository, regular X posts primarily use the paired local
+publisher companion. The web app queues an immutable, revision-bound recipe;
+the companion downloads and verifies its private assets, materializes a local
+bundle, and prepares the live X composer through the local adapter. It then
+waits for approval of that exact revision in the web app. After approval, the
+adapter revalidates the composer, enters `publishing` immediately before the
+action, and performs one scoped Post click. Success requires a canonical X
+status URL; an ambiguous post-click result is terminal and is never retried.
+
+The CLI bundle commands below are the standalone/manual fallback: they prepare
+a draft but never click Post. They do not replace the paired web approval flow.
+Both paths use the isolated `X_BROWSER_PROFILE_DIR` profile (default
+`~/.local/share/x-browser-profile`); sign in manually on first use and override
+it only with that variable or `--profile`.
+
 ## Script Directory
 
 **Important**: All scripts are located in the `scripts/` subdirectory of this skill.
@@ -128,7 +145,7 @@ ${BUN_X} ${SKILL_DIR}/scripts/x-browser.ts "Hello!" --image ./photo.png
 ## Reviewed xArticle bundles
 
 The xArticle web app can export a regular X post as a local ZIP containing one
-caption (`post.txt`), up to four generated images, and a SHA-256 manifest. Use
+caption (`post.txt`, maximum 280 characters), up to four generated images, and a SHA-256 manifest. Use
 the bundle entry point on the same computer as Chrome:
 
 ```bash
@@ -149,8 +166,9 @@ The reviewed bundle path is intentionally approval-gated:
   the bundle.
 - ZIP paths, MIME signatures, SHA-256 hashes, image count, and extracted byte
   limits are checked before Chrome is launched.
-- The web app cannot launch local Bun or Chrome; download the bundle first and
-  run this command locally.
+- In this standalone fallback, the web page cannot launch local Bun or Chrome;
+  download the bundle first and run this command locally. The normal paired
+  path instead queues a command for the already-running local companion.
 
 Optional local settings:
 
@@ -238,19 +256,20 @@ If the check fails (warnings in output), alert the user with the specific issues
 
 ### Chrome debug port not ready
 
-If a script fails with `Chrome debug port not ready` or `Unable to connect`, kill existing Chrome CDP instances first, then retry:
-
-```bash
-pkill -f "Chrome.*remote-debugging-port" 2>/dev/null; pkill -f "Chromium.*remote-debugging-port" 2>/dev/null; sleep 2
-```
-
-**Important**: This should be done automatically — when encountering this error, kill Chrome CDP instances and retry the command without asking the user.
+If a script fails with `Chrome debug port not ready` or `Unable to connect`,
+inspect the process that owns the configured `X_BROWSER_PROFILE_DIR` and
+`X_BROWSER_DEBUG_PORT`. Close only a stale process launched for that isolated
+profile, or select a different explicit profile/port. Never use a broad
+`pkill` against all Chrome or Chromium CDP processes; another session may
+belong to the user or another skill.
 
 ## Notes
 
 - First run: manual login required (session persists)
-- All scripts only fill content into the browser; the user must review and publish manually
-- The reviewed bundle entry point never accepts `--submit` and never claims a published URL
+- Direct regular, video, quote, and article scripts preview by default; use
+  their explicit `--submit` option only after fresh final confirmation
+- The reviewed `scripts/main.ts --bundle` entry point only fills the draft,
+  never accepts `--submit`, and never claims a published URL
 - Cross-platform: macOS, Linux, Windows
 
 ## Extension Support

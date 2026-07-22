@@ -4,6 +4,7 @@ import { requireActiveUser } from '@/server/auth/authorization';
 import { assertAllowedOrigin } from '@/server/auth/origin';
 import { getRuntimeDatabase } from '@/server/db/runtime';
 import { AppError, errorResponse, withNoStoreHeaders } from '@/server/http/errors';
+import { readBoundedJson } from '@/server/http/request-body';
 import { createBinancePublicationRepository } from '@/server/modules/publications/binance/repository';
 import { prepareBinancePublication } from '@/server/modules/publications/binance/service';
 import { resolveArticleWorkspace } from '@/server/modules/workspace/membership';
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (!workspaceId) {
       throw new AppError({ code: 'ARTICLE_NOT_FOUND', message: 'Article not found.', status: 404 });
     }
-    const body = await request.json();
+    const body = await readBoundedJson(request, 4_096) as Record<string, unknown>;
     const prepared = await prepareBinancePublication({
       repository: createBinancePublicationRepository(database),
       actorUserId: actor.id,

@@ -16,6 +16,6 @@ describe('publisher asset repository', () => {
     });
 
     expect(captured[0]).toMatch(/command\."expiresAt" > now\(\)/);
-    expect(captured[0]).toMatch(/draft\."expiresAt" > now\(\)/);
+    expect(captured[0]).toMatch(/COALESCE\(draft\."expiresAt", legacy_draft\."expiresAt"\) > now\(\)/);
   });
 });

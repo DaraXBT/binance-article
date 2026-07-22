@@ -1,6 +1,7 @@
-import fs from 'node:fs/promises';
-import { expect, test } from '@playwright/test';
-import JSZip from 'jszip';
+import { expect } from '@playwright/test';
+
+import { authenticatedTest as test } from './fixtures/authenticated';
+import { futurePublisherCommandExpiry } from './fixtures/publisher-command';
 
 const ONE_PIXEL_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
@@ -11,6 +12,12 @@ const deckFixture = {
   id: 'e2e-binance-export',
   status: 'ready',
   title: 'E2E Binance export',
+  cover: {
+    id: 'cover-1', generationRevision: 1, style: 'binance-master', styleMode: 'scene',
+    prompt: 'text-free', status: 'generated',
+    imageUrl: 'r2://article-assets/cover-asset/cover-source.png', error: null,
+    createdAt: '2026-07-18T00:00:00.000Z', updatedAt: '2026-07-18T00:00:00.000Z',
+  },
   slides: [
     {
       id: 'slide-1',
@@ -20,7 +27,7 @@ const deckFixture = {
       bullets: [],
       bulletPoints: [],
       notes: null,
-      imageUrl: 'https://example.public.blob.vercel-storage.com/slide-1.png',
+      imageUrl: 'r2://article-assets/slide-asset/slide-1.png',
       imageStatus: 'generated',
       imageError: null,
       imagePrompt: null,
@@ -37,11 +44,9 @@ const deckFixture = {
   },
 };
 
-test('downloads a reviewed Binance bundle from the article studio', async ({ page }) => {
-  test.skip(
-    process.env.E2E_AUTHENTICATED !== '1',
-    'Set E2E_AUTHENTICATED=1 and E2E_STORAGE_STATE to a private test-account session.',
-  );
+test('prepares, reviews, and explicitly approves one Binance publish click', async ({ page }) => {
+  const commandExpiresAt = futurePublisherCommandExpiry();
+  let commandState = 'queued';
   await page.route('**/api/workspace', async (route) => {
     await route.fulfill({
       status: 200,
@@ -63,24 +68,70 @@ test('downloads a reviewed Binance bundle from the article studio', async ({ pag
   await page.route('**/api/articles/e2e-binance-export/assets/slide-1.png**', async (route) => {
     await route.fulfill({ status: 200, contentType: 'image/png', body: ONE_PIXEL_PNG });
   });
+  await page.route('**/api/articles/e2e-binance-export/assets/cover-source.png**', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'image/png', body: ONE_PIXEL_PNG });
+  });
+  await page.route(/\/api\/articles\/e2e-binance-export\/publications\/binance$/, async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ draft: null }) });
+      return;
+    }
+    const payload = route.request().postDataJSON();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ draft: { ...payload, id: 'draft-1', revision: 1, target: 'binance-square' } }),
+    });
+  });
+  await page.route(/\/api\/articles\/e2e-binance-export\/publications\/binance\/prepare$/, async (route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        recipeHash: 'a'.repeat(64),
+        command: {
+          id: 'command-1', draftId: 'draft-1', target: 'binance-square', state: 'queued',
+          revision: 1, recipeHash: 'a'.repeat(64), expiresAt: commandExpiresAt,
+        },
+      }),
+    });
+    commandState = 'awaiting_review';
+  });
+  await page.route(/\/api\/publisher\/commands\/command-1$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ command: {
+        id: 'command-1', draftId: 'draft-1', target: 'binance-square', state: commandState,
+        revision: 1, recipeHash: 'a'.repeat(64), expiresAt: commandExpiresAt,
+        ...(commandState === 'succeeded'
+          ? { publishedUrl: 'https://www.binance.com/en/square/post/123' }
+          : {}),
+      } }),
+    });
+  });
+  await page.route(/\/api\/publisher\/commands\/command-1\/approve$/, async (route) => {
+    commandState = 'succeeded';
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ command: {
+        id: 'command-1', draftId: 'draft-1', target: 'binance-square', state: 'approved',
+        revision: 1, recipeHash: 'a'.repeat(64), expiresAt: commandExpiresAt,
+      } }),
+    });
+  });
 
   await page.goto('/articles/e2e-binance-export');
-  await expect(page.getByRole('button', { name: /Binance Square/i })).toBeVisible();
-  await page.getByRole('button', { name: /Binance Square/i }).click();
+  await expect(page.getByRole('button', { name: 'Prepare in Binance' })).toBeVisible();
+  await page.getByRole('button', { name: 'Prepare in Binance' }).click();
   await expect(page.getByRole('heading', { name: 'Export to Binance Square' })).toBeVisible();
   await expect(page.getByLabel('Article Markdown')).toHaveValue(/## Market setup/);
-  await expect(page.getByLabel('Use Market setup as cover')).toBeChecked();
-
-  const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download Binance bundle' }).click();
-  const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe('E2E-Binance-title-binance-square.zip');
-
-  const archivePath = await download.path();
-  expect(archivePath).toBeTruthy();
-  const archive = await JSZip.loadAsync(await fs.readFile(archivePath!));
-  expect(await archive.file('article.md')?.async('string')).toContain('## Market setup');
-  expect(archive.file('manifest.json')).toBeTruthy();
-  expect(archive.file('images/cover.jpg')).toBeTruthy();
-  expect(archive.file('images/01-slide.png')).toBeTruthy();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Prepare in Binance' }).click();
+  await expect(dialog.getByText(/Composer ready/i)).toBeVisible();
+  await dialog.getByRole('button', { name: 'Approve one publish click' }).click();
+  await expect(dialog.getByText('Published and verified.')).toBeVisible();
+  await expect(dialog.getByRole('link', { name: /View published post/i }))
+    .toHaveAttribute('href', 'https://www.binance.com/en/square/post/123');
 });

@@ -7,11 +7,8 @@ const signInSocial = vi.hoisted(() => vi.fn(async () => ({ data: {}, error: null
 const authCopy = {
   signInTitle: 'Sign in',
   signInGoogleDescription: 'Use Google to sign in to your account.',
-  signInTelegramDescription: 'Use Google, or a Telegram identity already linked to your account.',
   continueGoogle: 'Continue with Google',
   openingGoogle: 'Opening Google…',
-  continueTelegram: 'Continue with Telegram',
-  openingTelegram: 'Opening Telegram…',
   signInError: 'Sign-in could not be started. Please try again.',
   secureRedirect: 'Secure redirect · callback preserved',
   joinTitle: 'Join the private beta',
@@ -47,9 +44,11 @@ describe('JoinForm', () => {
   });
 
   it('validates the invitation server-side before enabling explicit Google signup', async () => {
-    render(<JoinForm token="invite_token_value_12345678901234567890" />);
+    const { container } = render(<JoinForm token="invite_token_value_12345678901234567890" />);
 
     expect(screen.getByText(/checking invitation/i)).toBeTruthy();
+    expect(container.querySelector('[data-auth-panel="join"]')?.className)
+      .toContain('shadow-none');
     await screen.findByText(/invited@example.com/i);
     fireEvent.click(screen.getByRole('button', { name: /continue with google/i }));
 
@@ -94,7 +93,9 @@ describe('JoinForm', () => {
 
     await screen.findByText(/invited@example.com/i);
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(screen.getByText('VERIFIED')).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: /continue with google/i }).hasAttribute('disabled'),
+    ).toBe(false);
   });
 
   it('keeps Google enrollment retryable when the provider fails to open', async () => {

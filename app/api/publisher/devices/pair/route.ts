@@ -3,13 +3,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { assertAllowedOrigin } from '@/server/auth/origin';
 import { getRuntimeDatabase } from '@/server/db/runtime';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
+import { readBoundedJson } from '@/server/http/request-body';
 import { createPublisherDeviceRepository } from '@/server/modules/publisher/devices/repository';
 import { activatePublisherDevice } from '@/server/modules/publisher/devices/service';
 
 export async function POST(request: NextRequest) {
   try {
     assertAllowedOrigin(request);
-    const body = await request.json();
+    const body = await readBoundedJson(request, 4_096) as Record<string, unknown>;
     const activated = await activatePublisherDevice({
       repository: createPublisherDeviceRepository(getRuntimeDatabase()),
       pairingCode: typeof body?.pairingCode === 'string' ? body.pairingCode : '',

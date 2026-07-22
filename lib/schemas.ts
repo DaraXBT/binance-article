@@ -1,12 +1,16 @@
 import { z } from "zod";
-import { VALIDATION } from "./config";
+import {
+  DEFAULT_ILLUSTRATION_STYLE,
+  ILLUSTRATION_STYLE_IDS,
+  VALIDATION,
+} from "./config";
 
-export const IllustrationStyleSchema = z.enum(['pixel-art', 'fantasy-animation', 'lab-notes']);
+export const IllustrationStyleSchema = z.enum(ILLUSTRATION_STYLE_IDS);
 
 export const GenerateRequestSchema = z.object({
   articleContent: z.string().min(10, 'Article content is required'),
   slideCount: z.number().int().min(1).max(15).default(1),
-  illustrationStyle: IllustrationStyleSchema.default('pixel-art'),
+  illustrationStyle: IllustrationStyleSchema.default(DEFAULT_ILLUSTRATION_STYLE),
   mode: z.enum(['text', 'url', 'prompt']).optional().default('text'),
 }).transform((request, context) => {
   if (request.mode !== 'url') return request;
@@ -54,7 +58,7 @@ export const JobStatusSchema = z.enum(['queued', 'running', 'completed', 'failed
 export const JobKindSchema = z.enum(['generate', 'generate_images', 'render']);
 
 export const GenerateImagesRequestSchema = z.object({
-  illustrationStyle: IllustrationStyleSchema.default('pixel-art'),
+  illustrationStyle: IllustrationStyleSchema.default(DEFAULT_ILLUSTRATION_STYLE),
   mode: ImageGenerationModeSchema.optional().default('missing'),
 });
 
@@ -90,7 +94,7 @@ export const CreateDeckProjectSchema = z.object({
     .min(1, "Content is required")
     .max(VALIDATION.CONTENT_MAX_LENGTH, `Content must be less than ${VALIDATION.CONTENT_MAX_LENGTH} characters`),
   theme: z.string().default("default"),
-  illustrationStyle: IllustrationStyleSchema.default('pixel-art'),
+  illustrationStyle: IllustrationStyleSchema.default(DEFAULT_ILLUSTRATION_STYLE),
 });
 
 export type CreateDeckProjectInput = z.infer<typeof CreateDeckProjectSchema>;
@@ -194,7 +198,21 @@ export type DeckDetailResponse = {
   illustrationStyle?: string | null;
   slides: DeckSlide[];
   captions: CaptionPackage | null;
+  cover: ArticleCover | null;
   lastJob?: JobSummary | null;
+};
+
+export type ArticleCover = {
+  id: string;
+  generationRevision: number;
+  style: z.infer<typeof IllustrationStyleSchema>;
+  styleMode: 'scene' | 'mechanism' | 'briefing' | 'primer' | null;
+  prompt: string | null;
+  status: ImageGenerationStatus;
+  imageUrl: string | null;
+  error: string | null;
+  createdAt: string | Date;
+  updatedAt: string | Date;
 };
 
 export const WorkspaceRecoverSchema = z.object({

@@ -9,7 +9,7 @@ description: EXTEND.md YAML schema for baoyu-cover-image user preferences
 
 ```yaml
 ---
-version: 3
+version: 4
 
 watermark:
   enabled: false
@@ -18,15 +18,21 @@ watermark:
 
 preferred_type: null      # hero|conceptual|typography|metaphor|scene|minimal or null for auto-select
 
-preferred_palette: null   # warm|elegant|cool|dark|earth|vivid|pastel|mono|retro or null for auto-select
+preferred_style: null     # named preset, including the six binance* styles, or null
 
-preferred_rendering: null # flat-vector|hand-drawn|painterly|digital|pixel|chalk or null for auto-select
+preferred_style_mode: null # scene|mechanism|briefing|primer for binance-master, or null for content selection
 
-preferred_text: title-only  # none|title-only|title-subtitle|text-rich
+preferred_palette: null   # warm|elegant|cool|dark|earth|vivid|pastel|mono|retro|binance or null for auto-select
+
+preferred_rendering: null # flat-vector|hand-drawn|painterly|digital|pixel|chalk|isometric|screen-print or null
+
+preferred_text: none      # none|title-only|title-subtitle|text-rich
 
 preferred_mood: balanced    # subtle|balanced|bold
 
-default_aspect: "2.35:1"  # 2.35:1|16:9|1:1
+default_aspect: "2.35:1"  # 2.35:1|5:2|16:9|1:1
+
+default_output_dir: independent # independent|same-dir|imgs-subdir
 
 quick_mode: false         # Skip confirmation when true
 
@@ -48,16 +54,19 @@ custom_palettes:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `version` | int | 3 | Schema version |
+| `version` | int | 4 | Schema version |
 | `watermark.enabled` | bool | false | Enable watermark |
 | `watermark.content` | string | "" | Watermark text (@username or custom) |
 | `watermark.position` | enum | bottom-right | Position on image |
 | `preferred_type` | string | null | Type name or null for auto |
+| `preferred_style` | string | null | Named style preset or null for dimension-based selection |
+| `preferred_style_mode` | string | null | Optional Binance Master mode; null selects from content |
 | `preferred_palette` | string | null | Palette name or null for auto |
 | `preferred_rendering` | string | null | Rendering name or null for auto |
-| `preferred_text` | string | title-only | Text density level |
+| `preferred_text` | string | none | Text density level |
 | `preferred_mood` | string | balanced | Mood intensity level |
 | `default_aspect` | string | "2.35:1" | Default aspect ratio |
+| `default_output_dir` | string | independent | Cover output placement |
 | `quick_mode` | bool | false | Skip confirmation step |
 | `language` | string | null | Output language (null = auto-detect) |
 | `custom_palettes` | array | [] | User-defined palettes |
@@ -86,6 +95,18 @@ custom_palettes:
 | `pastel` | Gentle, whimsical — soft pink, mint, lavender |
 | `mono` | Clean, focused — black, near-black, white |
 | `retro` | Nostalgic, vintage — muted orange, dusty pink, maroon |
+| `binance` | Crypto-native — Canvas Black, Binance Gold, grayscale structure |
+
+## Binance Named Style Options
+
+| Value | Derived Palette | Derived Rendering | Notes |
+|-------|-----------------|-------------------|-------|
+| `binance` | binance | isometric | Light isometric flow scenes |
+| `binance-master` | binance | isometric or flat-vector | Selects Scene, Mechanism, Briefing, or Primer from content |
+| `binance-briefing` | binance | isometric | Dense research-grade annotated figures |
+| `binance-mondo-panoramic` | binance | screen-print | Left-to-right transformation narrative |
+| `binance-sketch-notes` | binance | hand-drawn | Gold/chalk hand-lettered card grid |
+| `binance-vector-illustration` | binance | flat-vector | Flat coloring-book scene with bold outlines |
 
 ## Rendering Options
 
@@ -97,6 +118,8 @@ custom_palettes:
 | `digital` | Polished, precise edges, subtle gradients, UI components |
 | `pixel` | Pixel grid, dithering, chunky 8-bit shapes |
 | `chalk` | Chalk strokes, dust effects, blackboard texture |
+| `isometric` | Flat 30-degree isometric platforms, diagrams, and iso-grid flows |
+| `screen-print` | Flat poster shapes with halftone dots and restrained paper grain |
 
 ## Text Options
 
@@ -131,6 +154,7 @@ custom_palettes:
 | `2.35:1` | Cinematic widescreen | Article headers, blog covers |
 | `16:9` | Standard widescreen | Presentations, video thumbnails |
 | `1:1` | Square | Social media, profile images |
+| `5:2` | Exact Binance article cover | Generated from a 2.35:1 safe composition, then cropped to 1000x400 JPEG |
 
 ## Custom Palette Fields
 
@@ -148,14 +172,16 @@ custom_palettes:
 
 ```yaml
 ---
-version: 3
+version: 4
 watermark:
   enabled: true
   content: "@myhandle"
 preferred_type: null
+preferred_style: null
+preferred_style_mode: null
 preferred_palette: elegant
 preferred_rendering: hand-drawn
-preferred_text: title-only
+preferred_text: none
 preferred_mood: balanced
 quick_mode: false
 ---
@@ -165,7 +191,7 @@ quick_mode: false
 
 ```yaml
 ---
-version: 3
+version: 4
 watermark:
   enabled: true
   content: "myblog.com"
@@ -173,15 +199,21 @@ watermark:
 
 preferred_type: conceptual
 
-preferred_palette: cool
+preferred_style: binance-master
 
-preferred_rendering: digital
+preferred_style_mode: null
 
-preferred_text: title-subtitle
+preferred_palette: binance
+
+preferred_rendering: isometric
+
+preferred_text: none
 
 preferred_mood: subtle
 
-default_aspect: "16:9"
+default_aspect: "5:2"
+
+default_output_dir: independent
 
 quick_mode: true
 
@@ -199,19 +231,30 @@ custom_palettes:
 ---
 ```
 
+## Migration from v3
+
+When loading v3, retain every explicit existing value and add only the new fields:
+
+| v3 Field | v4 Field | Migration |
+|----------|----------|-----------|
+| `version: 3` | `version: 4` | Update |
+| (missing) | `preferred_style` | `null` |
+| (missing) | `preferred_style_mode` | `null` |
+| Existing palette/rendering/text/aspect | Same field | Preserve unchanged |
+
 ## Migration from v2
 
 When loading v2 schema, auto-upgrade:
 
-| v2 Field | v3 Field | Migration |
+| v2 Field | v4 Field | Migration |
 |----------|----------|-----------|
-| `version: 2` | `version: 3` | Update |
-| `preferred_style` | `preferred_palette` + `preferred_rendering` | Use preset mapping table |
+| `version: 2` | `version: 4` | Update |
+| `preferred_style` | `preferred_style` plus derived `preferred_palette` + `preferred_rendering` | Preserve the preset name and use the mapping table |
 | `custom_styles` | `custom_palettes` | Rename, restructure fields |
 
 **Style → Palette + Rendering mapping**:
 
-| v2 `preferred_style` | v3 `preferred_palette` | v3 `preferred_rendering` |
+| v2 `preferred_style` | v4 `preferred_palette` | v4 `preferred_rendering` |
 |----------------------|----------------------|-------------------------|
 | `elegant` | `elegant` | `hand-drawn` |
 | `blueprint` | `cool` | `digital` |
@@ -232,11 +275,17 @@ When loading v2 schema, auto-upgrade:
 | `vintage` | `retro` | `hand-drawn` |
 | `warm` | `warm` | `hand-drawn` |
 | `watercolor` | `earth` | `painterly` |
+| `binance` | `binance` | `isometric` |
+| `binance-master` | `binance` | `isometric` |
+| `binance-briefing` | `binance` | `isometric` |
+| `binance-mondo-panoramic` | `binance` | `screen-print` |
+| `binance-sketch-notes` | `binance` | `hand-drawn` |
+| `binance-vector-illustration` | `binance` | `flat-vector` |
 | null (auto) | null | null |
 
 **Custom style migration**:
 
-| v2 Field | v3 Field |
+| v2 Field | v4 Field |
 |----------|----------|
 | `custom_styles[].name` | `custom_palettes[].name` |
 | `custom_styles[].description` | `custom_palettes[].description` |
@@ -247,14 +296,16 @@ When loading v2 schema, auto-upgrade:
 
 ## Migration from v1
 
-When loading v1 schema, auto-upgrade to v3:
+When loading v1 schema, auto-upgrade to v4:
 
-| v1 Field | v3 Field | Default Value |
+| v1 Field | v4 Field | Default Value |
 |----------|----------|---------------|
-| (missing) | `version` | 3 |
+| (missing) | `version` | 4 |
+| (missing) | `preferred_style` | null |
+| (missing) | `preferred_style_mode` | null |
 | (missing) | `preferred_palette` | null |
 | (missing) | `preferred_rendering` | null |
-| (missing) | `preferred_text` | title-only |
+| (missing) | `preferred_text` | none |
 | (missing) | `preferred_mood` | balanced |
 | (missing) | `quick_mode` | false |
 
