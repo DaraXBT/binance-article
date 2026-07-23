@@ -1,20 +1,10 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
 import localFont from 'next/font/local'
+import '@fontsource/google-sans/latin.css'
 
 import { Providers } from '@/components/providers'
 import { UI_LANGUAGE } from '@/lib/i18n'
 import './globals.css'
-
-const geist = Geist({
-  subsets: ['latin'],
-  variable: '--font-geist',
-})
-
-const geistMono = Geist_Mono({
-  subsets: ['latin'],
-  variable: '--font-geist-mono',
-})
 
 const interKhmerLooped = localFont({
   src: [
@@ -64,7 +54,7 @@ export default async function RootLayout({
   return (
     <html lang={UI_LANGUAGE} suppressHydrationWarning>
       <body
-        className={`${geist.variable} ${geistMono.variable} ${interKhmerLooped.variable} bg-background font-sans text-foreground antialiased`}
+        className={`${interKhmerLooped.variable} bg-background font-sans text-foreground antialiased`}
       >
         <Providers initialLanguage={UI_LANGUAGE}>
           {children}
