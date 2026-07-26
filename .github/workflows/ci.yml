@@ -54,6 +54,20 @@ jobs:
       - name: Typecheck Cloudflare workflow
         run: npm run workflow:typecheck
 
+      # Shape-validates the deploy env contract with CI-only synthetic values
+      # so drift in scripts/check-runtime-env.mjs surfaces before a release.
+      - name: Validate runtime environment contract
+        run: npm run env:check -- --target all
+        env:
+          DATABASE_URL: postgresql://ci:ci@db.example.invalid/xarticle?sslmode=require
+          BETTER_AUTH_SECRET: ci-only-synthetic-secret-at-least-32-chars
+          BETTER_AUTH_URL: https://app.example.invalid
+          GOOGLE_CLIENT_ID: ci-client-id
+          GOOGLE_CLIENT_SECRET: ci-client-secret
+          GEMINI_API_KEY: ci-gemini-key
+          AI_CREDENTIAL_KEYRING: '{"v1":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}'
+          AI_CREDENTIAL_ACTIVE_KEY_ID: v1
+
       - name: Test
         run: npm run test
 

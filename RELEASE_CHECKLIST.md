@@ -46,9 +46,10 @@ cd ../../../..
 
 An unpaired warning from the companion doctor is expected on a clean release
 machine. Rerun the doctor after pairing and require a ready result before any
-publishing smoke test. A Playwright run that skips credential-dependent
-authenticated projects is not a complete release pass; provide the dedicated
-E2E database/session values and confirm those specs actually ran.
+publishing smoke test. A Playwright run that skips the credential-dependent
+authenticated specs (they self-skip per test when the E2E secrets are absent)
+is not a complete release pass; provide the dedicated E2E database/session
+values and confirm in the report that those specs ran instead of skipping.
 
 Publish the ZIP and its `.sha256` sidecar from `.artifacts/` with the same
 version as `publisher-companion/package.json`. On a clean computer, extract the

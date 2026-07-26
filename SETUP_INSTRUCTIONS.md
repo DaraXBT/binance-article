@@ -6,7 +6,7 @@
 npm install
 ```
 
-Use Node.js 22 or newer. Install Bun separately for `publisher-companion`.
+Use Node.js 22.18 or newer (the AI-credential rewrap script relies on Node's unflagged TypeScript type stripping). Install Bun separately for `publisher-companion`.
 
 ## 2. Configure local environment
 
@@ -198,7 +198,7 @@ npm run workflow:typecheck
 npm run lint
 npm run build
 npm run security:audit
-MIGRATION_DATABASE_URL='postgresql://localhost/binance_article' npm run db:check
+MIGRATION_DATABASE_URL='postgresql://localhost/xarticle' npm run db:check
 npm run workflow:dry-run
 npm run test:e2e
 npm run publisher:package

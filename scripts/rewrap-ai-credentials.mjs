@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 
 import { neon } from '@neondatabase/serverless';
 
+// This .ts import relies on Node's unflagged type stripping, available from
+// Node 22.18 (matching the engines floor in package.json).
 import {
   parseAiCredentialKeyring,
   rewrapWorkspaceAiCredential,

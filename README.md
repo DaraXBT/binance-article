@@ -136,7 +136,7 @@ session.
 
 ## Local development
 
-Requirements: Node.js 22+, npm, Bun for the companion, PostgreSQL/Neon, and Chrome for local publishing.
+Requirements: Node.js 22.18+, npm, Bun for the companion, PostgreSQL/Neon, and Chrome for local publishing.
 
 ```bash
 npm install
@@ -153,7 +153,7 @@ npm run workflow:typecheck
 npm run lint
 npm run build
 npm run env:check -- --target all
-MIGRATION_DATABASE_URL='postgresql://localhost/binance_article' npm run db:check
+MIGRATION_DATABASE_URL='postgresql://localhost/xarticle' npm run db:check
 npm run workflow:dry-run
 npm run test:e2e
 npm run publisher:package
