@@ -150,6 +150,42 @@ describe('getBinanceExportIssues', () => {
     expect(issues.errors.some((message) => message.includes('100,000'))).toBe(true);
   });
 
+  it('accepts the dedicated cover without requiring a matching slide id', () => {
+    // Regression: the dedicated cover is its own record; validating it by
+    // slide lookup blocked every real Binance prepare.
+    const issues = getBinanceExportIssues({
+      title: 'Valid title',
+      markdown: 'A complete body.\n\n![Slide](images/01-slide.png)',
+      hasDedicatedCover: true,
+      slides: [{
+        id: 'slide-1',
+        imageUrl: 'https://example.com/slide.png',
+        imageStatus: 'generated',
+        imagePath: 'images/01-slide.png',
+      }],
+    });
+
+    expect(issues.errors).toEqual([]);
+  });
+
+  it('still requires the cover when the dedicated flag says it is missing', () => {
+    const issues = getBinanceExportIssues({
+      title: 'Valid title',
+      markdown: 'A complete body.',
+      hasDedicatedCover: false,
+      slides: [{
+        id: 'slide-1',
+        imageUrl: 'https://example.com/slide.png',
+        imageStatus: 'generated',
+        imagePath: 'images/01-slide.png',
+      }],
+    });
+
+    expect(issues.errors).toContain(
+      'Generate the dedicated 5:2 article cover before preparing Binance.',
+    );
+  });
+
   it('blocks export if edited Markdown drops a bundled image reference', () => {
     const issues = getBinanceExportIssues({
       title: 'Valid title',

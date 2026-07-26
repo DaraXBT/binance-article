@@ -246,17 +246,17 @@ export function BinanceExportDialog({ open, onOpenChange, deck }: BinanceExportD
   }, [copy.draftLoadFailed, deck.id, open, reloadToken]);
 
   const dedicatedCoverReady = deck.cover?.status === 'generated' && Boolean(deck.cover.imageUrl);
-  const coverId = dedicatedCoverReady ? deck.cover?.id ?? null : null;
 
   const issues = useMemo(() => getBinanceExportIssues({
     title,
     markdown,
-    coverSlideId: coverId,
+    // The dedicated cover is its own record, never a slide id.
+    hasDedicatedCover: dedicatedCoverReady,
     slides: deck.slides.map((slide, index) => ({
       ...slide,
       imagePath: slide.imageUrl ? getSlideImagePath(index, inferImageMimeType(slide.imageUrl)) : null,
     })),
-  }, copy), [copy, coverId, deck.slides, markdown, title]);
+  }, copy), [copy, dedicatedCoverReady, deck.slides, markdown, title]);
   const contentWarnings = useMemo(() => assembleBinanceArticle({
     intro: deck.captions?.blogIntro,
     sections: deck.captions?.blogSections,

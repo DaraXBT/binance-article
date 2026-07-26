@@ -65,10 +65,11 @@ test('prepares, reviews, and explicitly approves one Binance publish click', asy
   await page.route('**/api/articles/e2e-binance-export', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(deckFixture) });
   });
-  await page.route('**/api/articles/e2e-binance-export/assets/slide-1.png**', async (route) => {
+  // Asset URLs are keyed by the stable assetId from the r2:// reference.
+  await page.route('**/api/articles/e2e-binance-export/assets/slide-asset**', async (route) => {
     await route.fulfill({ status: 200, contentType: 'image/png', body: ONE_PIXEL_PNG });
   });
-  await page.route('**/api/articles/e2e-binance-export/assets/cover-source.png**', async (route) => {
+  await page.route('**/api/articles/e2e-binance-export/assets/cover-asset**', async (route) => {
     await route.fulfill({ status: 200, contentType: 'image/png', body: ONE_PIXEL_PNG });
   });
   await page.route(/\/api\/articles\/e2e-binance-export\/publications\/binance$/, async (route) => {

@@ -81,6 +81,9 @@ describe('BinanceExportDialog', () => {
     expect((screen.getByLabelText('Article title') as HTMLInputElement).value).toBe('Binance-ready title');
     expect((screen.getByLabelText('Article Markdown') as HTMLTextAreaElement).value).toContain('## Opening');
     expect(screen.getByAltText('Dedicated Binance cover preview')).toBeTruthy();
+    // Regression: a generated dedicated cover must never trip the cover
+    // validation (its id is not a slide id).
+    expect(screen.queryByText('Generate the dedicated 5:2 article cover before preparing Binance.')).toBeNull();
     expect(screen.getByText(/Slide 2 has no generated image/)).toBeTruthy();
     expect(screen.getByText(/Slide 2 uses slide content because its blog section is missing/)).toBeTruthy();
   });

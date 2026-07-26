@@ -53,7 +53,7 @@ test('prepares, reviews, and explicitly approves one regular X post click', asyn
   await page.route('**/api/articles/e2e-x-export', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(deckFixture) });
   });
-  await page.route('**/api/articles/e2e-x-export/assets/slide-1.png**', async (route) => {
+  await page.route('**/api/articles/e2e-x-export/assets/slide-asset**', async (route) => {
     await route.fulfill({ status: 200, contentType: 'image/png', body: ONE_PIXEL_PNG });
   });
   await page.route(/\/api\/articles\/e2e-x-export\/publications\/x$/, async (route) => {

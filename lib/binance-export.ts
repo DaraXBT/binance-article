@@ -107,7 +107,13 @@ export type BinanceExportIssues = {
 export type BinanceExportValidationInput = {
   title: string;
   markdown: string;
-  coverSlideId: string | null;
+  /** True when the dedicated article cover is generated. The dedicated cover
+   * is its own record, never a slide, so it cannot be validated by slide
+   * lookup. */
+  hasDedicatedCover?: boolean;
+  /** Legacy cover-as-slide reference; only consulted when hasDedicatedCover
+   * is not provided. */
+  coverSlideId?: string | null;
   slides: readonly {
     id: string;
     imageUrl?: string | null;
@@ -332,8 +338,13 @@ export function getBinanceExportIssues(
     errors.push(messages.markdownTooLong);
   }
 
-  const cover = input.slides.find((slide) => slide.id === input.coverSlideId);
-  if (!cover?.imageUrl || cover.imageStatus !== 'generated') {
+  const coverReady = input.hasDedicatedCover !== undefined
+    ? input.hasDedicatedCover
+    : (() => {
+      const cover = input.slides.find((slide) => slide.id === input.coverSlideId);
+      return Boolean(cover?.imageUrl && cover.imageStatus === 'generated');
+    })();
+  if (!coverReady) {
     errors.push(messages.coverRequired);
   }
   const expectedImagePaths: string[] = [];

@@ -6,26 +6,31 @@ test.describe('URL Import', () => {
   test('creates article from a URL via the new article page', async ({ page }) => {
     await page.goto('/new');
 
-    // Look for URL input or tab
-    const urlTab = page.getByRole('tab', { name: /url|import|link/i });
-    if (await urlTab.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await urlTab.click();
-    }
+    // Step 0: switch the wizard to URL mode and enter an HTTPS source.
+    await page.getByRole('tab', { name: 'Import URL' }).click();
+    const urlInput = page.getByPlaceholder(/https:\/\//i);
+    await expect(urlInput).toBeVisible();
 
-    const urlInput = page.getByPlaceholder(/url|link|https/i);
-    if (await urlInput.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await urlInput.fill('https://example.com');
-      const importButton = page.getByRole('button', { name: /import|fetch|extract/i });
-      await importButton.click();
+    // Step-0 validation mirrors the server rule: non-HTTPS never proceeds.
+    await urlInput.fill('http://example.com/article');
+    await expect(page.getByRole('button', { name: 'Next' })).toBeDisabled();
 
-      // Should show extracted content or progress indicator
-      await expect(
-        page
-          .getByText(/extracting|fetching|processing/i)
-          .or(page.getByText(/example domain/i))
-          .or(page.getByText(/error|failed/i))
-      ).toBeVisible({ timeout: 15_000 });
-    }
+    await urlInput.fill('https://example.com/article');
+    await page.getByRole('button', { name: 'Next' }).click();
+
+    // Step 1 (style) → Generate. Exact match: the wizard stepper also
+    // exposes a "3. Generate" step button.
+    await page.getByRole('button', { name: 'Generate', exact: true }).click();
+
+    // The generate step auto-submits. In E2E environments the article
+    // Workflow binding is absent and no live fetch/LLM runs, so the honest
+    // terminal state is either visible progress or the failure panel with a
+    // retry — never a silent hang.
+    await expect(
+      page
+        .getByText('Generating Your Article')
+        .or(page.getByText('Generation Failed'))
+    ).toBeVisible({ timeout: 15_000 });
   });
 
   test('rejects non-HTTPS URLs via API', async ({ request }) => {
