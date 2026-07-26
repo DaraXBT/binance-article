@@ -1,6 +1,7 @@
 import {
   handleArticleGenerationJob,
   handleArticleImageRetryJob,
+  type ArticleJobProviderEnvironment,
 } from '@/workflows/article-jobs';
 import {
   ArticleWorkflowPayloadSchema,
@@ -14,20 +15,12 @@ export function parseArticleWorkflowPayload(input: unknown): ArticleWorkflowPayl
 
 export async function dispatchArticleWorkflowJob(
   payload: ArticleWorkflowPayload,
-  environment?: Record<string, string | undefined>,
+  environment: ArticleJobProviderEnvironment,
   runtime: { assetBucket?: ArticleAssetBucket } = {},
 ) {
   if (payload.kind === 'generate') {
-    if (environment || runtime.assetBucket) {
-      await handleArticleGenerationJob(payload.jobId, environment, runtime);
-    } else {
-      await handleArticleGenerationJob(payload.jobId);
-    }
+    await handleArticleGenerationJob(payload.jobId, environment, runtime);
     return;
   }
-  if (environment || runtime.assetBucket) {
-    await handleArticleImageRetryJob(payload.jobId, environment, runtime);
-  } else {
-    await handleArticleImageRetryJob(payload.jobId);
-  }
+  await handleArticleImageRetryJob(payload.jobId, environment, runtime);
 }

@@ -57,7 +57,7 @@ type ImageErrorType = 'quota_exceeded' | 'configuration' | 'unknown';
 type AggregateImageErrorType = ImageErrorType | 'mixed';
 
 export interface ArticleJobProviderEnvironment extends GeminiCredentialEnvironment {
-  DATABASE_URL?: string;
+  DATABASE_URL: string;
   DEEPSEEK_API_KEY?: string;
   DEEPSEEK_TEXT_MODEL?: string;
 }
@@ -537,9 +537,13 @@ function sourceAwareTextProviderMessage(
 
 export async function handleArticleGenerationJob(
   jobId: string,
-  providerEnvironment: ArticleJobProviderEnvironment = process.env,
+  providerEnvironment: ArticleJobProviderEnvironment,
   runtime: { assetBucket?: ArticleAssetBucket } = {},
 ) {
+  // Seed the runtime database cache from the explicit Worker environment so
+  // every zero-arg getRuntimeDatabase() call below resolves regardless of
+  // process.env population.
+  getRuntimeDatabase(providerEnvironment);
   const existingJob = await getJobRunById(jobId);
 
   if (!existingJob || !isRecord(existingJob.payload)) {
@@ -566,6 +570,9 @@ export async function handleArticleGenerationJob(
     const illustrationStyle = readIllustrationStyle(payload.illustrationStyle);
     const slideCount = readNumber(payload.slideCount, 1);
     const rawArticleContent = readString(payload.articleContent);
+    // DeepSeek is currently unreachable: no producer sets payload.textProvider,
+    // so this always resolves 'gemini'. DEEPSEEK_API_KEY is intentionally not a
+    // required secret; the branch is kept for future wiring.
     const textProvider = TextProviderSchema.parse(readString(payload.textProvider, 'gemini'));
     const gemini = await resolveGeminiJobConfig(job.workspaceId, providerEnvironment);
     geminiCredentialSource = gemini.source;
@@ -686,9 +693,10 @@ export async function handleArticleGenerationJob(
 
 export async function handleArticleImageRetryJob(
   jobId: string,
-  providerEnvironment: ArticleJobProviderEnvironment = process.env,
+  providerEnvironment: ArticleJobProviderEnvironment,
   runtime: { assetBucket?: ArticleAssetBucket } = {},
 ) {
+  getRuntimeDatabase(providerEnvironment);
   const existingJob = await getJobRunById(jobId);
 
   if (!existingJob || !isRecord(existingJob.payload)) {

@@ -108,6 +108,8 @@ import {
 } from './article-jobs';
 import { WorkspaceGeminiCredentialError } from '@/server/integrations/workspace-gemini-credential';
 
+const testEnvironment = { DATABASE_URL: 'postgresql://test' };
+
 function cancelledJob() {
   const now = new Date('2026-07-22T00:00:00Z');
   return {
@@ -170,7 +172,7 @@ describe('article Workflow cancellation guard', () => {
   });
 
   it('does not generate an article after its JobRun was cancelled', async () => {
-    await expect(handleArticleGenerationJob('job_1')).resolves.toBeUndefined();
+    await expect(handleArticleGenerationJob('job_1', testEnvironment)).resolves.toBeUndefined();
 
     expect(jobs.markRunning).toHaveBeenCalledWith('job_1');
     expect(jobs.get).toHaveBeenCalledTimes(2);
@@ -179,7 +181,7 @@ describe('article Workflow cancellation guard', () => {
   });
 
   it('does not retry article images after their JobRun was cancelled', async () => {
-    await expect(handleArticleImageRetryJob('job_1')).resolves.toBeUndefined();
+    await expect(handleArticleImageRetryJob('job_1', testEnvironment)).resolves.toBeUndefined();
 
     expect(jobs.markRunning).toHaveBeenCalledWith('job_1');
     expect(jobs.get).toHaveBeenCalledTimes(2);
@@ -229,7 +231,7 @@ describe('article image generation progress', () => {
   });
 
   it('emits a zero-count image progress log before processing slide images', async () => {
-    await handleArticleGenerationJob('job_1');
+    await handleArticleGenerationJob('job_1', testEnvironment);
 
     expect(generation.resolveWorkspaceGeminiCredential).toHaveBeenCalledOnce();
     expect(generation.generateDeck).toHaveBeenCalledWith(
@@ -275,7 +277,7 @@ describe('article image generation progress', () => {
       ],
     });
 
-    await handleArticleGenerationJob('job_1');
+    await handleArticleGenerationJob('job_1', testEnvironment);
 
     expect(jobs.progress).toHaveBeenCalledWith(
       'job_1',

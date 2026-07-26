@@ -33,20 +33,25 @@ export class ArticleJobsWorkflow extends WorkflowEntrypoint<
       throw new NonRetryableError('Invalid article Workflow payload.');
     }
 
+    const providerEnvironment = {
+      DATABASE_URL: this.env.DATABASE_URL,
+      GEMINI_API_KEY: this.env.GEMINI_API_KEY,
+      DEEPSEEK_API_KEY: this.env.DEEPSEEK_API_KEY,
+      GEMINI_TEXT_MODEL: this.env.GEMINI_TEXT_MODEL,
+      GEMINI_IMAGE_MODEL: this.env.GEMINI_IMAGE_MODEL,
+      DEEPSEEK_TEXT_MODEL: this.env.DEEPSEEK_TEXT_MODEL,
+      AI_CREDENTIAL_KEYRING: this.env.AI_CREDENTIAL_KEYRING,
+      AI_CREDENTIAL_ACTIVE_KEY_ID: this.env.AI_CREDENTIAL_ACTIVE_KEY_ID,
+    };
+
     await step.do('execute article job', {
       retries: { limit: 2, delay: '10 seconds', backoff: 'exponential' },
       timeout: '15 minutes',
     }, async () => {
       try {
-        await dispatchArticleWorkflowJob(payload, {
-          GEMINI_API_KEY: this.env.GEMINI_API_KEY,
-          DEEPSEEK_API_KEY: this.env.DEEPSEEK_API_KEY,
-          GEMINI_TEXT_MODEL: this.env.GEMINI_TEXT_MODEL,
-          GEMINI_IMAGE_MODEL: this.env.GEMINI_IMAGE_MODEL,
-          DEEPSEEK_TEXT_MODEL: this.env.DEEPSEEK_TEXT_MODEL,
-          AI_CREDENTIAL_KEYRING: this.env.AI_CREDENTIAL_KEYRING,
-          AI_CREDENTIAL_ACTIVE_KEY_ID: this.env.AI_CREDENTIAL_ACTIVE_KEY_ID,
-        }, { assetBucket: this.env.ARTICLE_ASSETS });
+        await dispatchArticleWorkflowJob(payload, providerEnvironment, {
+          assetBucket: this.env.ARTICLE_ASSETS,
+        });
       } catch (error) {
         if (error instanceof NonRetryableArticleJobError) {
           throw new NonRetryableError(error.message);
