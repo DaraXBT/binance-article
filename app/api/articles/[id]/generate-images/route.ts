@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 import { getCurrentRevisionContext } from '@/lib/db';
 import { getRequestGenerateAccessState, isGenerateAccessEnabled } from '@/lib/generate-access';
@@ -10,12 +11,18 @@ import { startWorkflow } from '@/server/integrations/workflow-client';
 import { consumeAtomicRateLimit } from '@/server/http/atomic-rate-limit';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
 import { readBoundedJson } from '@/server/http/request-body';
-import { attachWorkflowRunId, createJobRun } from '@/server/modules/jobs/service';
+import {
+  attachWorkflowRunId,
+  createJobRun,
+  failJobRun,
+  findIdempotentJob,
+} from '@/server/modules/jobs/service';
 
 export const maxDuration = 30;
 
 const RATE_LIMIT = 10;
 const RATE_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const IdempotencyKeySchema = z.string().uuid();
 
 export async function POST(
   request: NextRequest,
@@ -64,26 +71,66 @@ export async function POST(
     }
     const validated = GenerateImagesRequestSchema.parse(body);
     const revision = await getCurrentRevisionContext(deckId, workspaceId);
+    const payload = {
+      illustrationStyle: validated.illustrationStyle,
+      mode: validated.mode,
+    };
 
-    const job = await createJobRun({
-      deckId,
-      workspaceId,
-      kind: 'generate_images',
-      articleRevisionId: revision.articleRevisionId,
-      payload: {
-        illustrationStyle: validated.illustrationStyle,
-        mode: validated.mode,
-      },
-    });
+    // Rate limiting runs before replay detection, so a replayed manual retry
+    // still consumes a slot — acceptable for this user-triggered route.
+    const rawIdempotencyKey = request.headers.get('Idempotency-Key');
+    const idempotencyKey = rawIdempotencyKey === null
+      ? undefined
+      : IdempotencyKeySchema.parse(rawIdempotencyKey);
 
-    const run = await startWorkflow({ jobId: job.id, kind: 'generate_images' });
-    await attachWorkflowRunId(job.id, run.runId);
+    const idempotencyLookup = { deckId, workspaceId, kind: 'generate_images' as const, payload };
+    let job = idempotencyKey
+      ? await findIdempotentJob({ idempotencyKey, ...idempotencyLookup })
+      : null;
+    let replayed = job !== null;
+
+    if (!job) {
+      try {
+        job = await createJobRun({
+          id: idempotencyKey,
+          deckId,
+          workspaceId,
+          kind: 'generate_images',
+          articleRevisionId: revision.articleRevisionId,
+          payload,
+        });
+      } catch (createError) {
+        // Two concurrent requests can race on the idempotency-key primary key;
+        // the loser replays the winner's job.
+        const raced = idempotencyKey
+          ? await findIdempotentJob({ idempotencyKey, ...idempotencyLookup })
+          : null;
+        if (!raced) throw createError;
+        job = raced;
+        replayed = true;
+      }
+    }
+
+    const canResumeWorkflow = job.status === 'queued' || job.status === 'running';
+    if (!replayed || (!job.runId && canResumeWorkflow)) {
+      try {
+        const run = await startWorkflow({ jobId: job.id, kind: 'generate_images' });
+        await attachWorkflowRunId(job.id, run.runId);
+      } catch (workflowError) {
+        await failJobRun(
+          job.id,
+          'WORKFLOW_START_FAILED',
+          'Failed to start the image generation workflow.',
+        ).catch(() => null);
+        throw workflowError;
+      }
+    }
 
     return NextResponse.json(
       {
         jobId: job.id,
         status: job.status,
-        articleRevisionId: revision.articleRevisionId,
+        articleRevisionId: job.articleRevisionId ?? revision.articleRevisionId,
       },
       {
         status: 202,

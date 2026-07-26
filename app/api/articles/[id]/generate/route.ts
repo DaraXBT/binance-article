@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { beginGenerationRevision } from '@/lib/db';
+import { beginGenerationRevision, markDeckStatus, parseRevisionNumber } from '@/lib/db';
 import { getRequestGenerateAccessState, isGenerateAccessEnabled } from '@/lib/generate-access';
 import { GenerateRequestSchema } from '@/lib/schemas';
 import { authorizeArticleRequest } from '@/server/auth/article-authorization';
@@ -15,6 +15,7 @@ import {
   attachWorkflowRunId,
   beginIdempotentGeneration,
   createJobRun,
+  failJobRun,
   findIdempotentGeneration,
 } from '@/server/modules/jobs/service';
 
@@ -147,8 +148,22 @@ export async function POST(
 
     const canResumeWorkflow = job.status === 'queued' || job.status === 'running';
     if (!replayed || (!job.runId && canResumeWorkflow)) {
-      const run = await startWorkflow({ jobId: job.id, kind: 'generate' });
-      await attachWorkflowRunId(job.id, run.runId);
+      try {
+        const run = await startWorkflow({ jobId: job.id, kind: 'generate' });
+        await attachWorkflowRunId(job.id, run.runId);
+      } catch (workflowError) {
+        // Best-effort compensation: without it the deck and job stay 'queued'
+        // forever because nothing else ever picks the job up.
+        await failJobRun(
+          job.id,
+          'WORKFLOW_START_FAILED',
+          'Failed to start the generation workflow.',
+        ).catch(() => null);
+        await markDeckStatus(deckId, workspaceId, 'failed', {
+          expectedGenerationRevision: parseRevisionNumber(articleRevisionId),
+        }).catch(() => null);
+        throw workflowError;
+      }
     }
 
     return NextResponse.json(

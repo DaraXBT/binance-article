@@ -15,6 +15,8 @@ const articleAuthorizationMock = {
 const jobServiceMock = {
   createJobRun: vi.fn(),
   attachWorkflowRunId: vi.fn(),
+  failJobRun: vi.fn(async () => null),
+  findIdempotentJob: vi.fn(async () => null),
 };
 
 const workflowClientMock = {
@@ -77,6 +79,8 @@ describe('POST /api/articles/[id]/generate-images', () => {
       id: 'job-1',
       status: 'queued',
     });
+    jobServiceMock.failJobRun.mockResolvedValue(null);
+    jobServiceMock.findIdempotentJob.mockResolvedValue(null as never);
     workflowClientMock.startWorkflow.mockResolvedValue({ runId: 'run-1' });
   });
 
@@ -161,6 +165,76 @@ describe('POST /api/articles/[id]/generate-images', () => {
     );
 
     expect(response.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it('terminally fails the job when the workflow cannot be started', async () => {
+    workflowClientMock.startWorkflow.mockRejectedValue(new Error('binding unavailable'));
+
+    const { POST } = await import('@/app/api/articles/[id]/generate-images/route');
+    const response = await POST(
+      new Request('http://localhost/api/articles/deck-1/generate-images', {
+        method: 'POST',
+        body: JSON.stringify({ illustrationStyle: 'pixel-art' }),
+      }) as never,
+      { params: Promise.resolve({ id: 'deck-1' }) }
+    );
+
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(jobServiceMock.failJobRun).toHaveBeenCalledWith(
+      'job-1',
+      'WORKFLOW_START_FAILED',
+      expect.any(String),
+    );
+    expect(jobServiceMock.attachWorkflowRunId).not.toHaveBeenCalled();
+  });
+
+  it('replays an existing job for a repeated Idempotency-Key without a new workflow', async () => {
+    jobServiceMock.findIdempotentJob.mockResolvedValue({
+      id: 'job-existing',
+      status: 'queued',
+      runId: 'run-existing',
+      articleRevisionId: 'deck-1:rev:1',
+    } as never);
+
+    const { POST } = await import('@/app/api/articles/[id]/generate-images/route');
+    const response = await POST(
+      new Request('http://localhost/api/articles/deck-1/generate-images', {
+        method: 'POST',
+        headers: { 'Idempotency-Key': '5e0ce212-0f45-4c11-b776-c3a6bbde3e6a' },
+        body: JSON.stringify({ illustrationStyle: 'pixel-art' }),
+      }) as never,
+      { params: Promise.resolve({ id: 'deck-1' }) }
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(202);
+    expect(body).toEqual(expect.objectContaining({ jobId: 'job-existing' }));
+    expect(jobServiceMock.createJobRun).not.toHaveBeenCalled();
+    expect(workflowClientMock.startWorkflow).not.toHaveBeenCalled();
+  });
+
+  it('propagates an idempotency conflict as an error response', async () => {
+    const { AppError } = await import('@/server/http/app-error');
+    jobServiceMock.findIdempotentJob.mockRejectedValue(new AppError({
+      code: 'IDEMPOTENCY_CONFLICT',
+      message: 'This generation request conflicts with an earlier request.',
+      status: 409,
+    }));
+
+    const { POST } = await import('@/app/api/articles/[id]/generate-images/route');
+    const response = await POST(
+      new Request('http://localhost/api/articles/deck-1/generate-images', {
+        method: 'POST',
+        headers: { 'Idempotency-Key': '5e0ce212-0f45-4c11-b776-c3a6bbde3e6a' },
+        body: JSON.stringify({ illustrationStyle: 'pixel-art' }),
+      }) as never,
+      { params: Promise.resolve({ id: 'deck-1' }) }
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body).toEqual(expect.objectContaining({ code: 'IDEMPOTENCY_CONFLICT' }));
+    expect(jobServiceMock.createJobRun).not.toHaveBeenCalled();
   });
 
   it('returns 403 when retrying images without generation access', async () => {

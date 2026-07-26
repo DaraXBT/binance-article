@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   authorize: vi.fn(),
   createJob: vi.fn(),
   attachRun: vi.fn(),
+  failJob: vi.fn(),
+  findIdempotentJob: vi.fn(),
   startWorkflow: vi.fn(),
   rateLimit: vi.fn(),
   accessEnabled: vi.fn(),
@@ -16,6 +18,8 @@ vi.mock('@/server/auth/article-authorization', () => ({ authorizeArticleRequest:
 vi.mock('@/server/modules/jobs/service', () => ({
   createJobRun: mocks.createJob,
   attachWorkflowRunId: mocks.attachRun,
+  failJobRun: mocks.failJob,
+  findIdempotentJob: mocks.findIdempotentJob,
 }));
 vi.mock('@/server/integrations/workflow-client', () => ({ startWorkflow: mocks.startWorkflow }));
 vi.mock('@/server/http/atomic-rate-limit', () => ({ consumeAtomicRateLimit: mocks.rateLimit }));
@@ -38,6 +42,8 @@ describe('POST /api/articles/[id]/generate-cover', () => {
       articleRevisionId: 'deck-1:rev:3',
     });
     mocks.createJob.mockResolvedValue({ id: 'job-1', status: 'queued' });
+    mocks.failJob.mockResolvedValue(null);
+    mocks.findIdempotentJob.mockResolvedValue(null);
     mocks.startWorkflow.mockResolvedValue({ runId: 'run-1' });
     mocks.rateLimit.mockResolvedValue({
       allowed: true,
@@ -77,5 +83,54 @@ describe('POST /api/articles/[id]/generate-cover', () => {
       kind: 'generate_images',
     });
     expect(mocks.attachRun).toHaveBeenCalledWith('job-1', 'run-1');
+  });
+
+  it('terminally fails the job when the workflow cannot be started', async () => {
+    mocks.startWorkflow.mockRejectedValue(new Error('binding unavailable'));
+
+    const { POST } = await import('./route');
+    const response = await POST(
+      new Request('http://localhost/api/articles/deck-1/generate-cover', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      }) as never,
+      { params: Promise.resolve({ id: 'deck-1' }) },
+    );
+
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(mocks.failJob).toHaveBeenCalledWith(
+      'job-1',
+      'WORKFLOW_START_FAILED',
+      expect.any(String),
+    );
+    expect(mocks.attachRun).not.toHaveBeenCalled();
+  });
+
+  it('replays an existing job for a repeated Idempotency-Key without a new workflow', async () => {
+    mocks.findIdempotentJob.mockResolvedValue({
+      id: 'job-existing',
+      status: 'running',
+      runId: 'run-existing',
+      articleRevisionId: 'deck-1:rev:3',
+    });
+
+    const { POST } = await import('./route');
+    const response = await POST(
+      new Request('http://localhost/api/articles/deck-1/generate-cover', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'Idempotency-Key': '5e0ce212-0f45-4c11-b776-c3a6bbde3e6a',
+        },
+        body: JSON.stringify({}),
+      }) as never,
+      { params: Promise.resolve({ id: 'deck-1' }) },
+    );
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual(expect.objectContaining({ jobId: 'job-existing' }));
+    expect(mocks.createJob).not.toHaveBeenCalled();
+    expect(mocks.startWorkflow).not.toHaveBeenCalled();
   });
 });

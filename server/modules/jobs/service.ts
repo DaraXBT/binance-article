@@ -74,6 +74,7 @@ export function serializeJobRun(job: JobRunRecord) {
 }
 
 export function createJobRun(input: {
+  id?: string;
   deckId: string;
   workspaceId: string;
   kind: JobKind;
@@ -82,7 +83,7 @@ export function createJobRun(input: {
 }) {
   const now = new Date();
   return repository().create({
-    id: crypto.randomUUID(),
+    id: input.id ?? crypto.randomUUID(),
     deckId: input.deckId,
     workspaceId: input.workspaceId,
     kind: input.kind,
@@ -142,10 +143,11 @@ function idempotencyConflict(): AppError {
   });
 }
 
-export async function findIdempotentGeneration(input: {
+export async function findIdempotentJob(input: {
   idempotencyKey: string;
   deckId: string;
   workspaceId: string;
+  kind: JobKind;
   payload: unknown;
 }) {
   const job = await repository().findById(input.idempotencyKey);
@@ -153,12 +155,21 @@ export async function findIdempotentGeneration(input: {
   if (
     job.deckId !== input.deckId ||
     job.workspaceId !== input.workspaceId ||
-    job.kind !== 'generate' ||
+    job.kind !== input.kind ||
     !payloadMatches(job.payload, input.payload)
   ) {
     throw idempotencyConflict();
   }
   return job;
+}
+
+export function findIdempotentGeneration(input: {
+  idempotencyKey: string;
+  deckId: string;
+  workspaceId: string;
+  payload: unknown;
+}) {
+  return findIdempotentJob({ ...input, kind: 'generate' });
 }
 
 export async function beginIdempotentGeneration(input: {

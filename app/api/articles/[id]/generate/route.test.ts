@@ -2,6 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const dbMock = {
   beginGenerationRevision: vi.fn(),
+  markDeckStatus: vi.fn(async () => null),
+  parseRevisionNumber: vi.fn((revisionId: string) => {
+    const match = /^.+:rev:(0|[1-9][0-9]*)$/.exec(revisionId);
+    return match ? Number(match[1]) : 0;
+  }),
 };
 
 const articleAuthorizationMock = {
@@ -15,6 +20,7 @@ const articleAuthorizationMock = {
 const jobServiceMock = {
   createJobRun: vi.fn(),
   attachWorkflowRunId: vi.fn(),
+  failJobRun: vi.fn(async () => null),
   findIdempotentGeneration: vi.fn(),
   beginIdempotentGeneration: vi.fn(),
 };
@@ -90,6 +96,39 @@ describe('POST /api/articles/[id]/generate', () => {
       replayed: false,
     });
     workflowClientMock.startWorkflow.mockResolvedValue({ runId: 'run-1' });
+    jobServiceMock.failJobRun.mockResolvedValue(null);
+    dbMock.markDeckStatus.mockResolvedValue(null);
+  });
+
+  it('compensates the job and deck when the workflow cannot be started', async () => {
+    workflowClientMock.startWorkflow.mockRejectedValue(new Error('binding unavailable'));
+
+    const { POST } = await import('@/app/api/articles/[id]/generate/route');
+    const response = await POST(
+      new Request('http://localhost/api/articles/deck-1/generate', {
+        method: 'POST',
+        body: JSON.stringify({
+          articleContent: 'A long enough article body for generation.',
+          slideCount: 1,
+          mode: 'text',
+        }),
+      }) as never,
+      { params: Promise.resolve({ id: 'deck-1' }) },
+    );
+
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(jobServiceMock.failJobRun).toHaveBeenCalledWith(
+      'job-1',
+      'WORKFLOW_START_FAILED',
+      expect.any(String),
+    );
+    expect(dbMock.markDeckStatus).toHaveBeenCalledWith(
+      'deck-1',
+      'workspace-1',
+      'failed',
+      { expectedGenerationRevision: 1 },
+    );
+    expect(jobServiceMock.attachWorkflowRunId).not.toHaveBeenCalled();
   });
 
   it('uses one idempotency key for the revision, job, and workflow handoff', async () => {
