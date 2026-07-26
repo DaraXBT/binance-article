@@ -154,7 +154,7 @@ describe('Cloudflare web Worker deployment configuration', () => {
     expect(packageJson.engines.node).toBe('>=22.18');
     expect(packageJson.devDependencies['@opennextjs/cloudflare']).toBe('1.20.1');
     expect(packageJson.devDependencies.esbuild).toBe('0.28.1');
-    expect(packageJson.devDependencies.wrangler).toBe('4.112.0');
+    expect(packageJson.devDependencies.wrangler).toBe('4.114.0');
   });
 
   it('can start the pinned OpenNext CLI with the installed dependency graph', () => {

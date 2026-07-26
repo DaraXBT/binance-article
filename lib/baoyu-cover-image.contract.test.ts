@@ -1,3 +1,6 @@
+// Lives under lib/ (not next to its subject in .agents/) because
+// vitest.config.ts excludes .agents/** — this is the app-side contract test
+// over the skill's files.
 import { existsSync, readFileSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { dirname, extname, resolve } from 'node:path';

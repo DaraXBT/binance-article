@@ -1,3 +1,6 @@
+// Lives under scripts/ (not next to its subject in .agents/) because
+// vitest.config.ts excludes .agents/** — the skill tree runs its own Bun
+// suite; this file is the app-side contract test for the shared crop code.
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

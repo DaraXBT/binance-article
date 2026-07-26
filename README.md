@@ -83,7 +83,11 @@ hash and bounded metadata are stored.
 - The product interface is English-only. Imported source text and generated
   article content may remain in their original language; stale UI-language
   cookies or browser storage are normalized back to English.
-- Enrollment is invitation-only through Google.
+- Enrollment is invitation-only through Google. App-global owners manage
+  invitations in **Settings → Connections**: create one (the join link is
+  shown once; only its hash is stored), see pending/accepted/expired status,
+  and revoke pending invitations. The `owner-bootstrap:create` script remains
+  the way to issue the very first invitation on an empty database.
 - Returning users sign in with Google.
 - Suspended or revoked users are rejected on every request.
 - The private beta enforces one workspace membership per account and one owner per workspace.

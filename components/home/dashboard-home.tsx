@@ -563,13 +563,6 @@ type SubmissionCheckpoint = HomeSubmissionSnapshot & {
   jobId?: string;
 };
 
-type WorkspaceChoiceCopy = {
-  title?: string;
-  description?: string;
-  continueAction?: string;
-  importAction?: string;
-};
-
 const RESUME_WORKSPACE_CHOICE_PREFIX = `${ANONYMOUS_GENERATION_INTENT_KEY}:workspace-choice:`;
 
 function readSessionStorage(): Storage | null {
@@ -1282,15 +1275,14 @@ export function DashboardHome({
     return <WorkspaceOnboarding notice={composerError} />;
   }
 
-  const workspaceCopy = messages.workspace as typeof messages.workspace & WorkspaceChoiceCopy;
-  const workspaceChoiceTitle = workspaceCopy.resumeChoiceTitle ?? 'Choose where to continue';
-  const workspaceChoiceDescription = workspaceCopy.resumeChoiceDescription ??
-    'A new workspace is ready. You can continue here or import an older workspace with its recovery key.';
-  const continueWorkspaceLabel = workspaceCopy.resumeChoiceContinue ?? 'Continue with new workspace';
-  const importWorkspaceLabel = workspaceCopy.resumeChoiceImport ?? 'Import old workspace';
-  const resumeContinueLabel = workspaceCopy.resumeContinue ?? 'Continue this draft';
-  const resumeContinueDescription = workspaceCopy.resumeContinueDescription ??
-    'Your draft is ready to continue.';
+  // Every key exists in the catalog; the old cast-with-fallbacks predated
+  // them and silently masked the real translations.
+  const workspaceChoiceTitle = messages.workspace.resumeChoiceTitle;
+  const workspaceChoiceDescription = messages.workspace.resumeChoiceDescription;
+  const continueWorkspaceLabel = messages.workspace.resumeChoiceContinue;
+  const importWorkspaceLabel = messages.workspace.resumeChoiceImport;
+  const resumeContinueLabel = messages.workspace.resumeContinue;
+  const resumeContinueDescription = messages.workspace.resumeContinueDescription;
 
   return (
     <>

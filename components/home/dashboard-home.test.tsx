@@ -129,6 +129,13 @@ const messages = {
     copyPrefix: 'Copy key prefix',
     keyCopied: 'Copied!',
     recoverDialogTitle: 'Recover workspace',
+    resumeChoiceTitle: 'Choose a workspace for this draft',
+    resumeChoiceDescription:
+      'A new workspace is ready. Continue here, or import an older workspace with its recovery key.',
+    resumeChoiceContinue: 'Continue with new workspace',
+    resumeChoiceImport: 'Import old workspace',
+    resumeContinue: 'Continue this draft',
+    resumeContinueDescription: 'Your draft is ready to continue. Generation will start only when you choose Continue.',
   },
 };
 

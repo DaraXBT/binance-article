@@ -7,7 +7,8 @@ import { createGenerationAccessGrantRepository } from './generate-access-reposit
 
 export const GENERATE_ACCESS_COOKIE_NAME = 'xarticle_generate_access';
 // Pre-rename cookie: still read (new name wins) and actively expired on every
-// write so live grants survive the rename. Remove after the compat window.
+// write so live grants survive the rename. Remove the fallback after
+// 2026-09-01 — by then every live grant cookie has been rewritten or expired.
 export const LEGACY_GENERATE_ACCESS_COOKIE_NAME = 'deckforge_generate_access';
 
 export type GenerateAccessInvalidReason =
