@@ -36,6 +36,10 @@ describe('Binance draft repository', () => {
     expect(captured[0]?.text).toMatch(/ON CONFLICT \("workspaceId", "articleId", "target"\) DO UPDATE/);
     expect(captured[0]?.text).toMatch(/"WorkspaceMember"/);
     expect(captured[0]?.text).toMatch(/"DeckProject"/);
+    // Expired queued drafts (dead companion device) may be saved over.
+    expect(captured[0]?.text).toMatch(
+      /"status" = 'queued'::"PublicationDraftStatus"[\s\S]*"expiresAt" <=/,
+    );
     expect(captured[0]?.text).not.toContain('user_1');
     expect(captured[0]?.values).toContain('user_1');
   });

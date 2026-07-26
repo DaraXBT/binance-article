@@ -98,6 +98,24 @@ describe('Binance publication drafts', () => {
       .rejects.toMatchObject({ code: 'PUBLICATION_REVISION_STALE', status: 409 });
   });
 
+  it('rejects identifiers the strict prepare-path schema would refuse', async () => {
+    const base = {
+      actorUserId: 'user_1', workspaceId: 'workspace_1', articleId: 'article_1',
+      draftId: 'draft_1', now,
+    };
+    const repository = { getDraft: vi.fn(), saveDraft: vi.fn(async () => null) };
+
+    await expect(saveBinanceDraft({
+      ...base, repository, input: { ...validInput(), orderedAssetIds: ['bad id'] },
+    })).rejects.toMatchObject({ code: 'INVALID_PUBLICATION_DRAFT', status: 400 });
+    await expect(saveBinanceDraft({
+      ...base,
+      repository,
+      input: { ...validInput(), cover: { assetId: '.dot', focalX: 0.5, focalY: 0.4 } },
+    })).rejects.toMatchObject({ code: 'INVALID_PUBLICATION_DRAFT', status: 400 });
+    expect(repository.saveDraft).not.toHaveBeenCalled();
+  });
+
   it('loads a draft only through the actor/workspace repository boundary', async () => {
     const draft = { id: 'draft_1', revision: 2 };
     const repository = {

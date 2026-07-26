@@ -65,12 +65,21 @@ export function createPublicationDraftRepository(database: AppDatabase): Publica
             "publishedUrl" = NULL,
             "updatedAt" = EXCLUDED."updatedAt"
           WHERE "PublicationDraft"."revision" = ${input.expectedRevision}
-            AND "PublicationDraft"."status" NOT IN (
-              'queued'::"PublicationDraftStatus",
-              'review_ready'::"PublicationDraftStatus",
-              'awaiting_approval'::"PublicationDraftStatus",
-              'authorized'::"PublicationDraftStatus",
-              'publishing'::"PublicationDraftStatus"
+            AND (
+              "PublicationDraft"."status" NOT IN (
+                'queued'::"PublicationDraftStatus",
+                'review_ready'::"PublicationDraftStatus",
+                'awaiting_approval'::"PublicationDraftStatus",
+                'authorized'::"PublicationDraftStatus",
+                'publishing'::"PublicationDraftStatus"
+              )
+              -- Escape hatch: a draft queued for a device that died stays
+              -- 'queued' forever; once the draft has expired it may be saved
+              -- over. A stale command for it fails recipe validation on claim.
+              OR (
+                "PublicationDraft"."status" = 'queued'::"PublicationDraftStatus"
+                AND "PublicationDraft"."expiresAt" <= ${input.now}
+              )
             )
             AND EXISTS (
               SELECT 1 FROM "WorkspaceMember" member

@@ -135,23 +135,14 @@ export function createPublicationRepository(database: AppDatabase): PublicationR
       recipe,
       command,
     }) {
+      // The draft status flips to 'queued' only when the command row actually
+      // inserts; an idempotency-key conflict must leave the draft untouched,
+      // otherwise it would be stuck 'queued' with no command to complete it.
       const [rows] = await database.$client.transaction((transaction) => [
         transaction`
-          WITH updated_draft AS (
-            UPDATE "PublicationDraft" AS draft
-            SET
-              "status" = 'queued'::"PublicationDraftStatus",
-              "payload" = ${JSON.stringify(recipe.target === 'binance-square' ? {
-                title: recipe.title,
-                markdown: recipe.markdown,
-                cover: recipe.cover,
-                orderedAssetIds: recipe.orderedAssetIds,
-              } : {
-                text: recipe.text,
-                orderedAssetIds: recipe.orderedAssetIds,
-              })}::jsonb,
-              "recipeHash" = ${recipeHash},
-              "updatedAt" = now()
+          WITH candidate AS MATERIALIZED (
+            SELECT draft."id", draft."target"
+            FROM "PublicationDraft" AS draft
             WHERE draft."id" = ${command.draftId}
               AND draft."workspaceId" = ${workspaceId}
               AND draft."target" = ${target}::"PublicationTarget"
@@ -170,19 +161,41 @@ export function createPublicationRepository(database: AppDatabase): PublicationR
                   AND device."userId" = ${actorUserId}
                   AND device."status" = 'active'
               )
-            RETURNING draft."id", draft."target"
+            FOR UPDATE
+          ), inserted_command AS (
+            INSERT INTO "PublisherCommand" (
+              "id", "draftId", "publicationDraftId", "target", "deviceId", "state", "revision",
+              "recipeHash", "idempotencyKey", "expiresAt", "createdAt", "updatedAt"
+            )
+            SELECT
+              ${command.id}, NULL, candidate."id", candidate."target", ${command.deviceId},
+              'queued'::"PublisherCommandState", ${command.revision}, ${command.recipeHash},
+              ${`prepare:${target}:${command.draftId}:${command.revision}`}, ${command.expiresAt}, now(), now()
+            FROM candidate
+            ON CONFLICT ("idempotencyKey") DO NOTHING
+            RETURNING "id", "publicationDraftId"
+          ), updated_draft AS (
+            UPDATE "PublicationDraft" AS draft
+            SET
+              "status" = 'queued'::"PublicationDraftStatus",
+              "payload" = ${JSON.stringify(recipe.target === 'binance-square' ? {
+                title: recipe.title,
+                markdown: recipe.markdown,
+                cover: recipe.cover,
+                orderedAssetIds: recipe.orderedAssetIds,
+              } : {
+                text: recipe.text,
+                orderedAssetIds: recipe.orderedAssetIds,
+              })}::jsonb,
+              "recipeHash" = ${recipeHash},
+              "updatedAt" = now()
+            FROM inserted_command
+            WHERE draft."id" = inserted_command."publicationDraftId"
+            RETURNING draft."id"
           )
-          INSERT INTO "PublisherCommand" (
-            "id", "draftId", "publicationDraftId", "target", "deviceId", "state", "revision",
-            "recipeHash", "idempotencyKey", "expiresAt", "createdAt", "updatedAt"
-          )
-          SELECT
-            ${command.id}, NULL, updated_draft."id", updated_draft."target", ${command.deviceId},
-            'queued'::"PublisherCommandState", ${command.revision}, ${command.recipeHash},
-            ${`prepare:${target}:${command.draftId}:${command.revision}`}, ${command.expiresAt}, now(), now()
-          FROM updated_draft
-          ON CONFLICT ("idempotencyKey") DO NOTHING
-          RETURNING "id"
+          SELECT inserted_command."id"
+          FROM inserted_command
+          WHERE EXISTS (SELECT 1 FROM updated_draft)
         `,
       ], { isolationLevel: 'ReadCommitted' });
       return Boolean(rows[0]);

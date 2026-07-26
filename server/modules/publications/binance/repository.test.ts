@@ -54,8 +54,12 @@ describe('Binance publication repository', () => {
 
     expect(transaction).toHaveBeenCalledTimes(1);
     expect(captured).toHaveLength(1);
-    expect(captured[0]?.text).toMatch(/WITH updated_draft AS[\s\S]*UPDATE "PublicationDraft"/);
-    expect(captured[0]?.text).toMatch(/INSERT INTO "PublisherCommand"/);
+    // Lock the candidate first, insert the command, and only then flip the
+    // draft — the update must be gated on the insert actually happening.
+    expect(captured[0]?.text).toMatch(
+      /WITH candidate AS MATERIALIZED[\s\S]*FOR UPDATE[\s\S]*INSERT INTO "PublisherCommand"[\s\S]*ON CONFLICT \("idempotencyKey"\) DO NOTHING[\s\S]*UPDATE "PublicationDraft"[\s\S]*FROM inserted_command/,
+    );
+    expect(captured[0]?.text).toMatch(/WHERE EXISTS \(SELECT 1 FROM updated_draft\)/);
     expect(captured[0]?.text).toMatch(/"WorkspaceMember"/);
     expect(captured[0]?.text).not.toContain('user_1');
     expect(captured[0]?.values).toContain('user_1');

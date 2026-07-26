@@ -3,7 +3,10 @@ import { z } from 'zod';
 import { PUBLICATION_DRAFT_LIFETIME_MS } from '@/server/domain/publication-recipe';
 import { AppError } from '@/server/http/errors';
 
-const IdentifierSchema = z.string().trim().min(1).max(200);
+// Must match the strict schema in ../draft-service.ts — the prepare path
+// re-parses the stored payload with it, so anything looser saved here would
+// make the draft permanently un-preparable.
+const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,199}$/);
 
 const DraftInputSchema = z.object({
   expectedRevision: z.number().int().nonnegative().safe(),
