@@ -139,6 +139,19 @@ describe('errorResponse', () => {
     spy.mockRestore();
   });
 
+  it('redacts long base64url runs such as ciphertext echoed by the database', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const ciphertext = 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0U1v2W3x4Y5z6';
+    errorResponse(new Error(
+      `duplicate key value violates constraint DETAIL: Key (ciphertext)=(${ciphertext}) already exists.`,
+    ));
+    const logged = JSON.parse(spy.mock.calls[0][0] as string) as { cause: string };
+    expect(logged.cause).not.toContain(ciphertext);
+    expect(logged.cause).toContain('[REDACTED]');
+    expect(logged.cause).toContain('duplicate key value');
+    spy.mockRestore();
+  });
+
   it('does not log client errors (4xx)', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const err = new AppError({ code: 'BAD_REQUEST', message: 'Invalid input', status: 400 });

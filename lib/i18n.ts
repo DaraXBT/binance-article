@@ -11,7 +11,9 @@ export type Language = 'km' | 'en' | 'id' | 'lo' | 'my' | 'th' | 'fil';
 // with previously stored records, but it is not user-selectable in the UI.
 export const UI_LANGUAGE: Language = 'en';
 
-export const LANGUAGE_COOKIE_NAME = 'deckforge_language';
+export const LANGUAGE_COOKIE_NAME = 'xarticle_language';
+// Pre-rename cookie/storage key; cleaned up on every normalization write.
+export const LEGACY_LANGUAGE_COOKIE_NAME = 'deckforge_language';
 
 export const LANGUAGES: { code: Language; flag: string; name: string; nativeName: string }[] = [
   { code: 'km', flag: '🇰🇭', name: 'Khmer', nativeName: 'ខ្មែរ' },

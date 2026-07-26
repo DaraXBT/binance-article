@@ -11,6 +11,7 @@ import {
 
 import {
   LANGUAGE_COOKIE_NAME,
+  LEGACY_LANGUAGE_COOKIE_NAME,
   translations,
   UI_LANGUAGE,
   type Language,
@@ -42,11 +43,13 @@ export function LanguageProvider({
   useEffect(() => {
     try {
       window.localStorage.setItem(STORAGE_KEY, UI_LANGUAGE);
+      window.localStorage.removeItem(LEGACY_LANGUAGE_COOKIE_NAME);
     } catch {
       // The fixed English UI does not depend on browser storage availability.
     }
     try {
       document.cookie = `${LANGUAGE_COOKIE_NAME}=${UI_LANGUAGE}; path=/; max-age=${60 * 60 * 24 * 365}`;
+      document.cookie = `${LEGACY_LANGUAGE_COOKIE_NAME}=; path=/; max-age=0`;
     } catch {
       // Hardened cookie settings cannot change the in-memory English locale.
     }

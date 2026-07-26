@@ -115,8 +115,10 @@ test('stale non-English preferences cannot change the English UI', async ({ cont
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await expect(page.getByRole('heading', { name: 'What do you want to write about?' })).toBeVisible();
   await expect(page.locator('[data-language-toggle]')).toHaveCount(0);
-  await expect.poll(() => page.evaluate(() => window.localStorage.getItem('deckforge_language')))
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem('xarticle_language')))
     .toBe('en');
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem('deckforge_language')))
+    .toBeNull();
   await expectNoHorizontalOverflow(page);
 });
 

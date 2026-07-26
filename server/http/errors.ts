@@ -11,6 +11,10 @@ export function redactLogText(value: string): string {
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [REDACTED]')
     .replace(/((?:password|passwd|secret|token|api[_-]?key)\s*[:=]\s*)[^\s,;]+/gi, '$1[REDACTED]')
     .replace(/([a-z][a-z0-9+.-]*:\/\/)([^/\s:@]+):([^@\s]+)@/gi, '$1[REDACTED]:[REDACTED]@')
+    // Long unbroken base64url runs are almost always key material, tokens,
+    // or AES-GCM ciphertext (e.g. a Postgres constraint DETAIL echoing a
+    // WorkspaceAiCredential row); no human-readable message needs them.
+    .replace(/[A-Za-z0-9_-]{40,}/g, '[REDACTED]')
     .slice(0, LOG_VALUE_LIMIT);
 }
 

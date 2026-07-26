@@ -21,10 +21,12 @@ describe('LanguageProvider', () => {
   afterEach(() => {
     cleanup();
     window.localStorage.clear();
+    document.cookie = 'xarticle_language=; Max-Age=0; path=/';
     document.cookie = 'deckforge_language=; Max-Age=0; path=/';
   });
 
   it('ignores stale non-English browser preferences and keeps the UI English', async () => {
+    // Legacy pre-rename keys must be normalized away, not just ignored.
     window.localStorage.setItem('deckforge_language', 'km');
     document.cookie = 'deckforge_language=km; path=/';
 
@@ -41,7 +43,9 @@ describe('LanguageProvider', () => {
 
     await waitFor(() => {
       expect(document.documentElement.lang).toBe('en');
-      expect(window.localStorage.getItem('deckforge_language')).toBe('en');
+      expect(window.localStorage.getItem('xarticle_language')).toBe('en');
+      expect(window.localStorage.getItem('deckforge_language')).toBeNull();
+      expect(document.cookie).not.toContain('deckforge_language=km');
     });
   });
 });
