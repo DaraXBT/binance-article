@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   createJob: vi.fn(),
   attachRun: vi.fn(),
   failJob: vi.fn(),
+  findActiveCoverJob: vi.fn(),
   findIdempotentJob: vi.fn(),
   startWorkflow: vi.fn(),
   rateLimit: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock('@/server/modules/jobs/service', () => ({
   createJobRun: mocks.createJob,
   attachWorkflowRunId: mocks.attachRun,
   failJobRun: mocks.failJob,
+  findActiveCoverJob: mocks.findActiveCoverJob,
   findIdempotentJob: mocks.findIdempotentJob,
 }));
 vi.mock('@/server/integrations/workflow-client', () => ({ startWorkflow: mocks.startWorkflow }));
@@ -43,6 +45,7 @@ describe('POST /api/articles/[id]/generate-cover', () => {
     });
     mocks.createJob.mockResolvedValue({ id: 'job-1', status: 'queued' });
     mocks.failJob.mockResolvedValue(null);
+    mocks.findActiveCoverJob.mockResolvedValue(null);
     mocks.findIdempotentJob.mockResolvedValue(null);
     mocks.startWorkflow.mockResolvedValue({ runId: 'run-1' });
     mocks.rateLimit.mockResolvedValue({
@@ -83,6 +86,34 @@ describe('POST /api/articles/[id]/generate-cover', () => {
       kind: 'generate_images',
     });
     expect(mocks.attachRun).toHaveBeenCalledWith('job-1', 'run-1');
+  });
+
+  it('replays an in-flight cover-producing job instead of paying for a second image', async () => {
+    mocks.findActiveCoverJob.mockResolvedValue({
+      id: 'job-active',
+      status: 'running',
+      articleRevisionId: 'deck-1:rev:3',
+    });
+
+    const { POST } = await import('./route');
+    const response = await POST(
+      new Request('http://localhost/api/articles/deck-1/generate-cover', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      }) as never,
+      { params: Promise.resolve({ id: 'deck-1' }) },
+    );
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({
+      jobId: 'job-active',
+      status: 'running',
+      articleRevisionId: 'deck-1:rev:3',
+    });
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.createJob).not.toHaveBeenCalled();
+    expect(mocks.startWorkflow).not.toHaveBeenCalled();
   });
 
   it('terminally fails the job when the workflow cannot be started', async () => {

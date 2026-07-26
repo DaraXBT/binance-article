@@ -44,6 +44,13 @@ export interface ArticleAssetRepository {
     articleId: string;
     purpose?: ArticleAssetPurpose;
   }): Promise<ArticleAssetMetadata | null>;
+  retireCoverAssetsOutsidePrefix(input: {
+    workspaceId: string;
+    articleId: string;
+    keepPrefix: string;
+    expectedGenerationRevision: number;
+    now: Date;
+  }): Promise<string[]>;
 }
 
 export interface ArticleAssetObject {
@@ -183,6 +190,44 @@ export async function storeArticleAsset(input: {
     sizeBytes: bytes.byteLength,
     sha256,
   };
+}
+
+/**
+ * Cover keys are scoped per generation revision (covers/rev-N/), so
+ * replaceAsset's prefix-scoped retirement never touches older revisions and
+ * every regeneration would otherwise leak the previous cover in R2 and
+ * StorageObject. Called after a cover is successfully recorded at the
+ * current revision; the statement re-checks the revision so a stale job can
+ * never retire a newer cover.
+ */
+export async function retireStaleCoverAssets(input: {
+  repository: ArticleAssetRepository;
+  bucket: ArticleAssetBucket;
+  workspaceId: string;
+  articleId: string;
+  generationRevision: number;
+  now?: Date;
+}): Promise<number> {
+  const workspaceId = IdentifierSchema.parse(input.workspaceId);
+  const articleId = IdentifierSchema.parse(input.articleId);
+  if (!Number.isSafeInteger(input.generationRevision) || input.generationRevision < 0) {
+    throw new AppError({
+      code: 'ARTICLE_ASSET_SCOPE_INVALID',
+      message: 'Cover retirement requires a valid generation revision.',
+      status: 400,
+    });
+  }
+  const keepPrefix =
+    `workspaces/${workspaceId}/articles/${articleId}/covers/rev-${input.generationRevision}/`;
+  const retiredKeys = await input.repository.retireCoverAssetsOutsidePrefix({
+    workspaceId,
+    articleId,
+    keepPrefix,
+    expectedGenerationRevision: input.generationRevision,
+    now: input.now ?? new Date(),
+  });
+  await Promise.allSettled(retiredKeys.map((key) => input.bucket.delete(key)));
+  return retiredKeys.length;
 }
 
 export async function loadArticleAsset(input: {

@@ -22,6 +22,7 @@ const generation = vi.hoisted(() => ({
   generateImage: vi.fn(),
   resolveWorkspaceGeminiCredential: vi.fn(),
   buildImagePrompt: vi.fn(),
+  retireStaleCovers: vi.fn(async () => 0),
   storeAsset: vi.fn(),
   markCoverGenerated: vi.fn(),
   markCoverFailed: vi.fn(),
@@ -89,6 +90,7 @@ vi.mock('@/server/modules/assets/repository', () => ({
 }));
 
 vi.mock('@/server/modules/assets/service', () => ({
+  retireStaleCoverAssets: generation.retireStaleCovers,
   storeArticleAsset: generation.storeAsset,
 }));
 

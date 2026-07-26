@@ -14,6 +14,7 @@ import {
   attachWorkflowRunId,
   createJobRun,
   failJobRun,
+  findActiveCoverJob,
   findIdempotentJob,
 } from '@/server/modules/jobs/service';
 
@@ -44,6 +45,21 @@ export async function POST(
           clearCookie: accessState.invalidReason !== 'missing',
         });
       }
+    }
+
+    // A cover is already being produced (full generation or a cover retry):
+    // report that job instead of paying for a second concurrent image. Runs
+    // before the rate limit so the replay never consumes a slot.
+    const activeJob = await findActiveCoverJob(deckId, workspaceId);
+    if (activeJob) {
+      return NextResponse.json(
+        {
+          jobId: activeJob.id,
+          status: activeJob.status,
+          articleRevisionId: activeJob.articleRevisionId,
+        },
+        { status: 202, headers: withNoStoreHeaders() },
+      );
     }
 
     const now = new Date();

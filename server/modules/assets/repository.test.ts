@@ -42,6 +42,36 @@ describe('article asset repository', () => {
     ]));
   });
 
+  it('retires stale covers only while the article is still at the expected revision', async () => {
+    const captured: Array<{ text: string; values: unknown[] }> = [];
+    const client = vi.fn(async (strings: TemplateStringsArray, ...values: unknown[]) => {
+      captured.push({ text: strings.join('?'), values });
+      return [{ retiredR2Keys: ['covers/rev-1/old.png'] }];
+    });
+    const repository = createArticleAssetRepository({ $client: client } as never);
+    const now = new Date('2026-07-26T12:00:00.000Z');
+
+    await expect(repository.retireCoverAssetsOutsidePrefix({
+      workspaceId: 'workspace_1',
+      articleId: 'article_1',
+      keepPrefix: 'workspaces/workspace_1/articles/article_1/covers/rev-2/',
+      expectedGenerationRevision: 2,
+      now,
+    })).resolves.toEqual(['covers/rev-1/old.png']);
+
+    // The article gate re-checks the generation revision so a stale job can
+    // never retire a newer cover, and only rows outside the kept prefix are
+    // touched.
+    expect(captured[0]?.text).toMatch(/"generationRevision" =/);
+    expect(captured[0]?.text).toMatch(/'cover_image'::"StorageObjectPurpose"/);
+    expect(captured[0]?.text).toMatch(/NOT LIKE \? \|\| '%'/);
+    expect(captured[0]?.text).toMatch(/"deletedAt" IS NULL/);
+    expect(captured[0]?.values).toEqual(expect.arrayContaining([
+      'workspace_1', 'article_1', 2,
+      'workspaces/workspace_1/articles/article_1/covers/rev-2/', now,
+    ]));
+  });
+
   it('authorizes reads by active metadata, workspace, and article', async () => {
     const captured: Array<{ text: string; values: unknown[] }> = [];
     const client = vi.fn(async (strings: TemplateStringsArray, ...values: unknown[]) => {

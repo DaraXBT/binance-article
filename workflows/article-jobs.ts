@@ -29,7 +29,7 @@ import { AppError } from '@/server/http/app-error';
 import { logEvent } from '@/server/http/log';
 import { createArticleAssetRepository } from '@/server/modules/assets/repository';
 import type { ArticleAssetBucket } from '@/server/modules/assets/service';
-import { storeArticleAsset } from '@/server/modules/assets/service';
+import { retireStaleCoverAssets, storeArticleAsset } from '@/server/modules/assets/service';
 import { getJobRunById, appendJobLog, completeJobRun, failJobRun, markJobProgress, markJobRunning } from '@/server/modules/jobs/service';
 import { IllustrationStyleSchema } from '@/lib/schemas';
 import {
@@ -437,6 +437,16 @@ export async function generateCoverForDeck(input: {
         error: 'A newer article revision replaced this generated cover.',
       };
     }
+    // Best-effort: previous-revision cover objects are unreachable once the
+    // new cover is recorded; retire them so R2 and StorageObject don't grow
+    // with every regeneration.
+    await retireStaleCoverAssets({
+      repository: createArticleAssetRepository(database),
+      bucket: input.assetBucket ?? getArticleAssetsBucket(),
+      workspaceId: input.workspaceId,
+      articleId: input.deckId,
+      generationRevision: deck.generationRevision,
+    }).catch(() => null);
     return { status: 'generated', imageUrl: storedAsset.reference, error: null };
   } catch (error) {
     const normalizedError = normalizeImageGenerationError(

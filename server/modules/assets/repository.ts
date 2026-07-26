@@ -62,6 +62,36 @@ export function createArticleAssetRepository(database: AppDatabase): ArticleAsse
       return { assetId: row.assetId, retiredR2Keys: row.retiredR2Keys };
     },
 
+    async retireCoverAssetsOutsidePrefix(input): Promise<string[]> {
+      const result = await database.$client`
+        WITH article AS MATERIALIZED (
+          SELECT article."id"
+          FROM "DeckProject" AS article
+          WHERE article."id" = ${input.articleId}
+            AND article."workspaceId" = ${input.workspaceId}
+            AND article."generationRevision" = ${input.expectedGenerationRevision}
+        ), retired AS (
+          UPDATE "StorageObject" AS asset
+          SET "deletedAt" = ${input.now}
+          FROM article
+          WHERE asset."workspaceId" = ${input.workspaceId}
+            AND asset."articleId" = article."id"
+            AND asset."purpose" = 'cover_image'::"StorageObjectPurpose"
+            AND asset."deletedAt" IS NULL
+            AND asset."r2Key" NOT LIKE ${input.keepPrefix} || '%'
+          RETURNING asset."r2Key"
+        )
+        SELECT COALESCE((SELECT jsonb_agg(retired."r2Key") FROM retired), '[]'::jsonb)
+          AS "retiredR2Keys"
+      `;
+      const row = (result as Array<{ retiredR2Keys?: unknown }>)[0];
+      const keys = row?.retiredR2Keys;
+      if (!Array.isArray(keys) || !keys.every((key): key is string => typeof key === 'string')) {
+        throw new Error('Article asset metadata query returned invalid data.');
+      }
+      return keys;
+    },
+
     async authorizeAsset(input): Promise<ArticleAssetMetadata | null> {
       const result = await database.$client`
         SELECT

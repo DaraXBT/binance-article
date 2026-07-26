@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   loadArticleAsset,
+  retireStaleCoverAssets,
   storeArticleAsset,
   type ArticleAssetMetadata,
 } from './service';
@@ -23,6 +24,7 @@ describe('private R2 article asset service', () => {
     const repository = {
       replaceAsset: vi.fn(async () => ({ assetId: 'asset_1', retiredR2Keys: ['old/key.png'] })),
       authorizeAsset: vi.fn(),
+      retireCoverAssetsOutsidePrefix: vi.fn(async () => []),
     };
 
     const stored = await storeArticleAsset({
@@ -51,6 +53,7 @@ describe('private R2 article asset service', () => {
     const repository = {
       replaceAsset: vi.fn(async () => { throw new Error('database unavailable'); }),
       authorizeAsset: vi.fn(),
+      retireCoverAssetsOutsidePrefix: vi.fn(async () => []),
     };
 
     await expect(storeArticleAsset({
@@ -66,6 +69,7 @@ describe('private R2 article asset service', () => {
     const repository = {
       replaceAsset: vi.fn(async () => ({ assetId: 'cover_asset', retiredR2Keys: [] })),
       authorizeAsset: vi.fn(),
+      retireCoverAssetsOutsidePrefix: vi.fn(async () => []),
     };
     const stored = await storeArticleAsset({
       repository,
@@ -91,6 +95,52 @@ describe('private R2 article asset service', () => {
     }));
   });
 
+  it('retires cover objects outside the current revision prefix and deletes them from R2', async () => {
+    const storage = bucket();
+    const repository = {
+      replaceAsset: vi.fn(),
+      authorizeAsset: vi.fn(),
+      retireCoverAssetsOutsidePrefix: vi.fn(async () => [
+        'workspaces/workspace_1/articles/article_1/covers/rev-1/old_cover.png',
+      ]),
+    };
+
+    await expect(retireStaleCoverAssets({
+      repository,
+      bucket: storage,
+      workspaceId: 'workspace_1',
+      articleId: 'article_1',
+      generationRevision: 2,
+      now: new Date('2026-07-26T12:00:00.000Z'),
+    })).resolves.toBe(1);
+
+    expect(repository.retireCoverAssetsOutsidePrefix).toHaveBeenCalledWith({
+      workspaceId: 'workspace_1',
+      articleId: 'article_1',
+      keepPrefix: 'workspaces/workspace_1/articles/article_1/covers/rev-2/',
+      expectedGenerationRevision: 2,
+      now: new Date('2026-07-26T12:00:00.000Z'),
+    });
+    expect(storage.delete).toHaveBeenCalledWith(
+      'workspaces/workspace_1/articles/article_1/covers/rev-1/old_cover.png',
+    );
+  });
+
+  it('rejects invalid generation revisions before touching storage', async () => {
+    const storage = bucket();
+    const repository = {
+      replaceAsset: vi.fn(),
+      authorizeAsset: vi.fn(),
+      retireCoverAssetsOutsidePrefix: vi.fn(async () => []),
+    };
+
+    await expect(retireStaleCoverAssets({
+      repository, bucket: storage, workspaceId: 'workspace_1', articleId: 'article_1',
+      generationRevision: -1,
+    })).rejects.toMatchObject({ code: 'ARTICLE_ASSET_SCOPE_INVALID', status: 400 });
+    expect(repository.retireCoverAssetsOutsidePrefix).not.toHaveBeenCalled();
+  });
+
   it('loads only repository-authorized objects and verifies their size', async () => {
     const storage = bucket();
     const repository = {
@@ -99,6 +149,7 @@ describe('private R2 article asset service', () => {
         r2Key: 'private/key.png', mimeType: 'image/png' as const,
         sizeBytes: 3, sha256: 'a'.repeat(64),
       })),
+      retireCoverAssetsOutsidePrefix: vi.fn(async () => []),
     };
 
     await expect(loadArticleAsset({
@@ -113,6 +164,7 @@ describe('private R2 article asset service', () => {
     const repository = {
       replaceAsset: vi.fn(),
       authorizeAsset: vi.fn(async (): Promise<ArticleAssetMetadata | null> => null),
+      retireCoverAssetsOutsidePrefix: vi.fn(async () => []),
     };
     const input = {
       repository, bucket: storage, workspaceId: 'workspace_1', articleId: 'article_1',

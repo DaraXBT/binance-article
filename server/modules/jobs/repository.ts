@@ -62,6 +62,7 @@ export interface JobRepository {
     | null
   >;
   findLatestForDeck(deckId: string, workspaceId: string): Promise<JobRunRecord | null>;
+  findActiveCoverJob(deckId: string, workspaceId: string): Promise<JobRunRecord | null>;
   appendLog(input: {
     jobId: string;
     log: JobLogEntry;
@@ -363,6 +364,21 @@ export function createJobRepository(database: AppDatabase): JobRepository {
       const rows = await database.$client`
         SELECT * FROM "JobRun"
         WHERE "deckId" = ${deckId} AND "workspaceId" = ${workspaceId}
+        ORDER BY "createdAt" DESC, "id" DESC
+        LIMIT 1
+      `;
+      return firstJob(rows);
+    },
+
+    async findActiveCoverJob(deckId, workspaceId) {
+      const rows = await database.$client`
+        SELECT * FROM "JobRun"
+        WHERE "deckId" = ${deckId} AND "workspaceId" = ${workspaceId}
+          AND "status" IN ('queued'::"JobStatus", 'running'::"JobStatus")
+          AND (
+            "kind" = 'generate'::"JobKind"
+            OR ("kind" = 'generate_images'::"JobKind" AND "payload"->>'scope' = 'cover')
+          )
         ORDER BY "createdAt" DESC, "id" DESC
         LIMIT 1
       `;

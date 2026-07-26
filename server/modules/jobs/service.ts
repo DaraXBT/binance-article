@@ -108,6 +108,11 @@ export function getJobRunById(jobId: string) {
   return repository().findById(jobId);
 }
 
+/** Latest queued/running job that will produce a cover (full generation or a cover-scoped retry). */
+export function findActiveCoverJob(deckId: string, workspaceId: string) {
+  return repository().findActiveCoverJob(deckId, workspaceId);
+}
+
 function canonicalJson(value: unknown): unknown {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
   if (typeof value === 'number') {
