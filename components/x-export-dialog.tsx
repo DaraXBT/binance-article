@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, ImageIcon, Loader2, ShieldCheck } from 'lucide-react';
 
 import { useLanguage } from '@/components/language-provider';
@@ -112,22 +112,34 @@ export function XExportDialog({ open, onOpenChange, deck }: XExportDialogProps) 
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
-  const [draftRevision, setDraftRevision] = useState(0);
+  const [draftRevision, setDraftRevision] = useState<number | null>(null);
+  const [draftLoadError, setDraftLoadError] = useState<string | null>(null);
   const [isDraftLoading, setIsDraftLoading] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  // The article page polls while a job runs, replacing `deck` on every tick;
+  // form state must only re-seed when the dialog (re)opens, never mid-edit.
+  const deckRef = useRef(deck);
+  deckRef.current = deck;
 
   useEffect(() => {
-    setText(posts[0] ?? '');
-    setSelectedImageIds(defaultImageIds);
+    if (!open) return;
+    const currentDeck = deckRef.current;
+    setText(generatedPosts(currentDeck)[0] ?? '');
+    setSelectedImageIds(
+      generatedImageSlides(currentDeck.slides).slice(0, X_POST_MAX_IMAGES).map((slide) => slide.id),
+    );
     setIsDownloading(false);
     setDownloaded(false);
     setDownloadError(null);
     resetPublication();
-  }, [deck.id, defaultImageIds, posts, resetPublication]);
+  }, [open, deck.id, resetPublication]);
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     setIsDraftLoading(true);
+    setDraftLoadError(null);
     void fetch(`/api/articles/${encodeURIComponent(deck.id)}/publications/x`, { cache: 'no-store' })
       .then((response) => readPublicationResponse(response, copy.draftLoadFailed))
       .then(({ draft }) => {
@@ -135,7 +147,7 @@ export function XExportDialog({ open, onOpenChange, deck }: XExportDialogProps) 
         setDraftRevision(draft?.revision ?? 0);
         if (draft) {
           setText(draft.text);
-          const selected = availableSlides.filter((slide) => {
+          const selected = generatedImageSlides(deckRef.current.slides).filter((slide) => {
             if (!slide.imageUrl) return false;
             try {
               return draft.orderedAssetIds.includes(parseArticleAssetReference(slide.imageUrl).assetId);
@@ -147,13 +159,17 @@ export function XExportDialog({ open, onOpenChange, deck }: XExportDialogProps) 
         }
       })
       .catch(() => {
-        if (!cancelled) setDraftRevision(0);
+        // Without the saved revision a save would race the server draft;
+        // surface the failure and keep Prepare disabled until a retry works.
+        if (cancelled) return;
+        setDraftRevision(null);
+        setDraftLoadError(copy.draftLoadFailed);
       })
       .finally(() => {
         if (!cancelled) setIsDraftLoading(false);
       });
     return () => { cancelled = true; };
-  }, [availableSlides, copy.draftLoadFailed, deck.id, open]);
+  }, [copy.draftLoadFailed, deck.id, open, reloadToken]);
 
   const issues = useMemo(() => getXPostExportIssues({
     text,
@@ -176,7 +192,7 @@ export function XExportDialog({ open, onOpenChange, deck }: XExportDialogProps) 
   });
 
   const handlePrepare = async () => {
-    if (issues.errors.length > 0 || isDraftLoading || commandActive) return;
+    if (issues.errors.length > 0 || isDraftLoading || draftRevision === null || commandActive) return;
     await publication.prepare(async () => {
       const savedResponse = await fetch(`/api/articles/${encodeURIComponent(deck.id)}/publications/x`, {
         method: 'PUT',
@@ -333,6 +349,20 @@ export function XExportDialog({ open, onOpenChange, deck }: XExportDialogProps) 
               </div>
             ) : null}
             {downloadError ? <p role="alert" className="text-sm text-destructive">{downloadError}</p> : null}
+            {draftLoadError ? (
+              <div role="alert" className="flex items-center justify-between gap-3 border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+                <p>{draftLoadError}</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 rounded-lg text-xs"
+                  onClick={() => setReloadToken((token) => token + 1)}
+                >
+                  {messages.common.retry}
+                </Button>
+              </div>
+            ) : null}
             {downloaded ? (
               <div className="flex items-start gap-2 border border-primary/30 bg-primary/5 p-3 text-sm">
                 <ShieldCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
@@ -405,7 +435,7 @@ export function XExportDialog({ open, onOpenChange, deck }: XExportDialogProps) 
             type="button"
             className="rounded-lg"
             onClick={() => void handlePrepare()}
-            disabled={issues.errors.length > 0 || isDraftLoading || publication.isPreparing || Boolean(commandActive)}
+            disabled={issues.errors.length > 0 || isDraftLoading || draftRevision === null || publication.isPreparing || Boolean(commandActive)}
           >
             {(isDraftLoading || publication.isPreparing) ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : null}
             {publication.isPreparing ? copy.preparing : copy.prepare}

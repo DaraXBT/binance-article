@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LanguageProvider } from './language-provider';
@@ -107,5 +107,52 @@ describe('BinanceExportDialog', () => {
 
     expect(screen.getByText('Generate the dedicated 5:2 article cover before preparing Binance.')).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Download fallback ZIP' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('keeps user edits when the polled deck object is replaced while open', () => {
+    const { rerender } = renderInEnglish(
+      <BinanceExportDialog open onOpenChange={() => undefined} deck={deck} />,
+    );
+    fireEvent.change(screen.getByLabelText('Article title'), {
+      target: { value: 'Hand-edited title' },
+    });
+    fireEvent.change(screen.getByLabelText('Article Markdown'), {
+      target: { value: '## Hand-edited body' },
+    });
+
+    rerender(
+      <BinanceExportDialog
+        open
+        onOpenChange={() => undefined}
+        deck={{ ...deck, slides: [...deck.slides] }}
+      />,
+    );
+
+    expect((screen.getByLabelText('Article title') as HTMLInputElement).value)
+      .toBe('Hand-edited title');
+    expect((screen.getByLabelText('Article Markdown') as HTMLTextAreaElement).value)
+      .toBe('## Hand-edited body');
+  });
+
+  it('surfaces a draft load failure, blocks prepare, and retries on demand', async () => {
+    const fetchMock = vi.fn(async () => { throw new Error('network down'); });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      renderInEnglish(<BinanceExportDialog open onOpenChange={() => undefined} deck={deck} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('The Binance draft could not be loaded.')).toBeTruthy();
+      });
+      expect((screen.getByRole('button', { name: 'Prepare in Binance' }) as HTMLButtonElement).disabled)
+        .toBe(true);
+
+      const callsBefore = fetchMock.mock.calls.length;
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+      await waitFor(() => {
+        expect(fetchMock.mock.calls.length).toBeGreaterThan(callsBefore);
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

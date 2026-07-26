@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, Loader2, MoveDiagonal, ShieldCheck } from 'lucide-react';
 
 import { useLanguage } from '@/components/language-provider';
@@ -194,22 +194,32 @@ export function BinanceExportDialog({ open, onOpenChange, deck }: BinanceExportD
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
-  const [draftRevision, setDraftRevision] = useState(0);
+  const [draftRevision, setDraftRevision] = useState<number | null>(null);
+  const [draftLoadError, setDraftLoadError] = useState<string | null>(null);
   const [isDraftLoading, setIsDraftLoading] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  // The article page polls while a job runs, replacing `deck` on every tick;
+  // form state must only re-seed when the dialog (re)opens, never mid-edit.
+  const deckRef = useRef(deck);
+  deckRef.current = deck;
 
   useEffect(() => {
-    setTitle(deck.captions?.blogTitle?.trim() || deck.title);
-    setMarkdown(initialMarkdown(deck));
+    if (!open) return;
+    const currentDeck = deckRef.current;
+    setTitle(currentDeck.captions?.blogTitle?.trim() || currentDeck.title);
+    setMarkdown(initialMarkdown(currentDeck));
     setFocal({ x: 0.5, y: 0.5 });
     setDownloaded(false);
     setDownloadError(null);
     resetPublication();
-  }, [deck, resetPublication]);
+  }, [open, deck.id, resetPublication]);
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     setIsDraftLoading(true);
+    setDraftLoadError(null);
     void fetch(`/api/articles/${encodeURIComponent(deck.id)}/publications/binance`, {
       cache: 'no-store',
     }).then((response) => readPublicationResponse(response, copy.draftLoadFailed))
@@ -223,13 +233,17 @@ export function BinanceExportDialog({ open, onOpenChange, deck }: BinanceExportD
         }
       })
       .catch(() => {
-        if (!cancelled) setDraftRevision(0);
+        // Without the saved revision a save would race the server draft;
+        // surface the failure and keep Prepare disabled until a retry works.
+        if (cancelled) return;
+        setDraftRevision(null);
+        setDraftLoadError(copy.draftLoadFailed);
       })
       .finally(() => {
         if (!cancelled) setIsDraftLoading(false);
       });
     return () => { cancelled = true; };
-  }, [copy.draftLoadFailed, deck.id, open]);
+  }, [copy.draftLoadFailed, deck.id, open, reloadToken]);
 
   const dedicatedCoverReady = deck.cover?.status === 'generated' && Boolean(deck.cover.imageUrl);
   const coverId = dedicatedCoverReady ? deck.cover?.id ?? null : null;
@@ -258,7 +272,7 @@ export function BinanceExportDialog({ open, onOpenChange, deck }: BinanceExportD
   ].includes(publication.command.state);
 
   const handlePrepare = async () => {
-    if (issues.errors.length > 0 || isDraftLoading || commandActive) return;
+    if (issues.errors.length > 0 || isDraftLoading || draftRevision === null || commandActive) return;
     const publicationBody = canonicalPublicationBody(deck, markdown);
     await publication.prepare(async () => {
       const savedResponse = await fetch(`/api/articles/${encodeURIComponent(deck.id)}/publications/binance`, {
@@ -394,6 +408,20 @@ export function BinanceExportDialog({ open, onOpenChange, deck }: BinanceExportD
               </div>
             ) : null}
             {downloadError ? <p role="alert" className="text-sm text-destructive">{downloadError}</p> : null}
+            {draftLoadError ? (
+              <div role="alert" className="flex items-center justify-between gap-3 border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+                <p>{draftLoadError}</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 rounded-lg text-xs"
+                  onClick={() => setReloadToken((token) => token + 1)}
+                >
+                  {messages.common.retry}
+                </Button>
+              </div>
+            ) : null}
             {downloaded ? (
               <div className="flex items-start gap-2 border border-primary/30 bg-primary/10 p-3 text-sm">
                 <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
@@ -472,7 +500,7 @@ export function BinanceExportDialog({ open, onOpenChange, deck }: BinanceExportD
           <Button
             type="button"
             onClick={() => void handlePrepare()}
-            disabled={issues.errors.length > 0 || isDraftLoading || publication.isPreparing || Boolean(commandActive)}
+            disabled={issues.errors.length > 0 || isDraftLoading || draftRevision === null || publication.isPreparing || Boolean(commandActive)}
           >
             {(isDraftLoading || publication.isPreparing) ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {publication.isPreparing ? copy.preparing : copy.prepare}

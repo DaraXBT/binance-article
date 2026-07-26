@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LanguageProvider } from './language-provider';
@@ -95,5 +95,41 @@ describe('XExportDialog', () => {
     expect(screen.getByText('Add post text or select at least one image.')).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Download fallback ZIP' }) as HTMLButtonElement).disabled)
       .toBe(true);
+  });
+
+  it('keeps user edits when the polled deck object is replaced while open', () => {
+    const { rerender } = renderInEnglish(
+      <XExportDialog open onOpenChange={vi.fn()} deck={deck} />,
+    );
+    fireEvent.change(screen.getByLabelText('X post text'), {
+      target: { value: 'Hand-edited post text.' },
+    });
+
+    rerender(<XExportDialog open onOpenChange={vi.fn()} deck={{ ...deck, slides: [...deck.slides] }} />);
+
+    expect((screen.getByLabelText('X post text') as HTMLTextAreaElement).value)
+      .toBe('Hand-edited post text.');
+  });
+
+  it('surfaces a draft load failure, blocks prepare, and retries on demand', async () => {
+    const fetchMock = vi.fn(async () => { throw new Error('network down'); });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      renderInEnglish(<XExportDialog open onOpenChange={vi.fn()} deck={deck} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('The X draft could not be loaded.')).toBeTruthy();
+      });
+      expect((screen.getByRole('button', { name: 'Prepare on X' }) as HTMLButtonElement).disabled)
+        .toBe(true);
+
+      const callsBefore = fetchMock.mock.calls.length;
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+      await waitFor(() => {
+        expect(fetchMock.mock.calls.length).toBeGreaterThan(callsBefore);
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
