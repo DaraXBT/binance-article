@@ -249,14 +249,21 @@ export async function markDeckStatus(
   deckId: string,
   workspaceId: string,
   status: DeckStatus,
+  options?: { expectedGenerationRevision?: number },
 ) {
   const deck = await repository().markDeckStatus({
     deckId,
     workspaceId,
     status,
+    expectedGenerationRevision: options?.expectedGenerationRevision,
     now: new Date(),
   });
-  if (!deck) throw articleNotFound();
+  // A guarded miss means another generation revision owns the deck now; the
+  // stale caller must not clobber it, so report null instead of not-found.
+  if (!deck) {
+    if (options?.expectedGenerationRevision !== undefined) return null;
+    throw articleNotFound();
+  }
   return deck;
 }
 

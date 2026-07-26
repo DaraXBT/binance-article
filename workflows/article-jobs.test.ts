@@ -66,6 +66,10 @@ vi.mock('@/lib/db', () => ({
   markSlideImageFailed: generation.markSlideFailed,
   markSlideImageGenerated: generation.markSlideGenerated,
   markSlidesImagePending: generation.markSlidesPending,
+  parseRevisionNumber: (revisionId: string) => {
+    const match = /^.+:rev:(0|[1-9][0-9]*)$/.exec(revisionId);
+    return match ? Number(match[1]) : 0;
+  },
   replaceGeneratedContent: generation.replaceGeneratedContent,
 }));
 
@@ -253,6 +257,12 @@ describe('article image generation progress', () => {
       'workspace_1',
       'article_1',
       ['slide_1'],
+    );
+    expect(generation.markDeckStatus).toHaveBeenCalledWith(
+      'article_1',
+      'workspace_1',
+      'generating',
+      { expectedGenerationRevision: 1 },
     );
   });
 

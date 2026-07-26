@@ -50,6 +50,7 @@ import {
   createSlide,
   getDeckProject,
   getDeckWithAssets,
+  markDeckStatus,
   markSlideImageFailed,
   markSlideImageGenerated,
   markSlidesImagePending,
@@ -157,6 +158,21 @@ describe('Worker-safe article service', () => {
   it('updates through a workspace-scoped write and rejects missing articles opaquely', async () => {
     repositoryMock.updateDeck.mockResolvedValueOnce(null);
     await expect(updateDeckProject('deck_1', 'workspace_1', { title: 'Changed' }))
+      .rejects.toMatchObject({ code: 'ARTICLE_NOT_FOUND', status: 404 });
+  });
+
+  it('treats a guarded status miss as a stale writer, not a missing article', async () => {
+    repositoryMock.markDeckStatus.mockResolvedValueOnce(null);
+    await expect(markDeckStatus('deck_1', 'workspace_1', 'failed', {
+      expectedGenerationRevision: 3,
+    })).resolves.toBeNull();
+    expect(repositoryMock.markDeckStatus).toHaveBeenCalledWith(expect.objectContaining({
+      deckId: 'deck_1', workspaceId: 'workspace_1', status: 'failed',
+      expectedGenerationRevision: 3,
+    }));
+
+    repositoryMock.markDeckStatus.mockResolvedValueOnce(null);
+    await expect(markDeckStatus('deck_1', 'workspace_1', 'failed'))
       .rejects.toMatchObject({ code: 'ARTICLE_NOT_FOUND', status: 404 });
   });
 

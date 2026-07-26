@@ -178,6 +178,25 @@ describe('Neon article repository', () => {
     expect(captured[2]?.values).toContain('workspace_1');
   });
 
+  it('guards status writes with the expected generation revision when supplied', async () => {
+    const { queries, query } = capturingClient([deckRow()]);
+    const repository = createArticleRepository({ $client: query() } as never);
+    const now = new Date('2026-07-19T12:00:00.000Z');
+
+    await repository.markDeckStatus({
+      deckId: 'deck_1', workspaceId: 'workspace_1', status: 'failed',
+      expectedGenerationRevision: 3, now,
+    });
+    await repository.markDeckStatus({
+      deckId: 'deck_1', workspaceId: 'workspace_1', status: 'failed', now,
+    });
+
+    expect(queries[0]?.text).toMatch(/"generationRevision" =/);
+    expect(queries[0]?.values).toEqual(expect.arrayContaining([false, 3]));
+    // Without the option the boolean parameter disables the revision predicate.
+    expect(queries[1]?.values).toEqual(expect.arrayContaining([true, -1]));
+  });
+
   it('repeats the workspace guard in every slide deletion normalization write', async () => {
     const captured: Array<{ text: string; values: unknown[] }> = [];
     const transaction = vi.fn(async (

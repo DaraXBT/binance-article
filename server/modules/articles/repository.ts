@@ -153,6 +153,7 @@ export interface ArticleRepository {
     deckId: string;
     workspaceId: string;
     status: DeckStatus;
+    expectedGenerationRevision?: number;
     now: Date;
   }): Promise<DeckProjectRecord | null>;
   getDeckWithSlides(workspaceId: string, deckId: string): Promise<{
@@ -502,6 +503,8 @@ export function createArticleRepository(database: AppDatabase): ArticleRepositor
         UPDATE "DeckProject"
         SET "status" = ${input.status}::"DeckStatus", "updatedAt" = ${input.now}
         WHERE "id" = ${input.deckId} AND "workspaceId" = ${input.workspaceId}
+          AND (${input.expectedGenerationRevision === undefined}
+            OR "generationRevision" = ${input.expectedGenerationRevision ?? -1})
         RETURNING *
       `;
       return first<DeckProjectRecord>(result, 'Article');

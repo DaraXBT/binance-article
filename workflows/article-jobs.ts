@@ -19,6 +19,7 @@ import {
   markSlideImageFailed,
   markSlideImageGenerated,
   markSlidesImagePending,
+  parseRevisionNumber,
   replaceGeneratedContent,
 } from '@/lib/db';
 import { fetchArticleSourceText } from '@/server/integrations/url-fetch';
@@ -556,7 +557,11 @@ export async function handleArticleGenerationJob(
     throw new NonRetryableArticleJobError('Job payload not found.');
   }
   await appendJobLog(jobId, 'Started article generation workflow.');
-  await markDeckStatus(job.deckId, job.workspaceId, 'generating');
+  // Guard every deck-status write with this job's generation revision so a
+  // stale run can never flip a newer generation to 'generating' or 'failed'.
+  const jobRevision = parseRevisionNumber(job.articleRevisionId);
+  const revisionGuard = { expectedGenerationRevision: jobRevision };
+  await markDeckStatus(job.deckId, job.workspaceId, 'generating', revisionGuard);
 
   logEvent('info', 'workflow.article_generation.start', { jobId, deckId: job.deckId });
 
@@ -656,14 +661,14 @@ export async function handleArticleGenerationJob(
         code: 'INVALID_JOB_PAYLOAD',
         message: error.message,
       });
-      await markDeckStatus(job.deckId, job.workspaceId, 'failed');
+      await markDeckStatus(job.deckId, job.workspaceId, 'failed', revisionGuard);
       await failJobRun(jobId, 'INVALID_JOB_PAYLOAD', error.message);
       return;
     }
 
     if (error instanceof AppError) {
       logEvent('error', 'workflow.article_generation.failed', { jobId, deckId: job.deckId, code: error.code, message: error.message });
-      await markDeckStatus(job.deckId, job.workspaceId, 'failed');
+      await markDeckStatus(job.deckId, job.workspaceId, 'failed', revisionGuard);
       await failJobRun(jobId, error.code, error.message);
       return;
     }
@@ -672,7 +677,7 @@ export async function handleArticleGenerationJob(
       const code = `${error.provider.toUpperCase()}_${error.statusCode}`;
       const message = sourceAwareTextProviderMessage(error, geminiCredentialSource);
       logEvent('error', 'workflow.article_generation.failed', { jobId, deckId: job.deckId, code, message });
-      await markDeckStatus(job.deckId, job.workspaceId, 'failed');
+      await markDeckStatus(job.deckId, job.workspaceId, 'failed', revisionGuard);
       await failJobRun(jobId, code, message);
       return;
     }
@@ -686,7 +691,7 @@ export async function handleArticleGenerationJob(
       },
     );
     logEvent('error', 'workflow.article_generation.failed', { jobId, deckId: job.deckId, code: normalized.providerStatus || `GEMINI_${normalized.statusCode}`, message: normalized.message });
-    await markDeckStatus(job.deckId, job.workspaceId, 'failed');
+    await markDeckStatus(job.deckId, job.workspaceId, 'failed', revisionGuard);
     await failJobRun(jobId, normalized.providerStatus || `GEMINI_${normalized.statusCode}`, normalized.message);
   }
 }
