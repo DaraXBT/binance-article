@@ -27,12 +27,14 @@ export const PublisherCommandStateSchema = z.object({
   failureReason: z.string().trim().min(1).max(500).optional(),
 }).strict();
 
+/**
+ * Pre-publish transitions (claim, editor readiness, approval, cancel, expire)
+ * are owned by the atomic SQL compare-and-swap statements in
+ * server/modules/publisher; this pure function only validates the terminal
+ * publish outcomes reported by a device — URL canonicalization, device match,
+ * expiry, and revision — before the SQL transition is attempted.
+ */
 const PublisherCommandEventSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('claim'), deviceId: IdentifierSchema, revision: RevisionSchema }).strict(),
-  z.object({ type: z.literal('editor_filled'), deviceId: IdentifierSchema, revision: RevisionSchema }).strict(),
-  z.object({ type: z.literal('request_approval'), revision: RevisionSchema }).strict(),
-  z.object({ type: z.literal('approve'), revision: RevisionSchema }).strict(),
-  z.object({ type: z.literal('begin_publish'), deviceId: IdentifierSchema, revision: RevisionSchema }).strict(),
   z.object({
     type: z.literal('publish_succeeded'),
     deviceId: IdentifierSchema,
@@ -51,8 +53,6 @@ const PublisherCommandEventSchema = z.discriminatedUnion('type', [
     revision: RevisionSchema,
     failureReason: z.string().trim().min(1).max(500),
   }).strict(),
-  z.object({ type: z.literal('cancel'), revision: RevisionSchema }).strict(),
-  z.object({ type: z.literal('expire'), revision: RevisionSchema }).strict(),
 ]);
 
 export type PublisherCommandState = z.infer<typeof PublisherCommandStateSchema>;
@@ -90,16 +90,6 @@ function assertPublishedUrl(target: z.infer<typeof PublicationTargetSchema>, val
   }
 }
 
-function assertTransition(
-  command: PublisherCommandState,
-  event: PublisherCommandEvent,
-  from: PublisherCommandState['state'],
-): void {
-  if (command.state !== from) {
-    throw new Error(`Invalid publisher command transition from ${command.state} using ${event.type}.`);
-  }
-}
-
 export function transitionPublisherCommand(
   commandInput: z.input<typeof PublisherCommandStateSchema>,
   eventInput: PublisherCommandEvent,
@@ -114,65 +104,26 @@ export function transitionPublisherCommand(
   if (TERMINAL_STATES.has(command.state)) {
     throw new Error(`Publisher command is already in terminal state ${command.state}.`);
   }
-  if (!Number.isFinite(command.expiresAt.getTime()) || (
-    command.expiresAt.getTime() <= now.getTime() && event.type !== 'expire'
-  )) {
+  if (!Number.isFinite(command.expiresAt.getTime()) || command.expiresAt.getTime() <= now.getTime()) {
     throw new Error('Publisher command has expired.');
   }
   if (event.revision !== command.revision) {
     throw new Error('Publisher command revision is stale.');
   }
+  if (command.state !== 'publishing') {
+    throw new Error(`Invalid publisher command transition from ${command.state} using ${event.type}.`);
+  }
+  assertDevice(command, event.deviceId);
 
   switch (event.type) {
-    case 'claim':
-      assertTransition(command, event, 'queued');
-      if (command.assignedDeviceId !== null) {
-        throw new Error('Queued publisher command is already assigned to a device.');
-      }
-      return { ...command, state: 'claimed', assignedDeviceId: event.deviceId };
-
-    case 'editor_filled':
-      assertTransition(command, event, 'claimed');
-      assertDevice(command, event.deviceId);
-      return { ...command, state: 'awaiting_review' };
-
-    case 'request_approval':
-      assertTransition(command, event, 'awaiting_review');
-      if (!command.assignedDeviceId) throw new Error('Publisher command has no assigned device.');
-      return { ...command, state: 'awaiting_approval' };
-
-    case 'approve':
-      assertTransition(command, event, 'awaiting_approval');
-      return { ...command, state: 'approved' };
-
-    case 'begin_publish':
-      assertTransition(command, event, 'approved');
-      assertDevice(command, event.deviceId);
-      return { ...command, state: 'publishing' };
-
     case 'publish_succeeded':
-      assertTransition(command, event, 'publishing');
-      assertDevice(command, event.deviceId);
       assertPublishedUrl(command.target, event.publishedUrl);
       return { ...command, state: 'succeeded', publishedUrl: event.publishedUrl };
 
     case 'publish_failed':
-      assertTransition(command, event, 'publishing');
-      assertDevice(command, event.deviceId);
       return { ...command, state: 'failed', failureReason: event.failureReason };
 
     case 'publish_outcome_unknown':
-      assertTransition(command, event, 'publishing');
-      assertDevice(command, event.deviceId);
       return { ...command, state: 'outcome_unknown', failureReason: event.failureReason };
-
-    case 'cancel':
-      return { ...command, state: 'cancelled' };
-
-    case 'expire':
-      if (command.state === 'publishing') {
-        throw new Error('Publishing commands must resolve to a publish result or outcome_unknown.');
-      }
-      return { ...command, state: 'expired' };
   }
 }
