@@ -12,22 +12,28 @@ function isBuildEnvironmentFile(name) {
 const SCANNED_SUBDIRECTORIES = ['publisher-companion', '.baoyu-skills'];
 
 async function listEnvironmentFiles(directory, prefix = '') {
-  let entries;
-  try {
-    entries = await readdir(resolve(directory), { withFileTypes: true });
-  } catch {
-    return [];
-  }
+  const entries = await readdir(resolve(directory), { withFileTypes: true });
   return entries
     .filter((entry) => entry.isFile() && isBuildEnvironmentFile(entry.name))
     .map((entry) => `${prefix}${entry.name}`);
+}
+
+// A missing packaged subdirectory is fine; any other readdir failure must
+// fail the build closed, exactly like an unreadable repo root.
+async function listOptionalEnvironmentFiles(directory, prefix) {
+  try {
+    return await listEnvironmentFiles(directory, prefix);
+  } catch (error) {
+    if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') return [];
+    throw error;
+  }
 }
 
 export async function findCloudflareBuildEnvironmentFiles(directory = process.cwd()) {
   const root = resolve(directory);
   const found = await listEnvironmentFiles(root);
   for (const subdirectory of SCANNED_SUBDIRECTORIES) {
-    found.push(...await listEnvironmentFiles(
+    found.push(...await listOptionalEnvironmentFiles(
       resolve(root, subdirectory),
       `${subdirectory}/`,
     ));

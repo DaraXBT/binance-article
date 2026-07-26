@@ -36,15 +36,9 @@ function ConnectionsContent() {
         <PublisherDevicePairingCard className="max-w-none rounded-none border-0 bg-transparent p-0 shadow-none" />
       </ConsolePanel>
 
-      {workspace?.workspaceRole === 'owner' ? (
-        <ConsolePanel corners={false} className="rounded-xl bg-card/70 p-3 sm:p-5">
-          <FrameCornerHandles />
-          <div className="mb-3 border-b border-dotted border-border/70 pb-2 font-mono text-[0.65rem] font-semibold uppercase tracking-[0.14em]">
-            INVITATIONS
-          </div>
-          <AdminInvitationsCard />
-        </ConsolePanel>
-      ) : null}
+      {/* Renders only for app-global owners; the card removes itself when
+          the owner-only invitations API rejects the probe. */}
+      <AdminInvitationsCard />
     </>
   );
 }

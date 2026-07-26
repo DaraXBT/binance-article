@@ -27,6 +27,20 @@ function parseWizardMode(value: string | null): WizardMode {
   return value === 'url' || value === 'prompt' ? value : 'text';
 }
 
+// Mirrors GenerateRequestSchema's url-mode rule so a bad URL blocks at step 0
+// instead of failing the generate call after the draft article was created.
+function isImportableSourceUrl(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed.length < 1 || trimmed.length > 2_048) return false;
+  let sourceUrl: URL;
+  try {
+    sourceUrl = new URL(trimmed);
+  } catch {
+    return false;
+  }
+  return sourceUrl.protocol === 'https:' && !sourceUrl.username && !sourceUrl.password;
+}
+
 const WIZARD_MODES: ReadonlyArray<{ id: WizardMode; label: string }> = [
   { id: 'text', label: 'Paste text' },
   { id: 'url', label: 'Import URL' },
@@ -72,8 +86,8 @@ function NewDeckWizard() {
   const canProceed = () => {
     if (currentStep === 0) {
       if (mode === 'url') {
-         // Title holds the URL temporarily for validation
-        return formData.title.trim().length > 5 && formData.title.startsWith('http');
+        // Title holds the URL temporarily for validation
+        return isImportableSourceUrl(formData.title);
       } else if (mode === 'prompt') {
         return formData.articleContent.trim().length >= 10;
       }

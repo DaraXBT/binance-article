@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, Copy, Loader2, MailPlus, RotateCcw } from 'lucide-react';
 
+import { ConsolePanel, FrameCornerHandles } from '@/components/console/secure-console-frame';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -21,10 +22,19 @@ interface CreatedInvitation {
   expiresAt: string;
 }
 
+class InvitationApiError extends Error {
+  constructor(message: string, readonly code: string | null) {
+    super(message);
+  }
+}
+
 async function readJson(response: Response, fallback: string) {
   const body = await response.json().catch(() => null) as Record<string, unknown> | null;
   if (!response.ok) {
-    throw new Error(typeof body?.error === 'string' ? body.error : fallback);
+    throw new InvitationApiError(
+      typeof body?.error === 'string' ? body.error : fallback,
+      typeof body?.code === 'string' ? body.code : null,
+    );
   }
   return body ?? {};
 }
@@ -39,20 +49,33 @@ const STATUS_STYLES: Record<InvitationRow['status'], string> = {
 export function AdminInvitationsCard({ className }: { className?: string }) {
   const [invitations, setInvitations] = useState<InvitationRow[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // The workspace-member role can't distinguish app-global owners, so the
+  // card probes the owner-only API and removes itself on OWNER_REQUIRED.
+  const [hidden, setHidden] = useState(false);
   const [email, setEmail] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedInvitation | null>(null);
   const [copied, setCopied] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  const refreshSequenceRef = useRef(0);
 
   const refresh = useCallback(async () => {
+    // Only the newest in-flight refresh may write the list; without this a
+    // slow pre-mutation GET could overwrite fresher post-mutation data.
+    const sequence = ++refreshSequenceRef.current;
     setLoadError(null);
     try {
       const response = await fetch('/api/admin/invitations', { cache: 'no-store' });
       const body = await readJson(response, 'The invitations could not be loaded.');
+      if (refreshSequenceRef.current !== sequence) return;
       setInvitations((body.invitations ?? []) as InvitationRow[]);
     } catch (error) {
+      if (refreshSequenceRef.current !== sequence) return;
+      if (error instanceof InvitationApiError && error.code === 'OWNER_REQUIRED') {
+        setHidden(true);
+        return;
+      }
       setLoadError(error instanceof Error ? error.message : 'The invitations could not be loaded.');
     }
   }, []);
@@ -114,8 +137,14 @@ export function AdminInvitationsCard({ className }: { className?: string }) {
     }
   };
 
+  if (hidden) return null;
+
   return (
-    <div className={className}>
+    <ConsolePanel corners={false} className={className ?? 'rounded-xl bg-card/70 p-3 sm:p-5'}>
+      <FrameCornerHandles />
+      <div className="mb-3 border-b border-dotted border-border/70 pb-2 font-mono text-[0.65rem] font-semibold uppercase tracking-[0.14em]">
+        INVITATIONS
+      </div>
       <p className="text-sm text-muted-foreground">
         Invite a teammate by email. The join link is shown once — copy it now;
         only its hash is stored. The private beta caps enrollment at ten
@@ -229,6 +258,6 @@ export function AdminInvitationsCard({ className }: { className?: string }) {
           </ul>
         )}
       </div>
-    </div>
+    </ConsolePanel>
   );
 }
