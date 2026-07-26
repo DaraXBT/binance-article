@@ -28,7 +28,6 @@ import {
   type IllustrationStyleId,
 } from '@/lib/config';
 import {
-  AnonymousDraftStorageError,
   createAnonymousGenerationIntent,
   loadAnonymousGenerationIntent,
   removeAnonymousGenerationIntent,
@@ -314,15 +313,13 @@ export function PublicHome({
       const destination = `/workspace?resume=${submitted.intentId}`;
       if (onNavigate) onNavigate(destination);
       else window.location.assign(destination);
-    } catch (storageError) {
+    } catch {
+      // Everything in the try block is draft-persistence work, so any
+      // failure here is presented as a storage problem.
       submissionStartedRef.current = false;
       setIsSubmitting(false);
       setStorageFailed(true);
-      setError(
-        storageError instanceof AnonymousDraftStorageError
-          ? copy.storageError
-          : copy.storageError,
-      );
+      setError(copy.storageError);
     }
   };
 

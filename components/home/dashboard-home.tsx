@@ -1027,9 +1027,15 @@ export function DashboardHome({
         onStage: (stage, value) => {
           checkpoint.articleId = value.articleId;
           if (value.jobId) checkpoint.jobId = value.jobId;
-          if (persistsResumeCheckpoint && !persistResumeStage(stage, value)) {
+          if (!persistsResumeCheckpoint) return;
+          if (!persistResumeStage(stage, value) && stage === 'article_created') {
+            // Without a durable checkpoint an interrupted submit could strand
+            // the created article, so abort before the paid generate call.
             throw new Error(messages.publicHome.storageError);
           }
+          // A checkpoint failure after generation started is moot: the job is
+          // already running server-side and we navigate to the article next,
+          // so it must not surface as a generation failure.
         },
       });
       if (resumeIntentRef.current) {

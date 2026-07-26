@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useLanguage } from '@/components/language-provider';
 import { FrameCornerHandles } from '@/components/console/secure-console-frame';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,11 @@ export function RecoverWorkspaceDialog({
   const [keyInput, setKeyInput] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (closeTimeoutRef.current !== null) clearTimeout(closeTimeoutRef.current);
+  }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -51,7 +56,7 @@ export function RecoverWorkspaceDialog({
       setIsError(false);
       setKeyInput('');
       onSuccess?.();
-      setTimeout(() => onOpenChange(false), 1200);
+      closeTimeoutRef.current = setTimeout(() => onOpenChange(false), 1200);
     } catch (error) {
       setMessage(
         error instanceof Error

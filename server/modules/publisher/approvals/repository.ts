@@ -209,7 +209,7 @@ export function createWebPublishApprovalRepository(
           UPDATE "PublicationDraft" draft
           SET "status" = 'authorized'::"PublicationDraftStatus", "updatedAt" = ${input.now}
           FROM candidate, updated_command
-          WHERE draft."id" = COALESCE(candidate."publicationDraftId", candidate."legacyDraftId")
+          WHERE draft."id" = candidate."publicationDraftId"
           RETURNING draft."id"
         ), updated_legacy_draft AS (
           UPDATE "BinancePublicationDraft" draft

@@ -48,6 +48,8 @@ export async function resolveActorWorkspace(
         AND NOT EXISTS (SELECT 1 FROM "UsageLedger" WHERE "workspaceId" = ${workspace.id})
         AND NOT EXISTS (SELECT 1 FROM "StorageObject" WHERE "workspaceId" = ${workspace.id})
         AND NOT EXISTS (SELECT 1 FROM "BinancePublicationDraft" WHERE "workspaceId" = ${workspace.id})
+        AND NOT EXISTS (SELECT 1 FROM "PublicationDraft" WHERE "workspaceId" = ${workspace.id})
+        AND NOT EXISTS (SELECT 1 FROM "ArticleCover" WHERE "workspaceId" = ${workspace.id})
         AND NOT EXISTS (SELECT 1 FROM "PublisherDevice" WHERE "workspaceId" = ${workspace.id})
         AND NOT EXISTS (SELECT 1 FROM "WorkspaceAiCredential" WHERE "workspaceId" = ${workspace.id})
       `.as('canReplaceWithLegacy'),

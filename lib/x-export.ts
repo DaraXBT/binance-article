@@ -2,10 +2,15 @@ import JSZip from 'jszip';
 import { z } from 'zod';
 
 import { sniffImageMimeType } from '@/lib/binance-export';
+// The recipe domain module is the single source of truth for X post limits;
+// the server re-validates against the same values at prepare time.
+import {
+  X_POST_MAX_CHARACTERS,
+  X_POST_MAX_IMAGES,
+} from '@/server/domain/publication-recipe';
 
-export const X_POST_STANDARD_CHARACTERS = 280;
-export const X_POST_MAX_CHARACTERS = X_POST_STANDARD_CHARACTERS;
-export const X_POST_MAX_IMAGES = 4;
+export { X_POST_MAX_CHARACTERS, X_POST_MAX_IMAGES };
+export const X_POST_STANDARD_CHARACTERS = X_POST_MAX_CHARACTERS;
 export const X_POST_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 export const X_POST_MAX_BUNDLE_BYTES = 50 * 1024 * 1024;
 const X_POST_MAX_TEXT_BYTES = 100 * 1024;
