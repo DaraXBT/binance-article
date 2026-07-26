@@ -46,7 +46,10 @@ describe('Cloudflare dependency cleanup', () => {
   });
 
   it('uses framework-native build and typecheck scripts without install side effects', () => {
-    expect(packageJson.scripts.build).toBe('next build');
+    // Webpack, not Turbopack: Turbopack duplicates vendor SSR chunks per
+    // chunk group, which pushed the Worker past the 3 MiB compressed limit
+    // (3,313,019 bytes vs 1,593,100 with webpack for the same commit).
+    expect(packageJson.scripts.build).toBe('next build --webpack');
     expect(packageJson.scripts.typecheck).toBe('tsc --noEmit');
     expect(packageJson.scripts).not.toHaveProperty('prisma:generate');
     expect(packageJson.scripts).not.toHaveProperty('postinstall');

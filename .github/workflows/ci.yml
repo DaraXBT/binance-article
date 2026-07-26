@@ -124,8 +124,11 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Build
-        run: npm run build
+      # Full OpenNext build + wrangler dry-run + compressed-size gate. The
+      # Worker once outgrew the free-plan 3 MiB limit with nobody noticing
+      # because this gate only ran by hand; it must stay in CI.
+      - name: Build and check Worker bundle size
+        run: npm run cloudflare:dry-run
 
       # drizzle-kit check is file-only; the URL is never dialed (there is no
       # Postgres service in this job) and exists to mirror the operator shape.
