@@ -6,7 +6,7 @@
       "esnext"
     ],
     "allowJs": true,
-    "target": "ES6",
+    "target": "ES2022",
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
@@ -39,6 +39,8 @@
   ],
   "exclude": [
     "node_modules",
+    ".agents",
+    ".baoyu-skills",
     "publisher-companion",
     "workers/article-workflow/index.ts",
     "workers/article-workflow/cloudflare-runtime.d.ts",

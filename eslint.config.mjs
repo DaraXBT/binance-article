@@ -11,10 +11,9 @@ const config = [
       'coverage/**',
       'node_modules/**',
       'app/.well-known/**',
+      'publisher-companion/**',
       'workers/article-workflow/cloudflare-runtime.d.ts',
       'workers/article-workflow/worker-configuration.d.ts',
-      '**/*.test.ts',
-      '**/*.test.tsx',
     ],
   },
   {

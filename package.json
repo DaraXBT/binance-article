@@ -15,7 +15,7 @@
     "test:e2e": "playwright test",
     "env:check": "node scripts/check-runtime-env.mjs",
     "security:audit": "npm audit --omit=dev --audit-level=high",
-    "db:generate": "drizzle-kit generate --dialect postgresql --schema ./server/db/schema --out ./drizzle",
+    "db:generate": "drizzle-kit generate --config drizzle.config.ts",
     "db:check": "drizzle-kit check --config drizzle.config.ts",
     "db:migrate:deploy": "drizzle-kit migrate --config drizzle.config.ts",
     "db:repair:legacy-json": "node scripts/repair-legacy-json-columns.mjs",

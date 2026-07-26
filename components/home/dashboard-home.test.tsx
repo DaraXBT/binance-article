@@ -648,13 +648,13 @@ describe('DashboardHome', () => {
   });
 
   it('exports a quiet AI suggest frame helper for idle and non-idle states', async () => {
-    const module = await import('@/components/home/dashboard-home');
+    const dashboardModule = await import('@/components/home/dashboard-home');
 
-    expect(typeof (module as any).getAiSuggestGlowClassName).toBe('function');
+    expect(typeof (dashboardModule as any).getAiSuggestGlowClassName).toBe('function');
 
-    const idleClassName = (module as any).getAiSuggestGlowClassName({ hasTopic: true, isSuggesting: false });
-    const suggestingClassName = (module as any).getAiSuggestGlowClassName({ hasTopic: true, isSuggesting: true });
-    const noTopicClassName = (module as any).getAiSuggestGlowClassName({ hasTopic: false, isSuggesting: false });
+    const idleClassName = (dashboardModule as any).getAiSuggestGlowClassName({ hasTopic: true, isSuggesting: false });
+    const suggestingClassName = (dashboardModule as any).getAiSuggestGlowClassName({ hasTopic: true, isSuggesting: true });
+    const noTopicClassName = (dashboardModule as any).getAiSuggestGlowClassName({ hasTopic: false, isSuggesting: false });
 
     expect(idleClassName).toContain('opacity-100');
     expect(idleClassName).toContain('border-primary/40');
@@ -668,9 +668,9 @@ describe('DashboardHome', () => {
   });
 
   it('uses a structural border for the idle AI suggest state', async () => {
-    const module = await import('@/components/home/dashboard-home');
+    const dashboardModule = await import('@/components/home/dashboard-home');
 
-    const className = (module as any).getAiSuggestGlowClassName({ hasTopic: true, isSuggesting: false });
+    const className = (dashboardModule as any).getAiSuggestGlowClassName({ hasTopic: true, isSuggesting: false });
 
     expect(className).toContain('border');
     expect(className).toContain('border-primary/40');
@@ -678,9 +678,9 @@ describe('DashboardHome', () => {
   });
 
   it('exports a helper that requests an AI prompt suggestion from the existing prompt API', async () => {
-    const module = await import('@/components/home/dashboard-home');
+    const dashboardModule = await import('@/components/home/dashboard-home');
 
-    expect(typeof (module as any).requestPromptSuggestion).toBe('function');
+    expect(typeof (dashboardModule as any).requestPromptSuggestion).toBe('function');
 
     const fetchImpl = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ prompt: 'Generated article prompt' }), {
@@ -689,7 +689,7 @@ describe('DashboardHome', () => {
       })
     );
 
-    const prompt = await (module as any).requestPromptSuggestion({
+    const prompt = await (dashboardModule as any).requestPromptSuggestion({
       title: 'Solana treasury strategy',
       fetchImpl,
     });
@@ -708,9 +708,9 @@ describe('DashboardHome', () => {
   });
 
   it('exports a helper that runs the existing prompt article generation sequence', async () => {
-    const module = await import('@/components/home/dashboard-home');
+    const dashboardModule = await import('@/components/home/dashboard-home');
 
-    expect(typeof (module as any).submitPromptArticle).toBe('function');
+    expect(typeof (dashboardModule as any).submitPromptArticle).toBe('function');
 
     const fetchImpl = vi
       .fn()
@@ -733,7 +733,7 @@ describe('DashboardHome', () => {
         })
       );
 
-    const result = await (module as any).submitPromptArticle({
+    const result = await (dashboardModule as any).submitPromptArticle({
       title: 'Institutional stablecoin adoption',
       prompt: 'Write a strategic article for CFOs about stablecoin settlement.',
       fetchImpl,
@@ -929,9 +929,9 @@ describe('DashboardHome', () => {
     try {
       global.fetch = fetchMock as typeof fetch;
 
-      const module = await import('@/components/home/dashboard-home');
+      const dashboardModule = await import('@/components/home/dashboard-home');
 
-      render(React.createElement(module.DashboardHome));
+      render(React.createElement(dashboardModule.DashboardHome));
 
       fireEvent.change(screen.getByPlaceholderText(messages.dashboard.promptPlaceholder), {
         target: { value: 'Create an article about treasury settlement using stablecoins.' },

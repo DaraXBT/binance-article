@@ -5,6 +5,8 @@ import { dirname, resolve } from 'node:path';
 import { neon } from '@neondatabase/serverless';
 import type { FullConfig } from '@playwright/test';
 
+import { restoreNextEnvDeclaration } from './next-env-restore';
+
 const AUTH_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 
 function required(name: string): string {
@@ -19,6 +21,9 @@ function signedCookieValue(token: string, secret: string): string {
 }
 
 export default async function globalSetup(_config: FullConfig): Promise<void> {
+  // Repair a dirty next-env.d.ts left behind by a previously crashed run.
+  await restoreNextEnvDeclaration();
+
   if (process.env.E2E_SEED_AUTH !== '1') return;
 
   const databaseUrl = required('DATABASE_URL');
