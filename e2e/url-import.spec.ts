@@ -26,10 +26,13 @@ test.describe('URL Import', () => {
     // Workflow binding is absent and no live fetch/LLM runs, so the honest
     // terminal state is either visible progress or the failure panel with a
     // retry — never a silent hang.
+    // .first(): in the failure state the page shows the "Generating Your
+    // Article" heading and the "Generation Failed" panel at the same time.
     await expect(
       page
         .getByText('Generating Your Article')
         .or(page.getByText('Generation Failed'))
+        .first()
     ).toBeVisible({ timeout: 15_000 });
   });
 
