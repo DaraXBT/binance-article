@@ -127,6 +127,8 @@ jobs:
       - name: Build
         run: npm run build
 
+      # drizzle-kit check is file-only; the URL is never dialed (there is no
+      # Postgres service in this job) and exists to mirror the operator shape.
       - name: Validate Drizzle migrations
         run: npm run db:check
         env:

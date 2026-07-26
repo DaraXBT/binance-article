@@ -6,12 +6,33 @@ function isBuildEnvironmentFile(name) {
   return name === '.env' || (name.startsWith('.env.') && name !== '.env.example');
 }
 
-export async function findCloudflareBuildEnvironmentFiles(directory = process.cwd()) {
-  const entries = await readdir(resolve(directory), { withFileTypes: true });
+// The OpenNext bundle also packages these trees (see
+// scripts/package-publisher-companion.mjs), so env files inside them are just
+// as dangerous as one at the repo root.
+const SCANNED_SUBDIRECTORIES = ['publisher-companion', '.baoyu-skills'];
+
+async function listEnvironmentFiles(directory, prefix = '') {
+  let entries;
+  try {
+    entries = await readdir(resolve(directory), { withFileTypes: true });
+  } catch {
+    return [];
+  }
   return entries
     .filter((entry) => entry.isFile() && isBuildEnvironmentFile(entry.name))
-    .map((entry) => entry.name)
-    .sort();
+    .map((entry) => `${prefix}${entry.name}`);
+}
+
+export async function findCloudflareBuildEnvironmentFiles(directory = process.cwd()) {
+  const root = resolve(directory);
+  const found = await listEnvironmentFiles(root);
+  for (const subdirectory of SCANNED_SUBDIRECTORIES) {
+    found.push(...await listEnvironmentFiles(
+      resolve(root, subdirectory),
+      `${subdirectory}/`,
+    ));
+  }
+  return found.sort();
 }
 
 export async function assertCloudflareBuildEnvironment(directory = process.cwd()) {

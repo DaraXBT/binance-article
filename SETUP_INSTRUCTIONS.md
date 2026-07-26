@@ -54,6 +54,13 @@ MIGRATION_DATABASE_URL='postgresql://...' npm run db:check
 MIGRATION_DATABASE_URL='postgresql://...' npm run db:migrate:deploy
 ```
 
+Schema changes are generated offline with `npm run db:generate` (no database
+URL needed). Other development commands: `npm run workflow:dev` runs the
+article Workflow Worker locally, `npm run cloudflare:build` produces the
+OpenNext bundle, `npm run cloudflare:preview` serves it through `wrangler
+dev`, and `npm run cloudflare:bundle-check` verifies the compressed Worker
+size after a dry-run build.
+
 For the Publication V2 cutover (`0012` through `0014`), briefly stop publication
 draft writes and all publisher companions before applying the migrations. Deploy
 the V2 web app and companion compatibility release in the same maintenance
