@@ -28,7 +28,6 @@ import { RecoverWorkspaceDialog } from './recover-workspace-dialog';
 
 export interface WorkspaceSidebarFooterProps {
   accessKeyPrefix: string;
-  recoveryKey: string | null;
   showRecovery?: boolean;
   accountLabel?: string;
   accountEmail?: string | null;
@@ -51,7 +50,6 @@ function firstAccountCharacter(accountLabel: string) {
 
 export function WorkspaceSidebarFooter({
   accessKeyPrefix,
-  recoveryKey,
   showRecovery = true,
   accountLabel = 'Workspace',
   accountEmail,
@@ -84,7 +82,8 @@ export function WorkspaceSidebarFooter({
     ?? 'Signing out…';
 
   const handleCopy = async () => {
-    const textToCopy = recoveryKey || accessKeyPrefix;
+    // Account workspaces never expose a full key; only the prefix is shown.
+    const textToCopy = accessKeyPrefix;
     try {
       if (!navigator.clipboard?.writeText) return;
       await navigator.clipboard.writeText(textToCopy);
@@ -114,9 +113,7 @@ export function WorkspaceSidebarFooter({
 
   const copyLabel = copied
     ? messages.workspace.keyCopied
-    : recoveryKey
-      ? messages.workspace.copyFullKey
-      : messages.workspace.copyPrefix;
+    : messages.workspace.copyPrefix;
 
   return (
     <>

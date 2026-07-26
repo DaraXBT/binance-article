@@ -18,7 +18,6 @@ export const API_ROUTE_POLICIES = {
   'app/api/articles/[id]/publications/binance/route.ts': 'article-member',
   'app/api/articles/[id]/publications/x/prepare/route.ts': 'article-member',
   'app/api/articles/[id]/publications/x/route.ts': 'article-member',
-  'app/api/articles/[id]/render/route.ts': 'article-member',
   'app/api/articles/[id]/reorder/route.ts': 'article-member',
   'app/api/articles/[id]/route.ts': 'article-member',
   'app/api/articles/[id]/slides/[slideId]/route.ts': 'article-member',

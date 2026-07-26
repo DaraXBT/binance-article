@@ -45,7 +45,6 @@ import {
   SidebarMenuSkeleton,
 } from '@/components/ui/sidebar';
 import { GenerateAccessDialog } from '@/components/generate-access-dialog';
-import { RecoveryKeyDialog } from '@/components/workspace/recovery-key-dialog';
 import { WorkspaceOnboarding } from '@/components/workspace/workspace-onboarding';
 import { WorkspaceSidebarFooter } from '@/components/workspace/workspace-sidebar-footer';
 import { RecoverWorkspaceDialog } from '@/components/workspace/recover-workspace-dialog';
@@ -1305,7 +1304,6 @@ export function DashboardHome({
         sidebarFooter={(
           <WorkspaceSidebarFooter
             accessKeyPrefix={workspace.accessKeyPrefix ?? '—'}
-            recoveryKey={workspace.recoveryKey ?? null}
             showRecovery={workspace.workspaceOrigin !== 'account'}
             accountLabel={accountLabel}
             accountEmail={actor?.email}
@@ -1376,7 +1374,6 @@ export function DashboardHome({
         </section>
       </ArticleStudioShell>
 
-      <RecoveryKeyDialog recoveryKey={workspace.recoveryKey ?? null} />
 
       {workspaceChoiceOpen ? (
         <AlertDialog open onOpenChange={handleWorkspaceChoiceOpenChange}>

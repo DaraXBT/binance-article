@@ -62,7 +62,6 @@ describe('WorkspaceSidebarFooter', () => {
     const html = renderToStaticMarkup(
       React.createElement(WorkspaceSidebarFooter, {
         accessKeyPrefix: 'dwk_f525',
-        recoveryKey: null,
       })
     );
 
@@ -70,28 +69,16 @@ describe('WorkspaceSidebarFooter', () => {
     expect(html).toContain(workspaceMessages.sidebarKeyLabel);
   });
 
-  it('renders copy button with prefix aria-label when no recovery key', async () => {
+  it('always labels the copy button with the key prefix (full keys are never exposed)', async () => {
     const { WorkspaceSidebarFooter } = await import('./workspace-sidebar-footer');
     const html = renderToStaticMarkup(
       React.createElement(WorkspaceSidebarFooter, {
         accessKeyPrefix: 'dwk_f525',
-        recoveryKey: null,
       })
     );
 
     expect(html).toContain(`aria-label="${workspaceMessages.copyPrefix}"`);
-  });
-
-  it('renders copy button with full key aria-label when recovery key is present', async () => {
-    const { WorkspaceSidebarFooter } = await import('./workspace-sidebar-footer');
-    const html = renderToStaticMarkup(
-      React.createElement(WorkspaceSidebarFooter, {
-        accessKeyPrefix: 'dwk_f525',
-        recoveryKey: 'dwk_full_key',
-      })
-    );
-
-    expect(html).toContain(`aria-label="${workspaceMessages.copyFullKey}"`);
+    expect(html).not.toContain(`aria-label="${workspaceMessages.copyFullKey}"`);
   });
 
   it('renders recover button with correct aria-label', async () => {
@@ -99,7 +86,6 @@ describe('WorkspaceSidebarFooter', () => {
     const html = renderToStaticMarkup(
       React.createElement(WorkspaceSidebarFooter, {
         accessKeyPrefix: 'dwk_f525',
-        recoveryKey: null,
       })
     );
 
@@ -111,7 +97,6 @@ describe('WorkspaceSidebarFooter', () => {
     const html = renderToStaticMarkup(
       React.createElement(WorkspaceSidebarFooter, {
         accessKeyPrefix: 'dwk_f525',
-        recoveryKey: null,
         accountLabel: 'Niccolo',
         accountEmail: 'niccolo@example.com',
         settingsLabel: 'Settings',
@@ -137,7 +122,6 @@ describe('WorkspaceSidebarFooter', () => {
     const html = renderToStaticMarkup(
       React.createElement(WorkspaceSidebarFooter, {
         accessKeyPrefix: 'dwk_f525',
-        recoveryKey: null,
         showRecovery: false,
       })
     );
@@ -154,7 +138,6 @@ describe('WorkspaceSidebarFooter', () => {
     render(
       React.createElement(WorkspaceSidebarFooter, {
         accessKeyPrefix: 'dwk_f525',
-        recoveryKey: null,
         accountLabel: 'Niccolo',
         onImportOldWorkspace,
         onSignOut,
@@ -174,7 +157,6 @@ describe('WorkspaceSidebarFooter', () => {
     render(
       React.createElement(WorkspaceSidebarFooter, {
         accessKeyPrefix: 'dwk_f525',
-        recoveryKey: null,
         accountLabel: 'Niccolo',
         onSignOut: vi.fn(),
         isSigningOut: true,

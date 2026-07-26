@@ -451,29 +451,12 @@ describe('DashboardHome', () => {
     expect(html).toContain('dwk_test');
   });
 
-  it('renders recovery key dialog when bootstrap returns a recovery key', async () => {
-    workspaceData = {
-      hasWorkspace: true,
-      workspaceId: 'workspace-1',
-      accessKeyPrefix: 'dwk_test',
-      recoveryKey: 'dwk_secret_123',
-      generateAccessEnabled: false,
-      hasGenerationAccess: true,
-      generationAccessInvalidReason: null,
-    };
-
-    const { DashboardHome } = await import('@/components/home/dashboard-home');
-    const html = renderToStaticMarkup(React.createElement(DashboardHome));
-
-    expect(html).toContain('data-testid="recovery-key-dialog"');
-    expect(html).toContain('dwk_secret_123');
-  });
-
-  it('does not render recovery key dialog when no recovery key is present', async () => {
+  it('never renders a recovery key surface (account workspaces issue none)', async () => {
     const { DashboardHome } = await import('@/components/home/dashboard-home');
     const html = renderToStaticMarkup(React.createElement(DashboardHome));
 
     expect(html).not.toContain('data-testid="recovery-key-dialog"');
+    expect(html).not.toContain('recovery-key');
   });
 
   it('keeps locked generation actions clickable and opens access on the first paid action', async () => {

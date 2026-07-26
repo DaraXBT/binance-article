@@ -56,7 +56,7 @@ export default async function RootLayout({
       <body
         className={`${interKhmerLooped.variable} bg-background font-sans text-foreground antialiased`}
       >
-        <Providers initialLanguage={UI_LANGUAGE}>
+        <Providers>
           {children}
         </Providers>
       </body>

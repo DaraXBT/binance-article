@@ -6,7 +6,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   CreateSlideRequest,
   DeckDetailResponse,
-  DeckGenerateRequest,
   SlideUpdateRequest,
 } from '@/lib/schemas';
 
@@ -110,11 +109,6 @@ async function fetchDeck(id: string): Promise<DeckDetailResponse> {
   return readApiResponse<DeckDetailResponse>(res, 'Failed to fetch deck');
 }
 
-async function fetchJob(jobId: string) {
-  const res = await fetch(`/api/jobs/${jobId}`);
-  return readApiResponse(res, 'Failed to fetch job');
-}
-
 async function fetchWorkspace() {
   const res = await fetch('/api/workspace');
   return readApiResponse<WorkspaceBootstrap>(res, 'Failed to fetch workspace');
@@ -158,15 +152,6 @@ export function useDeck(id: string, { pollActiveJob = false }: UseDeckOptions = 
       const jobStatus = query.state.data?.lastJob?.status;
       return jobStatus === 'queued' || jobStatus === 'running' ? 1500 : false;
     },
-  });
-}
-
-export function useJob(jobId: string, enabled = true) {
-  return useQuery({
-    queryKey: queryKeys.job(jobId),
-    queryFn: () => fetchJob(jobId),
-    refetchInterval: 1000,
-    enabled: enabled && Boolean(jobId),
   });
 }
 
@@ -318,67 +303,6 @@ export function useDeleteWorkspaceAiCredential() {
     },
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.workspaceAiCredential(), data);
-    },
-  });
-}
-
-export function useCreateDeck() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (data: {
-      title: string;
-      content: string;
-      description?: string;
-      illustrationStyle?: string;
-    }) => {
-      const res = await fetch('/api/articles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-
-      return readApiResponse(res, 'Failed to create deck');
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.lists() });
-    },
-  });
-}
-
-export function useGenerateDeck() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      deckId,
-      ...request
-    }: DeckGenerateRequest & { deckId: string }) => {
-      const res = await fetch(`/api/articles/${deckId}/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
-      });
-
-      return readApiResponse<{ deckId?: string }>(res, 'Failed to generate deck');
-    },
-    onSuccess: (data: { deckId?: string }) => {
-      if (data.deckId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.detail(data.deckId) });
-      }
-    },
-  });
-}
-
-export function useRenderDeck() {
-  return useMutation({
-    mutationFn: async (deckId: string) => {
-      const res = await fetch(`/api/articles/${deckId}/render`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      return readApiResponse(res, 'Failed to start render job');
     },
   });
 }
