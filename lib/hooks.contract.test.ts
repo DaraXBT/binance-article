@@ -1,10 +1,13 @@
 import { expectTypeOf, it } from 'vitest';
 
 import type {
+  UseDeckOptions,
   WorkspaceBootstrap,
   WorkspaceCreateResult,
   WorkspaceRecoveryResult,
 } from './hooks';
+import type { useDeck } from './hooks';
+import type { DeckDetailResponse } from './schemas';
 
 type GenerationAccessInvalidReason =
   | 'missing'
@@ -22,6 +25,7 @@ it('publishes the workspace origin and replacement result contract to clients', 
     accessKeyPrefix: string | null;
     recoveryKey: string | null;
     workspaceOrigin: 'legacy' | 'account' | null;
+    workspaceRole: 'owner' | 'member' | null;
     canReplaceWithLegacy: boolean;
     generateAccessEnabled: boolean;
     hasGenerationAccess: boolean;
@@ -37,4 +41,12 @@ it('publishes the workspace origin and replacement result contract to clients', 
     workspaceId: string;
     replacedWorkspace: boolean;
   }>();
+});
+
+it('publishes typed deck data and opt-in active-job polling', () => {
+  expectTypeOf<UseDeckOptions>().toEqualTypeOf<{
+    pollActiveJob?: boolean;
+  }>();
+  expectTypeOf<ReturnType<typeof useDeck>['data']>()
+    .toEqualTypeOf<DeckDetailResponse | undefined>();
 });

@@ -5,9 +5,8 @@ import {
 } from '@/server/integrations/gemini-rest';
 import {
   generateText,
-  resolveTextProviderConfig,
   TextProviderError,
-  type TextProvider,
+  type TextProviderConfig,
 } from '@/server/integrations/text-provider';
 import { DEFAULT_ILLUSTRATION_STYLE } from '@/lib/config';
 import { getIllustrationStyleDeckGuidance } from '@/lib/illustration-style-prompts';
@@ -68,30 +67,86 @@ export interface GeminiErrorInfo {
   model?: string;
 }
 
-export function resolveGeminiTextConfig(): GeminiTextConfig {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY or GOOGLE_API_KEY environment variable is not set');
+export type GeminiCredentialSource = 'platform' | 'workspace';
+
+export interface GeminiErrorContext {
+  source?: GeminiCredentialSource;
+  model?: string;
+}
+
+const SAFE_PROVIDER_STATUSES = new Set([
+  'RESOURCE_EXHAUSTED',
+  'INVALID_ARGUMENT',
+  'FAILED_PRECONDITION',
+  'PERMISSION_DENIED',
+  'UNAUTHENTICATED',
+  'NOT_FOUND',
+  'INTERNAL',
+  'UNAVAILABLE',
+  'DEADLINE_EXCEEDED',
+  'ABORTED',
+  'CANCELLED',
+  'UNKNOWN',
+  'ALREADY_EXISTS',
+  'OUT_OF_RANGE',
+  'DATA_LOSS',
+]);
+
+export function resolveGeminiTextConfig(
+  apiKey: string,
+  environment: Record<string, string | undefined> = process.env,
+): GeminiTextConfig {
+  const normalizedApiKey = apiKey.trim();
+  if (
+    !normalizedApiKey
+    || normalizedApiKey.length > 512
+    || /[\s\p{Cc}\p{Cf}]/u.test(normalizedApiKey)
+  ) {
+    throw new Error('Gemini credentials are not configured.');
   }
 
-  const model =
-    process.env.GEMINI_TEXT_MODEL?.trim() ||
-    process.env.GEMINI_MODEL?.trim() ||
+  const configuredModel =
+    environment.GEMINI_TEXT_MODEL?.trim() ||
+    environment.GEMINI_MODEL?.trim() ||
     DEFAULT_GEMINI_TEXT_MODEL;
 
-  if (!model) {
-    throw new Error('GEMINI_TEXT_MODEL resolved to an empty value');
+  if (!configuredModel || configuredModel.length > 160 || /[\s\p{Cc}\p{Cf}]/u.test(configuredModel)) {
+    throw new Error('The Gemini text model configuration is invalid.');
   }
 
   return {
-    apiKey,
-    model,
+    apiKey: normalizedApiKey,
+    model: configuredModel,
   };
+}
+
+function assertGeminiTextConfig(config: GeminiTextConfig): GeminiTextConfig {
+  if (
+    !config
+    || typeof config !== 'object'
+    || typeof config.apiKey !== 'string'
+    || typeof config.model !== 'string'
+  ) {
+    throw new Error('An explicit Gemini text configuration is required.');
+  }
+  const apiKey = config.apiKey.trim();
+  const model = config.model.trim();
+  if (
+    !apiKey
+    || /[\s\p{Cc}\p{Cf}]/u.test(apiKey)
+    || !model
+    || model.length > 160
+    || /[\s\p{Cc}\p{Cf}]/u.test(model)
+  ) {
+    throw new Error('Gemini text configuration is invalid.');
+  }
+  return { apiKey, model };
 }
 
 export function normalizeGeminiError(
   error: unknown,
-  fallbackMessage = 'Failed to generate content'
+  fallbackMessage = 'Failed to generate content',
+  context: GeminiErrorContext = {},
 ): GeminiErrorInfo {
   const payload = extractGeminiErrorPayload(error);
 
@@ -103,9 +158,12 @@ export function normalizeGeminiError(
   }
 
   const retryAfterSeconds = extractRetryAfterSeconds(payload.details);
-  const model = extractQuotaModel(payload.details);
+  const candidateModel = extractQuotaModel(payload.details);
+  const model = context.model && candidateModel === context.model ? context.model : undefined;
   const providerCode = payload.code;
-  const providerStatus = payload.status;
+  const providerStatus = typeof payload.status === 'string' && SAFE_PROVIDER_STATUSES.has(payload.status)
+    ? payload.status
+    : undefined;
   const statusCode =
     typeof providerCode === 'number' && providerCode >= 400 && providerCode < 600
       ? providerCode
@@ -119,6 +177,12 @@ export function normalizeGeminiError(
       : '';
     const modelText = model ? ` for ${model}` : '';
 
+    const sourceGuidance = context.source === 'workspace'
+      ? ' Ask the workspace owner to test or replace the Gemini key, or switch to platform credits.'
+      : context.source === 'platform'
+        ? ' The workspace owner can save and activate a workspace Gemini key in Connections.'
+        : ' Check quota and billing for the configured Google project.';
+
     return {
       statusCode: 429,
       providerCode,
@@ -127,7 +191,21 @@ export function normalizeGeminiError(
       model,
       message:
         `Gemini API quota exceeded${modelText}.${retryText} ` +
-        'Check quota and billing for the configured Google project, or set GEMINI_TEXT_MODEL to another available Gemini text model.',
+        sourceGuidance,
+    };
+  }
+
+  if (
+    context.source === 'workspace'
+    && (statusCode === 401 || statusCode === 403 || providerStatus === 'PERMISSION_DENIED' || providerStatus === 'UNAUTHENTICATED')
+  ) {
+    return {
+      statusCode,
+      providerCode,
+      providerStatus,
+      retryAfterSeconds,
+      model,
+      message: 'The workspace Gemini connection needs attention. Ask the workspace owner to test or replace the key, or switch to platform credits.',
     };
   }
 
@@ -137,12 +215,17 @@ export function normalizeGeminiError(
     providerStatus,
     retryAfterSeconds,
     model,
-    message: payload.message || fallbackMessage,
+    // Never surface provider-controlled message strings: providers may echo
+    // request credentials or untrusted prompt material in an error body.
+    message: fallbackMessage,
   };
 }
 
-export async function generatePlainTextWithGemini(prompt: string): Promise<string> {
-  const config = resolveGeminiTextConfig();
+export async function generatePlainTextWithGemini(
+  prompt: string,
+  config: GeminiTextConfig,
+): Promise<string> {
+  config = assertGeminiTextConfig(config);
   const result = await generateGeminiContent({
     apiKey: config.apiKey,
     model: config.model,
@@ -158,10 +241,11 @@ export async function generatePlainTextWithGemini(prompt: string): Promise<strin
 }
 
 export async function generateDeckWithGemini(
-  request: DeckGenerateRequest
+  request: DeckGenerateRequest,
+  config: GeminiTextConfig,
 ): Promise<GeneratedDeckResponse> {
+  config = assertGeminiTextConfig(config);
   const prompt = buildGenerationPrompt(request);
-  const config = resolveGeminiTextConfig();
   const result = await generateGeminiContent({
     apiKey: config.apiKey,
     model: config.model,
@@ -181,10 +265,8 @@ export async function generateDeckWithGemini(
 
 export async function generateDeckWithProvider(
   request: DeckGenerateRequest,
-  provider: TextProvider,
-  environment: Record<string, string | undefined> = process.env,
+  config: TextProviderConfig,
 ): Promise<GeneratedDeckResponse> {
-  const config = resolveTextProviderConfig(provider, environment);
   const result = await generateText({
     ...config,
     systemPrompt: 'Create the requested article deck. Follow the output contract exactly and return JSON only.',
@@ -198,16 +280,16 @@ export async function generateDeckWithProvider(
     deck = parseGeneratedDeckResponse(result.text, request.illustrationStyle);
   } catch {
     throw new TextProviderError({
-      provider,
-      message: `The ${provider} provider returned an invalid article deck.`,
+      provider: config.provider,
+      message: `The ${config.provider} provider returned an invalid article deck.`,
       statusCode: 502,
       retryable: false,
     });
   }
   if (deck.slides.length !== request.slideCount) {
     throw new TextProviderError({
-      provider,
-      message: `The ${provider} provider returned an unexpected slide count.`,
+      provider: config.provider,
+      message: `The ${config.provider} provider returned an unexpected slide count.`,
       statusCode: 502,
       retryable: false,
     });
@@ -407,7 +489,10 @@ function extractRetryAfterSeconds(details: Array<Record<string, unknown>> | unde
     ) {
       const match = detail.retryDelay.match(/(\d+(?:\.\d+)?)s/);
       if (match) {
-        return Math.ceil(Number.parseFloat(match[1]));
+        const seconds = Number.parseFloat(match[1]);
+        if (Number.isFinite(seconds) && seconds >= 0 && seconds <= 86_400) {
+          return Math.ceil(seconds);
+        }
       }
     }
   }

@@ -115,6 +115,7 @@ describe('legacy workspace claim repository', () => {
     'BinancePublicationDraft',
     'PublisherDevice',
     'WorkspaceSession',
+    'WorkspaceAiCredential',
   ])('disqualifies replacement when the account workspace has durable rows in %s', async (table) => {
     const harness = repositoryHarness({ id: 'legacy_replacement', replacedWorkspace: true });
     const repository = createLegacyWorkspaceClaimRepository(harness.database);

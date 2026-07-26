@@ -22,8 +22,14 @@
       "BETTER_AUTH_URL",
       "GOOGLE_CLIENT_ID",
       "GOOGLE_CLIENT_SECRET",
-      "GEMINI_API_KEY"
+      "GEMINI_API_KEY",
+      "AI_CREDENTIAL_KEYRING",
+      "AI_CREDENTIAL_ACTIVE_KEY_ID"
     ]
+  },
+  "vars": {
+    "GEMINI_TEXT_MODEL": "gemini-2.5-flash",
+    "GEMINI_IMAGE_MODEL": "gemini-3.1-flash-image-preview"
   },
   "r2_buckets": [
     {

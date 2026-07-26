@@ -2,8 +2,9 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import {
+import type {
   CreateSlideRequest,
+  DeckDetailResponse,
   DeckGenerateRequest,
   SlideUpdateRequest,
 } from '@/lib/schemas';
@@ -22,6 +23,7 @@ export type WorkspaceBootstrap = {
   accessKeyPrefix: string | null;
   recoveryKey: string | null;
   workspaceOrigin: 'legacy' | 'account' | null;
+  workspaceRole: 'owner' | 'member' | null;
   canReplaceWithLegacy: boolean;
   generateAccessEnabled: boolean;
   hasGenerationAccess: boolean;
@@ -34,6 +36,21 @@ export type WorkspaceBootstrap = {
     | 'revoked'
     | null;
 };
+
+export type WorkspaceAiCredentialSource = 'platform' | 'workspace';
+
+export type WorkspaceAiCredentialStatus = {
+  provider: 'gemini';
+  configured: boolean;
+  activeSource: WorkspaceAiCredentialSource;
+  validatedAt: string | null;
+  updatedAt: string | null;
+};
+
+// TanStack Query retains mutation variables for inspection and retries. Keep
+// credential plaintext out of that state by passing an opaque, one-use handle
+// through the mutation and holding the value only until the request begins.
+const pendingWorkspaceAiCredentialKeys = new WeakMap<object, string>();
 
 export type WorkspaceCreateResult = {
   success: true;
@@ -79,6 +96,7 @@ export const queryKeys = {
   jobs: () => [...queryKeys.all, 'jobs'] as const,
   job: (id: string) => [...queryKeys.jobs(), id] as const,
   workspace: () => ['workspace'] as const,
+  workspaceAiCredential: () => ['workspace', 'ai-credential'] as const,
 };
 
 async function fetchDecks() {
@@ -86,9 +104,9 @@ async function fetchDecks() {
   return readApiResponse(res, 'Failed to fetch decks');
 }
 
-async function fetchDeck(id: string) {
+async function fetchDeck(id: string): Promise<DeckDetailResponse> {
   const res = await fetch(`/api/articles/${id}`);
-  return readApiResponse(res, 'Failed to fetch deck');
+  return readApiResponse<DeckDetailResponse>(res, 'Failed to fetch deck');
 }
 
 async function fetchJob(jobId: string) {
@@ -101,6 +119,17 @@ async function fetchWorkspace() {
   return readApiResponse<WorkspaceBootstrap>(res, 'Failed to fetch workspace');
 }
 
+async function fetchWorkspaceAiCredential() {
+  const res = await fetch('/api/workspace/ai-credential', {
+    cache: 'no-store',
+    credentials: 'same-origin',
+  });
+  return readApiResponse<WorkspaceAiCredentialStatus>(
+    res,
+    'Failed to fetch Gemini connection',
+  );
+}
+
 export function useDecks(enabled = true) {
   return useQuery({
     queryKey: queryKeys.lists(),
@@ -110,12 +139,24 @@ export function useDecks(enabled = true) {
   });
 }
 
-export function useDeck(id: string) {
-  return useQuery({
+export type UseDeckOptions = {
+  pollActiveJob?: boolean;
+};
+
+export function useDeck(id: string, { pollActiveJob = false }: UseDeckOptions = {}) {
+  return useQuery<DeckDetailResponse, ApiError>({
     queryKey: queryKeys.detail(id),
     queryFn: () => fetchDeck(id),
     staleTime: 10000,
     enabled: Boolean(id),
+    refetchInterval: (query) => {
+      if (!pollActiveJob) {
+        return false;
+      }
+
+      const jobStatus = query.state.data?.lastJob?.status;
+      return jobStatus === 'queued' || jobStatus === 'running' ? 1500 : false;
+    },
   });
 }
 
@@ -133,6 +174,117 @@ export function useWorkspace() {
     queryKey: queryKeys.workspace(),
     queryFn: fetchWorkspace,
     staleTime: 30000,
+  });
+}
+
+export function useWorkspaceAiCredential(enabled = true) {
+  return useQuery<WorkspaceAiCredentialStatus, ApiError>({
+    queryKey: queryKeys.workspaceAiCredential(),
+    queryFn: fetchWorkspaceAiCredential,
+    staleTime: 30_000,
+    enabled,
+  });
+}
+
+export function useSaveWorkspaceAiCredential() {
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    retry: false,
+    mutationFn: async (secretHandle: object) => {
+      const apiKey = pendingWorkspaceAiCredentialKeys.get(secretHandle);
+      pendingWorkspaceAiCredentialKeys.delete(secretHandle);
+      if (!apiKey) {
+        throw new ApiError('The Gemini key is no longer available. Paste it again.', {
+          code: 'AI_CREDENTIAL_INPUT_UNAVAILABLE',
+          status: 400,
+        });
+      }
+      const res = await fetch('/api/workspace/ai-credential', {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ apiKey }),
+      });
+      return readApiResponse<WorkspaceAiCredentialStatus>(
+        res,
+        'Failed to save Gemini connection',
+      );
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.workspaceAiCredential(), data);
+    },
+  });
+
+  return {
+    ...mutation,
+    mutateAsync: async (apiKey: string) => {
+      const secretHandle = {};
+      pendingWorkspaceAiCredentialKeys.set(secretHandle, apiKey);
+      try {
+        return await mutation.mutateAsync(secretHandle);
+      } finally {
+        pendingWorkspaceAiCredentialKeys.delete(secretHandle);
+      }
+    },
+  };
+}
+
+export function useTestWorkspaceAiCredential() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/workspace/ai-credential', {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      return readApiResponse<WorkspaceAiCredentialStatus>(
+        res,
+        'Failed to test Gemini connection',
+      );
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.workspaceAiCredential(), data);
+    },
+  });
+}
+
+export function useSetWorkspaceAiCredentialSource() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (source: WorkspaceAiCredentialSource) => {
+      const res = await fetch('/api/workspace/ai-credential', {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ source }),
+      });
+      return readApiResponse<WorkspaceAiCredentialStatus>(
+        res,
+        'Failed to change Gemini source',
+      );
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.workspaceAiCredential(), data);
+    },
+  });
+}
+
+export function useDeleteWorkspaceAiCredential() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/workspace/ai-credential', {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      });
+      return readApiResponse<WorkspaceAiCredentialStatus>(
+        res,
+        'Failed to delete Gemini connection',
+      );
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(queryKeys.workspaceAiCredential(), data);
+    },
   });
 }
 

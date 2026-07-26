@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { analyzeReleaseTree, REMOVED_RUNTIME_PATHS } from './check-release-tree.mjs';
+import {
+  analyzeReleaseTree,
+  REMOVED_RUNTIME_PATHS,
+  REQUIRED_RELEASE_PATHS,
+} from './check-release-tree.mjs';
 
 const requiredPaths = [
   'drizzle/0012_fresh_lady_deathstrike.sql',
@@ -8,6 +12,13 @@ const requiredPaths = [
 ];
 
 describe('release tree guard', () => {
+  it('requires the workspace credential migration and snapshot', () => {
+    expect(REQUIRED_RELEASE_PATHS).toEqual(expect.arrayContaining([
+      'drizzle/0015_workspace_ai_credential.sql',
+      'drizzle/meta/0015_snapshot.json',
+    ]));
+  });
+
   it('keeps every removed Telegram runtime surface out of web-only releases', () => {
     expect(REMOVED_RUNTIME_PATHS).toEqual(expect.arrayContaining([
       'app/api/telegram',

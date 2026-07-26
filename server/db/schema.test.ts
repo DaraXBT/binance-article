@@ -29,6 +29,7 @@ import {
   userQuota,
   verification,
   workspace,
+  workspaceAiCredential,
   workspaceMember,
   workspaceSession,
 } from './schema';
@@ -97,6 +98,7 @@ describe('Drizzle schema', () => {
     expect([
       invitation,
       workspaceMember,
+      workspaceAiCredential,
       userQuota,
       usageLedger,
       storageObject,
@@ -113,6 +115,7 @@ describe('Drizzle schema', () => {
     ].map(tableName)).toEqual([
       'Invitation',
       'WorkspaceMember',
+      'WorkspaceAiCredential',
       'UserQuota',
       'UsageLedger',
       'StorageObject',
@@ -130,6 +133,7 @@ describe('Drizzle schema', () => {
 
     expect(workspaceMember.workspaceId.name).toBe('workspaceId');
     expect(workspaceMember.userId.name).toBe('userId');
+    expect(workspaceAiCredential.encryptionKeyId.name).toBe('encryptionKeyId');
     expect(storageObject.r2Key.name).toBe('r2Key');
     expect(publisherCommand.recipeHash.name).toBe('recipeHash');
     expect(publishApproval.callbackTokenHash.name).toBe('callbackTokenHash');
@@ -174,6 +178,25 @@ describe('Drizzle schema', () => {
     expect(forbiddenCloudColumns).not.toEqual(expect.arrayContaining([
       'binanceCookie', 'binancePassword', 'chromeProfile', 'storageUrl', 'signedUrl',
     ]));
+  });
+
+  it('stores Gemini workspace credentials only as authenticated ciphertext', () => {
+    expect(tableName(workspaceAiCredential)).toBe('WorkspaceAiCredential');
+    expect(Object.keys(workspaceAiCredential)).toEqual(expect.arrayContaining([
+      'id', 'workspaceId', 'provider', 'ciphertext', 'nonce', 'encryptionKeyId',
+      'enabled', 'createdByUserId', 'updatedByUserId', 'validatedAt', 'createdAt',
+      'updatedAt',
+    ]));
+    expect(Object.keys(workspaceAiCredential)).not.toEqual(expect.arrayContaining([
+      'apiKey', 'plaintext', 'keyHash', 'keySuffix', 'mask', 'providerResponse',
+    ]));
+
+    const providerEnum = (databaseSchema as Record<string, unknown>).aiCredentialProvider as {
+      enumName?: string;
+      enumValues?: string[];
+    } | undefined;
+    expect(providerEnum?.enumName).toBe('AiCredentialProvider');
+    expect(providerEnum?.enumValues).toEqual(['gemini']);
   });
 
   it('stores target-specific publication payloads without browser credentials', () => {

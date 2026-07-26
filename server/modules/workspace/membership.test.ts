@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   requireActorWorkspace,
+  requireActorWorkspaceOwner,
   requireArticleWorkspace,
   resolveActorWorkspace,
 } from './membership';
@@ -21,10 +22,12 @@ describe('authenticated workspace membership', () => {
       id: 'workspace_1',
       accessKeyPrefix: 'dwk_aaaa',
       origin: 'legacy',
+      workspaceRole: 'owner',
       canReplaceWithLegacy: false,
     }]);
     await expect(resolveActorWorkspace(query.database, 'user_1')).resolves.toEqual({
       id: 'workspace_1', accessKeyPrefix: 'dwk_aaaa', origin: 'legacy',
+      workspaceRole: 'owner',
       canReplaceWithLegacy: false,
     });
     expect(query.limit).toHaveBeenCalledWith(2);
@@ -47,6 +50,22 @@ describe('authenticated workspace membership', () => {
   it('requires an account workspace with a sanitized not-found error', async () => {
     await expect(requireActorWorkspace(databaseReturning([]).database, 'user_1'))
       .rejects.toMatchObject({ code: 'WORKSPACE_NOT_FOUND', status: 404 });
+  });
+
+  it('authorizes only the workspace membership owner regardless of the global user role', async () => {
+    const owner = databaseReturning([{
+      id: 'workspace_1', accessKeyPrefix: 'acct_aaaaaaaa', origin: 'account',
+      workspaceRole: 'owner', canReplaceWithLegacy: false,
+    }]);
+    await expect(requireActorWorkspaceOwner(owner.database, 'global_user'))
+      .resolves.toMatchObject({ id: 'workspace_1', workspaceRole: 'owner' });
+
+    const member = databaseReturning([{
+      id: 'workspace_1', accessKeyPrefix: 'acct_aaaaaaaa', origin: 'account',
+      workspaceRole: 'member', canReplaceWithLegacy: false,
+    }]);
+    await expect(requireActorWorkspaceOwner(member.database, 'global_admin'))
+      .rejects.toMatchObject({ code: 'WORKSPACE_OWNER_REQUIRED', status: 403 });
   });
 
   it('requires exact article membership and keeps cross-tenant IDs opaque', async () => {

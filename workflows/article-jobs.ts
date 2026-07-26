@@ -1,10 +1,17 @@
-import { generateDeckWithProvider, normalizeGeminiError } from '@/lib/gemini';
+import {
+  generateDeckWithProvider,
+  normalizeGeminiError,
+  resolveGeminiTextConfig,
+} from '@/lib/gemini';
 import { buildArticleCoverPrompt } from '@/lib/article-cover';
 import {
   assertImagePipelineReady,
   buildImagePrompt,
   generateImage,
   normalizeImageGenerationError,
+  resolveImagePipelineConfig,
+  type GeminiCredentialSource,
+  type ImagePipelineConfig,
 } from '@/lib/image-gen';
 import {
   listSlidesForImageGeneration,
@@ -28,7 +35,16 @@ import {
   DEFAULT_ILLUSTRATION_STYLE,
   type IllustrationStyleId,
 } from '@/lib/config';
-import { TextProviderError, TextProviderSchema } from '@/server/integrations/text-provider';
+import {
+  resolveTextProviderConfig,
+  TextProviderError,
+  TextProviderSchema,
+  type TextProviderConfig,
+} from '@/server/integrations/text-provider';
+import {
+  resolveWorkspaceGeminiCredential,
+  type GeminiCredentialEnvironment,
+} from '@/server/integrations/workspace-gemini-credential';
 import { createArticleCoverRepository } from '@/server/modules/covers/repository';
 import {
   initializeArticleCover,
@@ -39,6 +55,18 @@ import {
 type ImageGenerationMode = 'missing' | 'failed';
 type ImageErrorType = 'quota_exceeded' | 'configuration' | 'unknown';
 type AggregateImageErrorType = ImageErrorType | 'mixed';
+
+export interface ArticleJobProviderEnvironment extends GeminiCredentialEnvironment {
+  DATABASE_URL?: string;
+  DEEPSEEK_API_KEY?: string;
+  DEEPSEEK_TEXT_MODEL?: string;
+}
+
+interface ResolvedGeminiJobConfig {
+  source: GeminiCredentialSource;
+  text: TextProviderConfig;
+  image: ImagePipelineConfig;
+}
 
 export class NonRetryableArticleJobError extends Error {}
 
@@ -192,6 +220,8 @@ async function generateImagesForDeck(input: {
   workspaceId: string;
   illustrationStyle: IllustrationStyleId;
   mode: ImageGenerationMode;
+  imageConfig: ImagePipelineConfig;
+  credentialSource: GeminiCredentialSource;
   assetBucket?: ArticleAssetBucket;
 }) {
   const deck = await listSlidesForImageGeneration(input.deckId, input.workspaceId);
@@ -206,6 +236,14 @@ async function generateImagesForDeck(input: {
     return buildAggregateImageResult(input.deckId, input.mode, []);
   }
 
+  const total = targetSlides.length;
+  await markJobProgress(
+    input.jobId,
+    55,
+    'Generating slide images.',
+    { processed: 0, total },
+  );
+
   await markSlidesImagePending(
     input.workspaceId,
     input.deckId,
@@ -213,11 +251,12 @@ async function generateImagesForDeck(input: {
   );
 
   try {
-    assertImagePipelineReady();
+    assertImagePipelineReady(input.imageConfig);
   } catch (error) {
     const normalizedError = normalizeImageGenerationError(
       error,
-      'Image pipeline is not configured'
+      'Image pipeline is not configured',
+      { source: input.credentialSource, model: input.imageConfig.model },
     );
     const errorType = classifyImageError(normalizedError, 'preflight');
     const results = await Promise.all(
@@ -236,7 +275,6 @@ async function generateImagesForDeck(input: {
   }
 
   const results: SlideResult[] = [];
-  const total = targetSlides.length;
   const chunkSize = 4;
 
   for (let index = 0; index < targetSlides.length; index += chunkSize) {
@@ -258,7 +296,7 @@ async function generateImagesForDeck(input: {
 
         try {
           const fullPrompt = buildImagePrompt(input.illustrationStyle, slide.imagePrompt);
-          const imageResult = await generateImage(fullPrompt);
+          const imageResult = await generateImage(fullPrompt, input.imageConfig);
           const extension = imageResult.mimeType === 'image/jpeg' ? 'jpg' : 'png';
           const filename = `slide-${String(slide.order + 1).padStart(2, '0')}.${extension}`;
           const storedAsset = await storeArticleAsset({
@@ -289,7 +327,8 @@ async function generateImagesForDeck(input: {
         } catch (error) {
           const normalizedError = normalizeImageGenerationError(
             error,
-            'Unknown image generation error'
+            'Unknown image generation error',
+            { source: input.credentialSource, model: input.imageConfig.model },
           );
           const errorType = classifyImageError(normalizedError);
 
@@ -322,6 +361,8 @@ export async function generateCoverForDeck(input: {
   deckId: string;
   workspaceId: string;
   illustrationStyle: IllustrationStyleId;
+  imageConfig: ImagePipelineConfig;
+  credentialSource: GeminiCredentialSource;
   assetBucket?: ArticleAssetBucket;
 }): Promise<CoverResult> {
   const database = getRuntimeDatabase();
@@ -363,8 +404,8 @@ export async function generateCoverForDeck(input: {
       };
     }
 
-    const pipeline = assertImagePipelineReady();
-    const imageResult = await generateImage(coverPrompt.prompt, pipeline, {
+    assertImagePipelineReady(input.imageConfig);
+    const imageResult = await generateImage(coverPrompt.prompt, input.imageConfig, {
       aspectRatio: '21:9',
       imageSize: '2K',
     });
@@ -400,6 +441,7 @@ export async function generateCoverForDeck(input: {
     const normalizedError = normalizeImageGenerationError(
       error,
       'The dedicated article cover could not be generated.',
+      { source: input.credentialSource, model: input.imageConfig.model },
     );
     const errorType = classifyImageError(normalizedError);
     if (generationRevision !== null) {
@@ -424,9 +466,78 @@ export async function generateCoverForDeck(input: {
   }
 }
 
+async function resolveGeminiJobConfig(
+  workspaceId: string,
+  providerEnvironment: ArticleJobProviderEnvironment,
+): Promise<ResolvedGeminiJobConfig> {
+  const credential = await resolveWorkspaceGeminiCredential({
+    database: getRuntimeDatabase(providerEnvironment),
+    workspaceId,
+    environment: providerEnvironment,
+  });
+
+  return {
+    source: credential.source,
+    text: {
+      provider: 'gemini',
+      ...resolveGeminiTextConfig(credential.apiKey, providerEnvironment),
+    },
+    image: resolveImagePipelineConfig(credential.apiKey, providerEnvironment),
+  };
+}
+
+/**
+ * A credential failure can happen before the image worker marks its targets
+ * pending. Mark those targets terminally failed so the UI never leaves a
+ * slide/cover in an indefinite loading state while the job reports failure.
+ */
+async function markCredentialFailureArtifacts(input: {
+  deckId: string;
+  workspaceId: string;
+  scope: 'slides' | 'cover';
+  mode: ImageGenerationMode;
+  message: string;
+}): Promise<void> {
+  const deck = await listSlidesForImageGeneration(input.deckId, input.workspaceId);
+  if (!deck) return;
+
+  if (input.scope === 'cover') {
+    await markArticleCoverFailed({
+      repository: createArticleCoverRepository(getRuntimeDatabase()),
+      workspaceId: input.workspaceId,
+      articleId: input.deckId,
+      generationRevision: deck.generationRevision,
+      error: input.message,
+    }).catch(() => null);
+    return;
+  }
+
+  const targets = deck.slides.filter((slide) => shouldProcessSlide(slide, input.mode));
+  await Promise.all(targets.map((slide) => markSlideImageFailed(
+    input.workspaceId,
+    input.deckId,
+    slide.id,
+    input.message,
+  )));
+}
+
+function sourceAwareTextProviderMessage(
+  error: TextProviderError,
+  source: GeminiCredentialSource | undefined,
+): string {
+  if (error.provider !== 'gemini' || !source) return error.message;
+  if (source === 'workspace') {
+    return 'The workspace Gemini connection needs attention. Ask the workspace owner to test or replace the key, or switch to platform credits.';
+  }
+  if (error.statusCode === 429) {
+    return 'Platform Gemini quota is currently unavailable. The workspace owner can save and activate a workspace Gemini key in Connections.';
+  }
+  return error.message;
+}
+
 export async function handleArticleGenerationJob(
   jobId: string,
-  providerEnvironment: Record<string, string | undefined> = process.env,
+  providerEnvironment: ArticleJobProviderEnvironment = process.env,
   runtime: { assetBucket?: ArticleAssetBucket } = {},
 ) {
   const existingJob = await getJobRunById(jobId);
@@ -446,6 +557,7 @@ export async function handleArticleGenerationJob(
   logEvent('info', 'workflow.article_generation.start', { jobId, deckId: job.deckId });
 
   const payload = job.payload;
+  let geminiCredentialSource: GeminiCredentialSource | undefined;
 
   try {
     await markJobProgress(jobId, 10, 'Preparing article content.');
@@ -455,6 +567,11 @@ export async function handleArticleGenerationJob(
     const slideCount = readNumber(payload.slideCount, 1);
     const rawArticleContent = readString(payload.articleContent);
     const textProvider = TextProviderSchema.parse(readString(payload.textProvider, 'gemini'));
+    const gemini = await resolveGeminiJobConfig(job.workspaceId, providerEnvironment);
+    geminiCredentialSource = gemini.source;
+    const textConfig = textProvider === 'gemini'
+      ? gemini.text
+      : resolveTextProviderConfig('deepseek', providerEnvironment);
 
     const articleContent =
       mode === 'url' ? await fetchArticleSourceText(rawArticleContent) : rawArticleContent;
@@ -466,7 +583,7 @@ export async function handleArticleGenerationJob(
       slideCount,
       illustrationStyle,
       mode: mode as 'text' | 'url' | 'prompt',
-    }, textProvider, providerEnvironment);
+    }, textConfig);
 
     if ((await getJobRunById(jobId))?.status !== 'running') return;
 
@@ -496,12 +613,16 @@ export async function handleArticleGenerationJob(
         workspaceId: job.workspaceId,
         illustrationStyle,
         mode: 'missing',
+        imageConfig: gemini.image,
+        credentialSource: gemini.source,
         assetBucket: runtime.assetBucket,
       }),
       generateCoverForDeck({
         deckId: job.deckId,
         workspaceId: job.workspaceId,
         illustrationStyle,
+        imageConfig: gemini.image,
+        credentialSource: gemini.source,
         assetBucket: runtime.assetBucket,
       }),
     ]);
@@ -542,13 +663,21 @@ export async function handleArticleGenerationJob(
 
     if (error instanceof TextProviderError) {
       const code = `${error.provider.toUpperCase()}_${error.statusCode}`;
-      logEvent('error', 'workflow.article_generation.failed', { jobId, deckId: job.deckId, code, message: error.message });
+      const message = sourceAwareTextProviderMessage(error, geminiCredentialSource);
+      logEvent('error', 'workflow.article_generation.failed', { jobId, deckId: job.deckId, code, message });
       await markDeckStatus(job.deckId, job.workspaceId, 'failed');
-      await failJobRun(jobId, code, error.message);
+      await failJobRun(jobId, code, message);
       return;
     }
 
-    const normalized = normalizeGeminiError(error, 'Failed to generate the article.');
+    const normalized = normalizeGeminiError(
+      error,
+      'Failed to generate the article.',
+      {
+        source: geminiCredentialSource,
+        model: providerEnvironment.GEMINI_TEXT_MODEL || providerEnvironment.GEMINI_MODEL || 'gemini-2.5-flash',
+      },
+    );
     logEvent('error', 'workflow.article_generation.failed', { jobId, deckId: job.deckId, code: normalized.providerStatus || `GEMINI_${normalized.statusCode}`, message: normalized.message });
     await markDeckStatus(job.deckId, job.workspaceId, 'failed');
     await failJobRun(jobId, normalized.providerStatus || `GEMINI_${normalized.statusCode}`, normalized.message);
@@ -557,6 +686,7 @@ export async function handleArticleGenerationJob(
 
 export async function handleArticleImageRetryJob(
   jobId: string,
+  providerEnvironment: ArticleJobProviderEnvironment = process.env,
   runtime: { assetBucket?: ArticleAssetBucket } = {},
 ) {
   const existingJob = await getJobRunById(jobId);
@@ -577,9 +707,18 @@ export async function handleArticleImageRetryJob(
   const payload = job.payload;
   const mode = readString(payload.mode, 'missing') as ImageGenerationMode;
   const scope = readString(payload.scope, 'slides');
+  let credentialAttempted = false;
+  let credentialResolved = false;
+  let resolvedCredentialSource: GeminiCredentialSource | undefined;
+  let resolvedImageModel: string | undefined;
 
   try {
     const illustrationStyle = readIllustrationStyle(payload.illustrationStyle);
+    credentialAttempted = true;
+    const gemini = await resolveGeminiJobConfig(job.workspaceId, providerEnvironment);
+    credentialResolved = true;
+    resolvedCredentialSource = gemini.source;
+    resolvedImageModel = gemini.image.model;
     await markJobProgress(jobId, 15, 'Preparing image generation.');
 
     if (scope === 'cover') {
@@ -587,6 +726,8 @@ export async function handleArticleImageRetryJob(
         deckId: job.deckId,
         workspaceId: job.workspaceId,
         illustrationStyle,
+        imageConfig: gemini.image,
+        credentialSource: gemini.source,
         assetBucket: runtime.assetBucket,
       });
       if (coverSummary.status !== 'generated') {
@@ -614,6 +755,8 @@ export async function handleArticleImageRetryJob(
       workspaceId: job.workspaceId,
       illustrationStyle,
       mode,
+      imageConfig: gemini.image,
+      credentialSource: gemini.source,
       assetBucket: runtime.assetBucket,
     });
 
@@ -638,6 +781,17 @@ export async function handleArticleImageRetryJob(
       failed: imageSummary.failed,
     });
   } catch (error) {
+    if (credentialAttempted && !credentialResolved) {
+      await markCredentialFailureArtifacts({
+        deckId: job.deckId,
+        workspaceId: job.workspaceId,
+        scope: scope === 'cover' ? 'cover' : 'slides',
+        mode,
+        message: error instanceof AppError
+          ? error.message
+          : 'The Gemini connection could not be resolved. Ask the workspace owner to test or replace the key, or switch to platform credits.',
+      }).catch(() => null);
+    }
     if (error instanceof NonRetryableArticleJobError) {
       logEvent('error', 'workflow.image_retry.failed', {
         jobId,
@@ -655,7 +809,11 @@ export async function handleArticleImageRetryJob(
       return;
     }
 
-    const normalized = normalizeImageGenerationError(error, 'Failed to generate images.');
+    const normalized = normalizeImageGenerationError(
+      error,
+      'Failed to generate images.',
+      { source: resolvedCredentialSource, model: resolvedImageModel },
+    );
     logEvent('error', 'workflow.image_retry.failed', { jobId, deckId: job.deckId, code: normalized.providerStatus || `IMAGE_${normalized.statusCode}`, message: normalized.message });
     await failJobRun(
       jobId,

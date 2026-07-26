@@ -117,6 +117,10 @@ export function createLegacyWorkspaceClaimRepository(
                    SELECT 1 FROM "PublisherDevice"
                    WHERE "workspaceId" = actor_membership."workspaceId"
                  )
+                 AND NOT EXISTS (
+                   SELECT 1 FROM "WorkspaceAiCredential"
+                   WHERE "workspaceId" = actor_membership."workspaceId"
+                 )
                )
           ), moved_member AS (
             UPDATE "WorkspaceMember" AS member

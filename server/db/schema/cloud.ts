@@ -25,6 +25,7 @@ const cloudTimestamp = (name: string) => timestamp(name, {
 });
 
 export const invitationStatus = pgEnum('InvitationStatus', ['pending', 'accepted', 'revoked']);
+export const aiCredentialProvider = pgEnum('AiCredentialProvider', ['gemini']);
 export const workspaceMemberRole = pgEnum('WorkspaceMemberRole', ['owner', 'member']);
 export const usageKind = pgEnum('UsageKind', ['article', 'image', 'workflow_step', 'storage_byte']);
 export const usageStatus = pgEnum('UsageStatus', ['reserved', 'committed', 'released']);
@@ -138,6 +139,51 @@ export const workspaceMember = pgTable('WorkspaceMember', {
     .on(table.workspaceId)
     .where(sql`${table.role} = 'owner'`),
   uniqueIndex('WorkspaceMember_userId_single_workspace_key').on(table.userId),
+]);
+
+export const workspaceAiCredential = pgTable('WorkspaceAiCredential', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspaceId').notNull().references(() => workspace.id, {
+    onDelete: 'cascade',
+    onUpdate: 'cascade',
+  }),
+  provider: aiCredentialProvider('provider').notNull(),
+  ciphertext: text('ciphertext').notNull(),
+  nonce: text('nonce').notNull(),
+  encryptionKeyId: text('encryptionKeyId').notNull(),
+  enabled: boolean('enabled').default(false).notNull(),
+  createdByUserId: text('createdByUserId').references(() => user.id, {
+    onDelete: 'set null',
+    onUpdate: 'cascade',
+  }),
+  updatedByUserId: text('updatedByUserId').references(() => user.id, {
+    onDelete: 'set null',
+    onUpdate: 'cascade',
+  }),
+  validatedAt: cloudTimestamp('validatedAt'),
+  createdAt: cloudTimestamp('createdAt').defaultNow().notNull(),
+  updatedAt: cloudTimestamp('updatedAt').defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('WorkspaceAiCredential_workspaceId_provider_key')
+    .on(table.workspaceId, table.provider),
+  index('WorkspaceAiCredential_workspaceId_updatedAt_idx')
+    .on(table.workspaceId, table.updatedAt),
+  check(
+    'WorkspaceAiCredential_ciphertext_base64url_check',
+    sql`${table.ciphertext} ~ '^[A-Za-z0-9_-]{24,2048}$'`,
+  ),
+  check(
+    'WorkspaceAiCredential_ciphertext_base64url_length_check',
+    sql`char_length(${table.ciphertext}) % 4 <> 1`,
+  ),
+  check(
+    'WorkspaceAiCredential_nonce_base64url_check',
+    sql`${table.nonce} ~ '^[A-Za-z0-9_-]{16}$'`,
+  ),
+  check(
+    'WorkspaceAiCredential_encryptionKeyId_check',
+    sql`${table.encryptionKeyId} ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'`,
+  ),
 ]);
 
 export const userQuota = pgTable('UserQuota', {

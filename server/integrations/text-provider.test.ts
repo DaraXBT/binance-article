@@ -15,14 +15,25 @@ describe('text provider boundary', () => {
     delete process.env.DEEPSEEK_TEXT_MODEL;
   });
 
-  it.each([
-    ['gemini', 'GEMINI_API_KEY', 'GEMINI_TEXT_MODEL', 'gemini-2.5-flash'],
-    ['deepseek', 'DEEPSEEK_API_KEY', 'DEEPSEEK_TEXT_MODEL', 'deepseek-chat'],
-  ] as const)('resolves the %s deployment configuration', (provider, keyName, modelName, defaultModel) => {
+  it('resolves the operator DeepSeek deployment configuration', () => {
+    const provider = 'deepseek';
+    const keyName = 'DEEPSEEK_API_KEY';
+    const modelName = 'DEEPSEEK_TEXT_MODEL';
+    const defaultModel = 'deepseek-chat';
     process.env[keyName] = 'provider-key';
     const config = resolveTextProviderConfig(provider as TextProvider);
     expect(config).toEqual({ provider, apiKey: 'provider-key', model: defaultModel });
     expect(modelName).toBeTruthy();
+  });
+
+  it('requires an explicit Gemini credential instead of reading a platform secret', () => {
+    process.env.GEMINI_API_KEY = 'platform-secret-that-must-not-be-read';
+    expect(() => resolveTextProviderConfig('gemini')).toThrow(/resolved explicitly/i);
+    expect(resolveTextProviderConfig('gemini', {}, 'workspace-key')).toEqual({
+      provider: 'gemini',
+      apiKey: 'workspace-key',
+      model: 'gemini-2.5-flash',
+    });
   });
 
   it('rejects a provider without its deployment key', () => {

@@ -1,6 +1,25 @@
 const GEMINI_API_ORIGIN = 'https://generativelanguage.googleapis.com';
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+const DEFAULT_VALIDATION_TIMEOUT_MS = 10_000;
+const DEFAULT_VALIDATION_MAX_RESPONSE_BYTES = 64 * 1024;
+const SAFE_PROVIDER_STATUSES = new Set([
+  'RESOURCE_EXHAUSTED',
+  'INVALID_ARGUMENT',
+  'FAILED_PRECONDITION',
+  'PERMISSION_DENIED',
+  'UNAUTHENTICATED',
+  'NOT_FOUND',
+  'INTERNAL',
+  'UNAVAILABLE',
+  'DEADLINE_EXCEEDED',
+  'ABORTED',
+  'CANCELLED',
+  'UNKNOWN',
+  'ALREADY_EXISTS',
+  'OUT_OF_RANGE',
+  'DATA_LOSS',
+]);
 
 type GeminiRestErrorCode =
   | 'GEMINI_INVALID_REQUEST'
@@ -47,6 +66,18 @@ interface GenerateGeminiContentInput {
   generationConfig?: Record<string, unknown>;
   timeoutMs?: number;
   maxResponseBytes?: number;
+}
+
+export interface ValidateGeminiApiKeyInput {
+  apiKey: string;
+  textModel: string;
+  imageModel: string;
+  timeoutMs?: number;
+  maxResponseBytes?: number;
+}
+
+export interface ValidatedGeminiApiKey {
+  readonly models: readonly [string, string];
 }
 
 interface GeminiRestErrorOptions {
@@ -96,7 +127,10 @@ function providerHttpStatus(value: number): number {
   return Number.isInteger(value) && value >= 400 && value <= 599 ? value : 502;
 }
 
-function sanitizeProviderDetails(value: unknown): GeminiProviderDetail[] | undefined {
+function sanitizeProviderDetails(
+  value: unknown,
+  expectedModel?: string,
+): GeminiProviderDetail[] | undefined {
   if (!Array.isArray(value)) return undefined;
 
   const sanitized: GeminiProviderDetail[] = [];
@@ -124,7 +158,15 @@ function sanitizeProviderDetails(value: unknown): GeminiProviderDetail[] | undef
         .flatMap((violation) => {
           if (!isRecord(violation) || !isRecord(violation.quotaDimensions)) return [];
           const model = violation.quotaDimensions.model;
-          if (typeof model !== 'string' || model.length === 0 || model.length > 160) return [];
+          // Only retain a quota model when it matches the model we requested.
+          // Provider-controlled strings are otherwise untrusted and could echo
+          // a credential into persisted job metadata.
+          if (
+            typeof model !== 'string'
+            || model.length === 0
+            || model.length > 160
+            || (expectedModel !== undefined && model !== expectedModel)
+          ) return [];
           return [{ quotaDimensions: { model } }];
         });
 
@@ -140,7 +182,11 @@ function sanitizeProviderDetails(value: unknown): GeminiProviderDetail[] | undef
   return sanitized.length > 0 ? sanitized : undefined;
 }
 
-function parseProviderError(body: string, responseStatus: number): GeminiRestError {
+function parseProviderError(
+  body: string,
+  responseStatus: number,
+  expectedModel?: string,
+): GeminiRestError {
   let parsed: unknown;
   try {
     parsed = JSON.parse(body);
@@ -152,10 +198,13 @@ function parseProviderError(body: string, responseStatus: number): GeminiRestErr
   const providerCode = providerError && typeof providerError.code === 'number'
     ? providerError.code
     : undefined;
-  const providerStatus = providerError && typeof providerError.status === 'string'
+  const rawProviderStatus = providerError && typeof providerError.status === 'string'
     ? providerError.status.slice(0, 80)
     : undefined;
-  const providerDetails = sanitizeProviderDetails(providerError?.details);
+  const providerStatus = rawProviderStatus && SAFE_PROVIDER_STATUSES.has(rawProviderStatus)
+    ? rawProviderStatus
+    : undefined;
+  const providerDetails = sanitizeProviderDetails(providerError?.details, expectedModel);
 
   return new GeminiRestError({
     code: 'GEMINI_PROVIDER_ERROR',
@@ -226,13 +275,160 @@ function parseSuccessResponse(body: string): GeminiGenerateContentResponse {
   return parsed as unknown as GeminiGenerateContentResponse;
 }
 
+function normalizeApiKeyForValidation(value: unknown): string {
+  if (typeof value !== 'string') {
+    throw new GeminiRestError({
+      code: 'GEMINI_INVALID_REQUEST',
+      message: 'The Gemini API key is invalid.',
+      statusCode: 400,
+    });
+  }
+  const apiKey = value.trim();
+  if (
+    apiKey.length < 20
+    || apiKey.length > 512
+    || /[\s\p{Cc}\p{Cf}]/u.test(apiKey)
+  ) {
+    throw new GeminiRestError({
+      code: 'GEMINI_INVALID_REQUEST',
+      message: 'The Gemini API key is invalid.',
+      statusCode: 400,
+    });
+  }
+  return apiKey;
+}
+
+function normalizeModelForValidation(value: unknown): string {
+  if (typeof value !== 'string') {
+    throw new GeminiRestError({
+      code: 'GEMINI_INVALID_REQUEST',
+      message: 'The Gemini model configuration is invalid.',
+      statusCode: 500,
+    });
+  }
+  const model = value.trim();
+  if (!model || model.length > 160 || /[\s\p{Cc}\p{Cf}]/u.test(model)) {
+    throw new GeminiRestError({
+      code: 'GEMINI_INVALID_REQUEST',
+      message: 'The Gemini model configuration is invalid.',
+      statusCode: 500,
+    });
+  }
+  return model;
+}
+
+async function validateGeminiModelAccess(input: {
+  apiKey: string;
+  model: string;
+  timeoutMs: number;
+  maxResponseBytes: number;
+}): Promise<void> {
+  const endpoint = `${GEMINI_API_ORIGIN}/v1beta/models/${encodeURIComponent(input.model)}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), input.timeoutMs);
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: { 'x-goog-api-key': input.apiKey },
+      signal: controller.signal,
+    });
+    const body = await readBoundedBody(response, input.maxResponseBytes);
+    if (!response.ok) throw parseProviderError(body, response.status, input.model);
+
+    const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
+    if (!contentType.startsWith('application/json')) {
+      throw new GeminiRestError({
+        code: 'GEMINI_INVALID_RESPONSE',
+        message: 'Gemini returned an invalid validation response.',
+        statusCode: 502,
+      });
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(body);
+    } catch {
+      parsed = null;
+    }
+    if (!isRecord(parsed) || typeof parsed.name !== 'string') {
+      throw new GeminiRestError({
+        code: 'GEMINI_INVALID_RESPONSE',
+        message: 'Gemini returned an invalid validation response.',
+        statusCode: 502,
+      });
+    }
+  } catch (error) {
+    if (error instanceof GeminiRestError) throw error;
+    if (controller.signal.aborted) {
+      throw new GeminiRestError({
+        code: 'GEMINI_TIMEOUT',
+        message: 'Gemini credential validation timed out.',
+        statusCode: 504,
+      });
+    }
+    throw new GeminiRestError({
+      code: 'GEMINI_NETWORK_ERROR',
+      message: 'Gemini credential validation failed.',
+      statusCode: 502,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * Confirms that a transient key can access both operator-configured models.
+ * The credential is sent only through Google's API-key header and no provider
+ * response body is returned to callers.
+ */
+export async function validateGeminiApiKey(
+  input: ValidateGeminiApiKeyInput,
+): Promise<ValidatedGeminiApiKey> {
+  const apiKey = normalizeApiKeyForValidation(input.apiKey);
+  const textModel = normalizeModelForValidation(input.textModel);
+  const imageModel = normalizeModelForValidation(input.imageModel);
+  const timeoutMs = positiveInteger(
+    input.timeoutMs,
+    DEFAULT_VALIDATION_TIMEOUT_MS,
+    'Gemini validation timeout',
+  );
+  const maxResponseBytes = positiveInteger(
+    input.maxResponseBytes,
+    DEFAULT_VALIDATION_MAX_RESPONSE_BYTES,
+    'Gemini validation response limit',
+  );
+  const models = [textModel, imageModel] as const;
+
+  // Validate sequentially so a provider failure is deterministic and one
+  // malformed response cannot race another request into an unsanitized error.
+  for (const model of [...new Set(models)]) {
+    await validateGeminiModelAccess({
+      apiKey,
+      model,
+      timeoutMs,
+      maxResponseBytes,
+    });
+  }
+
+  return { models };
+}
+
 export async function generateGeminiContent(
   input: GenerateGeminiContentInput
 ): Promise<GeminiGenerateContentResponse> {
-  const apiKey = input.apiKey.trim();
-  const model = input.model.trim();
-  const prompt = input.prompt.trim();
-  if (!apiKey || !model || !prompt) {
+  const apiKey = typeof input.apiKey === 'string' ? input.apiKey.trim() : '';
+  const model = typeof input.model === 'string' ? input.model.trim() : '';
+  const prompt = typeof input.prompt === 'string' ? input.prompt.trim() : '';
+  if (
+    !apiKey
+    || apiKey.length > 512
+    || /[\s\p{Cc}\p{Cf}]/u.test(apiKey)
+    || !model
+    || model.length > 160
+    || /[\p{Cc}\p{Cf}]/u.test(model)
+    || !prompt
+  ) {
     throw new GeminiRestError({
       code: 'GEMINI_INVALID_REQUEST',
       message: 'Gemini credentials, model, and prompt are required.',
@@ -270,7 +466,7 @@ export async function generateGeminiContent(
     });
     const body = await readBoundedBody(response, maxResponseBytes);
 
-    if (!response.ok) throw parseProviderError(body, response.status);
+    if (!response.ok) throw parseProviderError(body, response.status, input.model);
 
     const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
     if (!contentType.startsWith('application/json')) {

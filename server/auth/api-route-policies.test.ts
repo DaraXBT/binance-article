@@ -57,6 +57,7 @@ describe('API authorization inventory', () => {
       'invitation-token': ['inspectInvitation'],
       'pairing-token': ['activatePublisherDevice'],
       owner: ['requireOwner: true'],
+      'workspace-owner': ['requireActorWorkspaceOwner'],
       'active-user': ['requireActiveUser'],
       'article-member': ['authorizeArticleRequest', 'resolveArticleWorkspace'],
       'device-bearer': ['authenticatePublisherDevice'],

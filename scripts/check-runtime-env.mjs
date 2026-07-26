@@ -11,8 +11,15 @@ const TARGETS = {
     'GOOGLE_CLIENT_ID',
     'GOOGLE_CLIENT_SECRET',
     'GEMINI_API_KEY',
+    'AI_CREDENTIAL_KEYRING',
+    'AI_CREDENTIAL_ACTIVE_KEY_ID',
   ],
-  workflow: ['DATABASE_URL', 'GEMINI_API_KEY'],
+  workflow: [
+    'DATABASE_URL',
+    'GEMINI_API_KEY',
+    'AI_CREDENTIAL_KEYRING',
+    'AI_CREDENTIAL_ACTIVE_KEY_ID',
+  ],
 };
 
 function nonempty(value) {
@@ -32,6 +39,72 @@ function validateHttpsUrl(name, value, allowLocalhost = false) {
   }
   if (parsed.username || parsed.password) return `${name} must not contain credentials.`;
   return null;
+}
+
+function validateCredentialKeyring(environment, errors) {
+  const raw = environment.AI_CREDENTIAL_KEYRING;
+  const activeId = environment.AI_CREDENTIAL_ACTIVE_KEY_ID;
+  if (!nonempty(raw) && !nonempty(activeId)) return;
+  if (!nonempty(raw)) {
+    errors.push('AI_CREDENTIAL_KEYRING is required when AI_CREDENTIAL_ACTIVE_KEY_ID is set.');
+    return;
+  }
+  if (raw.length > 16 * 1024) {
+    errors.push('AI_CREDENTIAL_KEYRING is too large.');
+    return;
+  }
+  if (!nonempty(activeId)) {
+    errors.push('AI_CREDENTIAL_ACTIVE_KEY_ID is required when AI_CREDENTIAL_KEYRING is set.');
+    return;
+  }
+  if (
+    activeId !== activeId.trim()
+    || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(activeId)
+  ) {
+    errors.push('AI_CREDENTIAL_ACTIVE_KEY_ID must be a canonical key ID.');
+    return;
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    errors.push('AI_CREDENTIAL_KEYRING must be valid JSON.');
+    return;
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    errors.push('AI_CREDENTIAL_KEYRING must be a JSON object.');
+    return;
+  }
+  const entries = Object.entries(parsed);
+  if (entries.length < 1 || entries.length > 32) {
+    errors.push('AI_CREDENTIAL_KEYRING must contain between 1 and 32 keys.');
+    return;
+  }
+  for (const [id, value] of entries) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(id)) {
+      errors.push('AI_CREDENTIAL_KEYRING contains an invalid key ID.');
+      continue;
+    }
+    if (typeof value !== 'string' || !/^[A-Za-z0-9_-]+$/.test(value)) {
+      errors.push('AI_CREDENTIAL_KEYRING contains an invalid key value.');
+      continue;
+    }
+    try {
+      const decoded = Buffer.from(value, 'base64url');
+      if (
+        decoded.byteLength !== 32
+        || decoded.toString('base64url') !== value
+      ) {
+        errors.push('AI_CREDENTIAL_KEYRING values must decode to 32 bytes.');
+      }
+    } catch {
+      errors.push('AI_CREDENTIAL_KEYRING contains an invalid key value.');
+    }
+  }
+  if (!Object.prototype.hasOwnProperty.call(parsed, activeId)) {
+    errors.push('AI_CREDENTIAL_ACTIVE_KEY_ID must reference a key in AI_CREDENTIAL_KEYRING.');
+  }
 }
 
 export function validateRuntimeEnvironment(environment, targets = ['web']) {
@@ -70,6 +143,8 @@ export function validateRuntimeEnvironment(environment, targets = ['web']) {
   if (nonempty(environment.BETTER_AUTH_SECRET) && environment.BETTER_AUTH_SECRET.trim().length < 32) {
     errors.push('BETTER_AUTH_SECRET must contain at least 32 characters.');
   }
+
+  validateCredentialKeyring(environment, errors);
 
   return [...new Set(errors)];
 }

@@ -3,11 +3,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { GenerateAccessDialog } from '@/components/generate-access-dialog';
+import { ImageGenerationLoader } from '@/components/image-generation-loader';
 import { useLanguage } from '@/components/language-provider';
 import { GenerateAccessError } from '@/lib/generate-access-error';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, CheckCircle2, Circle, Loader2, Lock } from 'lucide-react';
-import { JobSummary } from '@/lib/schemas';
+import type { JobSummary } from '@/lib/schemas';
 
 interface GenerateStepProps {
   formData: {
@@ -47,6 +48,43 @@ interface ImageGenerationSummary {
   failed: number;
   total: number;
   errorSummary?: ImageErrorSummary;
+}
+
+interface ImageProgress {
+  current: number;
+  total: number;
+}
+
+export function readLatestImageProgress(
+  logs: JobSummary['logs'] | undefined,
+): ImageProgress | null {
+  if (!logs) return null;
+
+  for (let index = logs.length - 1; index >= 0; index -= 1) {
+    const meta = logs[index]?.meta;
+    const processed = meta?.processed;
+    const total = meta?.total;
+
+    if (
+      typeof processed === 'number'
+      && Number.isInteger(processed)
+      && processed >= 0
+      && typeof total === 'number'
+      && Number.isInteger(total)
+      && total > 0
+      && processed <= total
+    ) {
+      return { current: processed, total };
+    }
+  }
+
+  return null;
+}
+
+export function phaseForRunningJob(progress: number): Phase {
+  if (progress >= 55) return 'generating-images';
+  if (progress >= 45) return 'generating-captions';
+  return 'generating-slides';
 }
 
 async function waitForJob(jobId: string, onProgress: (job: JobSummary) => void) {
@@ -92,7 +130,10 @@ export function GenerateStep({
   const { messages } = useLanguage();
   const [phase, setPhase] = useState<Phase>(generationLocked ? 'awaiting-code' : 'idle');
   const [error, setError] = useState('');
-  const [imageProgress, setImageProgress] = useState({ current: 0, total: 0 });
+  const [imageProgress, setImageProgress] = useState<ImageProgress>({
+    current: 0,
+    total: formData.slideCount,
+  });
   const [imageSummary, setImageSummary] = useState<ImageGenerationSummary | null>(null);
   const [jobProgress, setJobProgress] = useState(0);
   const [showAccessDialog, setShowAccessDialog] = useState(false);
@@ -101,14 +142,24 @@ export function GenerateStep({
     { id: 'creating', label: messages.newDeck.generateView.creatingDeck },
     { id: 'generating-slides', label: messages.newDeck.generateView.generatingSlideContent },
     {
+      id: 'generating-captions',
+      label: messages.newDeck.generateView.generatingBlogAndX,
+    },
+    {
       id: 'generating-images',
       label: messages.newDeck.generateView.generatingImages,
-      detail: imageProgress.total > 0 ? `${imageProgress.current}/${imageProgress.total}` : undefined,
+      detail: `${imageProgress.current}/${imageProgress.total}`,
     },
-    { id: 'generating-captions', label: messages.newDeck.generateView.generatingBlogAndX },
   ];
 
-  const phaseOrder = ['idle', 'creating', 'generating-slides', 'generating-images', 'generating-captions', 'complete'];
+  const phaseOrder: Phase[] = [
+    'idle',
+    'creating',
+    'generating-slides',
+    'generating-captions',
+    'generating-images',
+    'complete',
+  ];
 
   const isPhaseComplete = (phaseId: Phase) => {
     const currentIdx = phaseOrder.indexOf(phase);
@@ -131,6 +182,7 @@ export function GenerateStep({
       setPhase('creating');
       setError('');
       setImageSummary(null);
+      setImageProgress({ current: 0, total: formData.slideCount });
       setJobProgress(0);
 
       // Step 1: Create deck
@@ -186,17 +238,14 @@ export function GenerateStep({
       const finalJob = await waitForJob(generationStart.jobId, (job) => {
         setJobProgress(job.progress);
 
-        if (job.progress >= 95) {
-          setPhase('generating-captions');
-          return;
+        const latestImageProgress = readLatestImageProgress(job.logs);
+        if (latestImageProgress) {
+          setImageProgress(latestImageProgress);
         }
 
-        if (job.progress >= 55) {
-          setPhase('generating-images');
-          return;
+        if (job.status === 'queued' || job.status === 'running') {
+          setPhase(phaseForRunningJob(job.progress));
         }
-
-        setPhase('generating-slides');
       });
 
       if (finalJob.status !== 'completed') {
@@ -250,7 +299,10 @@ export function GenerateStep({
 
   const progress = (() => {
     if (phase === 'generating-slides' || phase === 'generating-images' || phase === 'generating-captions') {
-      return Math.max(jobProgress, phase === 'generating-slides' ? 20 : phase === 'generating-images' ? 60 : 90);
+      return Math.max(
+        jobProgress,
+        phase === 'generating-slides' ? 20 : phase === 'generating-captions' ? 45 : 55,
+      );
     }
 
     switch (phase) {
@@ -367,6 +419,14 @@ export function GenerateStep({
               </div>
             ))}
           </div>
+
+          {phase === 'generating-images' ? (
+            <ImageGenerationLoader
+              label={messages.newDeck.generateView.generatingImages}
+              detail={`${imageProgress.current}/${imageProgress.total}`}
+              className="aspect-video min-h-0 w-full overflow-hidden rounded-xl border border-dotted border-border"
+            />
+          ) : null}
 
           {phase === 'complete' && (
             <div

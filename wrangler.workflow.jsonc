@@ -14,7 +14,9 @@
   "secrets": {
     "required": [
       "DATABASE_URL",
-      "GEMINI_API_KEY"
+      "GEMINI_API_KEY",
+      "AI_CREDENTIAL_KEYRING",
+      "AI_CREDENTIAL_ACTIVE_KEY_ID"
     ]
   },
   "vars": {

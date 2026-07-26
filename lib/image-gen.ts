@@ -18,6 +18,31 @@ export interface ImagePipelineConfig {
   model: string;
 }
 
+export type GeminiCredentialSource = 'platform' | 'workspace';
+
+export interface ImageGenerationErrorContext {
+  source?: GeminiCredentialSource;
+  model?: string;
+}
+
+const SAFE_PROVIDER_STATUSES = new Set([
+  'RESOURCE_EXHAUSTED',
+  'INVALID_ARGUMENT',
+  'FAILED_PRECONDITION',
+  'PERMISSION_DENIED',
+  'UNAUTHENTICATED',
+  'NOT_FOUND',
+  'INTERNAL',
+  'UNAVAILABLE',
+  'DEADLINE_EXCEEDED',
+  'ABORTED',
+  'CANCELLED',
+  'UNKNOWN',
+  'ALREADY_EXISTS',
+  'OUT_OF_RANGE',
+  'DATA_LOSS',
+]);
+
 export interface ImageGenerationOptions {
   aspectRatio?: '16:9' | '21:9';
   imageSize?: '1K' | '2K';
@@ -44,30 +69,48 @@ interface GeminiErrorPayload {
   details?: Array<Record<string, unknown>>;
 }
 
-function getImageApiKey(): string {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY or GOOGLE_API_KEY is not set');
+export function getImageModel(
+  environment: Record<string, string | undefined> = process.env,
+): string {
+  const configuredModel = environment.GEMINI_IMAGE_MODEL?.trim();
+  const model = configuredModel || DEFAULT_IMAGE_MODEL;
+  if (model.length > 160 || /[\s\p{Cc}\p{Cf}]/u.test(model)) {
+    throw new Error('The Gemini image model configuration is invalid.');
   }
-  return apiKey;
+  return model;
 }
 
-export function getImageModel(): string {
-  const configuredModel = process.env.GEMINI_IMAGE_MODEL?.trim();
-  return configuredModel || DEFAULT_IMAGE_MODEL;
+export function resolveImagePipelineConfig(
+  apiKey: string,
+  environment: Record<string, string | undefined> = process.env,
+): ImagePipelineConfig {
+  return assertImagePipelineReady({ apiKey, model: getImageModel(environment) });
 }
 
-export function assertImagePipelineReady(): ImagePipelineConfig {
-  const config = {
-    apiKey: getImageApiKey(),
-    model: getImageModel(),
-  };
-
-  if (!config.model) {
-    throw new Error('GEMINI_IMAGE_MODEL resolved to an empty value');
+export function assertImagePipelineReady(
+  config: ImagePipelineConfig,
+): ImagePipelineConfig {
+  if (
+    !config
+    || typeof config !== 'object'
+    || typeof config.apiKey !== 'string'
+    || typeof config.model !== 'string'
+  ) {
+    throw new Error('An explicit Gemini image configuration is required.');
   }
-
-  return config;
+  const apiKey = config.apiKey.trim();
+  const model = config.model.trim();
+  if (!apiKey || apiKey.length > 512 || /[\s\p{Cc}\p{Cf}]/u.test(apiKey)) {
+    throw new Error('Gemini credentials are not configured.');
+  }
+  if (
+    !model
+    || model.length > 160
+    || /[\s\p{Cc}\p{Cf}]/u.test(model)
+  ) {
+    throw new Error('The Gemini image model configuration is invalid.');
+  }
+  return { apiKey, model };
 }
 
 function extractGeminiErrorPayload(error: unknown): GeminiErrorPayload | null {
@@ -125,7 +168,10 @@ function extractRetryAfterSeconds(details: Array<Record<string, unknown>> | unde
     ) {
       const match = detail.retryDelay.match(/(\d+(?:\.\d+)?)s/);
       if (match) {
-        return Math.ceil(Number.parseFloat(match[1]));
+        const seconds = Number.parseFloat(match[1]);
+        if (Number.isFinite(seconds) && seconds >= 0 && seconds <= 86_400) {
+          return Math.ceil(seconds);
+        }
       }
     }
   }
@@ -164,7 +210,8 @@ function extractQuotaModel(details: Array<Record<string, unknown>> | undefined) 
 
 export function normalizeImageGenerationError(
   error: unknown,
-  fallbackMessage = 'Failed to generate image'
+  fallbackMessage = 'Failed to generate image',
+  context: ImageGenerationErrorContext = {},
 ): ImageGenerationErrorInfo {
   const payload = extractGeminiErrorPayload(error);
 
@@ -176,9 +223,11 @@ export function normalizeImageGenerationError(
   }
 
   const retryAfterSeconds = extractRetryAfterSeconds(payload.details);
-  const model = extractQuotaModel(payload.details) || getImageModel();
+  const model = context.model;
   const providerCode = payload.code;
-  const providerStatus = payload.status;
+  const providerStatus = typeof payload.status === 'string' && SAFE_PROVIDER_STATUSES.has(payload.status)
+    ? payload.status
+    : undefined;
   const statusCode =
     typeof providerCode === 'number' && providerCode >= 400 && providerCode < 600
       ? providerCode
@@ -192,6 +241,12 @@ export function normalizeImageGenerationError(
       : ' Retry failed images from the article page later.';
     const modelText = model ? ` for ${model}` : '';
 
+    const sourceGuidance = context.source === 'workspace'
+      ? 'Ask the workspace owner to test or replace the Gemini key, or switch to platform credits.'
+      : context.source === 'platform'
+        ? 'The workspace owner can save and activate a workspace Gemini key in Connections.'
+        : 'Check Gemini quota, billing, or configuration if the issue persists.';
+
     return {
       statusCode: 429,
       providerCode,
@@ -200,11 +255,25 @@ export function normalizeImageGenerationError(
       model,
       message:
         `Gemini image quota exceeded${modelText}.${retryText} ` +
-        'Check Gemini quota, billing, or configuration if the issue persists.',
+        sourceGuidance,
     };
   }
 
-  const rawMessage = payload.message || fallbackMessage;
+  if (
+    context.source === 'workspace' &&
+    (statusCode === 401 || statusCode === 403 || providerStatus === 'PERMISSION_DENIED')
+  ) {
+    return {
+      statusCode,
+      providerCode,
+      providerStatus,
+      retryAfterSeconds,
+      model,
+      message: 'The workspace Gemini connection needs attention. Ask the workspace owner to test or replace the key, or switch to platform credits.',
+    };
+  }
+
+  const rawMessage = typeof payload.message === 'string' ? payload.message : '';
 
   if (providerStatus === 'NOT_FOUND' || /is not found|not supported for generateContent/i.test(rawMessage)) {
     return {
@@ -213,8 +282,7 @@ export function normalizeImageGenerationError(
       providerStatus,
       model,
       message:
-        `Model "${model}" is not available. ` +
-        `Update GEMINI_IMAGE_MODEL in your environment to a supported model (default: ${DEFAULT_IMAGE_MODEL}).`,
+        `The configured Gemini image model is not available. Update GEMINI_IMAGE_MODEL in the deployment environment (default: ${DEFAULT_IMAGE_MODEL}).`,
     };
   }
 
@@ -224,7 +292,7 @@ export function normalizeImageGenerationError(
     providerStatus,
     retryAfterSeconds,
     model,
-    message: rawMessage,
+    message: fallbackMessage,
   };
 }
 
@@ -251,11 +319,10 @@ export function parseImageGenerationResponse(
   const candidates = response.candidates ?? [];
 
   if (candidates.length === 0) {
-    const feedbackMessage = getPromptFeedbackMessage(response);
     throw new Error(
-      feedbackMessage
-        ? `Image generation was blocked: ${feedbackMessage}`
-        : 'Image generation returned no candidates'
+      getPromptFeedbackMessage(response)
+        ? 'Image generation was blocked by the provider.'
+        : 'Image generation returned no candidates.'
     );
   }
 
@@ -276,7 +343,7 @@ export function parseImageGenerationResponse(
 
   const textResponse = parts.find((part) => part.text?.trim())?.text?.trim();
   if (textResponse) {
-    throw new Error(`Image generation returned text instead of an image: ${textResponse.slice(0, 160)}`);
+    throw new Error('Image generation returned text instead of an image.');
   }
 
   throw new Error('Image generation returned no image data');
@@ -288,10 +355,10 @@ export function parseImageGenerationResponse(
  */
 export async function generateImage(
   prompt: string,
-  configured?: ImagePipelineConfig,
+  configured: ImagePipelineConfig,
   options: ImageGenerationOptions = {},
 ): Promise<ImageGenerationResult> {
-  const { apiKey, model } = configured ?? assertImagePipelineReady();
+  const { apiKey, model } = assertImagePipelineReady(configured);
   const aspectRatio = options.aspectRatio ?? '16:9';
   const imageSize = options.imageSize ?? '1K';
 

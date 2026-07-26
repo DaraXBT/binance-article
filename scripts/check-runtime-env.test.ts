@@ -14,6 +14,10 @@ const validWeb = {
   GOOGLE_CLIENT_ID: 'client',
   GOOGLE_CLIENT_SECRET: 'secret',
   GEMINI_API_KEY: 'gemini',
+  AI_CREDENTIAL_KEYRING: JSON.stringify({
+    v1: Buffer.alloc(32, 1).toString('base64url'),
+  }),
+  AI_CREDENTIAL_ACTIVE_KEY_ID: 'v1',
 };
 
 describe('runtime environment preflight', () => {
@@ -47,6 +51,24 @@ describe('runtime environment preflight', () => {
       'DATABASE_URL is required.',
       'GEMINI_API_KEY is required.',
     ]));
+  });
+
+  it('rejects malformed or non-canonical credential keyrings without echoing values', () => {
+    const secretValue = `${'A'.repeat(42)}B`;
+    const errors = validateRuntimeEnvironment({
+      ...validWeb,
+      AI_CREDENTIAL_KEYRING: JSON.stringify({ v1: secretValue }),
+    });
+    expect(errors).toContain('AI_CREDENTIAL_KEYRING values must decode to 32 bytes.');
+    expect(errors.join(' ')).not.toContain(secretValue);
+  });
+
+  it('rejects active key IDs with surrounding whitespace', () => {
+    const errors = validateRuntimeEnvironment({
+      ...validWeb,
+      AI_CREDENTIAL_ACTIVE_KEY_ID: ' v1 ',
+    });
+    expect(errors).toContain('AI_CREDENTIAL_ACTIVE_KEY_ID must be a canonical key ID.');
   });
 
   it('parses strict target arguments', () => {

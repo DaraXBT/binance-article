@@ -13,23 +13,20 @@ describe('gemini helpers', () => {
   });
 
   it('defaults text generation to gemini-2.5-flash', async () => {
-    process.env.GEMINI_API_KEY = 'test-key';
-
     const { resolveGeminiTextConfig } = await import('@/lib/gemini');
 
-    expect(resolveGeminiTextConfig()).toEqual({
+    expect(resolveGeminiTextConfig('test-key')).toEqual({
       apiKey: 'test-key',
       model: 'gemini-2.5-flash',
     });
   });
 
   it('allows overriding the text model with GEMINI_TEXT_MODEL', async () => {
-    process.env.GOOGLE_API_KEY = 'google-test-key';
     process.env.GEMINI_TEXT_MODEL = 'custom-text-model';
 
     const { resolveGeminiTextConfig } = await import('@/lib/gemini');
 
-    expect(resolveGeminiTextConfig()).toEqual({
+    expect(resolveGeminiTextConfig('google-test-key')).toEqual({
       apiKey: 'google-test-key',
       model: 'custom-text-model',
     });
@@ -63,7 +60,9 @@ describe('gemini helpers', () => {
             ],
           },
         })
-      )
+      ),
+      'Failed to generate content',
+      { model: 'gemini-2.0-flash' },
     );
 
     expect(normalized.statusCode).toBe(429);
@@ -73,8 +72,38 @@ describe('gemini helpers', () => {
     expect(normalized.message).toMatch(/41 seconds/i);
   });
 
+  it('drops provider-controlled credential echoes from normalized errors', async () => {
+    const apiKey = 'private-api-key-with-enough-length';
+    const { normalizeGeminiError } = await import('@/lib/gemini');
+    const normalized = normalizeGeminiError(
+      new Error(JSON.stringify({ error: {
+        code: 403,
+        status: apiKey,
+        message: `denied for ${apiKey}`,
+      } })),
+      'Gemini generation failed safely.',
+      { source: 'workspace', model: 'gemini-2.5-flash' },
+    );
+    expect(normalized.message).not.toContain(apiKey);
+    expect(JSON.stringify(normalized)).not.toContain(apiKey);
+  });
+
+  it('gives workspace owners actionable guidance for text-key permission failures', async () => {
+    const { normalizeGeminiError } = await import('@/lib/gemini');
+    const normalized = normalizeGeminiError(
+      new Error(JSON.stringify({ error: {
+        code: 403,
+        status: 'PERMISSION_DENIED',
+        message: 'permission denied',
+      } })),
+      'Gemini generation failed.',
+      { source: 'workspace', model: 'gemini-2.5-flash' },
+    );
+    expect(normalized.message).toMatch(/workspace Gemini connection needs attention/i);
+    expect(normalized.message).toMatch(/switch to platform credits/i);
+  });
+
   it('frames fetched URL content as untrusted data rather than provider instructions', async () => {
-    process.env.GEMINI_API_KEY = 'test-key';
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
       candidates: [{ content: { parts: [{ text: JSON.stringify({
         slides: [{
@@ -93,6 +122,9 @@ describe('gemini helpers', () => {
       slideCount: 1,
       illustrationStyle: 'pixel-art',
       mode: 'url',
+    }, {
+      apiKey: 'test-key',
+      model: 'gemini-2.5-flash',
     });
 
     const requestBody = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
@@ -122,7 +154,6 @@ describe('gemini helpers', () => {
   });
 
   it('normalizes a Binance Master slide to exactly one inferred mode marker', async () => {
-    process.env.GEMINI_API_KEY = 'test-key';
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
       candidates: [{ content: { parts: [{ text: JSON.stringify({
         slides: [{
@@ -141,6 +172,9 @@ describe('gemini helpers', () => {
       slideCount: 1,
       illustrationStyle: 'binance-master',
       mode: 'prompt',
+    }, {
+      apiKey: 'test-key',
+      model: 'gemini-2.5-flash',
     });
 
     expect(deck.slides[0]?.imagePrompt).toMatch(/^\[MASTER_MODE: BRIEFING\]/);

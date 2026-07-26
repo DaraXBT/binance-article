@@ -53,7 +53,7 @@ import {
   useUpdateSlide,
   useWorkspace,
 } from '@/lib/hooks';
-import { DeckDetailResponse, DeckSlide, JobSummary, SlideUpdateRequest } from '@/lib/schemas';
+import type { DeckSlide, JobSummary, SlideUpdateRequest } from '@/lib/schemas';
 
 interface DeckPageProps {
   params: Promise<{ id: string }>;
@@ -134,8 +134,8 @@ export default function DeckPage({ params }: DeckPageProps) {
   const [hasGenerationAccess, setHasGenerationAccess] = useState(
     workspace?.hasGenerationAccess ?? false
   );
-  const { data, isLoading, isError, refetch } = useDeck(deckId);
-  const deck = (data ?? null) as DeckDetailResponse | null;
+  const { data, isLoading, isError, refetch } = useDeck(deckId, { pollActiveJob: true });
+  const deck = data ?? null;
   const generationLocked = Boolean(workspace?.generateAccessEnabled && !hasGenerationAccess);
 
   const createSlide = useCreateSlide(deckId);
@@ -267,6 +267,12 @@ export default function DeckPage({ params }: DeckPageProps) {
   const activeSlide = slides.find((slide) => slide.id === activeSlideId) ?? null;
   const failedSlides = slides.filter((slide) => slide.imageStatus === 'failed');
   const pendingSlides = slides.filter((slide) => slide.imageStatus === 'pending' && !slide.imageUrl);
+  const generatingSlideIds = new Set(
+    retryFailedImages.isPending ? failedSlides.map((slide) => slide.id) : []
+  );
+  const isActiveSlideGenerating = activeSlide
+    ? generatingSlideIds.has(activeSlide.id)
+    : false;
   const isMutating =
     createSlide.isPending ||
     updateSlide.isPending ||
@@ -608,6 +614,7 @@ export default function DeckPage({ params }: DeckPageProps) {
             onMoveDown={(slideId) => handleMoveSlide(slideId, 'down')}
             isReordering={isMutating}
             isAdding={createSlide.isPending}
+            generatingSlideIds={generatingSlideIds}
           />
         ) : null}
         {mobileTab === 'editor' ? (
@@ -624,7 +631,12 @@ export default function DeckPage({ params }: DeckPageProps) {
         {mobileTab === 'preview' ? (
           <div className="h-full overflow-y-auto">
             <div className="p-4">
-              <SlidePreview articleId={deckId} slide={activeSlide} theme={deck.theme || undefined} />
+              <SlidePreview
+                articleId={deckId}
+                slide={activeSlide}
+                theme={deck.theme || undefined}
+                isGenerating={isActiveSlideGenerating}
+              />
             </div>
             <div className="border-t border-border">
               <CaptionViewer captions={deck.captions} />
@@ -646,6 +658,7 @@ export default function DeckPage({ params }: DeckPageProps) {
               onMoveDown={(slideId) => handleMoveSlide(slideId, 'down')}
               isReordering={isMutating}
               isAdding={createSlide.isPending}
+              generatingSlideIds={generatingSlideIds}
             />
           </ResizablePanel>
 
@@ -669,7 +682,12 @@ export default function DeckPage({ params }: DeckPageProps) {
             <ResizablePanelGroup direction="vertical">
               <ResizablePanel defaultSize="60%" minSize="30%">
                 <div className="h-full overflow-auto p-6">
-                  <SlidePreview articleId={deckId} slide={activeSlide} theme={deck.theme || undefined} />
+                  <SlidePreview
+                    articleId={deckId}
+                    slide={activeSlide}
+                    theme={deck.theme || undefined}
+                    isGenerating={isActiveSlideGenerating}
+                  />
                 </div>
               </ResizablePanel>
 

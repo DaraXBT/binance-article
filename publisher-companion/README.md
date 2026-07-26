@@ -10,6 +10,11 @@ origin in an HTTPS `Authorization` header. The server stores its hash, not the
 raw token. The config file contains only the API origin and device ID and is
 written with private permissions.
 
+Gemini API keys, credential keyrings, encrypted credential records, and source
+selection never enter publication recipes, downloaded assets, companion logs,
+or companion configuration. The companion is isolated from AI generation
+credentials.
+
 The companion supports Binance Square long-form articles and regular X posts.
 X commands have hard limits of 280 characters and four images; they are
 materialized as reviewed X post bundles and filled into the live composer

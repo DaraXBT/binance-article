@@ -16,6 +16,7 @@ not have database-backed attempt limits in the application.
 | `/api/articles/*/generate-images` | 3 requests | 1 minute | Block | Image-generation cost control |
 | `/api/articles/*/generate-cover` | 3 requests | 1 minute | Block | Cover-generation cost control |
 | `/api/articles/generate-prompt` | 10 requests | 1 minute | Block | Prompt-generation cost control |
+| `/api/workspace/ai-credential` | 20 requests | 15 minutes | Block | Gemini-key validation and rotation abuse |
 | `/api/publisher/devices/pair` | 10 requests | 1 minute | Block | Pairing-code guessing and replay pressure |
 | `/api/articles/*/publications/*/prepare` | 10 requests | 1 minute | Block | Command-creation abuse |
 
@@ -33,11 +34,23 @@ credentials.
 
 ## Bindings and secrets
 
-The web Worker requires `DATABASE_URL`, Better Auth/Google OAuth secrets, and
-`GEMINI_API_KEY`, plus the private `ARTICLE_ASSETS` R2 binding and the
-`ARTICLE_JOBS` Workflow binding. The Workflow Worker requires `DATABASE_URL`,
-`GEMINI_API_KEY`, and the same private R2 bucket. `DEEPSEEK_API_KEY` is optional
-and belongs only on the Workflow Worker when that provider is enabled.
+The web Worker requires `DATABASE_URL`, Better Auth/Google OAuth secrets,
+`GEMINI_API_KEY`, `AI_CREDENTIAL_KEYRING`, and
+`AI_CREDENTIAL_ACTIVE_KEY_ID`, plus the private `ARTICLE_ASSETS` R2 binding and
+the `ARTICLE_JOBS` Workflow binding. The Workflow Worker requires
+`DATABASE_URL`, `GEMINI_API_KEY`, the same keyring and active key ID, and the
+same private R2 bucket. Keep `GEMINI_TEXT_MODEL` and `GEMINI_IMAGE_MODEL`
+identical on both Workers so owner validation checks the models used by jobs.
+`DEEPSEEK_API_KEY` belongs only on the Workflow Worker and is retained for a
+dormant internal compatibility path. The current public generation flow has no
+DeepSeek selector, so normal deployments should leave it unset.
+
+Workspace Gemini keys are owner-managed, encrypted with AES-256-GCM before
+storage, and never returned after submission. Do not place plaintext keys,
+ciphertext, nonces, encryption key IDs, credential IDs, or source selection in
+Workflow events or observability fields. See
+[workspace Gemini connections](./workspace-ai-credentials.md) for rotation and
+deployment order.
 
 Do not restore a Telegram Worker, webhook, route, or OAuth secret. Historical
 Telegram migrations remain database history only.

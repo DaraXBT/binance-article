@@ -67,20 +67,29 @@ version blindly after a version bump.
 
 ## Database and deployment
 
-1. Back up the staging database and apply migrations `0008`–`0014` on a
+1. Provision the same `AI_CREDENTIAL_KEYRING` and
+   `AI_CREDENTIAL_ACTIVE_KEY_ID` bindings to the web and Workflow Workers. Keep
+   `GEMINI_TEXT_MODEL` and `GEMINI_IMAGE_MODEL` identical on both Workers.
+2. Back up the staging database and apply migrations `0008`–`0015` on a
    production-like PostgreSQL/Neon branch.
-2. Verify restore, lock duration, the one-time V1 draft backfill, and
+3. Verify restore, lock duration, the one-time V1 draft backfill, and
    active-command drain. Do not resume a V1 writer after the backfill.
-3. Deploy the article Workflow Worker, then the web Worker, from the same commit.
-4. Confirm `GET /api/health` returns `200` without exposing dependency details.
-5. Confirm stale non-English browser preferences still render the English UI.
-6. Pair one disposable browser device and verify it appears as active under
+4. Deploy the article Workflow Worker, then the web Worker, from the same commit.
+5. Confirm `GET /api/health` returns `200` without exposing dependency details.
+6. Confirm stale non-English browser preferences still render the English UI.
+7. As a workspace owner, save and test a disposable Gemini key, confirm the
+   default remains Platform credits, then explicitly switch to Workspace Gemini
+   key. Generate a disposable article and confirm prompt generation, slide
+   images, the dedicated cover, and retries complete with the selected source.
+   Switch back to Platform credits, delete the copy, and confirm generation
+   remains on Platform; revoke the disposable key at Google separately.
+8. Pair one disposable browser device and verify it appears as active under
    **Settings → Connections**.
-7. With explicit operator authorization, prepare and publish one controlled
+9. With explicit operator authorization, prepare and publish one controlled
    Binance smoke post and one controlled X smoke post. Review and approve each
    exact live composer separately.
-8. Confirm canonical result URLs and inspect the command/audit records.
-9. Revoke the disposable device and confirm its token can no longer poll.
+10. Confirm canonical result URLs and inspect the command/audit records.
+11. Revoke the disposable device and confirm its token can no longer poll.
 
 If Telegram was ever deployed, drain its jobs, remove its webhook and Workers,
 delete its secrets, and revoke unused OAuth credentials after retention

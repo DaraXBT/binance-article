@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
     id: string;
     accessKeyPrefix: string;
     origin: 'legacy' | 'account';
+    workspaceRole: 'owner' | 'member';
     canReplaceWithLegacy: boolean;
   } | null>>(async () => null),
   isGenerateAccessEnabled: vi.fn(() => false),
@@ -99,6 +100,7 @@ describe('/api/workspace routes', () => {
       accessKeyPrefix: null,
       recoveryKey: null,
       workspaceOrigin: null,
+      workspaceRole: null,
       canReplaceWithLegacy: false,
       generateAccessEnabled: false,
       hasGenerationAccess: false,
@@ -109,7 +111,7 @@ describe('/api/workspace routes', () => {
   it('binds generation access to the verified Better Auth session', async () => {
     mocks.resolveActorWorkspace.mockResolvedValue({
       id: 'workspace-1', accessKeyPrefix: 'acct_12345678',
-      origin: 'account', canReplaceWithLegacy: true,
+      origin: 'account', workspaceRole: 'owner', canReplaceWithLegacy: true,
     });
     mocks.isGenerateAccessEnabled.mockReturnValue(true);
 
@@ -127,6 +129,7 @@ describe('/api/workspace routes', () => {
       accessKeyPrefix: 'acct_12345678',
       recoveryKey: null,
       workspaceOrigin: 'account',
+      workspaceRole: 'owner',
       canReplaceWithLegacy: true,
       generateAccessEnabled: true,
       hasGenerationAccess: true,
@@ -138,6 +141,7 @@ describe('/api/workspace routes', () => {
       id: 'workspace-legacy',
       accessKeyPrefix: 'dwk_12345678',
       origin: 'legacy',
+      workspaceRole: 'owner',
       canReplaceWithLegacy: false,
     });
 

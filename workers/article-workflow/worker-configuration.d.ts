@@ -7,6 +7,8 @@ interface __BaseEnv_ArticleWorkflowBindings {
 	DEEPSEEK_TEXT_MODEL: "deepseek-chat";
 	DATABASE_URL: string;
 	GEMINI_API_KEY: string;
+	AI_CREDENTIAL_KEYRING: string;
+	AI_CREDENTIAL_ACTIVE_KEY_ID: string;
 	ARTICLE_JOBS: Workflow<Parameters<import("./index").ArticleJobsWorkflow['run']>[0]['payload']>;
 }
 declare namespace Cloudflare {
@@ -20,5 +22,5 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "GEMINI_TEXT_MODEL" | "GEMINI_IMAGE_MODEL" | "DEEPSEEK_TEXT_MODEL" | "DATABASE_URL" | "GEMINI_API_KEY">> {}
+interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "GEMINI_TEXT_MODEL" | "GEMINI_IMAGE_MODEL" | "DEEPSEEK_TEXT_MODEL" | "DATABASE_URL" | "GEMINI_API_KEY" | "AI_CREDENTIAL_KEYRING" | "AI_CREDENTIAL_ACTIVE_KEY_ID">> {}
 }

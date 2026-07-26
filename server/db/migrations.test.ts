@@ -39,6 +39,10 @@ const webApprovalDefaultMigrationPath = `${root}drizzle/0014_web_approval_defaul
 const webApprovalDefaultSql = existsSync(webApprovalDefaultMigrationPath)
   ? readFileSync(webApprovalDefaultMigrationPath, 'utf8')
   : '';
+const workspaceAiCredentialMigrationPath = `${root}drizzle/0015_workspace_ai_credential.sql`;
+const workspaceAiCredentialSql = existsSync(workspaceAiCredentialMigrationPath)
+  ? readFileSync(workspaceAiCredentialMigrationPath, 'utf8')
+  : '';
 const migrationJournal = JSON.parse(
   readFileSync(`${root}drizzle/meta/_journal.json`, 'utf8'),
 ) as { entries?: Array<{ idx?: number; tag?: string }> };
@@ -280,6 +284,44 @@ describe('Neon migration history', () => {
     expect(migrationJournal.entries).toContainEqual(expect.objectContaining({
       idx: 14,
       tag: '0014_web_approval_default',
+    }));
+  });
+
+  it('adds bounded encrypted Gemini credentials without destructive schema changes or plaintext fields', () => {
+    expect(
+      workspaceAiCredentialSql,
+      'drizzle/0015_workspace_ai_credential.sql must exist',
+    ).not.toBe('');
+    expect(workspaceAiCredentialSql).toContain(
+      `CREATE TYPE "public"."AiCredentialProvider" AS ENUM('gemini')`,
+    );
+    expect(workspaceAiCredentialSql).toContain('CREATE TABLE "WorkspaceAiCredential"');
+    expect(workspaceAiCredentialSql).toContain('"ciphertext" text NOT NULL');
+    expect(workspaceAiCredentialSql).toContain('"nonce" text NOT NULL');
+    expect(workspaceAiCredentialSql).toContain('"encryptionKeyId" text NOT NULL');
+    expect(workspaceAiCredentialSql).toContain('"enabled" boolean DEFAULT false NOT NULL');
+    expect(workspaceAiCredentialSql).toContain(
+      'WorkspaceAiCredential_workspaceId_provider_key',
+    );
+    expect(workspaceAiCredentialSql).toContain(
+      "ciphertext\" ~ '^[A-Za-z0-9_-]{24,2048}$'",
+    );
+    expect(workspaceAiCredentialSql).toContain(
+      'char_length("WorkspaceAiCredential"."ciphertext") % 4 <> 1',
+    );
+    expect(workspaceAiCredentialSql).toContain(
+      "nonce\" ~ '^[A-Za-z0-9_-]{16}$'",
+    );
+    expect(workspaceAiCredentialSql).toContain(
+      "encryptionKeyId\" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'",
+    );
+    expect(workspaceAiCredentialSql).not.toMatch(/DROP TABLE|DROP COLUMN|ALTER TYPE/i);
+    expect(workspaceAiCredentialSql).not.toMatch(
+      /"(?:apiKey|plaintext|keyHash|keySuffix|mask|providerResponse)"/i,
+    );
+    expect(migrationJournal.entries).toContainEqual(expect.objectContaining({
+      idx: 15,
+      tag: '0015_workspace_ai_credential',
     }));
   });
 

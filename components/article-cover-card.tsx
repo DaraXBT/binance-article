@@ -2,6 +2,7 @@
 
 import { ImageIcon, Loader2, RefreshCw, ShieldCheck } from 'lucide-react';
 
+import { ImageGenerationLoader } from '@/components/image-generation-loader';
 import { useLanguage } from '@/components/language-provider';
 import { Button } from '@/components/ui/button';
 import { buildArticleSlideAssetUrl } from '@/lib/article-assets';
@@ -41,7 +42,20 @@ export function ArticleCoverCard({
     >
       <div className="mx-auto flex max-w-[96rem] flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative aspect-[5/2] w-full shrink-0 overflow-hidden border border-dotted border-border bg-[#0C0E12] sm:w-64">
-          {previewUrl ? (
+          {status === 'pending' ? (
+            <ImageGenerationLoader
+              label={copy.generating}
+              size="compact"
+              className="size-full min-h-0 rounded-none border-0"
+              backdrop={previewUrl ? (
+                <img
+                  src={previewUrl}
+                  alt=""
+                  className="size-full object-cover object-center"
+                />
+              ) : undefined}
+            />
+          ) : previewUrl ? (
             <img
               src={previewUrl}
               alt={copy.previewAlt}
@@ -49,9 +63,7 @@ export function ArticleCoverCard({
             />
           ) : (
             <div className="flex size-full items-center justify-center text-muted-foreground">
-              {status === 'pending'
-                ? <Loader2 aria-hidden="true" className="size-5 animate-spin text-primary" />
-                : <ImageIcon aria-hidden="true" className="size-5" />}
+              <ImageIcon aria-hidden="true" className="size-5" />
             </div>
           )}
           <span className="absolute bottom-2 left-2 border border-white/15 bg-black/70 px-1.5 py-0.5 font-mono text-[0.58rem] uppercase tracking-[0.12em] text-white">
@@ -89,10 +101,10 @@ export function ArticleCoverCard({
           size="sm"
           variant="outline"
           className="self-start rounded-lg sm:self-center"
-          disabled={disabled || isRetrying}
+          disabled={disabled || status === 'pending'}
           onClick={onRetry}
         >
-          {isRetrying
+          {status === 'pending'
             ? <Loader2 aria-hidden="true" className="size-4 animate-spin" />
             : <RefreshCw aria-hidden="true" className="size-4" />}
           {status === 'generated' ? copy.regenerate : copy.generate}

@@ -3,6 +3,7 @@ export type ApiRoutePolicy =
   | 'invitation-token'
   | 'pairing-token'
   | 'owner'
+  | 'workspace-owner'
   | 'active-user'
   | 'article-member'
   | 'device-bearer';
@@ -44,5 +45,6 @@ export const API_ROUTE_POLICIES = {
   'app/api/publisher/devices/[id]/route.ts': 'active-user',
   'app/api/publisher/devices/route.ts': 'active-user',
   'app/api/workspace/recover/route.ts': 'active-user',
+  'app/api/workspace/ai-credential/route.ts': 'workspace-owner',
   'app/api/workspace/route.ts': 'active-user',
 } as const satisfies Record<string, ApiRoutePolicy>;

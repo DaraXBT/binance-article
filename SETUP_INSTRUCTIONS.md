@@ -16,11 +16,16 @@ Copy `.env.example` to `.env.local`. At minimum configure:
 - `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL`.
 - Google OAuth client ID and secret.
 - Gemini credentials while the generation provider is enabled.
+- `AI_CREDENTIAL_KEYRING` and `AI_CREDENTIAL_ACTIVE_KEY_ID` for encrypted
+  workspace Gemini connections. Use the same values on the web and Workflow
+  Workers; the keyring maps versioned IDs to base64url 32-byte AES keys.
+- Keep `GEMINI_TEXT_MODEL` and `GEMINI_IMAGE_MODEL` identical on both Workers;
+  credential validation checks the same models that generation uses.
 - Private asset storage credentials/bindings for the selected runtime.
 
-Gemini is the default text provider. Set `DEEPSEEK_API_KEY` on the article
-Workflow Worker only when the deployment uses DeepSeek as an alternate text
-provider.
+Gemini is the public text provider. `DEEPSEEK_API_KEY` is retained only for a
+dormant internal compatibility path and belongs on the article Workflow Worker;
+the current public generation flow exposes no DeepSeek selector.
 
 Store production secrets in Cloudflare secret bindings. Do not commit `.env*`, print tokens, or bundle local environment files into Worker output.
 
@@ -30,14 +35,19 @@ After filling local values, validate both runtime targets:
 npm run env:check -- --target all
 ```
 
-The web target requires the database, Better Auth, Google OAuth, and Gemini
-values. The Workflow target requires the database and Gemini values. Remote
+The web target requires the database, Better Auth, Google OAuth, Gemini, and
+BYOK keyring values. The Workflow target requires the database, Gemini, and
+the same BYOK keyring values. Remote
 database URLs must use TLS (`sslmode=require`), and deployed Better Auth URLs
 must use HTTPS.
 
 ## 3. Database
 
-Use a separate least-privileged runtime role and migration role. Review migrations, back up deployed data, then apply with the dedicated URL:
+Use a separate least-privileged runtime role and migration role. Before applying
+`0015_workspace_ai_credential`, stage the same `AI_CREDENTIAL_KEYRING`,
+`AI_CREDENTIAL_ACTIVE_KEY_ID`, `GEMINI_TEXT_MODEL`, and `GEMINI_IMAGE_MODEL`
+values for both Worker deployments. Review migrations, back up deployed data,
+then apply with the dedicated URL:
 
 ```bash
 MIGRATION_DATABASE_URL='postgresql://...' npm run db:check
@@ -83,8 +93,13 @@ private beta to ten active users plus pending invitations.
 - Bind a private `ARTICLE_ASSETS` R2 bucket; do not enable `r2.dev`.
 - Deploy the non-public article Workflow Worker separately and bind it to the
   web Worker by `script_name`.
-- If DeepSeek is enabled, add `DEEPSEEK_API_KEY` to the article Workflow.
-  Gemini-only deployments do not need this secret.
+- Confirm the staged credential keyring and Gemini model values remain identical
+  on both Workers. After migration `0015`, deploy the Workflow Worker first,
+  then the web Worker. Existing workspaces continue to use platform credits
+  until an owner activates a saved key.
+- Keep `DEEPSEEK_API_KEY` unset unless an operator-controlled internal workflow
+  explicitly enables the dormant compatibility path. Public generation does
+  not need this secret.
 - Keep migrations outside build and deployment bundles.
 - Run the compressed bundle-size gates before deployment.
 - Keep observability enabled for both the web and article Workflow Workers.

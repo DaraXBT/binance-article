@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { generatePlainTextWithGemini } from '@/lib/gemini';
+import {
+  generatePlainTextWithGemini,
+  normalizeGeminiError,
+  resolveGeminiTextConfig,
+} from '@/lib/gemini';
 import { getRequestGenerateAccessState, isGenerateAccessEnabled } from '@/lib/generate-access';
 import { createGenerateAccessRequiredResponse } from '@/server/auth/generate-access-response';
 import { requireActiveUser } from '@/server/auth/authorization';
 import { assertAllowedOrigin } from '@/server/auth/origin';
 import { getRuntimeDatabase } from '@/server/db/runtime';
-import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
+import { AppError, errorResponse, withNoStoreHeaders } from '@/server/http/errors';
 import { consumeAtomicRateLimit } from '@/server/http/atomic-rate-limit';
 import { readBoundedJson } from '@/server/http/request-body';
 import { requireActorWorkspace } from '@/server/modules/workspace/membership';
+import { resolveWorkspaceGeminiCredential } from '@/server/integrations/workspace-gemini-credential';
 
 export const maxDuration = 30;
 const TopicSchema = z.string().trim().min(1).max(200);
@@ -72,8 +77,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const generatedPrompt = await generatePlainTextWithGemini(
-      `You are a content strategist who generates detailed article prompts.
+    const credential = await resolveWorkspaceGeminiCredential({
+      database,
+      workspaceId: workspace.id,
+      environment: process.env,
+    });
+    const textConfig = resolveGeminiTextConfig(credential.apiKey, process.env);
+    let generatedPrompt: string;
+    try {
+      generatedPrompt = await generatePlainTextWithGemini(
+        `You are a content strategist who generates detailed article prompts.
 
 Given the TOPIC TITLE below, generate a comprehensive set of detailed instructions (a prompt) that can be used to create a high-quality article and presentation about this topic.
 
@@ -88,8 +101,29 @@ Your output should be a well-structured prompt/instruction set that includes:
 
 Write it as a single cohesive paragraph or short set of instructions (150-300 words). Do NOT use markdown formatting, headers, or bullet points — write flowing text that reads like detailed instructions.
 
-Output ONLY the prompt text, nothing else. No preamble, no "Here's your prompt:" prefix.`
-    );
+      Output ONLY the prompt text, nothing else. No preamble, no "Here's your prompt:" prefix.`,
+        textConfig,
+      );
+    } catch (error) {
+      const normalized = normalizeGeminiError(
+        error,
+        'Failed to generate the prompt.',
+        { source: credential.source, model: textConfig.model },
+      );
+      const isQuota = normalized.statusCode === 429;
+      const isWorkspaceConnection = credential.source === 'workspace'
+        && (normalized.statusCode === 401 || normalized.statusCode === 403);
+      throw new AppError({
+        code: isWorkspaceConnection
+          ? 'WORKSPACE_GEMINI_CONNECTION_INVALID'
+          : isQuota
+            ? 'GEMINI_QUOTA_EXCEEDED'
+            : 'PROMPT_GENERATION_FAILED',
+        message: normalized.message,
+        status: isQuota ? 429 : isWorkspaceConnection || normalized.statusCode >= 500 ? 503 : 502,
+        cause: error,
+      });
+    }
 
     if (!generatedPrompt) {
       return NextResponse.json(

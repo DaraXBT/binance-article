@@ -70,15 +70,21 @@ export class TextProviderError extends Error {
 export function resolveTextProviderConfig(
   providerInput: TextProvider,
   environment: Record<string, string | undefined> = process.env,
+  explicitApiKey?: string,
 ): TextProviderConfig {
   const provider = TextProviderSchema.parse(providerInput);
+  // Gemini credentials are selected by the workspace resolver and must be
+  // supplied explicitly. This deployment resolver only reads the operator
+  // DeepSeek key; it never silently falls back to a platform Gemini secret.
   const apiKey = provider === 'gemini'
-    ? environment.GEMINI_API_KEY || environment.GOOGLE_API_KEY
+    ? explicitApiKey
     : environment.DEEPSEEK_API_KEY;
   if (!apiKey?.trim()) {
     throw new TextProviderError({
       provider,
-      message: `${provider === 'gemini' ? 'GEMINI_API_KEY' : 'DEEPSEEK_API_KEY'} is not configured.`,
+      message: provider === 'gemini'
+        ? 'Gemini credentials must be resolved explicitly.'
+        : 'DEEPSEEK_API_KEY is not configured.',
       statusCode: 503,
       retryable: false,
     });
@@ -225,6 +231,31 @@ async function generateWithDeepSeek(input: TextGenerationRequest): Promise<TextG
 }
 
 export function generateText(input: TextGenerationRequest): Promise<TextGenerationResult> {
+  if (
+    typeof input.apiKey !== 'string'
+    || !input.apiKey.trim()
+    || /[\s\p{Cc}\p{Cf}]/u.test(input.apiKey.trim())
+  ) {
+    throw new TextProviderError({
+      provider: input.provider,
+      message: 'The text provider credential is invalid.',
+      statusCode: 400,
+      retryable: false,
+    });
+  }
+  if (
+    typeof input.model !== 'string'
+    || !input.model.trim()
+    || input.model.trim().length > 160
+    || /[\s\p{Cc}\p{Cf}]/u.test(input.model.trim())
+  ) {
+    throw new TextProviderError({
+      provider: input.provider,
+      message: 'The text provider model configuration is invalid.',
+      statusCode: 400,
+      retryable: false,
+    });
+  }
   if (!Number.isSafeInteger(input.maxOutputTokens) || input.maxOutputTokens < 1 || input.maxOutputTokens > 16_384) {
     throw new TextProviderError({ provider: input.provider, message: 'The text output limit is invalid.', statusCode: 400, retryable: false });
   }

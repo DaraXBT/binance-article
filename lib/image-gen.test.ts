@@ -45,10 +45,10 @@ describe('image generation provider boundary', () => {
   });
 
   it('requires only provider credentials and model configuration at preflight', async () => {
-    process.env.GEMINI_API_KEY = 'test-key';
-    process.env.GEMINI_IMAGE_MODEL = 'custom-image-model';
     const { assertImagePipelineReady } = await import('@/lib/image-gen');
-    expect(assertImagePipelineReady()).toEqual({
+    expect(assertImagePipelineReady({
+      apiKey: 'test-key', model: 'custom-image-model',
+    })).toEqual({
       apiKey: 'test-key', model: 'custom-image-model',
     });
   });
@@ -59,10 +59,26 @@ describe('image generation provider boundary', () => {
     const normalized = normalizeImageGenerationError(new Error(JSON.stringify({ error: {
       code: 429, status: 'RESOURCE_EXHAUSTED', message: 'Quota exceeded',
       details: [{ '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '22s' }],
-    } })));
+    } })), 'Failed to generate image', { model: 'gemini-image' });
     expect(normalized).toMatchObject({ statusCode: 429, retryAfterSeconds: 22 });
     expect(normalized.message).toMatch(/retry failed images/i);
     expect(normalized.message).not.toContain('Quota exceeded');
+  });
+
+  it('never returns provider-controlled credential echoes in non-quota errors', async () => {
+    const apiKey = 'private-api-key-with-enough-length';
+    const { normalizeImageGenerationError } = await import('@/lib/image-gen');
+    const normalized = normalizeImageGenerationError(
+      new Error(JSON.stringify({ error: {
+        code: 403,
+        status: apiKey,
+        message: `permission denied for ${apiKey}`,
+      } })),
+      'Image generation failed safely.',
+      { source: 'workspace', model: 'gemini-image' },
+    );
+    expect(normalized.message).not.toContain(apiKey);
+    expect(JSON.stringify(normalized)).not.toContain(apiKey);
   });
 
   it('resolves every Binance style to distinct image guidance and policy-aware prompts', async () => {

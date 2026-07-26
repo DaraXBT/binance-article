@@ -25,6 +25,9 @@ export async function dispatchArticleWorkflowJob(
     }
     return;
   }
-  if (runtime.assetBucket) await handleArticleImageRetryJob(payload.jobId, runtime);
-  else await handleArticleImageRetryJob(payload.jobId);
+  if (environment || runtime.assetBucket) {
+    await handleArticleImageRetryJob(payload.jobId, environment, runtime);
+  } else {
+    await handleArticleImageRetryJob(payload.jobId);
+  }
 }

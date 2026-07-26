@@ -16,6 +16,7 @@ describe('Cloudflare web Worker deployment configuration', () => {
       compatibility_flags: string[];
       assets: { binding: string; directory: string };
       secrets: { required: string[] };
+      vars: { GEMINI_TEXT_MODEL: string; GEMINI_IMAGE_MODEL: string };
       observability?: { enabled: boolean };
     };
 
@@ -36,8 +37,14 @@ describe('Cloudflare web Worker deployment configuration', () => {
       'GOOGLE_CLIENT_ID',
       'GOOGLE_CLIENT_SECRET',
       'GEMINI_API_KEY',
+      'AI_CREDENTIAL_KEYRING',
+      'AI_CREDENTIAL_ACTIVE_KEY_ID',
     ]);
     expect(config.observability).toEqual({ enabled: true });
+    expect(config.vars).toEqual({
+      GEMINI_TEXT_MODEL: 'gemini-2.5-flash',
+      GEMINI_IMAGE_MODEL: 'gemini-3.1-flash-image-preview',
+    });
   });
 
   it('binds article assets to private R2 without embedding credentials or a public URL', () => {
@@ -75,6 +82,7 @@ describe('Cloudflare web Worker deployment configuration', () => {
       workflows: Array<Record<string, unknown>>;
       r2_buckets: Array<Record<string, unknown>>;
       secrets: { required: string[] };
+      vars: { GEMINI_TEXT_MODEL: string; GEMINI_IMAGE_MODEL: string };
       routes?: unknown;
     };
     expect(config).toMatchObject({
@@ -97,7 +105,14 @@ describe('Cloudflare web Worker deployment configuration', () => {
     expect(config.secrets.required).toEqual([
       'DATABASE_URL',
       'GEMINI_API_KEY',
+      'AI_CREDENTIAL_KEYRING',
+      'AI_CREDENTIAL_ACTIVE_KEY_ID',
     ]);
+    expect(config.vars).toEqual({
+      GEMINI_TEXT_MODEL: 'gemini-2.5-flash',
+      GEMINI_IMAGE_MODEL: 'gemini-3.1-flash-image-preview',
+      DEEPSEEK_TEXT_MODEL: 'deepseek-chat',
+    });
     expect(config.routes).toBeUndefined();
     expect(source).not.toMatch(/r2\.dev|access[_-]?key|secret[_-]?access/i);
 

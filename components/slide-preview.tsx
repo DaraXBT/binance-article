@@ -1,7 +1,8 @@
 'use client';
 
-import { AlertCircle, ImageIcon, Loader2, Download, Expand } from 'lucide-react';
+import { AlertCircle, ImageIcon, Download, Expand } from 'lucide-react';
 
+import { ImageGenerationLoader } from '@/components/image-generation-loader';
 import { useLanguage } from '@/components/language-provider';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -12,9 +13,15 @@ interface SlidePreviewProps {
   articleId: string;
   slide: DeckSlide | null;
   theme?: string;
+  isGenerating?: boolean;
 }
 
-export function SlidePreview({ articleId, slide, theme = 'default' }: SlidePreviewProps) {
+export function SlidePreview({
+  articleId,
+  slide,
+  theme = 'default',
+  isGenerating = false,
+}: SlidePreviewProps) {
   const { messages } = useLanguage();
 
   if (!slide) {
@@ -27,6 +34,7 @@ export function SlidePreview({ articleId, slide, theme = 'default' }: SlidePrevi
 
   const bullets = slide.bulletPoints;
   const imageStatus = slide.imageStatus;
+  const showImageLoader = isGenerating || imageStatus === 'pending';
   const imageUrl = slide.imageUrl ? buildArticleSlideAssetUrl(articleId, slide.imageUrl) : null;
   const downloadUrl = slide.imageUrl
     ? buildArticleSlideAssetUrl(articleId, slide.imageUrl, { download: true })
@@ -41,7 +49,21 @@ export function SlidePreview({ articleId, slide, theme = 'default' }: SlidePrevi
   return (
     <div className="w-full h-full flex flex-col gap-4 overflow-auto">
       {/* Generated Image */}
-      {imageUrl ? (
+      {showImageLoader ? (
+        <div
+          className="w-full flex-shrink-0 overflow-hidden rounded-xl"
+          style={{ aspectRatio: '16 / 9' }}
+        >
+          <ImageGenerationLoader
+            label={messages.slidePreview.imagePending}
+            detail={slide.title}
+            className="size-full min-h-0 rounded-xl border border-dashed border-border"
+            backdrop={imageUrl ? (
+              <img src={imageUrl} alt="" className="size-full object-cover" />
+            ) : undefined}
+          />
+        </div>
+      ) : imageUrl ? (
         <Dialog>
           <div className="group relative w-full flex-shrink-0 overflow-hidden rounded-xl border border-dotted border-border bg-card/50">
             <DialogTrigger asChild>
@@ -102,8 +124,6 @@ export function SlidePreview({ articleId, slide, theme = 'default' }: SlidePrevi
           <div className="flex flex-col items-center gap-2 text-muted-foreground">
             {imageStatus === 'failed' ? (
               <AlertCircle className="h-8 w-8 text-destructive" />
-            ) : imageStatus === 'pending' ? (
-              <Loader2 className="h-8 w-8 animate-spin" />
             ) : (
               <ImageIcon className="h-8 w-8" />
             )}

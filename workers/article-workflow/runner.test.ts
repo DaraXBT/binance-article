@@ -25,5 +25,46 @@ describe('article Workflow dispatcher', () => {
 
     expect(() => parseArticleWorkflowPayload({ jobId: 'job_3', kind: 'render' })).toThrow();
     expect(() => parseArticleWorkflowPayload({ jobId: '', kind: 'generate' })).toThrow();
+    for (const extra of [
+      { apiKey: 'must-never-enter-events' },
+      { credentialId: 'credential_1' },
+      { workspaceId: 'workspace_1' },
+      { source: 'workspace' },
+    ]) {
+      expect(() => parseArticleWorkflowPayload({
+        jobId: 'job_3', kind: 'generate', ...extra,
+      })).toThrow();
+    }
+  });
+
+  it('passes the same provider environment to generation and image retries', async () => {
+    const environment = {
+      GEMINI_API_KEY: 'platform-key',
+      AI_CREDENTIAL_KEYRING: '{"v1":"key"}',
+      AI_CREDENTIAL_ACTIVE_KEY_ID: 'v1',
+    };
+    const runtime = { assetBucket: {} as never };
+
+    await dispatchArticleWorkflowJob(
+      { jobId: 'job_generate', kind: 'generate' },
+      environment,
+      runtime,
+    );
+    await dispatchArticleWorkflowJob(
+      { jobId: 'job_images', kind: 'generate_images' },
+      environment,
+      runtime,
+    );
+
+    expect(handlers.handleArticleGenerationJob).toHaveBeenCalledWith(
+      'job_generate',
+      environment,
+      runtime,
+    );
+    expect(handlers.handleArticleImageRetryJob).toHaveBeenCalledWith(
+      'job_images',
+      environment,
+      runtime,
+    );
   });
 });

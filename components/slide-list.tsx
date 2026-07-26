@@ -25,6 +25,7 @@ interface SlideListProps {
   onMoveDown?: (slideId: string) => void;
   isReordering?: boolean;
   isAdding?: boolean;
+  generatingSlideIds?: ReadonlySet<string>;
 }
 
 export function SlideList({
@@ -37,6 +38,7 @@ export function SlideList({
   onMoveDown,
   isReordering = false,
   isAdding = false,
+  generatingSlideIds,
 }: SlideListProps) {
   const { messages } = useLanguage();
 
@@ -66,6 +68,8 @@ export function SlideList({
         ) : (
           slides.map((slide, index) => {
             const isActive = activeSlideId === slide.id;
+            const isGeneratingImage =
+              slide.imageStatus === 'pending' || generatingSlideIds?.has(slide.id) === true;
             const imageUrl = slide.imageUrl
               ? buildArticleSlideAssetUrl(articleId, slide.imageUrl)
               : null;
@@ -84,7 +88,14 @@ export function SlideList({
                   onClick={() => onSelectSlide(slide.id)}
                   className="block w-full text-left focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30"
                 >
-                  {imageUrl ? (
+                  {isGeneratingImage ? (
+                    <div className="flex h-10 w-full items-center justify-center bg-muted/50">
+                      <Loader2
+                        aria-hidden="true"
+                        className="h-3.5 w-3.5 animate-spin text-muted-foreground/70"
+                      />
+                    </div>
+                  ) : imageUrl ? (
                     <div className="h-16 w-full overflow-hidden bg-muted">
                       <img
                         src={imageUrl}
@@ -96,8 +107,6 @@ export function SlideList({
                     <div className="flex h-10 w-full items-center justify-center bg-muted/50">
                       {slide.imageStatus === 'failed' ? (
                         <AlertCircle className="h-3.5 w-3.5 text-destructive/70" />
-                      ) : slide.imageStatus === 'pending' ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground/70" />
                       ) : (
                         <ImageIcon className="h-3.5 w-3.5 text-muted-foreground/50" />
                       )}

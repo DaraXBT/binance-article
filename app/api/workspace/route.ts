@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
       accessKeyPrefix: workspace?.accessKeyPrefix ?? null,
       recoveryKey: null,
       workspaceOrigin: workspace?.origin ?? null,
+      workspaceRole: workspace?.workspaceRole ?? null,
       canReplaceWithLegacy: workspace?.canReplaceWithLegacy ?? false,
       generateAccessEnabled,
       hasGenerationAccess: generationAccess?.hasAccess ?? false,

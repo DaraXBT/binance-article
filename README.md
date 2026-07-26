@@ -6,11 +6,18 @@ See [the current architecture guide](./docs/architecture.md) for the active
 web-only boundaries, article flow, publication state machine, and release
 contract.
 
+See [the dot-grid image loading guide](./docs/dot-grid-image-loading.md) for the
+React/TypeScript canvas API, loading-state examples, and integration pitfalls.
+
+See [the workspace Gemini connections guide](./docs/workspace-ai-credentials.md)
+for BYOK setup, source selection, encryption keyring rotation, and generation
+behavior.
+
 ## Trust boundaries
 
 | Location | Stored data |
 |---|---|
-| Better Auth + Neon PostgreSQL | Users, sessions, workspace membership, article metadata/content, quotas, audit events, publication recipes, command status, and hashes of one-time secrets |
+| Better Auth + Neon PostgreSQL | Users, sessions, workspace membership, article metadata/content, encrypted workspace Gemini credentials, quotas, audit events, publication recipes, command status, and hashes of one-time secrets |
 | Private Cloudflare R2 | Article images and generated assets; no public `r2.dev` URLs |
 | User's operating-system keyring | Opaque publisher-device bearer token |
 | User's computer only | Binance/X cookies, companion-managed Chrome publishing profiles/CDP state, local drafts/journal, prepared bundles, and local file paths |
@@ -30,8 +37,15 @@ Users can cancel any pre-click command from the web UI. Expired pre-click comman
   Persisted job IDs are idempotency IDs, and bounded Gemini REST calls send the
   API key only in the `x-goog-api-key` header.
 - `GEMINI_API_KEY` is required on the web and article Workflow Worker.
-  `DEEPSEEK_API_KEY` is optional for an alternate text provider and belongs only
-  on the article Workflow Worker.
+  `DEEPSEEK_API_KEY` is retained only for a dormant internal compatibility path
+  and belongs only on the article Workflow Worker; the public generation flow
+  currently exposes no DeepSeek selector.
+- Workspace BYOK uses the same versioned `AI_CREDENTIAL_KEYRING` and
+  `AI_CREDENTIAL_ACTIVE_KEY_ID` bindings on both Workers. A saved key is
+  inactive until its workspace owner explicitly selects it in **Settings →
+  Connections**.
+- Keep the `GEMINI_TEXT_MODEL` and `GEMINI_IMAGE_MODEL` variables identical on
+  both Workers so connection validation matches generation.
 - Primary Binance and regular X publishing runs only in the local companion.
   Its opaque device token is stored in the operating-system keyring; both social
   sessions stay in isolated, companion-managed local Chrome profiles. On first
@@ -52,10 +66,12 @@ The default article path accepts pasted text, a topic prompt, or an HTTPS URL.
 The background Workflow Worker then produces structured slides, captions, slide
 images, and a dedicated cover. `binance-master` is the default illustration
 style; each image selects one of its Scene, Mechanism, Briefing, or Primer
-registers based on the content. Publication preparation records the cover focal
-point and target. In the paired path, the companion validates and crops the
+registers based on the content. Binance publication preparation records the
+cover focal point; in the paired path, the companion validates and crops the
 cover to the Binance 5:2 / 1000×400 contract after claiming the command and
-before browser composition; the fallback export performs that crop locally.
+before browser composition. The fallback export performs that crop locally. X
+preparation instead selects up to four slide images and does not automatically
+attach the dedicated cover.
 
 Generation access can be locked for cost control. In that case an operator
 issues a one-time `gac_...` grant; the grant is bound to the user's workspace

@@ -16,6 +16,8 @@ interface ArticleWorkflowEnvironment {
   GEMINI_TEXT_MODEL?: string;
   GEMINI_IMAGE_MODEL?: string;
   DEEPSEEK_TEXT_MODEL?: string;
+  AI_CREDENTIAL_KEYRING: string;
+  AI_CREDENTIAL_ACTIVE_KEY_ID: string;
   ARTICLE_ASSETS: R2Bucket;
 }
 
@@ -42,6 +44,8 @@ export class ArticleJobsWorkflow extends WorkflowEntrypoint<
           GEMINI_TEXT_MODEL: this.env.GEMINI_TEXT_MODEL,
           GEMINI_IMAGE_MODEL: this.env.GEMINI_IMAGE_MODEL,
           DEEPSEEK_TEXT_MODEL: this.env.DEEPSEEK_TEXT_MODEL,
+          AI_CREDENTIAL_KEYRING: this.env.AI_CREDENTIAL_KEYRING,
+          AI_CREDENTIAL_ACTIVE_KEY_ID: this.env.AI_CREDENTIAL_ACTIVE_KEY_ID,
         }, { assetBucket: this.env.ARTICLE_ASSETS });
       } catch (error) {
         if (error instanceof NonRetryableArticleJobError) {

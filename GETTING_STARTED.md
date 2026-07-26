@@ -32,7 +32,30 @@ From the dashboard or `/new`:
 one Scene, Mechanism, Briefing, or Primer register per image; another available
 style can be selected explicitly before generation.
 
+A full generation automatically attempts every slide image and one dedicated
+article cover. The cover is a separate wide source image designed for the
+Binance 5:2 safe frame and output, not the first slide. If slide images fail,
+**Retry failed images** retries all failed slides in one job; retry the cover
+separately. When an existing image is available, it stays visible behind the
+generation loader during regeneration.
+
 Generation grants bind to the verified account session and workspace. They do not replace account authentication.
+
+## Use your own Gemini key (workspace owner)
+
+Open **Settings → Connections** and use the **Gemini connection** card. Paste a
+key from Google AI Studio, save it, and use **Test connection** if you want to
+verify it again. Saving does not switch generation automatically: choose
+**Workspace Gemini key** under **Generation source** to activate it. Choose
+**Platform credits** to switch back. Replacing preserves the current selection;
+deleting removes xArticle’s encrypted copy but does not revoke the key at Google.
+
+Workspace members see that the connection is managed by the owner and can use
+the active source without seeing any key material.
+
+The Gemini connection affects prompt, article, slide-image, and cover
+generation only. Binance/X posting still uses the separately paired local
+publisher companion and never receives the Gemini key.
 
 ## Publish to Binance Square
 

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   GeminiRestError,
   generateGeminiContent,
+  validateGeminiApiKey,
 } from '@/server/integrations/gemini-rest';
 
 const SUCCESS_RESPONSE = {
@@ -86,6 +87,21 @@ describe('Gemini REST provider boundary', () => {
       code: 'GEMINI_RESPONSE_TOO_LARGE',
       statusCode: 502,
     });
+  });
+
+  it('rejects header-injection characters in direct generation credentials', async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(generateGeminiContent({
+      apiKey: 'private-key-with\nnewline',
+      model: 'gemini-test',
+      prompt: 'hello',
+    })).rejects.toMatchObject({
+      code: 'GEMINI_INVALID_REQUEST',
+      message: 'Gemini credentials, model, and prompt are required.',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('stops reading a streamed response after the configured byte limit', async () => {
@@ -178,9 +194,13 @@ describe('Gemini REST provider boundary', () => {
                 },
                 description: apiKey,
               },
+              {
+                quotaDimensions: { model: apiKey },
+              },
             ],
           },
         ],
+        statusEcho: apiKey,
       },
     }, { status: 429 })));
 
@@ -216,6 +236,21 @@ describe('Gemini REST provider boundary', () => {
     expect(JSON.stringify(caught)).not.toContain(apiKey);
   });
 
+  it('drops provider status strings that are not an allowlisted status code', async () => {
+    const apiKey = 'private-api-key-with-enough-length';
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({
+      error: { code: 403, status: apiKey },
+    }, { status: 403 })));
+
+    const caught = await generateGeminiContent({
+      apiKey,
+      model: 'gemini-test',
+      prompt: 'hello',
+    }).then(() => null, (error: unknown) => error);
+    expect(caught).toMatchObject({ providerCode: 403, providerStatus: undefined });
+    expect(JSON.stringify(caught)).not.toContain(apiKey);
+  });
+
   it('does not expose a credential echoed by a network failure', async () => {
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockRejectedValue(
       new Error('socket failed while sending private-api-key')
@@ -230,5 +265,102 @@ describe('Gemini REST provider boundary', () => {
       statusCode: 502,
       message: 'Gemini request failed.',
     });
+  });
+
+  it('validates both configured models with bounded GET requests and a header-only key', async () => {
+    const apiKey = 'private-api-key-with-enough-length';
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (url, request) => (
+      jsonResponse({ name: `models/${String(url).split('/').at(-1)}` }, { status: 200 })
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(validateGeminiApiKey({
+      apiKey: `  ${apiKey}  `,
+      textModel: 'gemini-2.5-flash',
+      imageModel: 'gemini-3.1-flash-image-preview',
+    })).resolves.toEqual({
+      models: ['gemini-2.5-flash', 'gemini-3.1-flash-image-preview'],
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const [url, request] of fetchMock.mock.calls) {
+      expect(String(url)).toMatch(/\/v1beta\/models\/gemini-/);
+      expect(String(url)).not.toContain(apiKey);
+      expect(request?.method).toBe('GET');
+      expect(new Headers(request?.headers).get('x-goog-api-key')).toBe(apiKey);
+      expect(request?.body).toBeUndefined();
+    }
+  });
+
+  it.each([
+    ['short', 'short-key'],
+    ['internal whitespace', 'private-api-key-with whitespace'],
+    ['control character', 'private-api-key-with-control\u0000'],
+  ])('rejects a %s credential before contacting Gemini', async (_label, apiKey) => {
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(validateGeminiApiKey({
+      apiKey,
+      textModel: 'gemini-text',
+      imageModel: 'gemini-image',
+    })).rejects.toMatchObject({
+      code: 'GEMINI_INVALID_REQUEST',
+      statusCode: 400,
+      message: 'The Gemini API key is invalid.',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('bounds validation responses and never retains provider bodies that echo the key', async () => {
+    const apiKey = 'private-api-key-with-enough-length';
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({
+      error: {
+        code: 403,
+        status: 'PERMISSION_DENIED',
+        message: `denied for ${apiKey}`,
+      },
+    }, { status: 403 })));
+
+    const caught = await validateGeminiApiKey({
+      apiKey,
+      textModel: 'gemini-text',
+      imageModel: 'gemini-image',
+      maxResponseBytes: 1_024,
+    }).then(() => null, (error: unknown) => error);
+
+    expect(caught).toMatchObject({
+      code: 'GEMINI_PROVIDER_ERROR',
+      statusCode: 403,
+      providerStatus: 'PERMISSION_DENIED',
+      message: 'Gemini provider request failed.',
+    });
+    expect(JSON.stringify(caught)).not.toContain(apiKey);
+  });
+
+  it('times out validation requests without exposing the transient key', async () => {
+    vi.useFakeTimers();
+    const apiKey = 'private-api-key-with-enough-length';
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation((_url, request) => (
+      new Promise<Response>((_resolve, reject) => {
+        request?.signal?.addEventListener('abort', () => {
+          reject(new DOMException(`${apiKey} timed out`, 'AbortError'));
+        }, { once: true });
+      })
+    )));
+
+    const pending = validateGeminiApiKey({
+      apiKey,
+      textModel: 'gemini-text',
+      imageModel: 'gemini-image',
+      timeoutMs: 25,
+    });
+    const assertion = expect(pending).rejects.toMatchObject({
+      code: 'GEMINI_TIMEOUT',
+      statusCode: 504,
+      message: 'Gemini credential validation timed out.',
+    });
+    await vi.advanceTimersByTimeAsync(25);
+    await assertion;
   });
 });

@@ -8,6 +8,7 @@ export interface ActorWorkspace {
   id: string;
   accessKeyPrefix: string;
   origin: 'legacy' | 'account';
+  workspaceRole: 'owner' | 'member';
   canReplaceWithLegacy: boolean;
 }
 
@@ -24,6 +25,7 @@ export async function resolveActorWorkspace(
       id: workspace.id,
       accessKeyPrefix: workspace.accessKeyPrefix,
       origin: workspace.origin,
+      workspaceRole: workspaceMember.role,
       canReplaceWithLegacy: sql<boolean>`
         ${workspace.origin} = 'account'::"WorkspaceOrigin"
         AND ${workspace.accessKeyPrefix} ~ '^acct_[a-f0-9]{8}$'
@@ -47,6 +49,7 @@ export async function resolveActorWorkspace(
         AND NOT EXISTS (SELECT 1 FROM "StorageObject" WHERE "workspaceId" = ${workspace.id})
         AND NOT EXISTS (SELECT 1 FROM "BinancePublicationDraft" WHERE "workspaceId" = ${workspace.id})
         AND NOT EXISTS (SELECT 1 FROM "PublisherDevice" WHERE "workspaceId" = ${workspace.id})
+        AND NOT EXISTS (SELECT 1 FROM "WorkspaceAiCredential" WHERE "workspaceId" = ${workspace.id})
       `.as('canReplaceWithLegacy'),
     })
     .from(workspaceMember)
@@ -66,6 +69,7 @@ export async function resolveActorWorkspace(
     id: row.id,
     accessKeyPrefix: row.accessKeyPrefix,
     origin: row.origin,
+    workspaceRole: row.workspaceRole,
     canReplaceWithLegacy: Boolean(row.canReplaceWithLegacy),
   };
 }
@@ -77,6 +81,21 @@ export async function requireActorWorkspace(
   const resolved = await resolveActorWorkspace(database, actorUserId);
   if (!resolved) throw notFound('WORKSPACE_NOT_FOUND', 'Workspace not found.');
   return resolved;
+}
+
+export async function requireActorWorkspaceOwner(
+  database: AppDatabase,
+  actorUserId: string,
+): Promise<ActorWorkspace & { workspaceRole: 'owner' }> {
+  const resolved = await requireActorWorkspace(database, actorUserId);
+  if (resolved.workspaceRole !== 'owner') {
+    throw new AppError({
+      code: 'WORKSPACE_OWNER_REQUIRED',
+      message: 'Workspace owner access is required.',
+      status: 403,
+    });
+  }
+  return { ...resolved, workspaceRole: 'owner' };
 }
 
 export async function resolveArticleWorkspace(

@@ -25,6 +25,11 @@ describes what is active today.
 7. The user reviews the live editor and approves the exact revision in the web
    app. Only then does the companion perform one scoped final click.
 
+For Gemini generation, a workspace owner may explicitly select an encrypted
+workspace key from **Settings → Connections**. Members consume the selected
+source but cannot manage it; platform credits remain the default after a first
+save. See [workspace Gemini connections](./workspace-ai-credentials.md).
+
 The web app never receives Binance/X passwords, cookies, OAuth tokens, or a
 Chrome profile. It also never launches local Chrome or Bun code. X uses the
 companion's `X_BROWSER_PROFILE_DIR` profile; Binance uses its shared baoyu
@@ -36,11 +41,16 @@ required for the paired web-to-companion path.
 
 | Boundary | Responsibility | Sensitive data retained |
 |---|---|---|
-| OpenNext web Worker | Stateless auth, workspace UI, article APIs, review, approvals, and command transitions | No durable local data |
-| Article Workflow Worker | Idempotent text/image generation and job progress | Provider key in Worker binding; no browser credentials |
-| Neon PostgreSQL | Auth, tenancy, article revisions, quotas, recipes, commands, and audit | Users/sessions, memberships, article and publication content, recipes, command/audit records, and hashes rather than raw one-time secrets |
+| OpenNext web Worker | Stateless auth, workspace UI, article APIs, review, approvals, and command transitions | Platform provider key and credential keyring in bindings; workspace plaintext only transiently during prompt and connection requests; no durable local data |
+| Article Workflow Worker | Idempotent text/image generation and job progress | Platform provider key and credential keyring in bindings; workspace key plaintext only transiently in one invocation; no browser credentials |
+| Neon PostgreSQL | Auth, tenancy, article revisions, quotas, recipes, commands, and audit | Users/sessions, memberships, article and publication content, encrypted workspace Gemini credential records, recipes, command/audit records, and hashes rather than raw one-time secrets |
 | Private Cloudflare R2 | Generated covers and slide assets | Private objects addressed by opaque keys |
 | Local publisher companion | Asset verification, Chrome preparation, final approved click | OS-keyring token; local Chrome session and files |
+
+Workspace Gemini keys are AES-256-GCM ciphertext in Neon. The web and Workflow
+Workers share a versioned keyring binding; plaintext exists only transiently in
+the request/job Worker memory and is never included in a job payload, audit
+metadata, result, or log.
 
 The health endpoint (`GET /api/health`) reports only database connectivity and
 returns `503` when the database is unavailable. Cloudflare observability is
