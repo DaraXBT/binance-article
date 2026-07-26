@@ -48,8 +48,10 @@ An unpaired warning from the companion doctor is expected on a clean release
 machine. Rerun the doctor after pairing and require a ready result before any
 publishing smoke test. A Playwright run that skips the credential-dependent
 authenticated specs (they self-skip per test when the E2E secrets are absent)
-is not a complete release pass; provide the dedicated E2E database/session
-values and confirm in the report that those specs ran instead of skipping.
+is not a complete release pass. CI runs the full authenticated suite by
+default against the dedicated `e2e-ci` Neon branch; for local runs, follow
+the environment mapping in SETUP_INSTRUCTIONS.md and confirm in the report
+that the authenticated specs ran instead of skipping.
 
 Publish the ZIP and its `.sha256` sidecar from `.artifacts/` with the same
 version as `publisher-companion/package.json`. On a clean computer, extract the
@@ -77,6 +79,12 @@ version blindly after a version bump.
    active-command drain. Do not resume a V1 writer after the backfill.
 4. Deploy the article Workflow Worker, then the web Worker, from the same commit.
 5. Confirm `GET /api/health` returns `200` without exposing dependency details.
+   Then smoke the Workflow Worker without writing data or spending tokens:
+   `wrangler workflows trigger binance-article-jobs '{"jobId":"smoke-nonexistent","kind":"generate"}'`
+   and `wrangler workflows instances describe binance-article-jobs <instance-id>`
+   must show an errored instance with `NonRetryableError: Job payload not
+   found.` and a successful `finalize failed article job` step — proving the
+   worker boots, reaches the database, and fails closed.
 6. Confirm stale non-English browser preferences still render the English UI.
 7. As a workspace owner, save and test a disposable Gemini key, confirm the
    default remains Platform credits, then explicitly switch to Workspace Gemini

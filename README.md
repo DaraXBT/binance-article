@@ -182,8 +182,11 @@ never reuse a deployed Better Auth secret. CI applies migrations, seeds only its
 deterministic E2E principal, and writes the generated browser state under
 `.playwright/.auth/`; that state is local and must not be committed. When either
 secret is absent, credential-dependent browser tests skip rather than inventing
-an account or social credential. See [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md)
-for the equivalent local command.
+an account or social credential. Both secrets are provisioned on this
+repository (the database is the dedicated data-free Neon branch `e2e-ci`), so
+CI runs the complete authenticated suite on every push. See
+[SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md) for the equivalent local
+command.
 
 Database migrations are an explicit operator action and are never run by an application build:
 

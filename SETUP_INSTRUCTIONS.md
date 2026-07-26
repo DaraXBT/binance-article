@@ -181,6 +181,11 @@ writes `.playwright/.auth/user.json`. The file is generated with private
 permissions and must remain uncommitted. If either secret is absent, tests that
 need an authenticated session skip; public and configuration tests still run.
 
+Both secrets are provisioned on this repository: `E2E_DATABASE_URL` points at
+the dedicated, data-free Neon branch `e2e-ci` (a schema-only branch of the
+production project that was wiped and rebuilt through the migration chain), so
+every push runs the full authenticated Playwright suite in CI.
+
 For an equivalent local run, migrate the dedicated database first, then map the
 test-only values explicitly:
 

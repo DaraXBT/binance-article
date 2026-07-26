@@ -5,7 +5,9 @@ labels can remain in the language supplied by the user.
 
 ## Join and sign in
 
-1. Open the private invitation link from the owner.
+1. Open the private invitation link from the owner. (Owners create and revoke
+   invitations under **Settings → Connections**; each join link is shown once
+   at creation.)
 2. Enroll with the invited Google account.
 3. Sign in with Google on later visits.
 
@@ -21,7 +23,9 @@ Users migrating an older browser-based workspace may choose **Recover existing w
 
 From the dashboard or `/new`:
 
-1. Enter source text, a topic prompt, or a URL.
+1. Enter source text, a topic prompt, or a URL. On `/new`, switch between
+   **Paste text**, **Import URL**, and **Topic prompt** with the tabs on the
+   first step; imported URLs must be HTTPS without embedded credentials.
 2. Select slide count and illustration style.
 3. If generation locking is enabled, enter the one-time generation grant from the owner.
 4. Start generation and wait for the background job.

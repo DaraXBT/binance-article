@@ -14,7 +14,11 @@ describes what is active today.
    prompt, or a URL.
 3. The web app creates an article revision. The article Workflow Worker
    generates slide copy, captions, slide images, and the dedicated cover from
-   the supplied content.
+   the supplied content. After slides/captions persist, the job records a
+   revision-scoped durable checkpoint in its log; a Workflow-engine
+   re-execution resumes at the image phase instead of re-buying the LLM call,
+   and a superseded run cancels as `STALE_REVISION`. Provider failures remain
+   terminal — checkpoints never add paid retries.
 4. The user reviews and edits the article, images, captions, and cover in the
    article workspace.
 5. For Binance Square or X, the web app prepares an immutable, revision-bound
