@@ -9,7 +9,7 @@ describe('private page policy', () => {
     'app/workspace/page.tsx',
     'app/new/layout.tsx',
     'app/articles/[id]/layout.tsx',
-    'app/settings/layout.tsx',
+    'app/settings/connections/layout.tsx',
   ])('%s has a server-side active-user boundary', (file) => {
     expect(readFileSync(`${root}${file}`, 'utf8')).toContain('requireActivePageUser');
   });

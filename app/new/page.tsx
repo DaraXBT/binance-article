@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,7 @@ import { GenerateStep } from './steps/generate-step';
 import { UrlStep } from './steps/url-step';
 import { PromptStep } from './steps/prompt-step';
 import { DEFAULT_ILLUSTRATION_STYLE } from '@/lib/config';
-import { useWorkspace } from '@/lib/hooks';
+import { useGenerationLock } from '@/lib/hooks';
 import type { WizardFormData, WizardFormUpdate, WizardMode } from './steps/types';
 
 function parseWizardMode(value: string | null): WizardMode {
@@ -32,25 +32,18 @@ function NewDeckWizard() {
   const mode = parseWizardMode(searchParams.get('mode'));
   const { messages } = useLanguage();
   const {
-    data: workspace,
-    isLoading: workspaceLoading,
-    refetch: refetchWorkspace,
-  } = useWorkspace();
+    generationLocked,
+    unlockGeneration,
+    markGenerationAccessLost,
+    workspaceQuery,
+  } = useGenerationLock();
   const [currentStep, setCurrentStep] = useState(0);
-  const [hasGenerationAccess, setHasGenerationAccess] = useState(
-    workspace?.hasGenerationAccess ?? false
-  );
   const [formData, setFormData] = useState<WizardFormData>({
     title: '',
     articleContent: '',
     slideCount: 1,
     illustrationStyle: DEFAULT_ILLUSTRATION_STYLE,
   });
-  const generationLocked = Boolean(workspace?.generateAccessEnabled && !hasGenerationAccess);
-
-  useEffect(() => {
-    setHasGenerationAccess(workspace?.hasGenerationAccess ?? false);
-  }, [workspace?.hasGenerationAccess]);
 
   const steps: WizardStep[] = [
     {
@@ -109,15 +102,6 @@ function NewDeckWizard() {
     setFormData((prev) => ({ ...prev, ...updates }));
   };
 
-  const handleGenerationUnlock = () => {
-    setHasGenerationAccess(true);
-    void refetchWorkspace();
-  };
-
-  const handleGenerationAccessLost = () => {
-    setHasGenerationAccess(false);
-    void refetchWorkspace();
-  };
 
   return (
     <SecureConsoleFrame
@@ -174,7 +158,7 @@ function NewDeckWizard() {
                   formData={formData}
                   onUpdate={updateFormData}
                   generationLocked={generationLocked}
-                  onUnlock={handleGenerationUnlock}
+                  onUnlock={unlockGeneration}
                 />
               )}
               {mode === 'text' && <ContentStep formData={formData} onUpdate={updateFormData} />}
@@ -187,10 +171,10 @@ function NewDeckWizard() {
             <GenerateStep
               formData={formData}
               mode={mode}
-              ready={!workspaceLoading}
+              ready={!workspaceQuery.isLoading}
               generationLocked={generationLocked}
-              onUnlock={handleGenerationUnlock}
-              onGenerationAccessLost={handleGenerationAccessLost}
+              onUnlock={unlockGeneration}
+              onGenerationAccessLost={markGenerationAccessLost}
             />
           )}
           </ConsolePanel>

@@ -185,6 +185,7 @@ export function usePublicationCommand(target: PublicationTarget, articleId?: str
     if (!commandId || !commandState || TERMINAL_STATES.has(commandState)) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let errorStreak = 0;
 
     const poll = async () => {
       try {
@@ -195,13 +196,19 @@ export function usePublicationCommand(target: PublicationTarget, articleId?: str
         if (!cancelled) {
           const next = body.command as PublicationCommand;
           if (next.target !== target) throw new LocalizedPublicationError(copy.targetMismatch);
+          errorStreak = 0;
+          setError(null);
           setRememberedCommand(next);
           if (!TERMINAL_STATES.has(next.state)) timer = setTimeout(poll, 1_500);
         }
       } catch (caught) {
         if (!cancelled) {
           setError(caught instanceof LocalizedPublicationError ? caught.message : copy.statusFailed);
-          timer = setTimeout(poll, 3_000);
+          // Back off while the status endpoint keeps failing (3s → 30s cap)
+          // instead of hammering it every 3 seconds forever.
+          errorStreak += 1;
+          const delay = Math.min(3_000 * 2 ** (errorStreak - 1), 30_000);
+          timer = setTimeout(poll, delay);
         }
       }
     };

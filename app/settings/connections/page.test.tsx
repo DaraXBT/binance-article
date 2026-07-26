@@ -10,10 +10,10 @@ vi.mock('@/server/auth/page-authorization', () => ({
   requireActivePageUser: mocks.requireActivePageUser,
 }));
 describe('/settings/connections', () => {
-  it('is wrapped by the authenticated settings layout', async () => {
-    const { default: SettingsLayout } = await import('../layout');
+  it('is wrapped by the authenticated connections layout', async () => {
+    const { default: ConnectionsLayout } = await import('./layout');
     const child = { type: 'child' } as never;
-    await expect(SettingsLayout({ children: child })).resolves.toBe(child);
+    await expect(ConnectionsLayout({ children: child })).resolves.toBe(child);
     expect(mocks.requireActivePageUser).toHaveBeenCalledWith('/settings/connections');
   });
 

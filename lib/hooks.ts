@@ -1,5 +1,6 @@
 'use client';
 
+import { useCallback, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type {
@@ -175,6 +176,39 @@ export function useWorkspace() {
     queryFn: fetchWorkspace,
     staleTime: 30000,
   });
+}
+
+/**
+ * Single source of truth for the generation-access lock. An unlock/lost
+ * signal is reflected locally right away (the grant cookie is already set or
+ * cleared) and confirmed by a workspace refetch.
+ */
+export function useGenerationLock() {
+  const workspaceQuery = useWorkspace();
+  const workspace = workspaceQuery.data;
+  const [hasLocalAccess, setHasLocalAccess] = useState(false);
+
+  useEffect(() => {
+    setHasLocalAccess(workspace?.hasGenerationAccess ?? false);
+  }, [workspace?.hasGenerationAccess]);
+
+  const generationLocked = Boolean(
+    workspace?.generateAccessEnabled
+    && !(hasLocalAccess || workspace.hasGenerationAccess),
+  );
+
+  const refetchWorkspace = workspaceQuery.refetch;
+  const unlockGeneration = useCallback(() => {
+    setHasLocalAccess(true);
+    void refetchWorkspace();
+  }, [refetchWorkspace]);
+
+  const markGenerationAccessLost = useCallback(() => {
+    setHasLocalAccess(false);
+    void refetchWorkspace();
+  }, [refetchWorkspace]);
+
+  return { generationLocked, unlockGeneration, markGenerationAccessLost, workspaceQuery };
 }
 
 export function useWorkspaceAiCredential(enabled = true) {

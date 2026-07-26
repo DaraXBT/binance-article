@@ -58,6 +58,7 @@ import {
   useCreateWorkspace,
   useDecks,
   useDeleteDeck,
+  useGenerationLock,
   useUpdateDeck,
   useWorkspace,
 } from '@/lib/hooks';
@@ -109,7 +110,9 @@ interface SubmitPromptArticleOptions {
   fetchImpl?: HomeFetch;
 }
 
-const DEFAULT_HOME_SLIDE_COUNT = 1;
+// Match the anonymous composer's default so the experience is identical
+// before and after signing in.
+const DEFAULT_HOME_SLIDE_COUNT = 5;
 const DEFAULT_HOME_ILLUSTRATION_STYLE = DEFAULT_ILLUSTRATION_STYLE;
 const sidebarSkeletonWidths = ['88%', '64%', '76%', '58%', '71%', '67%'] as const;
 
@@ -605,7 +608,6 @@ export function DashboardHome({
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAccessDialog, setShowAccessDialog] = useState(false);
-  const [hasGenerationAccess, setHasGenerationAccess] = useState(false);
   const [isProvisioningWorkspace, setIsProvisioningWorkspace] = useState(false);
   const [provisioningError, setProvisioningError] = useState<string | null>(null);
   const [provisionAttempt, setProvisionAttempt] = useState(0);
@@ -638,16 +640,9 @@ export function DashboardHome({
   const hasWorkspace = workspace?.hasWorkspace ?? false;
   const { data, isLoading, isError, refetch } = useDecks(hasWorkspace);
   const decks = (data ?? []) as DeckListItem[];
-  const generationLocked = Boolean(
-    workspace?.generateAccessEnabled &&
-    !(hasGenerationAccess || workspace.hasGenerationAccess),
-  );
+  const { generationLocked, unlockGeneration, markGenerationAccessLost } = useGenerationLock();
   const isWorkspaceBusy = isProvisioningWorkspace || Boolean(createWorkspace.isPending);
   const accountLabel = actor?.name?.trim() || actor?.email?.trim() || 'Account';
-
-  useEffect(() => {
-    setHasGenerationAccess(workspace?.hasGenerationAccess ?? false);
-  }, [workspace?.hasGenerationAccess]);
 
   // A newly enrolled account has no workspace yet. Provision it silently so a
   // user can land on the composer without an extra onboarding click.
@@ -977,8 +972,7 @@ export function DashboardHome({
       setPrompt(suggestedPrompt);
     } catch (error) {
       if (error instanceof GenerateAccessError) {
-        setHasGenerationAccess(false);
-        void refetchWorkspace();
+        markGenerationAccessLost();
         pendingRetryRef.current = () => void runSuggest(title);
         accessDialogSucceededRef.current = false;
         setShowAccessDialog(true);
@@ -1059,8 +1053,7 @@ export function DashboardHome({
       router.push(`/articles/${deckId}`);
     } catch (error) {
       if (error instanceof GenerateAccessError) {
-        setHasGenerationAccess(false);
-        void refetchWorkspace();
+        markGenerationAccessLost();
         pendingRetryRef.current = () => void runSubmit(snapshot);
         accessDialogSucceededRef.current = false;
         setShowAccessDialog(true);
@@ -1108,8 +1101,7 @@ export function DashboardHome({
 
   const handleAccessSuccess = () => {
     accessDialogSucceededRef.current = true;
-    setHasGenerationAccess(true);
-    void refetchWorkspace();
+    unlockGeneration();
     const retry = pendingRetryRef.current;
     pendingRetryRef.current = null;
     if (retry) void retry();

@@ -296,6 +296,33 @@ vi.mock('@/lib/hooks', () => ({
     error: workspaceError,
     refetch: refetchWorkspace,
   }),
+  useGenerationLock: () => {
+    // Mirrors the real hook against this file's mocked workspace fixtures.
+    const [hasLocalAccess, setHasLocalAccess] = React.useState(false);
+    React.useEffect(() => {
+      setHasLocalAccess(workspaceData?.hasGenerationAccess ?? false);
+    }, []);
+    return {
+      generationLocked: Boolean(
+        workspaceData?.generateAccessEnabled
+        && !(hasLocalAccess || workspaceData?.hasGenerationAccess),
+      ),
+      unlockGeneration: () => {
+        setHasLocalAccess(true);
+        void refetchWorkspace();
+      },
+      markGenerationAccessLost: () => {
+        setHasLocalAccess(false);
+        void refetchWorkspace();
+      },
+      workspaceQuery: {
+        data: workspaceData,
+        isLoading: workspaceIsLoading,
+        error: workspaceError,
+        refetch: refetchWorkspace,
+      },
+    };
+  },
   useUpdateDeck: () => ({ isPending: false, mutate }),
   useDeleteDeck: () => ({ isPending: false, mutate }),
   useCreateWorkspace: () => ({ isPending: false, mutate: createWorkspaceMutate }),
@@ -875,7 +902,9 @@ describe('DashboardHome', () => {
     const slidesTrigger = screen.getByRole('combobox', { name: /slides/i });
     const styleTrigger = screen.getByRole('combobox', { name: /style/i });
 
-    expect(slidesTrigger.textContent).toContain('1');
+    // The signed-in composer defaults to the same slide count as the
+    // anonymous composer.
+    expect(slidesTrigger.textContent).toContain('5');
     expect(styleTrigger.textContent).toContain('Binance All-In-One');
   });
 

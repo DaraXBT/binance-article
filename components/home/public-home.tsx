@@ -39,7 +39,7 @@ import {
 import {
   ArticleStudioShell,
 } from './article-studio-shell';
-import { PromptComposer, type ComposerSlideCount } from './prompt-composer';
+import { MINIMUM_PROMPT_LENGTH, PromptComposer, type ComposerSlideCount } from './prompt-composer';
 import { StudioSidebarBrand } from './studio-sidebar-brand';
 
 function getDraftTitle(prompt: string, fallback: string) {
@@ -279,7 +279,7 @@ export function PublicHome({
   const handleCreate = () => {
     if (isSubmitting) return;
     const trimmedPrompt = prompt.trim();
-    if (trimmedPrompt.length < 10) {
+    if (trimmedPrompt.length < MINIMUM_PROMPT_LENGTH) {
       setError(copy.promptTooShort);
       return;
     }

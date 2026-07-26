@@ -49,9 +49,9 @@ import {
   useDeck,
   useDeleteDeck,
   useDeleteSlide,
+  useGenerationLock,
   useReorderSlides,
   useUpdateSlide,
-  useWorkspace,
 } from '@/lib/hooks';
 import type { DeckSlide, JobSummary, SlideUpdateRequest } from '@/lib/schemas';
 
@@ -130,13 +130,9 @@ export default function DeckPage({ params }: DeckPageProps) {
   const [accessRetryTarget, setAccessRetryTarget] = useState<'slides' | 'cover'>('slides');
   const [showBinanceExport, setShowBinanceExport] = useState(false);
   const [showXExport, setShowXExport] = useState(false);
-  const { data: workspace, refetch: refetchWorkspace } = useWorkspace();
-  const [hasGenerationAccess, setHasGenerationAccess] = useState(
-    workspace?.hasGenerationAccess ?? false
-  );
+  const { generationLocked, unlockGeneration, markGenerationAccessLost } = useGenerationLock();
   const { data, isLoading, isError, refetch } = useDeck(deckId, { pollActiveJob: true });
   const deck = data ?? null;
-  const generationLocked = Boolean(workspace?.generateAccessEnabled && !hasGenerationAccess);
 
   const createSlide = useCreateSlide(deckId);
   const updateSlide = useUpdateSlide(deckId);
@@ -193,8 +189,7 @@ export default function DeckPage({ params }: DeckPageProps) {
     onError: (error) => {
       if (error instanceof GenerateAccessError) {
         setAccessRetryTarget('slides');
-        setHasGenerationAccess(false);
-        void refetchWorkspace();
+        markGenerationAccessLost();
         setShowAccessDialog(true);
         return;
       }
@@ -234,8 +229,7 @@ export default function DeckPage({ params }: DeckPageProps) {
     onError: (error) => {
       if (error instanceof GenerateAccessError) {
         setAccessRetryTarget('cover');
-        setHasGenerationAccess(false);
-        void refetchWorkspace();
+        markGenerationAccessLost();
         setShowAccessDialog(true);
         return;
       }
@@ -246,10 +240,6 @@ export default function DeckPage({ params }: DeckPageProps) {
       );
     },
   });
-
-  useEffect(() => {
-    setHasGenerationAccess(workspace?.hasGenerationAccess ?? false);
-  }, [workspace?.hasGenerationAccess]);
 
   useEffect(() => {
     if (!deck?.slides?.length) {
@@ -267,9 +257,13 @@ export default function DeckPage({ params }: DeckPageProps) {
   const activeSlide = slides.find((slide) => slide.id === activeSlideId) ?? null;
   const failedSlides = slides.filter((slide) => slide.imageStatus === 'failed');
   const pendingSlides = slides.filter((slide) => slide.imageStatus === 'pending' && !slide.imageUrl);
-  const generatingSlideIds = new Set(
-    retryFailedImages.isPending ? failedSlides.map((slide) => slide.id) : []
-  );
+  // Pending slides show the loader both during an explicit retry and while
+  // the initial generation job is still producing images.
+  const isDeckGenerating = deck?.status === 'generating' || deck?.status === 'queued';
+  const generatingSlideIds = new Set([
+    ...(retryFailedImages.isPending ? failedSlides.map((slide) => slide.id) : []),
+    ...(isDeckGenerating ? pendingSlides.map((slide) => slide.id) : []),
+  ]);
   const isActiveSlideGenerating = activeSlide
     ? generatingSlideIds.has(activeSlide.id)
     : false;
@@ -453,31 +447,28 @@ export default function DeckPage({ params }: DeckPageProps) {
                 size="sm"
                 variant="outline"
                 className="gap-2 rounded-lg"
-                onClick={() => retryFailedImages.mutate()}
-                disabled={retryFailedImages.isPending || generationLocked}
+                onClick={() => {
+                  // Same locked behavior as the cover retry: open the unlock
+                  // dialog instead of a dead disabled button.
+                  if (generationLocked) {
+                    setAccessRetryTarget('slides');
+                    setShowAccessDialog(true);
+                    return;
+                  }
+                  retryFailedImages.mutate();
+                }}
+                disabled={retryFailedImages.isPending}
               >
                 {retryFailedImages.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
+                ) : generationLocked ? (
+                  <Lock className="h-4 w-4" />
                 ) : null}
                 <span className="hidden sm:inline">
                   {retryFailedImages.isPending
                     ? messages.deckPage.retryingImages
                     : messages.deckPage.retryFailedImages}
                 </span>
-              </Button>
-            ) : null}
-            {failedSlides.length > 0 && generationLocked ? (
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-2 rounded-lg"
-                onClick={() => {
-                  setAccessRetryTarget('slides');
-                  setShowAccessDialog(true);
-                }}
-              >
-                <Lock className="h-4 w-4" />
-                {messages.generateAccess.submit}
               </Button>
             ) : null}
             <Button
@@ -706,8 +697,7 @@ export default function DeckPage({ params }: DeckPageProps) {
         open={showAccessDialog}
         onOpenChange={setShowAccessDialog}
         onSuccess={() => {
-          setHasGenerationAccess(true);
-          void refetchWorkspace();
+          unlockGeneration();
           setShowAccessDialog(false);
           if (accessRetryTarget === 'cover') retryCover.mutate();
           else retryFailedImages.mutate();
