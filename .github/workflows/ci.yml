@@ -115,8 +115,10 @@ jobs:
         env:
           BASE_URL: ${{ vars.E2E_BASE_URL }}
 
+      # failure() only: uploading reports for green runs burned the private
+      # repo's free Actions storage allowance for no diagnostic value.
       - name: Upload Playwright artifacts
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
@@ -124,7 +126,7 @@ jobs:
             playwright-report/
             test-results/
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: 7
 
       # Full OpenNext build + wrangler dry-run + compressed-size gate. The
       # Worker once outgrew the free-plan 3 MiB limit with nobody noticing
