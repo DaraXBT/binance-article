@@ -6,7 +6,32 @@ import { getRuntimeDatabase } from '@/server/db/runtime';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
 import { readBoundedJson } from '@/server/http/request-body';
 import { createInvitationAdminRepository } from '@/server/modules/admin/invitations/repository';
-import { createInvitation } from '@/server/modules/admin/invitations/service';
+import { createInvitation, listInvitations } from '@/server/modules/admin/invitations/service';
+
+export async function GET(request: NextRequest) {
+  try {
+    await requireActiveUser(request, { requireOwner: true });
+    const repository = createInvitationAdminRepository(getRuntimeDatabase());
+    const invitations = await listInvitations({ repository });
+
+    return NextResponse.json({
+      invitations: invitations.map((row) => ({
+        id: row.id,
+        email: row.email,
+        tokenPrefix: row.tokenPrefix,
+        status: row.status,
+        expiresAt: row.expiresAt.toISOString(),
+        createdAt: row.createdAt.toISOString(),
+      })),
+    }, { headers: withNoStoreHeaders() });
+  } catch (error) {
+    return errorResponse(error, {
+      code: 'INVITATION_LIST_FAILED',
+      message: 'The invitations could not be loaded.',
+      status: 400,
+    });
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {

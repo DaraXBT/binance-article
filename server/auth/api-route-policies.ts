@@ -9,8 +9,9 @@ export type ApiRoutePolicy =
   | 'device-bearer';
 
 export const API_ROUTE_POLICIES = {
+  'app/api/admin/invitations/[id]/route.ts': 'owner',
   'app/api/admin/invitations/route.ts': 'owner',
-  'app/api/articles/[id]/assets/[filename]/route.ts': 'article-member',
+  'app/api/articles/[id]/assets/[assetId]/route.ts': 'article-member',
   'app/api/articles/[id]/generate-cover/route.ts': 'article-member',
   'app/api/articles/[id]/generate-images/route.ts': 'article-member',
   'app/api/articles/[id]/generate/route.ts': 'article-member',

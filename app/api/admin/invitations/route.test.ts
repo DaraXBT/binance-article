@@ -10,6 +10,14 @@ const mocks = vi.hoisted(() => ({
     tokenPrefix: 'invite_t',
     expiresAt: new Date('2026-07-20T00:00:00.000Z'),
   })),
+  listInvitations: vi.fn(async () => [{
+    id: 'invite_1',
+    email: 'invited@example.com',
+    tokenPrefix: 'invite_t',
+    status: 'pending' as const,
+    expiresAt: new Date('2026-07-20T00:00:00.000Z'),
+    createdAt: new Date('2026-07-19T00:00:00.000Z'),
+  }]),
 }));
 
 vi.mock('@/server/auth/authorization', () => ({ requireActiveUser: mocks.requireActiveUser }));
@@ -18,7 +26,10 @@ vi.mock('@/server/db/runtime', () => ({ getRuntimeDatabase: mocks.getRuntimeData
 vi.mock('@/server/modules/admin/invitations/repository', () => ({
   createInvitationAdminRepository: mocks.createRepository,
 }));
-vi.mock('@/server/modules/admin/invitations/service', () => ({ createInvitation: mocks.createInvitation }));
+vi.mock('@/server/modules/admin/invitations/service', () => ({
+  createInvitation: mocks.createInvitation,
+  listInvitations: mocks.listInvitations,
+}));
 
 describe('POST /api/admin/invitations', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -48,6 +59,28 @@ describe('POST /api/admin/invitations', () => {
         joinUrl: 'https://articles.example.com/join?token=invite_token_value_12345678901234567890',
       },
     });
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('lists invitations for owners without exposing hashes or tokens', async () => {
+    const { GET } = await import('./route');
+    const request = new Request('https://articles.example.com/api/admin/invitations');
+    const response = await GET(request as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(mocks.requireActiveUser).toHaveBeenCalledWith(request, { requireOwner: true });
+    expect(body).toEqual({
+      invitations: [{
+        id: 'invite_1',
+        email: 'invited@example.com',
+        tokenPrefix: 'invite_t',
+        status: 'pending',
+        expiresAt: '2026-07-20T00:00:00.000Z',
+        createdAt: '2026-07-19T00:00:00.000Z',
+      }],
+    });
+    expect(JSON.stringify(body)).not.toMatch(/token"|tokenHash/);
     expect(response.headers.get('cache-control')).toBe('no-store');
   });
 

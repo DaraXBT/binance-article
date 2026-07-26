@@ -1,4 +1,4 @@
-import { and, eq, gt } from 'drizzle-orm';
+import { and, desc, eq, gt } from 'drizzle-orm';
 
 import type { AppDatabase } from '@/server/db/client';
 import { invitation } from '@/server/db/schema';
@@ -62,6 +62,21 @@ export function createInvitationAdminRepository(
         ))
         .limit(1);
       return rows[0] ?? null;
+    },
+
+    async list(limit) {
+      return database
+        .select({
+          id: invitation.id,
+          email: invitation.email,
+          tokenPrefix: invitation.tokenPrefix,
+          status: invitation.status,
+          expiresAt: invitation.expiresAt,
+          createdAt: invitation.createdAt,
+        })
+        .from(invitation)
+        .orderBy(desc(invitation.createdAt), desc(invitation.id))
+        .limit(limit);
     },
 
     async revoke({ invitationId, now }) {

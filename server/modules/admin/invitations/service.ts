@@ -13,6 +13,15 @@ const EmailSchema = z.string().trim().email().max(320).transform((value) => valu
 const IdentifierSchema = z.string().trim().min(1).max(200);
 const TokenSchema = z.string().regex(/^[A-Za-z0-9_-]{20,256}$/);
 
+export interface InvitationListRow {
+  id: string;
+  email: string;
+  tokenPrefix: string;
+  status: 'pending' | 'accepted' | 'revoked';
+  expiresAt: Date;
+  createdAt: Date;
+}
+
 export interface InvitationAdminRepository {
   insertWithinCapacity(input: {
     id: string;
@@ -27,11 +36,23 @@ export interface InvitationAdminRepository {
     tokenHash: string;
     now: Date;
   }): Promise<{ id: string; email: string; expiresAt: Date } | null>;
+  list(limit: number): Promise<InvitationListRow[]>;
   revoke(input: {
     invitationId: string;
     actorUserId: string;
     now: Date;
   }): Promise<boolean>;
+}
+
+export type InvitationDisplayStatus = InvitationListRow['status'] | 'expired';
+
+export interface InvitationSummary {
+  id: string;
+  email: string;
+  tokenPrefix: string;
+  status: InvitationDisplayStatus;
+  expiresAt: Date;
+  createdAt: Date;
 }
 
 function appError(code: string, message: string, status: number) {
@@ -90,6 +111,23 @@ export async function inspectInvitation(input: {
   });
   if (!invitation) throw appError('INVALID_INVITATION', 'The invitation is invalid or expired.', 400);
   return { email: invitation.email };
+}
+
+export async function listInvitations(input: {
+  repository: InvitationAdminRepository;
+  now?: Date;
+  limit?: number;
+}): Promise<InvitationSummary[]> {
+  const now = input.now ?? new Date();
+  const rows = await input.repository.list(input.limit ?? 50);
+  return rows.map((row) => ({
+    ...row,
+    // A pending row past its expiry can never be redeemed; surface that
+    // instead of leaving operators to compare timestamps.
+    status: row.status === 'pending' && row.expiresAt.getTime() <= now.getTime()
+      ? 'expired'
+      : row.status,
+  }));
 }
 
 export async function revokeInvitation(input: {

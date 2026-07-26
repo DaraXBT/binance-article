@@ -6,6 +6,7 @@ import {
   MAX_ACTIVE_BETA_USERS,
   createInvitation,
   inspectInvitation,
+  listInvitations,
   revokeInvitation,
 } from './service';
 
@@ -20,6 +21,7 @@ function repository(overrides: Record<string, unknown> = {}) {
       email: 'invited@example.com',
       expiresAt: new Date(now.getTime() + INVITATION_LIFETIME_MS),
     })),
+    list: vi.fn(async () => []),
     revoke: vi.fn(async () => true),
     ...overrides,
   };
@@ -94,6 +96,32 @@ describe('admin invitation service', () => {
       token: 'invalid_token_value_1234567890',
       now,
     })).rejects.toMatchObject({ code: 'INVALID_INVITATION', status: 400 });
+  });
+
+  it('lists invitations with pending-past-expiry surfaced as expired', async () => {
+    const rows = [
+      {
+        id: 'invite_live', email: 'live@example.com', tokenPrefix: 'inv_live',
+        status: 'pending' as const,
+        expiresAt: new Date(now.getTime() + 60_000), createdAt: now,
+      },
+      {
+        id: 'invite_stale', email: 'stale@example.com', tokenPrefix: 'inv_stale',
+        status: 'pending' as const,
+        expiresAt: new Date(now.getTime() - 60_000), createdAt: now,
+      },
+      {
+        id: 'invite_done', email: 'done@example.com', tokenPrefix: 'inv_done',
+        status: 'accepted' as const,
+        expiresAt: new Date(now.getTime() - 60_000), createdAt: now,
+      },
+    ];
+    const repo = repository({ list: vi.fn(async () => rows) });
+
+    const summaries = await listInvitations({ repository: repo, now });
+
+    expect(summaries.map((row) => row.status)).toEqual(['pending', 'expired', 'accepted']);
+    expect(repo.list).toHaveBeenCalledWith(50);
   });
 
   it('revokes only pending invitations and reports a generic not-found error', async () => {
