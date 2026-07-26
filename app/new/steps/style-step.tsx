@@ -6,12 +6,14 @@ import { Check } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 
+import type { WizardFormUpdate } from './types';
+
 interface StyleStepProps {
   formData: {
     illustrationStyle: string;
     slideCount: number;
   };
-  onUpdate: (updates: any) => void;
+  onUpdate: (updates: WizardFormUpdate) => void;
 }
 
 export function StyleStep({ formData, onUpdate }: StyleStepProps) {

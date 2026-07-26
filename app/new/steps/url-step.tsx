@@ -5,12 +5,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Layers3 } from 'lucide-react';
 
+import type { WizardFormUpdate } from './types';
+
 interface UrlStepProps {
   formData: {
     title: string;
     articleContent: string;
   };
-  onUpdate: (updates: any) => void;
+  onUpdate: (updates: WizardFormUpdate) => void;
 }
 
 export function UrlStep({ formData, onUpdate }: UrlStepProps) {

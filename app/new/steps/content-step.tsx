@@ -1,17 +1,19 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useLanguage } from '@/components/language-provider';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { FileText, Type } from 'lucide-react';
+
+import type { WizardFormUpdate } from './types';
 
 interface ContentStepProps {
   formData: {
     title: string;
     articleContent: string;
   };
-  onUpdate: (updates: any) => void;
+  onUpdate: (updates: WizardFormUpdate) => void;
 }
 
 function extractTitle(content: string): string {

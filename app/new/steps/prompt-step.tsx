@@ -10,12 +10,14 @@ import { getAiSuggestGlowClassName, requestPromptSuggestion } from '@/components
 import { GenerateAccessDialog } from '@/components/generate-access-dialog';
 import { GenerateAccessError } from '@/lib/generate-access-error';
 
+import type { WizardFormUpdate } from './types';
+
 interface PromptStepProps {
   formData: {
     title: string;
     articleContent: string;
   };
-  onUpdate: (updates: any) => void;
+  onUpdate: (updates: WizardFormUpdate) => void;
   fetchImpl?: typeof fetch;
   generationLocked?: boolean;
   onUnlock?: () => void;

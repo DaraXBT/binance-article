@@ -128,12 +128,24 @@ describe('GenerateStep job progress', () => {
     vi.restoreAllMocks();
   });
 
-  it('keeps caption generation ahead of images and treats a 95% jump as image work', () => {
+  it('treats everything before the image stage as slide work', () => {
     expect(phaseForRunningJob(44)).toBe('generating-slides');
-    expect(phaseForRunningJob(45)).toBe('generating-captions');
-    expect(phaseForRunningJob(54)).toBe('generating-captions');
+    expect(phaseForRunningJob(45)).toBe('generating-slides');
+    expect(phaseForRunningJob(54)).toBe('generating-slides');
     expect(phaseForRunningJob(55)).toBe('generating-images');
     expect(phaseForRunningJob(95)).toBe('generating-images');
+  });
+
+  it('sends one idempotency key on both the create and generate calls', async () => {
+    const fetchMock = renderAtImageProgress(55, 0, 4);
+
+    await screen.findByTestId('image-generation-loader');
+
+    const createHeaders = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+    const generateHeaders = new Headers(fetchMock.mock.calls[1]?.[1]?.headers);
+    const key = createHeaders.get('Idempotency-Key');
+    expect(key).toMatch(/^[0-9a-f-]{36}$/);
+    expect(generateHeaders.get('Idempotency-Key')).toBe(key);
   });
 
   it('reads the newest valid live image count and skips malformed newer metadata', () => {

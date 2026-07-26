@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { GenerateAccessDialog } from '@/components/generate-access-dialog';
 import { ImageGenerationLoader } from '@/components/image-generation-loader';
@@ -18,12 +18,15 @@ interface GenerateStepProps {
     illustrationStyle: string;
   };
   mode: 'text' | 'url' | 'prompt';
+  /** Generation only auto-starts once the workspace query has resolved, so
+   * gated deployments don't burn a guaranteed 403 round-trip first. */
+  ready?: boolean;
   generationLocked?: boolean;
   onUnlock?: () => void;
   onGenerationAccessLost?: () => void;
 }
 
-type Phase = 'idle' | 'awaiting-code' | 'creating' | 'generating-slides' | 'generating-images' | 'generating-captions' | 'complete' | 'error';
+type Phase = 'idle' | 'awaiting-code' | 'creating' | 'generating-slides' | 'generating-images' | 'complete' | 'error';
 
 interface PhaseInfo {
   id: Phase;
@@ -82,9 +85,9 @@ export function readLatestImageProgress(
 }
 
 export function phaseForRunningJob(progress: number): Phase {
-  if (progress >= 55) return 'generating-images';
-  if (progress >= 45) return 'generating-captions';
-  return 'generating-slides';
+  // Captions come from the same LLM call as slides, so everything before the
+  // image stage (progress 55) is slide/caption content work.
+  return progress >= 55 ? 'generating-images' : 'generating-slides';
 }
 
 async function waitForJob(jobId: string, onProgress: (job: JobSummary) => void) {
@@ -122,6 +125,7 @@ function extractTitleFromContent(content: string): string {
 export function GenerateStep({
   formData,
   mode,
+  ready = true,
   generationLocked = false,
   onUnlock,
   onGenerationAccessLost,
@@ -137,14 +141,18 @@ export function GenerateStep({
   const [imageSummary, setImageSummary] = useState<ImageGenerationSummary | null>(null);
   const [jobProgress, setJobProgress] = useState(0);
   const [showAccessDialog, setShowAccessDialog] = useState(false);
+  // One idempotency key per attempt, reused on retry-after-failure so a
+  // network hiccup can't create duplicate articles or generation jobs.
+  const attemptKeyRef = useRef<string | null>(null);
+  const redirectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (redirectTimeoutRef.current !== null) clearTimeout(redirectTimeoutRef.current);
+  }, []);
 
   const phases: PhaseInfo[] = [
     { id: 'creating', label: messages.newDeck.generateView.creatingDeck },
     { id: 'generating-slides', label: messages.newDeck.generateView.generatingSlideContent },
-    {
-      id: 'generating-captions',
-      label: messages.newDeck.generateView.generatingBlogAndX,
-    },
     {
       id: 'generating-images',
       label: messages.newDeck.generateView.generatingImages,
@@ -156,7 +164,6 @@ export function GenerateStep({
     'idle',
     'creating',
     'generating-slides',
-    'generating-captions',
     'generating-images',
     'complete',
   ];
@@ -185,10 +192,13 @@ export function GenerateStep({
       setImageProgress({ current: 0, total: formData.slideCount });
       setJobProgress(0);
 
+      attemptKeyRef.current ??= crypto.randomUUID();
+      const idempotencyKey = attemptKeyRef.current;
+
       // Step 1: Create deck
       const createRes = await fetch('/api/articles', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
         body: JSON.stringify({
           title: mode === 'url' ? 'Import from URL' : (formData.title.trim() || extractTitleFromContent(formData.articleContent)),
           description: mode === 'url' ? formData.title : formData.articleContent.slice(0, 200),
@@ -214,7 +224,7 @@ export function GenerateStep({
       setPhase('generating-slides');
       const generateRes = await fetch(`/api/articles/${newDeckId}/generate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
         body: JSON.stringify({
           articleContent: mode === 'url' ? formData.title : formData.articleContent, // Passing URL or Prompt down
           slideCount: formData.slideCount,
@@ -267,10 +277,11 @@ export function GenerateStep({
         total: resolvedImageSummary?.total || jobResult?.slideCount || formData.slideCount,
       });
 
+      attemptKeyRef.current = null;
       setPhase('complete');
 
-      // Redirect after a short delay
-      setTimeout(() => {
+      // Redirect after a short delay; cleared on unmount.
+      redirectTimeoutRef.current = setTimeout(() => {
         router.push(`/articles/${newDeckId}`);
       }, 1500);
     } catch (err) {
@@ -283,10 +294,10 @@ export function GenerateStep({
   }, [formData, generationLocked, messages, mode, onGenerationAccessLost, router]);
 
   useEffect(() => {
-    if (phase === 'idle') {
+    if (phase === 'idle' && ready) {
       void handleGenerate();
     }
-  }, [handleGenerate, phase]);
+  }, [handleGenerate, phase, ready]);
 
   useEffect(() => {
     if (generationLocked) {
@@ -298,11 +309,8 @@ export function GenerateStep({
   }, [generationLocked]);
 
   const progress = (() => {
-    if (phase === 'generating-slides' || phase === 'generating-images' || phase === 'generating-captions') {
-      return Math.max(
-        jobProgress,
-        phase === 'generating-slides' ? 20 : phase === 'generating-captions' ? 45 : 55,
-      );
+    if (phase === 'generating-slides' || phase === 'generating-images') {
+      return Math.max(jobProgress, phase === 'generating-slides' ? 20 : 55);
     }
 
     switch (phase) {

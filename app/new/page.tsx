@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -21,19 +21,21 @@ import { UrlStep } from './steps/url-step';
 import { PromptStep } from './steps/prompt-step';
 import { DEFAULT_ILLUSTRATION_STYLE } from '@/lib/config';
 import { useWorkspace } from '@/lib/hooks';
+import type { WizardFormData, WizardFormUpdate, WizardMode } from './steps/types';
 
-interface WizardFormData {
-  title: string;
-  articleContent: string;
-  slideCount: number;
-  illustrationStyle: string;
+function parseWizardMode(value: string | null): WizardMode {
+  return value === 'url' || value === 'prompt' ? value : 'text';
 }
 
-export default function NewDeckPage() {
+function NewDeckWizard() {
   const searchParams = useSearchParams();
-  const mode = searchParams.get('mode') || 'text'; // 'url', 'prompt', or 'text'
+  const mode = parseWizardMode(searchParams.get('mode'));
   const { messages } = useLanguage();
-  const { data: workspace, refetch: refetchWorkspace } = useWorkspace();
+  const {
+    data: workspace,
+    isLoading: workspaceLoading,
+    refetch: refetchWorkspace,
+  } = useWorkspace();
   const [currentStep, setCurrentStep] = useState(0);
   const [hasGenerationAccess, setHasGenerationAccess] = useState(
     workspace?.hasGenerationAccess ?? false
@@ -103,7 +105,7 @@ export default function NewDeckPage() {
     }
   };
 
-  const updateFormData = (updates: Partial<WizardFormData>) => {
+  const updateFormData = (updates: WizardFormUpdate) => {
     setFormData((prev) => ({ ...prev, ...updates }));
   };
 
@@ -184,7 +186,8 @@ export default function NewDeckPage() {
           {currentStep === 2 && (
             <GenerateStep
               formData={formData}
-              mode={mode as any}
+              mode={mode}
+              ready={!workspaceLoading}
               generationLocked={generationLocked}
               onUnlock={handleGenerationUnlock}
               onGenerationAccessLost={handleGenerationAccessLost}
@@ -223,5 +226,14 @@ export default function NewDeckPage() {
         </div>
       </div>
     </SecureConsoleFrame>
+  );
+}
+
+export default function NewDeckPage() {
+  // useSearchParams requires a Suspense boundary in client pages.
+  return (
+    <Suspense fallback={null}>
+      <NewDeckWizard />
+    </Suspense>
   );
 }
