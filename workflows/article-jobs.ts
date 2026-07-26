@@ -835,3 +835,31 @@ export async function handleArticleImageRetryJob(
     );
   }
 }
+
+/**
+ * Terminal cleanup for a Workflow run that exhausted its retries before the
+ * job handler could record an outcome (e.g. transient DB errors around
+ * markJobRunning). Provider failures are terminally handled inside the
+ * handlers; this only rescues jobs still stuck in 'queued' or 'running' so
+ * the UI never shows an indefinitely generating article.
+ */
+export async function failStrandedArticleJob(
+  jobId: string,
+  providerEnvironment: ArticleJobProviderEnvironment,
+): Promise<void> {
+  getRuntimeDatabase(providerEnvironment);
+  const job = await getJobRunById(jobId);
+  if (!job || (job.status !== 'queued' && job.status !== 'running')) return;
+
+  await failJobRun(
+    jobId,
+    'WORKFLOW_EXECUTION_FAILED',
+    'The article workflow stopped before completing this job.',
+  );
+
+  if (job.kind === 'generate') {
+    await markDeckStatus(job.deckId, job.workspaceId, 'failed', {
+      expectedGenerationRevision: parseRevisionNumber(job.articleRevisionId),
+    });
+  }
+}

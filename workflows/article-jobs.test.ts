@@ -107,6 +107,7 @@ vi.mock('@/server/modules/covers/service', () => ({
 }));
 
 import {
+  failStrandedArticleJob,
   handleArticleGenerationJob,
   handleArticleImageRetryJob,
 } from './article-jobs';
@@ -474,5 +475,51 @@ describe('article Workflow explicit credential plumbing', () => {
       'WORKSPACE_GEMINI_CONNECTION_INVALID',
       expect.stringMatching(/workspace Gemini connection needs attention/i),
     );
+  });
+});
+
+describe('stranded Workflow job finalization', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('terminally fails a still-running generate job and resets its deck revision-safely', async () => {
+    jobs.get.mockResolvedValue({ ...cancelledJob(), status: 'running', kind: 'generate' });
+
+    await failStrandedArticleJob('job_1', testEnvironment);
+
+    expect(jobs.fail).toHaveBeenCalledWith(
+      'job_1',
+      'WORKFLOW_EXECUTION_FAILED',
+      expect.stringMatching(/stopped before completing/i),
+    );
+    expect(generation.markDeckStatus).toHaveBeenCalledWith(
+      'article_1',
+      'workspace_1',
+      'failed',
+      { expectedGenerationRevision: 1 },
+    );
+  });
+
+  it('never touches a job that already reached a terminal state', async () => {
+    jobs.get.mockResolvedValue(cancelledJob());
+
+    await failStrandedArticleJob('job_1', testEnvironment);
+
+    expect(jobs.fail).not.toHaveBeenCalled();
+    expect(generation.markDeckStatus).not.toHaveBeenCalled();
+  });
+
+  it('leaves deck status alone for stranded image retry jobs', async () => {
+    jobs.get.mockResolvedValue({
+      ...cancelledJob(), status: 'queued', kind: 'generate_images',
+    });
+
+    await failStrandedArticleJob('job_1', testEnvironment);
+
+    expect(jobs.fail).toHaveBeenCalledWith(
+      'job_1',
+      'WORKFLOW_EXECUTION_FAILED',
+      expect.any(String),
+    );
+    expect(generation.markDeckStatus).not.toHaveBeenCalled();
   });
 });

@@ -6,7 +6,10 @@ import {
   dispatchArticleWorkflowJob,
   parseArticleWorkflowPayload,
 } from './runner';
-import { NonRetryableArticleJobError } from '@/workflows/article-jobs';
+import {
+  failStrandedArticleJob,
+  NonRetryableArticleJobError,
+} from '@/workflows/article-jobs';
 import type { ArticleWorkflowPayload } from '@/server/domain/article-workflow';
 
 interface ArticleWorkflowEnvironment {
@@ -44,22 +47,37 @@ export class ArticleJobsWorkflow extends WorkflowEntrypoint<
       AI_CREDENTIAL_ACTIVE_KEY_ID: this.env.AI_CREDENTIAL_ACTIVE_KEY_ID,
     };
 
-    await step.do('execute article job', {
-      retries: { limit: 2, delay: '10 seconds', backoff: 'exponential' },
-      timeout: '15 minutes',
-    }, async () => {
-      try {
-        await dispatchArticleWorkflowJob(payload, providerEnvironment, {
-          assetBucket: this.env.ARTICLE_ASSETS,
-        });
-      } catch (error) {
-        if (error instanceof NonRetryableArticleJobError) {
-          throw new NonRetryableError(error.message);
+    try {
+      // Retries here cover transient pre-dispatch failures (e.g. DB errors
+      // before the handler records an outcome); provider failures are
+      // terminally handled inside the job handlers and never rethrown.
+      await step.do('execute article job', {
+        retries: { limit: 2, delay: '10 seconds', backoff: 'exponential' },
+        timeout: '15 minutes',
+      }, async () => {
+        try {
+          await dispatchArticleWorkflowJob(payload, providerEnvironment, {
+            assetBucket: this.env.ARTICLE_ASSETS,
+          });
+        } catch (error) {
+          if (error instanceof NonRetryableArticleJobError) {
+            throw new NonRetryableError(error.message);
+          }
+          throw error;
         }
-        throw error;
-      }
-      return { jobId: payload.jobId, kind: payload.kind };
-    });
+        return { jobId: payload.jobId, kind: payload.kind };
+      });
+    } catch (error) {
+      // Best-effort terminal cleanup so a run that exhausted its retries
+      // never strands the job in 'queued'/'running' and the deck in
+      // 'generating'.
+      await step.do('finalize failed article job', {
+        retries: { limit: 2, delay: '5 seconds', backoff: 'exponential' },
+        timeout: '1 minute',
+      }, () => failStrandedArticleJob(payload.jobId, providerEnvironment))
+        .catch(() => undefined);
+      throw error;
+    }
   }
 }
 
