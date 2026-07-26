@@ -75,6 +75,16 @@ jobs:
         run: bun install --frozen-lockfile
         working-directory: publisher-companion
 
+      # Skill dependencies must exist before the companion tests: the
+      # companion imports the X skill's bundle.ts (fflate) directly.
+      - name: Install Binance skill dependencies
+        run: bun install --frozen-lockfile
+        working-directory: .agents/skills/baoyu-post-to-binance-square/scripts
+
+      - name: Install X skill dependencies
+        run: bun install --frozen-lockfile
+        working-directory: .agents/skills/baoyu-post-to-x/scripts
+
       - name: Test and typecheck publisher companion
         run: bun test && bun run typecheck
         working-directory: publisher-companion
@@ -82,17 +92,9 @@ jobs:
       - name: Build publisher companion artifact
         run: npm run publisher:package
 
-      - name: Install Binance skill dependencies
-        run: bun install --frozen-lockfile
-        working-directory: .agents/skills/baoyu-post-to-binance-square/scripts
-
       - name: Test Binance skill
         run: bun test && npx tsc -p tsconfig.typecheck.json
         working-directory: .agents/skills/baoyu-post-to-binance-square/scripts
-
-      - name: Install X skill dependencies
-        run: bun install --frozen-lockfile
-        working-directory: .agents/skills/baoyu-post-to-x/scripts
 
       - name: Test X skill
         run: bun test
