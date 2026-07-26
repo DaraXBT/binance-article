@@ -62,7 +62,9 @@ export function buildArticleSlideAssetUrl(
   storedImageUrl: string,
   options?: { download?: boolean },
 ): string {
-  const filename = extractArticleAssetFilename(storedImageUrl);
-  const url = `/api/articles/${encodeURIComponent(articleId)}/assets/${encodeURIComponent(filename)}`;
+  // Keyed by the stable assetId: filenames like slide-3.png repeat after a
+  // delete-plus-regenerate reorder, so they cannot address assets uniquely.
+  const { assetId } = parseArticleAssetReference(storedImageUrl);
+  const url = `/api/articles/${encodeURIComponent(articleId)}/assets/${encodeURIComponent(assetId)}`;
   return options?.download ? `${url}?download=1` : url;
 }

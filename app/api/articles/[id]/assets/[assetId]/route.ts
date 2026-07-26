@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import {
-  extractArticleAssetFilename,
-  parseArticleAssetReference,
-} from '@/lib/article-assets';
+import { parseArticleAssetReference } from '@/lib/article-assets';
 import { getDeckWithAssets } from '@/lib/db';
 import { authorizeArticleRequest } from '@/server/auth/article-authorization';
 import { getArticleAssetsBucket } from '@/server/cloudflare/article-assets';
@@ -23,15 +20,25 @@ function buildContentDisposition(filename: string, download: boolean) {
   return `${download ? 'attachment' : 'inline'}; filename="${safeFilename}"`;
 }
 
+function referenceForAsset(storedImageUrl: string | null, assetId: string) {
+  if (!storedImageUrl) return null;
+  try {
+    const reference = parseArticleAssetReference(storedImageUrl);
+    return reference.assetId === assetId ? reference : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; filename: string }> }
+  { params }: { params: Promise<{ id: string; assetId: string }> }
 ) {
   try {
-    const { id: deckId, filename } = await params;
+    const { id: deckId, assetId } = await params;
     const { workspaceId } = await authorizeArticleRequest(request, deckId);
 
-    if (!filename) {
+    if (!assetId) {
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
     }
 
@@ -41,36 +48,21 @@ export async function GET(
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
     }
 
-    const slide = deck.slides.find((candidate) => {
-      if (!candidate.imageUrl) {
-        return false;
-      }
-
-      try {
-        return extractArticleAssetFilename(candidate.imageUrl) === filename;
-      } catch {
-        return false;
-      }
-    });
-
-    let storedImageUrl = slide?.imageUrl ?? null;
+    // The asset must still be referenced by this article's current slides or
+    // cover; the repository re-checks workspace/article ownership below.
     let purpose: 'slide_image' | 'cover_image' = 'slide_image';
-    if (!storedImageUrl && deck.cover?.imageUrl) {
-      try {
-        if (extractArticleAssetFilename(deck.cover.imageUrl) === filename) {
-          storedImageUrl = deck.cover.imageUrl;
-          purpose = 'cover_image';
-        }
-      } catch {
-        storedImageUrl = null;
-      }
+    let reference = deck.slides
+      .map((slide) => referenceForAsset(slide.imageUrl, assetId))
+      .find((match) => match !== null) ?? null;
+    if (!reference) {
+      reference = referenceForAsset(deck.cover?.imageUrl ?? null, assetId);
+      if (reference) purpose = 'cover_image';
     }
 
-    if (!storedImageUrl) {
+    if (!reference) {
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
     }
 
-    const reference = parseArticleAssetReference(storedImageUrl);
     const asset = await loadArticleAsset({
       repository: createArticleAssetRepository(getRuntimeDatabase()),
       bucket: getArticleAssetsBucket(),
@@ -82,12 +74,12 @@ export async function GET(
 
     const download = new URL(request.url).searchParams.get('download') === '1';
 
-    logEvent('info', 'asset.served', { deckId, filename });
+    logEvent('info', 'asset.served', { deckId, assetId });
 
     return new NextResponse(asset.body, {
       headers: {
         'Content-Type': asset.mimeType,
-        'Content-Disposition': buildContentDisposition(filename, download),
+        'Content-Disposition': buildContentDisposition(reference.filename, download),
         'Cache-Control': 'private, no-store, max-age=0',
         Vary: 'Cookie',
       },

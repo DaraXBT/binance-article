@@ -18,13 +18,13 @@ describe('private article asset references', () => {
     expect(reference).not.toMatch(/r2\.dev|https?:/);
   });
 
-  it('builds inline and download URLs through the authenticated article endpoint', () => {
+  it('builds inline and download URLs keyed by the stable asset id', () => {
     const reference = createArticleAssetReference('asset_1', 'slide-01.png');
     expect(buildArticleSlideAssetUrl('article-1', reference)).toBe(
-      '/api/articles/article-1/assets/slide-01.png',
+      '/api/articles/article-1/assets/asset_1',
     );
     expect(buildArticleSlideAssetUrl('article-1', reference, { download: true })).toBe(
-      '/api/articles/article-1/assets/slide-01.png?download=1',
+      '/api/articles/article-1/assets/asset_1?download=1',
     );
     expect(extractArticleAssetFilename(reference)).toBe('slide-01.png');
   });

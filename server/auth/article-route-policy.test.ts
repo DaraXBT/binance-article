@@ -11,7 +11,7 @@ const articleRoutes = [
   'app/api/articles/[id]/reorder/route.ts',
   'app/api/articles/[id]/slides/route.ts',
   'app/api/articles/[id]/slides/[slideId]/route.ts',
-  'app/api/articles/[id]/assets/[filename]/route.ts',
+  'app/api/articles/[id]/assets/[assetId]/route.ts',
 ] as const;
 
 const bodyRoutes = new Set([

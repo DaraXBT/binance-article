@@ -16,7 +16,7 @@ vi.mock('@/server/modules/assets/repository', () => assetRepositoryMock);
 vi.mock('@/server/db/runtime', () => runtimeMock);
 vi.mock('@/server/cloudflare/article-assets', () => bucketMock);
 
-describe('GET /api/articles/[id]/assets/[filename]', () => {
+describe('GET /api/articles/[id]/assets/[assetId]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     assetServiceMock.loadArticleAsset.mockResolvedValue({
@@ -26,10 +26,10 @@ describe('GET /api/articles/[id]/assets/[filename]', () => {
 
   it('returns 404 without touching R2 when the article is outside the workspace', async () => {
     dbMock.getDeckWithAssets.mockResolvedValue(null);
-    const { GET } = await import('@/app/api/articles/[id]/assets/[filename]/route');
+    const { GET } = await import('@/app/api/articles/[id]/assets/[assetId]/route');
     const response = await GET(
-      new Request('http://localhost/api/articles/deck_1/assets/slide-01.png') as never,
-      { params: Promise.resolve({ id: 'deck_1', filename: 'slide-01.png' }) },
+      new Request('http://localhost/api/articles/deck_1/assets/asset_1') as never,
+      { params: Promise.resolve({ id: 'deck_1', assetId: 'asset_1' }) },
     );
 
     expect(response.status).toBe(404);
@@ -41,10 +41,10 @@ describe('GET /api/articles/[id]/assets/[filename]', () => {
       id: 'deck_1',
       slides: [{ id: 'slide_1', imageUrl: 'r2://article-assets/asset_1/slide-01.png' }],
     });
-    const { GET } = await import('@/app/api/articles/[id]/assets/[filename]/route');
+    const { GET } = await import('@/app/api/articles/[id]/assets/[assetId]/route');
     const response = await GET(
-      new Request('http://localhost/api/articles/deck_1/assets/slide-01.png') as never,
-      { params: Promise.resolve({ id: 'deck_1', filename: 'slide-01.png' }) },
+      new Request('http://localhost/api/articles/deck_1/assets/asset_1') as never,
+      { params: Promise.resolve({ id: 'deck_1', assetId: 'asset_1' }) },
     );
 
     expect(response.status).toBe(200);
@@ -68,12 +68,13 @@ describe('GET /api/articles/[id]/assets/[filename]', () => {
         status: 'generated',
       },
     });
-    const { GET } = await import('@/app/api/articles/[id]/assets/[filename]/route');
+    const { GET } = await import('@/app/api/articles/[id]/assets/[assetId]/route');
     const response = await GET(
-      new Request('http://localhost/api/articles/deck_1/assets/cover-source.png') as never,
-      { params: Promise.resolve({ id: 'deck_1', filename: 'cover-source.png' }) },
+      new Request('http://localhost/api/articles/deck_1/assets/cover_asset') as never,
+      { params: Promise.resolve({ id: 'deck_1', assetId: 'cover_asset' }) },
     );
     expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Disposition')).toBe('inline; filename="cover-source.png"');
     expect(assetServiceMock.loadArticleAsset).toHaveBeenCalledWith(expect.objectContaining({
       articleId: 'deck_1',
       assetId: 'cover_asset',
@@ -86,23 +87,42 @@ describe('GET /api/articles/[id]/assets/[filename]', () => {
       id: 'deck_1',
       slides: [{ id: 'slide_1', imageUrl: 'r2://article-assets/asset_1/slide-01.png' }],
     });
-    const { GET } = await import('@/app/api/articles/[id]/assets/[filename]/route');
+    const { GET } = await import('@/app/api/articles/[id]/assets/[assetId]/route');
     const response = await GET(
-      new Request('http://localhost/api/articles/deck_1/assets/slide-01.png?download=1') as never,
-      { params: Promise.resolve({ id: 'deck_1', filename: 'slide-01.png' }) },
+      new Request('http://localhost/api/articles/deck_1/assets/asset_1?download=1') as never,
+      { params: Promise.resolve({ id: 'deck_1', assetId: 'asset_1' }) },
     );
     expect(response.headers.get('Content-Disposition')).toBe('attachment; filename="slide-01.png"');
   });
 
-  it('does not allow one current slide reference to fetch another asset or filename', async () => {
+  it('resolves duplicate filenames unambiguously because the key is the assetId', async () => {
+    dbMock.getDeckWithAssets.mockResolvedValue({
+      id: 'deck_1',
+      slides: [
+        { id: 'slide_1', imageUrl: 'r2://article-assets/asset_1/slide-01.png' },
+        { id: 'slide_2', imageUrl: 'r2://article-assets/asset_2/slide-01.png' },
+      ],
+    });
+    const { GET } = await import('@/app/api/articles/[id]/assets/[assetId]/route');
+    const response = await GET(
+      new Request('http://localhost/api/articles/deck_1/assets/asset_2') as never,
+      { params: Promise.resolve({ id: 'deck_1', assetId: 'asset_2' }) },
+    );
+    expect(response.status).toBe(200);
+    expect(assetServiceMock.loadArticleAsset).toHaveBeenCalledWith(
+      expect.objectContaining({ assetId: 'asset_2' }),
+    );
+  });
+
+  it('does not allow a current reference to fetch an unreferenced asset', async () => {
     dbMock.getDeckWithAssets.mockResolvedValue({
       id: 'deck_1',
       slides: [{ id: 'slide_1', imageUrl: 'r2://article-assets/asset_2/slide-02.png' }],
     });
-    const { GET } = await import('@/app/api/articles/[id]/assets/[filename]/route');
+    const { GET } = await import('@/app/api/articles/[id]/assets/[assetId]/route');
     const response = await GET(
-      new Request('http://localhost/api/articles/deck_1/assets/slide-01.png') as never,
-      { params: Promise.resolve({ id: 'deck_1', filename: 'slide-01.png' }) },
+      new Request('http://localhost/api/articles/deck_1/assets/asset_1') as never,
+      { params: Promise.resolve({ id: 'deck_1', assetId: 'asset_1' }) },
     );
     expect(response.status).toBe(404);
     expect(assetServiceMock.loadArticleAsset).not.toHaveBeenCalled();

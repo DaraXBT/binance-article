@@ -7,7 +7,7 @@ const NONEXISTENT_ARTICLE_ID = '00000000-0000-4000-8000-000000000001';
 authConfiguredTest.describe('Asset Download', () => {
   authConfiguredTest('rejects unauthenticated asset requests', async ({ request }) => {
     // Try to access an asset without a workspace session
-    const res = await request.get(`/api/articles/${NONEXISTENT_ARTICLE_ID}/assets/test.png`);
+    const res = await request.get(`/api/articles/${NONEXISTENT_ARTICLE_ID}/assets/asset-test`);
     expect(res.status()).toBe(401);
   });
 });
@@ -17,7 +17,7 @@ authenticatedTest.describe('Authenticated asset download', () => {
     // Ensure workspace exists
     await request.post('/api/workspace');
 
-    const res = await request.get(`/api/articles/${NONEXISTENT_ARTICLE_ID}/assets/test.png`);
+    const res = await request.get(`/api/articles/${NONEXISTENT_ARTICLE_ID}/assets/asset-test`);
     expect(res.status()).toBe(404);
   });
 
@@ -36,7 +36,7 @@ authenticatedTest.describe('Authenticated asset download', () => {
     const article = await createRes.json();
 
     // Try to access a non-existent asset on a real article
-    const assetRes = await request.get(`/api/articles/${article.id}/assets/nonexistent.png`);
+    const assetRes = await request.get(`/api/articles/${article.id}/assets/asset-nonexistent`);
     // Should be 404 since no assets generated yet, not a server error
     expect([404, 400]).toContain(assetRes.status());
   });
@@ -55,7 +55,7 @@ authenticatedTest.describe('Authenticated asset download', () => {
     const article = await createRes.json();
 
     // Request with download=1 should still return 404 for missing assets
-    const res = await request.get(`/api/articles/${article.id}/assets/test.png?download=1`);
+    const res = await request.get(`/api/articles/${article.id}/assets/asset-test?download=1`);
     expect([404, 400]).toContain(res.status());
   });
 });

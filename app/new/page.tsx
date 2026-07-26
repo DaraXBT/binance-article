@@ -27,9 +27,15 @@ function parseWizardMode(value: string | null): WizardMode {
   return value === 'url' || value === 'prompt' ? value : 'text';
 }
 
+const WIZARD_MODES: ReadonlyArray<{ id: WizardMode; label: string }> = [
+  { id: 'text', label: 'Paste text' },
+  { id: 'url', label: 'Import URL' },
+  { id: 'prompt', label: 'Topic prompt' },
+];
+
 function NewDeckWizard() {
   const searchParams = useSearchParams();
-  const mode = parseWizardMode(searchParams.get('mode'));
+  const [mode, setMode] = useState<WizardMode>(() => parseWizardMode(searchParams.get('mode')));
   const { messages } = useLanguage();
   const {
     generationLocked,
@@ -102,6 +108,14 @@ function NewDeckWizard() {
     setFormData((prev) => ({ ...prev, ...updates }));
   };
 
+  const handleModeChange = (nextMode: WizardMode) => {
+    if (nextMode === mode) return;
+    setMode(nextMode);
+    // The url mode repurposes `title` to hold the URL, so stale values from
+    // another mode must never leak into the next submission.
+    setFormData((prev) => ({ ...prev, title: '', articleContent: '' }));
+  };
+
 
   return (
     <SecureConsoleFrame
@@ -152,6 +166,26 @@ function NewDeckWizard() {
             <FrameCornerHandles />
           {currentStep === 0 && (
             <>
+              <div
+                role="tablist"
+                aria-label="Article source"
+                className="mb-4 flex flex-wrap gap-1.5 border-b border-dotted border-border/70 pb-3"
+              >
+                {WIZARD_MODES.map((candidate) => (
+                  <Button
+                    key={candidate.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={mode === candidate.id}
+                    size="sm"
+                    variant={mode === candidate.id ? 'default' : 'outline'}
+                    className="h-8 rounded-lg text-xs"
+                    onClick={() => handleModeChange(candidate.id)}
+                  >
+                    {candidate.label}
+                  </Button>
+                ))}
+              </div>
               {mode === 'url' && <UrlStep formData={formData} onUpdate={updateFormData} />}
               {mode === 'prompt' && (
                 <PromptStep

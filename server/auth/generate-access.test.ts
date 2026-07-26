@@ -140,4 +140,26 @@ describe('generation access security boundary', () => {
       enabled: true, hasAccess: true, invalidReason: null, grantId: 'grant_1',
     });
   });
+
+  it('falls back to the legacy deckforge cookie during the rename window', async () => {
+    const envCodeHash = await sha256('rotation-secret');
+    repositoryMock.findById.mockResolvedValue(grant({
+      status: 'consumed', envCodeHash,
+      boundWorkspaceId: 'workspace_1', boundSessionId: 'session_1',
+    }));
+    const cookies = new Map([[
+      'deckforge_generate_access', { value: 'grant_1' },
+    ]]);
+    const request = {
+      cookies: { get: vi.fn((name: string) => cookies.get(name)) },
+    };
+
+    await expect(getRequestGenerateAccessState(request as never, {
+      workspaceId: 'workspace_1', sessionId: 'session_1',
+    })).resolves.toEqual({
+      enabled: true, hasAccess: true, invalidReason: null, grantId: 'grant_1',
+    });
+    expect(request.cookies.get).toHaveBeenCalledWith('xarticle_generate_access');
+    expect(request.cookies.get).toHaveBeenCalledWith('deckforge_generate_access');
+  });
 });

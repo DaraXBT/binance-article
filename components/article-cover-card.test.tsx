@@ -68,7 +68,7 @@ describe('ArticleCoverCard', () => {
       }}
     />);
     expect((screen.getByAltText('Dedicated article cover safe-frame preview') as HTMLImageElement).src)
-      .toContain('/api/articles/article_1/assets/cover-source.png');
+      .toContain('/api/articles/article_1/assets/asset_1');
     fireEvent.click(screen.getByRole('button', { name: 'Regenerate cover' }));
     expect(retry).toHaveBeenCalledOnce();
   });
@@ -119,6 +119,6 @@ describe('ArticleCoverCard', () => {
     const loader = screen.getByTestId('image-generation-loader');
     expect(loader.getAttribute('data-has-backdrop')).toBe('true');
     expect(loader.querySelector('img')?.src)
-      .toContain('/api/articles/article_1/assets/cover-source.png');
+      .toContain('/api/articles/article_1/assets/asset_1');
   });
 });

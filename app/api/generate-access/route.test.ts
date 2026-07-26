@@ -30,7 +30,7 @@ const generateAccessMock = {
     grantId: 'grant-1',
   })),
   grantGenerateAccess: vi.fn((response: Response & { cookies: { set: (name: string, value: string) => void } }, grantId: string) => {
-    response.cookies.set('deckforge_generate_access', grantId);
+    response.cookies.set('xarticle_generate_access', grantId);
   }),
 };
 
@@ -79,7 +79,7 @@ describe('/api/generate-access', () => {
       workspaceId: 'workspace-1',
       sessionId: 'session-1',
     });
-    expect(response.headers.get('set-cookie')).toContain('deckforge_generate_access');
+    expect(response.headers.get('set-cookie')).toContain('xarticle_generate_access');
     expect(rateLimitMock.consumeAtomicRateLimit).toHaveBeenCalledWith(expect.objectContaining({
       database: { db: true }, key: 'generate-access:user-1', limit: 5,
     }));

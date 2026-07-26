@@ -5,7 +5,10 @@ import { getRuntimeDatabase } from '@/server/db/runtime';
 
 import { createGenerationAccessGrantRepository } from './generate-access-repository';
 
-export const GENERATE_ACCESS_COOKIE_NAME = 'deckforge_generate_access';
+export const GENERATE_ACCESS_COOKIE_NAME = 'xarticle_generate_access';
+// Pre-rename cookie: still read (new name wins) and actively expired on every
+// write so live grants survive the rename. Remove after the compat window.
+export const LEGACY_GENERATE_ACCESS_COOKIE_NAME = 'deckforge_generate_access';
 
 export type GenerateAccessInvalidReason =
   | 'missing'
@@ -147,6 +150,16 @@ export function getGenerateAccessCodePrefix(code: string) {
   return code.trim().slice(0, 12);
 }
 
+function expireLegacyGenerateAccess(response: NextResponse) {
+  response.cookies.set(LEGACY_GENERATE_ACCESS_COOKIE_NAME, '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 0,
+    path: '/',
+  });
+}
+
 export function grantGenerateAccess(response: NextResponse, grantId: string) {
   response.cookies.set(GENERATE_ACCESS_COOKIE_NAME, grantId, {
     httpOnly: true,
@@ -154,6 +167,7 @@ export function grantGenerateAccess(response: NextResponse, grantId: string) {
     sameSite: 'strict',
     path: '/',
   });
+  expireLegacyGenerateAccess(response);
 }
 
 export function clearGenerateAccess(response: NextResponse) {
@@ -164,6 +178,7 @@ export function clearGenerateAccess(response: NextResponse) {
     maxAge: 0,
     path: '/',
   });
+  expireLegacyGenerateAccess(response);
 }
 
 export async function getCurrentGenerateAccessState({
@@ -176,7 +191,9 @@ export async function getCurrentGenerateAccessState({
   const cookieStore = await cookies();
 
   return resolveGenerateAccessState({
-    grantId: cookieStore.get(GENERATE_ACCESS_COOKIE_NAME)?.value ?? null,
+    grantId: cookieStore.get(GENERATE_ACCESS_COOKIE_NAME)?.value
+      ?? cookieStore.get(LEGACY_GENERATE_ACCESS_COOKIE_NAME)?.value
+      ?? null,
     workspaceId,
     sessionId,
   });
@@ -193,7 +210,9 @@ export async function hasGrantedGenerateAccess(
   }
 ) {
   const state = await resolveGenerateAccessState({
-    grantId: request.cookies.get(GENERATE_ACCESS_COOKIE_NAME)?.value ?? null,
+    grantId: request.cookies.get(GENERATE_ACCESS_COOKIE_NAME)?.value
+      ?? request.cookies.get(LEGACY_GENERATE_ACCESS_COOKIE_NAME)?.value
+      ?? null,
     workspaceId,
     sessionId,
   });
@@ -212,7 +231,9 @@ export async function getRequestGenerateAccessState(
   }
 ) {
   return resolveGenerateAccessState({
-    grantId: request.cookies.get(GENERATE_ACCESS_COOKIE_NAME)?.value ?? null,
+    grantId: request.cookies.get(GENERATE_ACCESS_COOKIE_NAME)?.value
+      ?? request.cookies.get(LEGACY_GENERATE_ACCESS_COOKIE_NAME)?.value
+      ?? null,
     workspaceId,
     sessionId,
   });
