@@ -48,6 +48,7 @@ import {
 } from '@/server/integrations/workspace-gemini-credential';
 import { createArticleCoverRepository } from '@/server/modules/covers/repository';
 import {
+  getArticleCover,
   initializeArticleCover,
   markArticleCoverFailed,
   markArticleCoverGenerated,
@@ -108,6 +109,22 @@ type CoverResult =
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+const CONTENT_CHECKPOINT = 'content_persisted';
+
+/**
+ * True when a previous execution of this job already persisted the generated
+ * slides/captions for the same generation revision. Stored as structured log
+ * metadata on the JobRun, so it survives Workflow-engine re-executions.
+ */
+export function hasContentCheckpoint(logs: unknown, revision: number): boolean {
+  if (!Array.isArray(logs)) return false;
+  return logs.some((entry) =>
+    isRecord(entry)
+    && isRecord(entry.meta)
+    && entry.meta.checkpoint === CONTENT_CHECKPOINT
+    && entry.meta.revision === revision);
 }
 
 function readString(value: unknown, fallback = '') {
@@ -365,6 +382,10 @@ export async function generateCoverForDeck(input: {
   imageConfig: ImagePipelineConfig;
   credentialSource: GeminiCredentialSource;
   assetBucket?: ArticleAssetBucket;
+  /** Reuse a cover already generated at the current revision instead of
+   * paying for a new image; only the full-generation path sets this — the
+   * explicit cover-retry job must always regenerate. */
+  skipExistingGenerated?: boolean;
 }): Promise<CoverResult> {
   const database = getRuntimeDatabase();
   const coverRepository = createArticleCoverRepository(database);
@@ -376,6 +397,21 @@ export async function generateCoverForDeck(input: {
       return { status: 'skipped', imageUrl: null, error: 'Article not found.' };
     }
     generationRevision = deck.generationRevision;
+
+    if (input.skipExistingGenerated) {
+      const existing = await getArticleCover({
+        repository: coverRepository,
+        workspaceId: input.workspaceId,
+        articleId: input.deckId,
+      });
+      if (
+        existing?.status === 'generated'
+        && existing.generationRevision === deck.generationRevision
+        && existing.imageUrl
+      ) {
+        return { status: 'generated', imageUrl: existing.imageUrl, error: null };
+      }
+    }
 
     const coverPrompt = buildArticleCoverPrompt({
       title: deck.title,
@@ -591,41 +627,73 @@ export async function handleArticleGenerationJob(
     const textProvider = TextProviderSchema.parse(readString(payload.textProvider, 'gemini'));
     const gemini = await resolveGeminiJobConfig(job.workspaceId, providerEnvironment);
     geminiCredentialSource = gemini.source;
-    const textConfig = textProvider === 'gemini'
-      ? gemini.text
-      : resolveTextProviderConfig('deepseek', providerEnvironment);
 
-    const articleContent =
-      mode === 'url' ? await fetchArticleSourceText(rawArticleContent) : rawArticleContent;
+    // The Workflow engine may re-execute the step after an isolate death.
+    // A durable checkpoint in the job log lets a re-run skip the already-paid
+    // LLM call and content persistence instead of buying them again.
+    let persistedSlideCount: number;
+    if (hasContentCheckpoint(job.logs, jobRevision)) {
+      // Same staleness gate the fresh path gets from replaceGeneratedContent
+      // (applied=false): a superseded run must cancel, never resume into paid
+      // image/cover work against a newer revision's content.
+      const deck = await listSlidesForImageGeneration(job.deckId, job.workspaceId);
+      if (!deck || deck.generationRevision !== jobRevision) {
+        await failJobRun(
+          jobId,
+          'STALE_REVISION',
+          'A newer article generation was queued before this run finished.',
+          'cancelled'
+        );
+        return;
+      }
+      await appendJobLog(jobId, 'Resuming from persisted content; skipping regeneration.');
+      // The fresh path leaves the deck 'ready' via replaceGeneratedContent's
+      // CTE; the resume path must restore that state itself or the article
+      // stays 'generating' forever after a successful resumed run.
+      await markDeckStatus(job.deckId, job.workspaceId, 'ready', revisionGuard);
+      persistedSlideCount = deck.slides.length;
+    } else {
+      const textConfig = textProvider === 'gemini'
+        ? gemini.text
+        : resolveTextProviderConfig('deepseek', providerEnvironment);
 
-    await markJobProgress(jobId, 25, `Requesting ${textProvider} slide generation.`);
+      const articleContent =
+        mode === 'url' ? await fetchArticleSourceText(rawArticleContent) : rawArticleContent;
 
-    const generated = await generateDeckWithProvider({
-      articleContent,
-      slideCount,
-      illustrationStyle,
-      mode: mode as 'text' | 'url' | 'prompt',
-    }, textConfig);
+      await markJobProgress(jobId, 25, `Requesting ${textProvider} slide generation.`);
 
-    if ((await getJobRunById(jobId))?.status !== 'running') return;
+      const generated = await generateDeckWithProvider({
+        articleContent,
+        slideCount,
+        illustrationStyle,
+        mode: mode as 'text' | 'url' | 'prompt',
+      }, textConfig);
 
-    await markJobProgress(jobId, 45, 'Persisting generated slides and captions.');
+      if ((await getJobRunById(jobId))?.status !== 'running') return;
 
-    const replacement = await replaceGeneratedContent(
-      job.deckId,
-      job.workspaceId,
-      job.articleRevisionId,
-      generated
-    );
+      await markJobProgress(jobId, 45, 'Persisting generated slides and captions.');
 
-    if (!replacement.applied) {
-      await failJobRun(
-        jobId,
-        'STALE_REVISION',
-        'A newer article generation was queued before this run finished.',
-        'cancelled'
+      const replacement = await replaceGeneratedContent(
+        job.deckId,
+        job.workspaceId,
+        job.articleRevisionId,
+        generated
       );
-      return;
+
+      if (!replacement.applied) {
+        await failJobRun(
+          jobId,
+          'STALE_REVISION',
+          'A newer article generation was queued before this run finished.',
+          'cancelled'
+        );
+        return;
+      }
+      persistedSlideCount = generated.slides.length;
+      await markJobProgress(jobId, 46, 'Generated slides and captions persisted.', {
+        checkpoint: CONTENT_CHECKPOINT,
+        revision: jobRevision,
+      });
     }
 
     const [imageSummary, coverSummary] = await Promise.all([
@@ -646,12 +714,15 @@ export async function handleArticleGenerationJob(
         imageConfig: gemini.image,
         credentialSource: gemini.source,
         assetBucket: runtime.assetBucket,
+        // Engine re-runs must not pay for a cover that already generated at
+        // this revision; the explicit cover-retry job never sets this.
+        skipExistingGenerated: true,
       }),
     ]);
 
     await completeJobRun(jobId, {
       deckId: job.deckId,
-      slideCount: generated.slides.length,
+      slideCount: persistedSlideCount,
       imageSummary,
       coverSummary,
     });
@@ -659,7 +730,7 @@ export async function handleArticleGenerationJob(
     logEvent('info', 'workflow.article_generation.complete', {
       jobId,
       deckId: job.deckId,
-      slideCount: generated.slides.length,
+      slideCount: persistedSlideCount,
       imageStatus: imageSummary.status,
       coverStatus: coverSummary.status,
     });
