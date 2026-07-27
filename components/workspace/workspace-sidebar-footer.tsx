@@ -35,6 +35,7 @@ export interface WorkspaceSidebarFooterProps {
   profileLabel?: string;
   settingsLabel?: string;
   settingsHref?: string;
+  onOpenSettings?: () => void;
   importOldWorkspaceLabel?: string;
   onImportOldWorkspace?: () => void;
   signOutLabel?: string;
@@ -56,7 +57,8 @@ export function WorkspaceSidebarFooter({
   accountInitial,
   profileLabel,
   settingsLabel = 'Settings',
-  settingsHref = '/settings/connections',
+  settingsHref = '/workspace?settings=connections',
+  onOpenSettings,
   importOldWorkspaceLabel,
   onImportOldWorkspace,
   signOutLabel,
@@ -100,6 +102,12 @@ export function WorkspaceSidebarFooter({
     setRecoverOpen(true);
   };
 
+  const handleSettingsOpen = () => {
+    suppressProfileFocusRestoreRef.current = true;
+    setProfileOpen(false);
+    onOpenSettings?.();
+  };
+
   const handleImportOldWorkspace = () => {
     suppressProfileFocusRestoreRef.current = true;
     setProfileOpen(false);
@@ -122,6 +130,7 @@ export function WorkspaceSidebarFooter({
           <Button
             type="button"
             variant="ghost"
+            data-workspace-account-trigger
             aria-label={profileLabel ?? `Account: ${accountLabel}`}
             title={profileLabel ?? accountLabel}
             className={cn(
@@ -168,16 +177,28 @@ export function WorkspaceSidebarFooter({
           </div>
 
           <div className="border-t border-border/70 py-1">
-            <Button
-              asChild
-              variant="ghost"
-              className="h-9 w-full justify-start rounded-lg px-2.5 font-normal"
-            >
-              <Link href={settingsHref} onClick={() => setProfileOpen(false)}>
+            {onOpenSettings ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-9 w-full justify-start rounded-lg px-2.5 font-normal"
+                onClick={handleSettingsOpen}
+              >
                 <Settings2 aria-hidden="true" className="size-4" />
                 {settingsLabel}
-              </Link>
-            </Button>
+              </Button>
+            ) : (
+              <Button
+                asChild
+                variant="ghost"
+                className="h-9 w-full justify-start rounded-lg px-2.5 font-normal"
+              >
+                <Link href={settingsHref} onClick={handleSettingsOpen}>
+                  <Settings2 aria-hidden="true" className="size-4" />
+                  {settingsLabel}
+                </Link>
+              </Button>
+            )}
           </div>
 
           <div className="border-t border-border/70 py-1.5">

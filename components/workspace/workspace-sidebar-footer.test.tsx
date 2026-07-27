@@ -109,7 +109,7 @@ describe('WorkspaceSidebarFooter', () => {
     expect(html).toContain('title="Niccolo"');
     expect(html).toContain('group-data-[collapsible=icon]:size-8');
     expect(html).toContain('niccolo@example.com');
-    expect(html).toContain('href="/settings/connections"');
+    expect(html).toContain('href="/workspace?settings=connections"');
     expect(html).toContain('Settings');
     expect(html).toContain('Import old workspace');
     expect(html).toContain('Sign out');
@@ -149,6 +149,22 @@ describe('WorkspaceSidebarFooter', () => {
 
     expect(onImportOldWorkspace).toHaveBeenCalledTimes(1);
     expect(onSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens settings through the client callback when provided', async () => {
+    const onOpenSettings = vi.fn();
+    const { WorkspaceSidebarFooter } = await import('./workspace-sidebar-footer');
+    render(
+      React.createElement(WorkspaceSidebarFooter, {
+        accessKeyPrefix: 'dwk_f525',
+        onOpenSettings,
+      }),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('link', { name: 'Settings' })).toBeNull();
   });
 
   it('opens recovery from the key tools and disables sign out while pending', async () => {

@@ -46,7 +46,13 @@ const STATUS_STYLES: Record<InvitationRow['status'], string> = {
   expired: 'text-muted-foreground',
 };
 
-export function AdminInvitationsCard({ className }: { className?: string }) {
+export function AdminInvitationsCard({
+  className,
+  onUncopiedInvitationChange,
+}: {
+  className?: string;
+  onUncopiedInvitationChange?: (hasUncopiedInvitation: boolean) => void;
+}) {
   const [invitations, setInvitations] = useState<InvitationRow[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   // The workspace-member role can't distinguish app-global owners, so the
@@ -91,6 +97,9 @@ export function AdminInvitationsCard({ className }: { className?: string }) {
     setActionError(null);
     setCreated(null);
     setCopied(false);
+    // Treat the request itself as sensitive: the server may create the
+    // one-time link before the browser receives and renders the response.
+    onUncopiedInvitationChange?.(true);
     try {
       const response = await fetch('/api/admin/invitations', {
         method: 'POST',
@@ -100,9 +109,11 @@ export function AdminInvitationsCard({ className }: { className?: string }) {
       const body = await readJson(response, 'The invitation could not be created.');
       const invitation = body.invitation as { joinUrl: string; expiresAt: string };
       setCreated({ email: trimmed, joinUrl: invitation.joinUrl, expiresAt: invitation.expiresAt });
+      onUncopiedInvitationChange?.(true);
       setEmail('');
       await refresh();
     } catch (error) {
+      onUncopiedInvitationChange?.(false);
       setActionError(error instanceof Error ? error.message : 'The invitation could not be created.');
     } finally {
       setIsCreating(false);
@@ -131,6 +142,7 @@ export function AdminInvitationsCard({ className }: { className?: string }) {
     try {
       await navigator.clipboard.writeText(created.joinUrl);
       setCopied(true);
+      onUncopiedInvitationChange?.(false);
       setTimeout(() => setCopied(false), 2000);
     } catch {
       setCopied(false);
@@ -142,9 +154,9 @@ export function AdminInvitationsCard({ className }: { className?: string }) {
   return (
     <ConsolePanel corners={false} className={className ?? 'rounded-xl bg-card/70 p-3 sm:p-5'}>
       <FrameCornerHandles />
-      <div className="mb-3 border-b border-dotted border-border/70 pb-2 font-mono text-[0.65rem] font-semibold uppercase tracking-[0.14em]">
+      <h3 className="mb-3 border-b border-dotted border-border/70 pb-2 font-mono text-[0.65rem] font-semibold uppercase tracking-[0.14em]">
         INVITATIONS
-      </div>
+      </h3>
       <p className="text-sm text-muted-foreground">
         Invite a teammate by email. The join link is shown once — copy it now;
         only its hash is stored. The private beta caps enrollment at ten
@@ -160,6 +172,9 @@ export function AdminInvitationsCard({ className }: { className?: string }) {
       >
         <Input
           type="email"
+          name="invitationEmail"
+          autoComplete="email"
+          spellCheck={false}
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="teammate@example.com"

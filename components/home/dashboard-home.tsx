@@ -48,6 +48,7 @@ import { GenerateAccessDialog } from '@/components/generate-access-dialog';
 import { WorkspaceOnboarding } from '@/components/workspace/workspace-onboarding';
 import { WorkspaceSidebarFooter } from '@/components/workspace/workspace-sidebar-footer';
 import { RecoverWorkspaceDialog } from '@/components/workspace/recover-workspace-dialog';
+import { ConnectionsDialog } from '@/components/settings/connections-dialog';
 import {
   DEFAULT_ILLUSTRATION_STYLE,
   type IllustrationStyleId,
@@ -581,12 +582,14 @@ function newIdempotencyKey(): string {
 interface DashboardHomeProps {
   resumeIntentId?: string | null;
   resumeRequested?: boolean;
+  settingsOpen?: boolean;
   actor?: { name: string; email: string };
 }
 
 export function DashboardHome({
   resumeIntentId = null,
   resumeRequested = Boolean(resumeIntentId),
+  settingsOpen = false,
   actor,
 }: DashboardHomeProps) {
   const router = useRouter();
@@ -635,6 +638,20 @@ export function DashboardHome({
   const { generationLocked, unlockGeneration, markGenerationAccessLost } = useGenerationLock();
   const isWorkspaceBusy = isProvisioningWorkspace || Boolean(createWorkspace.isPending);
   const accountLabel = actor?.name?.trim() || actor?.email?.trim() || 'Account';
+
+  const handleConnectionsOpenChange = (open: boolean) => {
+    const params = new URLSearchParams(window.location.search);
+    if (open) params.set('settings', 'connections');
+    else params.delete('settings');
+    const queryString = params.toString();
+    router.replace(queryString ? `/workspace?${queryString}` : '/workspace', { scroll: false });
+  };
+
+  const handleOpenConnections = () => {
+    const params = new URLSearchParams(window.location.search);
+    params.set('settings', 'connections');
+    router.push(`/workspace?${params.toString()}`, { scroll: false });
+  };
 
   // A newly enrolled account has no workspace yet. Provision it silently so a
   // user can land on the composer without an extra onboarding click.
@@ -1306,6 +1323,7 @@ export function DashboardHome({
             accountLabel={accountLabel}
             accountEmail={actor?.email}
             settingsLabel={messages.dashboard.settings}
+            onOpenSettings={handleOpenConnections}
             {...(workspace.canReplaceWithLegacy
               ? {
                   importOldWorkspaceLabel: messages.dashboard.importOldWorkspace,
@@ -1372,6 +1390,11 @@ export function DashboardHome({
         </section>
       </ArticleStudioShell>
 
+      <ConnectionsDialog
+        open={settingsOpen}
+        onOpenChange={handleConnectionsOpenChange}
+        workspaceRole={workspace.workspaceRole}
+      />
 
       {workspaceChoiceOpen ? (
         <AlertDialog open onOpenChange={handleWorkspaceChoiceOpenChange}>

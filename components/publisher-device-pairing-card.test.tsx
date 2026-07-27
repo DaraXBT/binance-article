@@ -85,15 +85,22 @@ describe('PublisherDevicePairingCard', () => {
         expiresAt: '2026-07-22T03:10:00.000Z',
       }, 201));
 
-    render(<PublisherDevicePairingCard />);
+    const onUncopiedPairingChange = vi.fn();
+    render(
+      <PublisherDevicePairingCard
+        onUncopiedPairingChange={onUncopiedPairingChange}
+      />,
+    );
     await screen.findByLabelText('Computer name');
     fireEvent.click(screen.getByRole('button', { name: 'Create pairing code' }));
     await screen.findByText('pairing_code_value_12345678901234567890');
+    expect(onUncopiedPairingChange).toHaveBeenCalledWith(true);
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy code' }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(
       'pairing_code_value_12345678901234567890',
     ));
+    expect(onUncopiedPairingChange).toHaveBeenLastCalledWith(false);
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy commands' }));
     await waitFor(() => expect(writeText).toHaveBeenLastCalledWith(

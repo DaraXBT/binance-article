@@ -145,9 +145,10 @@ vi.mock('next/link', () => ({
 }));
 
 const routerPush = vi.fn();
+const routerReplace = vi.fn();
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: routerPush }),
+  useRouter: () => ({ push: routerPush, replace: routerReplace }),
 }));
 
 vi.mock('@/components/language-provider', () => ({
@@ -236,14 +237,28 @@ vi.mock('@/components/workspace/recovery-key-dialog', () => ({
 }));
 
 vi.mock('@/components/workspace/workspace-sidebar-footer', () => ({
-  WorkspaceSidebarFooter: ({ accessKeyPrefix, settingsLabel, signOutLabel }: any) =>
+  WorkspaceSidebarFooter: ({ accessKeyPrefix, onOpenSettings, settingsLabel, signOutLabel }: any) =>
     React.createElement(
       'div',
       { 'data-testid': 'workspace-sidebar-footer' },
       accessKeyPrefix,
-      React.createElement('span', null, settingsLabel),
+      React.createElement('button', { type: 'button', onClick: onOpenSettings }, settingsLabel),
       React.createElement('span', null, signOutLabel),
     ),
+}));
+
+vi.mock('@/components/settings/connections-dialog', () => ({
+  ConnectionsDialog: ({ open, onOpenChange, workspaceRole }: any) => open
+    ? React.createElement(
+        'div',
+        { 'data-testid': 'connections-dialog', 'data-workspace-role': workspaceRole },
+        React.createElement(
+          'button',
+          { type: 'button', onClick: () => onOpenChange(false) },
+          'Close connections',
+        ),
+      )
+    : null,
 }));
 
 vi.mock('@/components/workspace/workspace-onboarding', () => ({
@@ -340,6 +355,7 @@ describe('DashboardHome', () => {
     vi.clearAllMocks();
     vi.resetModules();
     sessionStorage.clear();
+    window.history.replaceState({}, '', '/workspace');
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
       configurable: true,
       value: vi.fn(),
@@ -361,6 +377,7 @@ describe('DashboardHome', () => {
   afterEach(() => {
     cleanup();
     routerPush.mockReset();
+    routerReplace.mockReset();
     refetch.mockReset();
     refetchWorkspace.mockReset();
     vi.resetAllMocks();
@@ -456,6 +473,46 @@ describe('DashboardHome', () => {
 
     expect(html).toContain('data-testid="workspace-sidebar-footer"');
     expect(html).toContain('dwk_test');
+  });
+
+  it('opens Connections from URL state and closes it without dropping other query parameters', async () => {
+    const resume = '7c67d7cf-47bd-4c5d-8dca-0980a9c27575';
+    window.history.replaceState(
+      {},
+      '',
+      `/workspace?resume=${resume}&settings=connections&source=account`,
+    );
+    const { DashboardHome } = await import('@/components/home/dashboard-home');
+
+    render(React.createElement(DashboardHome, {
+      settingsOpen: true,
+    }));
+
+    expect(screen.getByTestId('connections-dialog')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Close connections' }));
+
+    expect(routerReplace).toHaveBeenCalledWith(
+      `/workspace?resume=${resume}&source=account`,
+      { scroll: false },
+    );
+  });
+
+  it('opens Connections from the live URL after a resume checkpoint changes client-side', async () => {
+    const currentResume = '35c22259-f429-455f-9c57-51ef7f00f44e';
+    window.history.replaceState(
+      {},
+      '',
+      `/workspace?resume=${currentResume}&source=account`,
+    );
+    const { DashboardHome } = await import('@/components/home/dashboard-home');
+    render(React.createElement(DashboardHome));
+
+    fireEvent.click(screen.getByRole('button', { name: messages.dashboard.settings }));
+
+    expect(routerPush).toHaveBeenCalledWith(
+      `/workspace?resume=${currentResume}&source=account&settings=connections`,
+      { scroll: false },
+    );
   });
 
   it('never renders a recovery key surface (account workspaces issue none)', async () => {

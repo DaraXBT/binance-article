@@ -151,7 +151,13 @@ async function readResponseBody(response: Response): Promise<unknown> {
   }
 }
 
-export function PublisherDevicePairingCard({ className }: { className?: string }) {
+export function PublisherDevicePairingCard({
+  className,
+  onUncopiedPairingChange,
+}: {
+  className?: string;
+  onUncopiedPairingChange?: (hasUncopiedPairing: boolean) => void;
+}) {
   const [workspace, setWorkspace] = useState<WorkspaceState>({ status: 'loading' });
   const [pairing, setPairing] = useState<PairingState>({ status: 'idle' });
   const [devices, setDevices] = useState<DevicesState>({ status: 'idle' });
@@ -224,6 +230,9 @@ export function PublisherDevicePairingCard({ className }: { className?: string }
 
     setPairing({ status: 'creating' });
     setCopyState('idle');
+    // The server may create the one-time code before the response reaches the
+    // browser, so protect the dialog from dismissal for the entire request.
+    onUncopiedPairingChange?.(true);
     try {
       const response = await fetch('/api/publisher/devices/pairing', {
         method: 'POST',
@@ -255,6 +264,7 @@ export function PublisherDevicePairingCard({ className }: { className?: string }
         : current);
     } catch {
       setPairing({ status: 'error' });
+      onUncopiedPairingChange?.(false);
     }
   };
 
@@ -263,6 +273,7 @@ export function PublisherDevicePairingCard({ className }: { className?: string }
       if (!navigator.clipboard?.writeText) throw new Error('Clipboard is unavailable.');
       await navigator.clipboard.writeText(value);
       setCopyState(kind);
+      if (kind === 'code') onUncopiedPairingChange?.(false);
     } catch {
       setCopyState('error');
     }
@@ -392,9 +403,9 @@ export function PublisherDevicePairingCard({ className }: { className?: string }
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h3 id="publisher-devices-title" className="text-sm font-semibold">
+                <h4 id="publisher-devices-title" className="text-sm font-semibold">
                   Publishing computers
-                </h3>
+                </h4>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                   Revoke a computer to disable its token or unused pairing code immediately.
                 </p>
@@ -515,9 +526,9 @@ export function PublisherDevicePairingCard({ className }: { className?: string }
             <section className="space-y-2" aria-labelledby="publisher-pairing-code-title">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h3 id="publisher-pairing-code-title" className="text-sm font-semibold">
+                  <h4 id="publisher-pairing-code-title" className="text-sm font-semibold">
                     One-time pairing code
-                  </h3>
+                  </h4>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Valid until{' '}
                     <time dateTime={pairingValue.expiresAt}>
@@ -549,10 +560,10 @@ export function PublisherDevicePairingCard({ className }: { className?: string }
             <section className="space-y-2" aria-labelledby="publisher-companion-commands-title">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h3 id="publisher-companion-commands-title" className="flex items-center gap-2 text-sm font-semibold">
+                  <h4 id="publisher-companion-commands-title" className="flex items-center gap-2 text-sm font-semibold">
                     <TerminalSquare aria-hidden="true" className="size-4 text-primary" />
                     Companion commands
-                  </h3>
+                  </h4>
                   <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">
                     Run the pair command, paste the code into its hidden prompt, then start the companion. The code is kept out of shell history.
                   </p>
