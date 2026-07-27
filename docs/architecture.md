@@ -34,6 +34,12 @@ workspace key from **Settings → Connections**. Members consume the selected
 source but cannot manage it; platform credits remain the default after a first
 save. See [workspace Gemini connections](./workspace-ai-credentials.md).
 
+The signed-in account control is pinned to the workspace rail footer. It opens
+the Connections settings panel above the expanded profile row or beside the
+collapsed desktop rail, so settings access remains available without restoring
+the article list. The panel is a responsive shell for the currently supported
+Connections category; it does not expose placeholder account or billing pages.
+
 The web app never receives Binance/X passwords, cookies, OAuth tokens, or a
 Chrome profile. It also never launches local Chrome or Bun code. X uses the
 companion's `X_BROWSER_PROFILE_DIR` profile; Binance uses its shared baoyu

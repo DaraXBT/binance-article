@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { PlugZap, X } from 'lucide-react';
 
 import { AdminInvitationsCard } from '@/components/admin-invitations-card';
 import {
@@ -117,53 +117,106 @@ export function ConnectionsDialog({
           event.preventDefault();
           accountTrigger.focus();
         }}
-        className="h-[calc(100dvh-0.5rem)] max-h-[calc(100dvh-0.5rem)] w-[calc(100%-0.5rem)] max-w-none grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-lg border-dotted bg-card p-0 shadow-xl sm:h-[min(48rem,calc(100dvh-3rem))] sm:max-h-[calc(100dvh-3rem)] sm:w-[calc(100%-3rem)] sm:max-w-5xl sm:rounded-xl"
+        className="relative h-[calc(100dvh-0.5rem)] max-h-[calc(100dvh-0.5rem)] w-[calc(100%-0.5rem)] max-w-none grid-cols-1 grid-rows-[minmax(0,1fr)] gap-0 overflow-hidden rounded-lg border-dotted bg-card p-0 shadow-xl sm:h-[min(48rem,calc(100dvh-3rem))] sm:max-h-[calc(100dvh-3rem)] sm:w-[calc(100%-3rem)] sm:max-w-6xl sm:rounded-xl md:grid-cols-[13.5rem_minmax(0,1fr)]"
       >
-        <DialogHeader className="relative shrink-0 gap-1.5 border-b border-dotted border-border/70 px-4 py-4 pr-14 text-left sm:px-6 sm:py-5 sm:pr-16">
-          <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-primary">
-            Workspace / Settings
-          </p>
-          <DialogTitle className="text-2xl leading-tight tracking-normal sm:text-3xl">
-            Connections
-          </DialogTitle>
-          <DialogDescription className="max-w-2xl text-xs leading-relaxed sm:text-sm">
-            Manage the AI provider and browser publisher connections used by this workspace.
-          </DialogDescription>
+        <aside
+          data-connections-settings-rail
+          aria-label="Settings navigation"
+          className="hidden min-h-0 flex-col gap-4 overflow-hidden border-r border-dotted border-border/70 bg-muted/30 p-3 md:flex"
+        >
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="absolute right-2 top-2 size-10 rounded-lg sm:right-4 sm:top-4"
+            className="shrink-0"
             aria-label="Close connections"
             onClick={requestClose}
           >
             <X aria-hidden="true" className="size-4" />
           </Button>
-        </DialogHeader>
+
+          <div className="hidden min-h-0 flex-1 flex-col gap-5 md:flex">
+            <div className="px-1 pt-1">
+              <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-primary">
+                Settings
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Workspace controls
+              </p>
+            </div>
+
+            <nav aria-label="Settings sections" className="px-1">
+              <div
+                data-connections-settings-nav-item
+                aria-current="page"
+                className="flex min-h-10 items-center gap-2.5 rounded-lg border border-primary/25 bg-primary/10 px-3 text-sm font-medium text-foreground"
+              >
+                <PlugZap aria-hidden="true" className="size-4 shrink-0 text-primary" />
+                <span>Connections</span>
+                <span aria-hidden="true" className="ml-auto size-1.5 rounded-full bg-primary" />
+              </div>
+            </nav>
+          </div>
+        </aside>
 
         <div
-          data-connections-dialog-scroll
-          className="min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-5 lg:p-6"
+          data-connections-settings-content
+          id="connections-settings-content"
+          className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)]"
         >
-          <div className="mx-auto grid w-full max-w-4xl gap-4 sm:gap-5">
-            <ConnectionSection title="Gemini AI" titleId="connections-gemini-title">
-              <WorkspaceAiCredentialCard
-                workspaceRole={workspaceRole}
-                className="max-w-none rounded-none border-0 bg-transparent p-0 shadow-none"
-              />
-            </ConnectionSection>
+          <DialogHeader className="relative shrink-0 gap-1.5 border-b border-dotted border-border/70 px-4 py-4 pr-14 text-left sm:px-6 sm:py-5 sm:pr-16">
+            <div className="flex items-center gap-2 md:hidden">
+              <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-primary">
+                Workspace settings
+              </p>
+              <span aria-hidden="true" className="text-xs text-muted-foreground">/</span>
+              <span className="text-xs font-medium text-muted-foreground">Connections</span>
+            </div>
+            <p className="hidden font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-primary md:block">
+              Workspace / Settings
+            </p>
+            <DialogTitle className="text-2xl leading-tight tracking-normal sm:text-3xl">
+              Connections
+            </DialogTitle>
+            <DialogDescription className="max-w-2xl text-xs leading-relaxed sm:text-sm">
+              Manage the AI provider and browser publisher connections used by this workspace.
+            </DialogDescription>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-2 top-2 size-10 rounded-lg md:hidden"
+              aria-label="Close connections"
+              onClick={requestClose}
+            >
+              <X aria-hidden="true" className="size-4" />
+            </Button>
+          </DialogHeader>
 
-            <ConnectionSection title="Publisher device" titleId="connections-publisher-title">
-              <PublisherDevicePairingCard
-                className="max-w-none rounded-none border-0 bg-transparent p-0 shadow-none"
-                onUncopiedPairingChange={setHasUncopiedPairing}
-              />
-            </ConnectionSection>
+          <div
+            data-connections-dialog-scroll
+            className="min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-5 lg:p-6"
+          >
+            <div className="mx-auto grid w-full max-w-4xl gap-4 sm:gap-5">
+              <ConnectionSection title="Gemini AI" titleId="connections-gemini-title">
+                <WorkspaceAiCredentialCard
+                  workspaceRole={workspaceRole}
+                  className="max-w-none rounded-none border-0 bg-transparent p-0 shadow-none"
+                />
+              </ConnectionSection>
 
-            {/* This owner-only card removes itself when its API probe is rejected. */}
-            <AdminInvitationsCard
-              onUncopiedInvitationChange={setHasUncopiedInvitation}
-            />
+              <ConnectionSection title="Publisher device" titleId="connections-publisher-title">
+                <PublisherDevicePairingCard
+                  className="max-w-none rounded-none border-0 bg-transparent p-0 shadow-none"
+                  onUncopiedPairingChange={setHasUncopiedPairing}
+                />
+              </ConnectionSection>
+
+              {/* This owner-only card removes itself when its API probe is rejected. */}
+              <AdminInvitationsCard
+                onUncopiedInvitationChange={setHasUncopiedInvitation}
+              />
+            </div>
           </div>
         </div>
       </DialogContent>

@@ -7,7 +7,8 @@ operator-controlled.
 
 ## What a user does
 
-1. Open **Settings → Connections**.
+1. From the dashboard, open the account control at the bottom of the workspace
+   rail and select **Settings** to open **Connections**.
 2. A workspace owner pastes a Gemini API key into the **Gemini connection** card.
    The field is a password input and is cleared immediately after submission.
 3. xArticle checks the key against the configured Gemini text and image models.

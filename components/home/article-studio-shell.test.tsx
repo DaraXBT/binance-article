@@ -54,7 +54,8 @@ describe('ArticleStudioShell', () => {
     expect(screen.getByRole('button', { name: 'Open article navigation' })).toBeTruthy();
     expect(screen.getByText('Composer')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Sign in' }).parentElement?.className)
-      .not.toContain('group-data-[collapsible=icon]:hidden');
+    const sidebarFooter = screen.getByRole('button', { name: 'Sign in' }).parentElement;
+    expect(sidebarFooter?.className).toContain('mt-auto');
+    expect(sidebarFooter?.className).not.toContain('group-data-[collapsible=icon]:hidden');
   });
 });

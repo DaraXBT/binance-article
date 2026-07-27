@@ -55,12 +55,21 @@ vi.mock('@/components/admin-invitations-card', () => ({
 describe('ConnectionsDialog', () => {
   afterEach(() => cleanup());
 
-  it('presents all connection workflows in one labelled dialog', () => {
+  it('presents all connection workflows in a labelled settings shell', () => {
     render(
       <ConnectionsDialog open onOpenChange={vi.fn()} workspaceRole="owner" />,
     );
 
     expect(screen.getByRole('dialog', { name: 'Connections' })).toBeTruthy();
+    expect(document.querySelector('[data-connections-settings-rail]')).toBeTruthy();
+    expect(document.querySelector('[data-connections-settings-content]')).toBeTruthy();
+    expect(screen.getByRole('navigation', { name: 'Settings sections' })).toBeTruthy();
+    const connectionsEntry = document.querySelector<HTMLElement>(
+      '[data-connections-settings-nav-item]',
+    );
+    expect(connectionsEntry).toBeTruthy();
+    expect(connectionsEntry?.getAttribute('aria-current')).toBe('page');
+    expect(screen.getAllByRole('button', { name: 'Close connections' })).toHaveLength(2);
     expect(screen.getByText(
       'Manage the AI provider and browser publisher connections used by this workspace.',
     )).toBeTruthy();
@@ -76,7 +85,7 @@ describe('ConnectionsDialog', () => {
       <ConnectionsDialog open onOpenChange={onOpenChange} workspaceRole="member" />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close connections' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Close connections' })[0]);
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
@@ -88,7 +97,7 @@ describe('ConnectionsDialog', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Create one-time link' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Close connections' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Close connections' })[0]);
 
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(screen.getByRole('alertdialog', { name: 'Close before copying?' })).toBeTruthy();

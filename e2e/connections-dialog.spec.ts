@@ -20,6 +20,15 @@ for (const viewport of viewports) {
     await expect(dialog).toBeVisible();
     await expect(page.getByRole('button', { name: 'Close connections' })).toBeVisible();
     await expect(page.getByText('Browser publisher', { exact: true })).toBeVisible();
+    await expect(page.locator('[data-connections-settings-content]')).toBeVisible();
+
+    if (viewport.width >= 768) {
+      await expect(page.locator('[data-connections-settings-rail]')).toBeVisible();
+      const settingsNavigation = page.getByRole('navigation', { name: 'Settings sections' });
+      await expect(settingsNavigation).toBeVisible();
+      await expect(settingsNavigation.locator('[data-connections-settings-nav-item]'))
+        .toHaveAttribute('aria-current', 'page');
+    }
 
     const dimensions = await dialog.evaluate((element) => {
       const box = element.getBoundingClientRect();

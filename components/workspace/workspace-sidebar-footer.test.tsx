@@ -13,6 +13,11 @@ const workspaceMessages = {
   recoverDialogTitle: 'Recover workspace',
 };
 
+const sidebarMock = vi.hoisted(() => ({
+  isMobile: false,
+  state: 'expanded' as 'expanded' | 'collapsed',
+}));
+
 vi.mock('@/components/language-provider', () => ({
   useLanguage: () => ({
     language: 'en',
@@ -34,7 +39,22 @@ vi.mock('@/components/theme-toggle', () => ({
 vi.mock('@/components/ui/popover', () => ({
   Popover: ({ children }: any) => React.createElement(React.Fragment, null, children),
   PopoverTrigger: ({ children }: any) => React.createElement(React.Fragment, null, children),
-  PopoverContent: ({ children }: any) => React.createElement('div', null, children),
+  PopoverContent: ({
+    children,
+    side,
+    align,
+    sideOffset: _sideOffset,
+    onCloseAutoFocus: _onCloseAutoFocus,
+    ...props
+  }: any) => React.createElement('div', {
+    ...props,
+    'data-side': side,
+    'data-align': align,
+  }, children),
+}));
+
+vi.mock('@/components/ui/sidebar', () => ({
+  useSidebar: () => sidebarMock,
 }));
 
 vi.mock('@/components/ui/button', () => ({
@@ -53,6 +73,8 @@ describe('WorkspaceSidebarFooter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    sidebarMock.isMobile = false;
+    sidebarMock.state = 'expanded';
   });
 
   afterEach(() => cleanup());
@@ -115,6 +137,59 @@ describe('WorkspaceSidebarFooter', () => {
     expect(html).toContain('Sign out');
     expect(html).not.toContain('Language');
     expect(html).toContain('Theme');
+  });
+
+  it('anchors the expanded and mobile profile popover above the full account row', async () => {
+    const { WorkspaceSidebarFooter } = await import('./workspace-sidebar-footer');
+    const { rerender } = render(
+      React.createElement(WorkspaceSidebarFooter, {
+        accessKeyPrefix: 'dwk_f525',
+        accountLabel: 'Niccolo',
+      }),
+    );
+
+    const getProfilePopover = () => document.querySelector<HTMLElement>(
+      '[data-workspace-profile-popover]',
+    );
+    const expandedPopover = getProfilePopover();
+    expect(expandedPopover?.getAttribute('data-workspace-profile-placement')).toBe('account-row');
+    expect(expandedPopover?.getAttribute('data-side')).toBe('top');
+    expect(expandedPopover?.getAttribute('data-align')).toBe('start');
+    expect(expandedPopover?.style.width).toBe('var(--radix-popover-trigger-width)');
+
+    sidebarMock.isMobile = true;
+    sidebarMock.state = 'collapsed';
+    rerender(
+      React.createElement(WorkspaceSidebarFooter, {
+        accessKeyPrefix: 'dwk_f525',
+        accountLabel: 'Niccolo',
+      }),
+    );
+
+    const mobilePopover = getProfilePopover();
+    expect(mobilePopover?.getAttribute('data-workspace-profile-placement')).toBe('account-row');
+    expect(mobilePopover?.getAttribute('data-side')).toBe('top');
+    expect(mobilePopover?.getAttribute('data-align')).toBe('start');
+    expect(mobilePopover?.style.width).toBe('var(--radix-popover-trigger-width)');
+  });
+
+  it('opens the collapsed desktop profile popover beside the rail at padded-column width', async () => {
+    sidebarMock.state = 'collapsed';
+    const { WorkspaceSidebarFooter } = await import('./workspace-sidebar-footer');
+    render(
+      React.createElement(WorkspaceSidebarFooter, {
+        accessKeyPrefix: 'dwk_f525',
+        accountLabel: 'Niccolo',
+      }),
+    );
+
+    const profilePopover = document.querySelector<HTMLElement>('[data-workspace-profile-popover]');
+    expect(profilePopover?.getAttribute('data-workspace-profile-placement')).toBe('collapsed-rail');
+    expect(profilePopover?.getAttribute('data-side')).toBe('right');
+    expect(profilePopover?.getAttribute('data-align')).toBe('end');
+    expect(profilePopover?.style.width).toBe(
+      'min(calc(var(--studio-rail-width) - 1rem), calc(100vw - 1rem))',
+    );
   });
 
   it('does not render legacy import or recovery actions when they are unavailable', async () => {

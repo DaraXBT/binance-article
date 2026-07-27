@@ -90,6 +90,11 @@ hash and bounded metadata are stored.
   the way to issue the very first invitation on an empty database.
 - Returning users sign in with Google.
 - Suspended or revoked users are rejected on every request.
+- The account control stays pinned to the bottom of the workspace rail. Select
+  **Settings** there to open the responsive **Connections** panel for Gemini
+  credentials, publisher devices, and owner invitations. In the collapsed
+  desktop rail, the same menu opens beside the account icon rather than moving
+  into the article list.
 - The private beta enforces one workspace membership per account and one owner per workspace.
 - New workspaces are account-owned and do not issue recovery secrets.
 - Pre-account workspaces can be claimed once with their old `dwk_...` key during the database-stamped 30-day migration window. A successful claim consumes the window and deletes legacy browser sessions.

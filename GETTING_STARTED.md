@@ -19,6 +19,14 @@ New users choose **Create workspace**. The workspace is attached to the account 
 
 Users migrating an older browser-based workspace may choose **Recover existing workspace** and enter its original `dwk_...` key. This is a one-time claim available only during the 30-day migration window. Unknown, expired, and already-used keys all return the same response.
 
+## Open workspace settings
+
+Use the account control pinned at the bottom of the workspace rail, then select
+**Settings**. This opens the responsive **Connections** panel, where workspace
+owners manage Gemini credentials, publisher devices, and invitations. When the
+desktop rail is icon-only, the account menu opens beside its avatar; it remains
+inside the full profile row when the rail is expanded or on mobile.
+
 ## Create an article
 
 From the dashboard or `/new`:

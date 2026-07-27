@@ -91,7 +91,7 @@ export function ArticleStudioShell({
           >
             {sidebar}
             {sidebarFooter ? (
-              <SidebarFooter className="border-t border-dotted border-sidebar-border/80 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:px-2">
+              <SidebarFooter className="mt-auto border-t border-dotted border-sidebar-border/80 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:px-2">
                 {sidebarFooter}
               </SidebarFooter>
             ) : null}

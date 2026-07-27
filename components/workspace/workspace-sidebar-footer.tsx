@@ -23,6 +23,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { useSidebar } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import { RecoverWorkspaceDialog } from './recover-workspace-dialog';
 
@@ -68,10 +69,17 @@ export function WorkspaceSidebarFooter({
   className,
 }: WorkspaceSidebarFooterProps) {
   const { messages } = useLanguage();
+  const { isMobile, state } = useSidebar();
   const [copied, setCopied] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [recoverOpen, setRecoverOpen] = useState(false);
   const suppressProfileFocusRestoreRef = useRef(false);
+  const isCollapsedDesktop = !isMobile && state === 'collapsed';
+  const profilePopoverSide = isCollapsedDesktop ? 'right' : 'top';
+  const profilePopoverAlign = isCollapsedDesktop ? 'end' : 'start';
+  const profilePopoverWidth = isCollapsedDesktop
+    ? 'min(calc(var(--studio-rail-width) - 1rem), calc(100vw - 1rem))'
+    : 'var(--radix-popover-trigger-width)';
   const resolvedInitial = accountInitial || firstAccountCharacter(accountLabel);
   const resolvedImportLabel = importOldWorkspaceLabel
     ?? messages.dashboard?.importOldWorkspace
@@ -159,10 +167,13 @@ export function WorkspaceSidebarFooter({
         </PopoverTrigger>
 
         <PopoverContent
-          side="top"
-          align="start"
+          data-workspace-profile-popover="true"
+          data-workspace-profile-placement={isCollapsedDesktop ? 'collapsed-rail' : 'account-row'}
+          side={profilePopoverSide}
+          align={profilePopoverAlign}
           sideOffset={8}
-          className="w-[min(20rem,calc(100vw-1rem))] rounded-xl border-border/80 p-1.5 shadow-lg"
+          style={{ width: profilePopoverWidth }}
+          className="rounded-xl border-border/80 p-1.5 shadow-lg"
           onCloseAutoFocus={(event) => {
             if (!suppressProfileFocusRestoreRef.current) return;
             event.preventDefault();

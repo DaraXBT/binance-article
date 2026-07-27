@@ -92,13 +92,18 @@ version blindly after a version bump.
    images, the dedicated cover, and retries complete with the selected source.
    Switch back to Platform credits, delete the copy, and confirm generation
    remains on Platform; revoke the disposable key at Google separately.
-8. Pair one disposable browser device and verify it appears as active under
+8. Verify workspace settings navigation at the target responsive breakpoints:
+   collapse the desktop rail and confirm the signed-in account control stays
+   pinned at its bottom and opens its menu beside the rail; then open
+   **Settings** and confirm the Connections panel has no horizontal overflow on
+   mobile and shows its settings rail on desktop.
+9. Pair one disposable browser device and verify it appears as active under
    **Settings → Connections**.
-9. With explicit operator authorization, prepare and publish one controlled
+10. With explicit operator authorization, prepare and publish one controlled
    Binance smoke post and one controlled X smoke post. Review and approve each
    exact live composer separately.
-10. Confirm canonical result URLs and inspect the command/audit records.
-11. Revoke the disposable device and confirm its token can no longer poll.
+11. Confirm canonical result URLs and inspect the command/audit records.
+12. Revoke the disposable device and confirm its token can no longer poll.
 
 If Telegram was ever deployed, drain its jobs, remove its webhook and Workers,
 delete its secrets, and revoke unused OAuth credentials after retention
