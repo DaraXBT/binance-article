@@ -15,6 +15,12 @@
     "binding": "ASSETS",
     "directory": ".open-next/assets"
   },
+  "routes": [
+    {
+      "pattern": "binance.v27.tech",
+      "custom_domain": true
+    }
+  ],
   "secrets": {
     "required": [
       "DATABASE_URL",
