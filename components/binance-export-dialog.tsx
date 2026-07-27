@@ -202,7 +202,10 @@ export function BinanceExportDialog({ open, onOpenChange, deck }: BinanceExportD
   // The article page polls while a job runs, replacing `deck` on every tick;
   // form state must only re-seed when the dialog (re)opens, never mid-edit.
   const deckRef = useRef(deck);
-  deckRef.current = deck;
+
+  useEffect(() => {
+    deckRef.current = deck;
+  }, [deck]);
 
   useEffect(() => {
     if (!open) return;
