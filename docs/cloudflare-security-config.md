@@ -32,6 +32,19 @@ types, and cap time and response size.
 Do not log full source URLs: query strings and fragments can contain signed
 credentials.
 
+## Production origin
+
+The canonical production origin is `https://binance.v27.tech` and is declared
+as a custom domain in `wrangler.jsonc`. Keep `BETTER_AUTH_URL` pinned to that
+exact origin and register only the corresponding Google OAuth callback,
+`https://binance.v27.tech/api/auth/callback/google`, for production.
+
+Cloudflare Workers is the authoritative production runtime. Git-triggered
+Vercel deployments are disabled in `vercel.json` because a Vercel deployment
+does not have the article Workflow or private R2 bindings. Keep the legacy
+linked Vercel project paused or remove it; do not treat a blocked or stale
+Vercel build as a production fallback.
+
 ## Bindings and secrets
 
 The web Worker requires `DATABASE_URL`, Better Auth/Google OAuth secrets,

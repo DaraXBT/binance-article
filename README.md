@@ -2,16 +2,26 @@
 
 xArticle is an invite-only article workspace with reviewed Binance Square and X publishing workflows. The web app manages articles, assets, approvals, and device commands. The paired local publisher companion is the primary path for both targets; validated ZIP downloads remain an optional local fallback.
 
-See [the current architecture guide](./docs/architecture.md) for the active
-web-only boundaries, article flow, publication state machine, and release
-contract.
+## Documentation
 
-See [the dot-grid image loading guide](./docs/dot-grid-image-loading.md) for the
-React/TypeScript canvas API, loading-state examples, and integration pitfalls.
-
-See [the workspace Gemini connections guide](./docs/workspace-ai-credentials.md)
-for BYOK setup, source selection, encryption keyring rotation, and generation
-behavior.
+- [Getting started](./GETTING_STARTED.md) — invitation, workspace, generation,
+  and reviewed publishing flows.
+- [Setup instructions](./SETUP_INSTRUCTIONS.md) — local environment, database,
+  Cloudflare deployment, companion setup, and verification.
+- [Release checklist](./RELEASE_CHECKLIST.md) — clean-clone gates, deployment,
+  smoke tests, and rollback.
+- [Current architecture](./docs/architecture.md) — active runtime boundaries,
+  state machines, and release contract.
+- [Cloudflare edge security](./docs/cloudflare-security-config.md) — rate limits,
+  bindings, production origin, and observability.
+- [Generation access](./docs/generation-access.md) — one-time grants, rotation,
+  and protected endpoints.
+- [Workspace Gemini connections](./docs/workspace-ai-credentials.md) — BYOK
+  selection, encryption-key rotation, and deployment order.
+- [Dot-grid image loading](./docs/dot-grid-image-loading.md) — canvas API,
+  loading-state examples, and integration pitfalls.
+- [Publisher companion](./publisher-companion/README.md) — installation,
+  pairing, local browser profiles, and clean-machine packaging.
 
 ## Trust boundaries
 
@@ -27,6 +37,10 @@ Users can cancel any pre-click command from the web UI. Expired pre-click comman
 
 ## Runtime architecture
 
+- Production is the Cloudflare OpenNext Worker at
+  `https://binance.v27.tech`; `wrangler.jsonc` owns the custom-domain binding.
+  Git-triggered Vercel deployments are disabled because that runtime does not
+  have the required Workflow or private R2 bindings.
 - The OpenNext web Worker is stateless. Better Auth sessions, membership,
   articles, approvals, jobs, and audit metadata live in Neon PostgreSQL through
   Drizzle.

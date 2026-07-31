@@ -71,10 +71,10 @@ actionable; errors must be fixed before publishing. An unpaired warning is
 expected when the doctor runs before the first pairing. Run it again after
 pairing and require a ready result before publishing.
 
-Google-enroll in the web app, create a publisher-device pairing code, then pass the one-time code through stdin so it never appears in shell history or the process list:
+Google-enroll in the web app, create a publisher-device pairing code, then pass the one-time code through stdin so it never appears in shell history or the process list. The current production API origin is `https://binance.v27.tech`:
 
 ```bash
-printf '%s\n' "$PAIRING_CODE" | bun run src/main.ts pair --api https://your-private-app.example
+printf '%s\n' "$PAIRING_CODE" | bun run src/main.ts pair --api https://binance.v27.tech
 ```
 
 For an interactive terminal, omit the pipe; the prompt disables echo. Pairing

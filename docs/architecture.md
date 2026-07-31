@@ -1,7 +1,7 @@
 # xArticle current architecture
 
-Status: web-only publishing workspace · UI language: English · default visual
-style: `binance-master`
+Status: Cloudflare web workspace + local publishing companion · UI language:
+English · default visual style: `binance-master`
 
 This is the current operating contract for the repository. Historical design
 notes and archived migration material remain in their dated folders; this file
@@ -46,6 +46,11 @@ companion's `X_BROWSER_PROFILE_DIR` profile; Binance uses its shared baoyu
 profile, configurable with `BAOYU_CHROME_PROFILE_DIR`. A ZIP is only
 an optional local fallback or clean-machine companion distribution; it is not
 required for the paired web-to-companion path.
+
+The canonical production web entry point is `https://binance.v27.tech`, bound
+directly to the OpenNext Worker as a Cloudflare custom domain. Cloudflare is the
+only production runtime: Git-triggered Vercel deployments are disabled because
+they lack the Workflow and private R2 bindings required by the application.
 
 ## Runtime boundaries
 

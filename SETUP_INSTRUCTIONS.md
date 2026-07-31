@@ -95,6 +95,14 @@ private beta to ten active users plus pending invitations.
 
 ## 5. Cloudflare resources
 
+- The canonical production origin is `https://binance.v27.tech`.
+  `wrangler.jsonc` attaches that hostname to the web Worker as a Cloudflare
+  custom domain. Set `BETTER_AUTH_URL` to that exact origin and register
+  `https://binance.v27.tech/api/auth/callback/google` with Google OAuth.
+- Cloudflare Workers is the production deployment authority. `vercel.json`
+  disables Git-triggered Vercel deployments because they cannot supply the
+  Workflow and private R2 bindings. Pause or remove the legacy linked Vercel
+  project in its dashboard so it cannot present stale or blocked releases.
 - Deploy the article Workflow Worker first, then deploy the web application as
   an OpenNext Worker from the same commit.
 - Bind a private `ARTICLE_ASSETS` R2 bucket; do not enable `r2.dev`.
@@ -185,6 +193,10 @@ Both secrets are provisioned on this repository: `E2E_DATABASE_URL` points at
 the dedicated, data-free Neon branch `e2e-ci` (a schema-only branch of the
 production project that was wiped and rebuilt through the migration chain), so
 every push runs the full authenticated Playwright suite in CI.
+
+CI uploads `playwright-report/` and `test-results/` only when the job fails and
+retains them for seven days. A successful run intentionally has no Playwright
+artifact; use the job log as the green-run record.
 
 For an equivalent local run, migrate the dedicated database first, then map the
 test-only values explicitly:
