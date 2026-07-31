@@ -43,13 +43,14 @@ vi.mock('@/components/ui/popover', () => ({
     children,
     side,
     align,
-    sideOffset: _sideOffset,
+    sideOffset,
     onCloseAutoFocus: _onCloseAutoFocus,
     ...props
   }: any) => React.createElement('div', {
     ...props,
     'data-side': side,
     'data-align': align,
+    'data-side-offset': sideOffset,
   }, children),
 }));
 
@@ -155,6 +156,7 @@ describe('WorkspaceSidebarFooter', () => {
     expect(expandedPopover?.getAttribute('data-workspace-profile-placement')).toBe('account-row');
     expect(expandedPopover?.getAttribute('data-side')).toBe('top');
     expect(expandedPopover?.getAttribute('data-align')).toBe('start');
+    expect(expandedPopover?.getAttribute('data-side-offset')).toBe('8');
     expect(expandedPopover?.style.width).toBe('var(--radix-popover-trigger-width)');
 
     sidebarMock.isMobile = true;
@@ -170,6 +172,7 @@ describe('WorkspaceSidebarFooter', () => {
     expect(mobilePopover?.getAttribute('data-workspace-profile-placement')).toBe('account-row');
     expect(mobilePopover?.getAttribute('data-side')).toBe('top');
     expect(mobilePopover?.getAttribute('data-align')).toBe('start');
+    expect(mobilePopover?.getAttribute('data-side-offset')).toBe('8');
     expect(mobilePopover?.style.width).toBe('var(--radix-popover-trigger-width)');
   });
 
@@ -187,6 +190,7 @@ describe('WorkspaceSidebarFooter', () => {
     expect(profilePopover?.getAttribute('data-workspace-profile-placement')).toBe('collapsed-rail');
     expect(profilePopover?.getAttribute('data-side')).toBe('right');
     expect(profilePopover?.getAttribute('data-align')).toBe('end');
+    expect(profilePopover?.getAttribute('data-side-offset')).toBe('12');
     expect(profilePopover?.style.width).toBe(
       'min(calc(var(--studio-rail-width) - 1rem), calc(100vw - 1rem))',
     );

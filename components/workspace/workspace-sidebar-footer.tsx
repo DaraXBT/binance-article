@@ -77,6 +77,7 @@ export function WorkspaceSidebarFooter({
   const isCollapsedDesktop = !isMobile && state === 'collapsed';
   const profilePopoverSide = isCollapsedDesktop ? 'right' : 'top';
   const profilePopoverAlign = isCollapsedDesktop ? 'end' : 'start';
+  const profilePopoverSideOffset = isCollapsedDesktop ? 12 : 8;
   const profilePopoverWidth = isCollapsedDesktop
     ? 'min(calc(var(--studio-rail-width) - 1rem), calc(100vw - 1rem))'
     : 'var(--radix-popover-trigger-width)';
@@ -171,7 +172,7 @@ export function WorkspaceSidebarFooter({
           data-workspace-profile-placement={isCollapsedDesktop ? 'collapsed-rail' : 'account-row'}
           side={profilePopoverSide}
           align={profilePopoverAlign}
-          sideOffset={8}
+          sideOffset={profilePopoverSideOffset}
           style={{ width: profilePopoverWidth }}
           className="rounded-xl border-border/80 p-1.5 shadow-lg"
           onCloseAutoFocus={(event) => {

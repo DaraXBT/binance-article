@@ -60,8 +60,15 @@ test('keeps the account control pinned and adapts its menu around the desktop ra
   await expect(accountMenu).toBeVisible();
   await expect(accountMenu).toHaveAttribute('data-side', 'right');
 
+  await expect.poll(async () => {
+    const [menuBounds, railBounds] = await Promise.all([
+      boundsOf(accountMenu),
+      boundsOf(rail),
+    ]);
+    return menuBounds.left - railBounds.right;
+  }).toBeGreaterThanOrEqual(4);
+
   const collapsedMenu = await boundsOf(accountMenu);
-  expect(collapsedMenu.left).toBeGreaterThanOrEqual(collapsedRail.right + 4);
   expect(collapsedMenu.left).toBeGreaterThanOrEqual(0);
   expect(collapsedMenu.right).toBeLessThanOrEqual(1280);
 });
