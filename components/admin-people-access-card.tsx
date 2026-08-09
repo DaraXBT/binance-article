@@ -39,6 +39,7 @@ interface EnrollmentOverview {
   } | null;
   capacity: {
     activeUsers: number;
+    legacyInvitations: number;
     reservedClaims: number;
     limit: number;
   };
@@ -143,6 +144,11 @@ function parseOverview(payload: Record<string, unknown>): EnrollmentOverview {
         capacity.active,
         payload.activeUsers,
       ) ?? 0,
+      legacyInvitations: numberValue(
+        capacity.legacyInvitations,
+        capacity.invitations,
+        payload.legacyInvitations,
+      ) ?? 0,
       reservedClaims: numberValue(
         capacity.reservedClaims,
         capacity.reserved,
@@ -228,18 +234,24 @@ const STATUS_STYLES: Record<UserStatus, string> = {
 };
 
 function CapacitySummary({ overview }: { overview: EnrollmentOverview }) {
-  const used = overview.capacity.activeUsers + overview.capacity.reservedClaims;
+  const used = overview.capacity.activeUsers +
+    overview.capacity.legacyInvitations +
+    overview.capacity.reservedClaims;
   return (
-    <dl className="mt-3 grid grid-cols-3 border border-dotted border-border/75 bg-background/30 text-center">
+    <dl className="mt-3 grid grid-cols-2 border border-dotted border-border/75 bg-background/30 text-center sm:grid-cols-4">
       <div className="px-2 py-2.5">
         <dt className="font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">Active</dt>
         <dd className="mt-0.5 text-sm font-semibold">{overview.capacity.activeUsers}</dd>
       </div>
-      <div className="border-x border-dotted border-border/75 px-2 py-2.5">
+      <div className="border-l border-dotted border-border/75 px-2 py-2.5">
+        <dt className="font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">Invited</dt>
+        <dd className="mt-0.5 text-sm font-semibold">{overview.capacity.legacyInvitations}</dd>
+      </div>
+      <div className="border-t border-dotted border-border/75 px-2 py-2.5 sm:border-l sm:border-t-0">
         <dt className="font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">Reserved</dt>
         <dd className="mt-0.5 text-sm font-semibold">{overview.capacity.reservedClaims}</dd>
       </div>
-      <div className="px-2 py-2.5">
+      <div className="border-l border-t border-dotted border-border/75 px-2 py-2.5 sm:border-t-0">
         <dt className="font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">Capacity</dt>
         <dd className="mt-0.5 text-sm font-semibold">{used}/{overview.capacity.limit}</dd>
       </div>
@@ -311,7 +323,7 @@ function PersonActions({
   busy: boolean;
   onAction: (action: PersonAction) => void;
 }) {
-  if (person.role === 'owner' || person.isCurrentUser || person.status === 'revoked') return null;
+  if (person.isCurrentUser) return null;
   return (
     <div className="flex shrink-0 gap-1.5">
       {person.status === 'active' ? (
@@ -319,14 +331,16 @@ function PersonActions({
           Suspend
         </Button>
       ) : null}
-      {person.status === 'suspended' ? (
+      {person.status === 'suspended' || person.status === 'revoked' ? (
         <Button type="button" size="sm" variant="outline" className="h-8 rounded-lg text-xs" disabled={busy} onClick={() => onAction('restore')}>
           Restore
         </Button>
       ) : null}
-      <Button type="button" size="sm" variant="ghost" className="h-8 rounded-lg text-xs text-destructive hover:text-destructive" disabled={busy} onClick={() => onAction('revoke')}>
-        Revoke
-      </Button>
+      {person.status !== 'revoked' ? (
+        <Button type="button" size="sm" variant="ghost" className="h-8 rounded-lg text-xs text-destructive hover:text-destructive" disabled={busy} onClick={() => onAction('revoke')}>
+          Revoke
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -526,7 +540,7 @@ export function AdminPeopleAccessCard({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h4 id="people-list-title" className="text-sm font-semibold">People</h4>
-                <p className="mt-1 text-xs text-muted-foreground">Suspension is reversible. Revocation is permanent and preserves workspace data.</p>
+                <p className="mt-1 text-xs text-muted-foreground">Suspension and revocation block access while preserving workspace data.</p>
               </div>
               <Button type="button" size="icon-sm" variant="ghost" className="rounded-lg" aria-label="Refresh people" onClick={() => void refresh()}>
                 <RefreshCcw aria-hidden="true" className="size-3.5" />
@@ -598,7 +612,7 @@ export function AdminPeopleAccessCard({
                 ? 'Restore this account?'
                 : personAction?.action === 'suspend'
                   ? 'Suspend this account?'
-                  : 'Permanently revoke this account?'}
+                  : 'Revoke this account?'}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {personAction?.action === 'restore'

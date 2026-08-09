@@ -81,6 +81,7 @@ export function hasUsableAuthEnvironment(
 
 export function buildAuthPolicy(environment: AuthEnvironment) {
   return {
+    errorURL: `${environment.baseUrl}/auth/error`,
     session: {
       expiresIn: AUTH_SESSION_MAX_AGE_SECONDS,
       updateAge: 60 * 60 * 24,

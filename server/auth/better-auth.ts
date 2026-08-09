@@ -33,6 +33,9 @@ export function createBetterAuth({
     secret: environment.secret,
     baseURL: environment.baseUrl,
     trustedOrigins: [environment.baseUrl],
+    onAPIError: {
+      errorURL: policy.errorURL,
+    },
     emailAndPassword: {
       enabled: false,
     },
@@ -50,7 +53,7 @@ export function createBetterAuth({
         status: {
           type: 'string',
           required: true,
-          defaultValue: 'active',
+          defaultValue: 'pending',
           input: false,
         },
         role: {

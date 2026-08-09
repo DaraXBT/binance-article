@@ -2,10 +2,9 @@ import { and, desc, eq, gt } from 'drizzle-orm';
 
 import type { AppDatabase } from '@/server/db/client';
 import { invitation } from '@/server/db/schema';
+import { ENROLLMENT_CAPACITY_LOCK_KEY } from '@/server/modules/enrollment/repository';
 
 import type { InvitationAdminRepository } from './service';
-
-const CAPACITY_LOCK_KEY = 8_194_261;
 
 export function createInvitationAdminRepository(
   database: AppDatabase,
@@ -14,19 +13,51 @@ export function createInvitationAdminRepository(
     async insertWithinCapacity(input, capacity) {
       const client = database.$client;
       const [, decisionRows] = await client.transaction((transaction) => [
-        transaction`SELECT pg_advisory_xact_lock(${CAPACITY_LOCK_KEY})`,
+        transaction`SELECT pg_advisory_xact_lock(${ENROLLMENT_CAPACITY_LOCK_KEY})`,
         transaction`
-          WITH decision AS (
+          WITH capacity AS MATERIALIZED (
+            SELECT
+              (SELECT count(*)
+                FROM "user"
+                WHERE "status" = 'active'::"UserStatus") +
+              (SELECT count(*)
+                FROM "Invitation" AS live_invitation
+                WHERE (
+                    live_invitation."status" = 'pending'::"InvitationStatus"
+                    OR (
+                      live_invitation."status" = 'accepted'::"InvitationStatus"
+                      AND live_invitation."acceptedByUserId" IS NULL
+                    )
+                  )
+                  AND live_invitation."expiresAt" > ${input.now}
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM "EnrollmentClaim" AS legacy_claim
+                    WHERE legacy_claim."sourceReferenceId" = live_invitation."id"
+                      AND legacy_claim."source" IN ('legacy_invitation', 'bootstrap')
+                      AND legacy_claim."status" = 'reserved'::"EnrollmentClaimStatus"
+                      AND legacy_claim."reservationExpiresAt" > ${input.now}
+                      AND legacy_claim."expiresAt" > ${input.now}
+                  )) +
+              (SELECT count(*)
+                FROM "EnrollmentClaim" AS reserved_claim
+                WHERE reserved_claim."status" = 'reserved'::"EnrollmentClaimStatus"
+                  AND reserved_claim."reservationExpiresAt" > ${input.now}
+                  AND reserved_claim."expiresAt" > ${input.now}) AS used
+          ), decision AS (
             SELECT CASE
-              WHEN (
-                (SELECT count(*) FROM "user" WHERE "status" = 'active') +
-                (SELECT count(*) FROM "Invitation" WHERE "status" = 'pending' AND "expiresAt" > ${input.now})
-              ) >= ${capacity} THEN 'cap_reached'
+              WHEN (SELECT used FROM capacity) >= ${capacity} THEN 'cap_reached'
               WHEN EXISTS (
-                SELECT 1 FROM "Invitation"
-                WHERE lower("email") = ${input.email}
-                  AND "status" = 'pending'
-                  AND "expiresAt" > ${input.now}
+                SELECT 1 FROM "Invitation" AS existing_invitation
+                WHERE lower(existing_invitation."email") = ${input.email}
+                  AND (
+                    existing_invitation."status" = 'pending'::"InvitationStatus"
+                    OR (
+                      existing_invitation."status" = 'accepted'::"InvitationStatus"
+                      AND existing_invitation."acceptedByUserId" IS NULL
+                    )
+                  )
+                  AND existing_invitation."expiresAt" > ${input.now}
               ) THEN 'duplicate'
               ELSE 'created'
             END AS result
@@ -80,12 +111,56 @@ export function createInvitationAdminRepository(
     },
 
     async revoke({ invitationId, now }) {
-      const rows = await database
-        .update(invitation)
-        .set({ status: 'revoked', revokedAt: now, updatedAt: now })
-        .where(and(eq(invitation.id, invitationId), eq(invitation.status, 'pending')))
-        .returning({ id: invitation.id });
-      return Boolean(rows[0]);
+      const [, resultRows] = await database.$client.transaction((transaction) => [
+        transaction`SELECT pg_advisory_xact_lock(${ENROLLMENT_CAPACITY_LOCK_KEY})`,
+        transaction`
+          WITH target AS MATERIALIZED (
+            SELECT "id"
+            FROM "Invitation"
+            WHERE "id" = ${invitationId}
+              AND (
+                "status" = 'pending'::"InvitationStatus"
+                OR (
+                  "status" = 'accepted'::"InvitationStatus"
+                  AND "acceptedByUserId" IS NULL
+                )
+              )
+            FOR UPDATE
+          ), revoked_claims AS (
+            UPDATE "EnrollmentClaim" AS claim
+            SET
+              "status" = 'revoked'::"EnrollmentClaimStatus",
+              "reservationExpiresAt" = NULL,
+              "revokedAt" = ${now},
+              "failureCode" = 'invitation_revoked',
+              "updatedAt" = ${now}
+            FROM target
+            WHERE claim."sourceReferenceId" = target."id"
+              AND claim."source" IN ('legacy_invitation', 'bootstrap')
+              AND claim."status" IN (
+                'pending'::"EnrollmentClaimStatus",
+                'reserved'::"EnrollmentClaimStatus"
+              )
+            RETURNING claim."id"
+          ), revoked_invitation AS (
+            UPDATE "Invitation" AS target_invitation
+            SET
+              "status" = 'revoked'::"InvitationStatus",
+              "revokedAt" = ${now},
+              "updatedAt" = ${now}
+            FROM target
+            WHERE target_invitation."id" = target."id"
+            RETURNING target_invitation."id"
+          )
+          SELECT
+            EXISTS (SELECT 1 FROM revoked_invitation) AS revoked,
+            (SELECT count(*) FROM revoked_claims) AS "revokedClaims"
+        `,
+      ], { isolationLevel: 'ReadCommitted' });
+
+      const revoked = resultRows[0]?.revoked;
+      if (typeof revoked === 'boolean') return revoked;
+      throw new Error('Invitation revocation decision failed.');
     },
   };
 }

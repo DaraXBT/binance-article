@@ -10,6 +10,9 @@ not have database-backed attempt limits in the application.
 
 | Path pattern | Rate limit | Window | Action | Rationale |
 |---|---:|---:|---|---|
+| `/api/enrollment/claim` | 10 requests | 10 minutes | Block | Shared enrollment-code guessing |
+| `/api/invitations/accept` | 10 requests | 10 minutes | Block | Legacy invitation-token guessing |
+| `/api/auth/callback/google` | 20 requests | 10 minutes | Block | OAuth callback abuse |
 | `/api/generate-access` | 10 requests | 1 minute | Block | One-time grant guessing |
 | `/api/workspace/recover` | 5 requests | 1 minute | Block | Legacy claim-key guessing |
 | `/api/articles/*/generate` | 3 requests | 1 minute | Block | Gemini cost control |
@@ -48,7 +51,7 @@ Vercel build as a production fallback.
 ## Bindings and secrets
 
 The web Worker requires `DATABASE_URL`, Better Auth/Google OAuth secrets,
-`GEMINI_API_KEY`, `AI_CREDENTIAL_KEYRING`, and
+`ENROLLMENT_CODE_PEPPER`, `GEMINI_API_KEY`, `AI_CREDENTIAL_KEYRING`, and
 `AI_CREDENTIAL_ACTIVE_KEY_ID`, plus the private `ARTICLE_ASSETS` R2 binding and
 the `ARTICLE_JOBS` Workflow binding. The Workflow Worker requires
 `DATABASE_URL`, `GEMINI_API_KEY`, the same keyring and active key ID, and the
@@ -57,6 +60,12 @@ identical on both Workers so owner validation checks the models used by jobs.
 `DEEPSEEK_API_KEY` belongs only on the Workflow Worker and is retained for a
 dormant internal compatibility path. The current public generation flow has no
 DeepSeek selector, so normal deployments should leave it unset.
+
+Generate `ENROLLMENT_CODE_PEPPER` as a stable, environment-specific secret with
+at least 32 characters (for example, `openssl rand -base64 48`). Never reuse
+`BETTER_AUTH_SECRET` or `GENERATE_ACCESS_CODE`. Changing the pepper makes the
+currently displayed shared enrollment code unusable; after an intentional
+pepper change, rotate the enrollment code from the owner access panel.
 
 Workspace Gemini keys are owner-managed, encrypted with AES-256-GCM before
 storage, and never returned after submission. Do not place plaintext keys,

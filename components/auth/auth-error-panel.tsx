@@ -17,7 +17,11 @@ export type AuthErrorKind =
 
 export function classifyAuthError(value: unknown): AuthErrorKind | null {
   if (typeof value !== 'string' || !value.trim()) return null;
-  const code = value.trim().toLowerCase().replace(/-/g, '_');
+  // Better Auth normally sends a plain error code, but links copied from
+  // provider pages sometimes retain a trailing query delimiter (for example
+  // `signup_disabled?`). Ignore that presentation noise while keeping the
+  // allowlist closed to arbitrary provider text.
+  const code = value.trim().toLowerCase().split(/[?#&\s]/, 1)[0].replace(/-/g, '_');
 
   if (code === 'signup_disabled' || code === 'signup_not_allowed') {
     return 'signup-disabled';
@@ -120,7 +124,7 @@ export function AuthErrorPanel({
               asChild
               size="sm"
               variant="outline"
-              className="mt-3 h-9 rounded-lg border-destructive/35 bg-background/50 text-foreground"
+              className="mt-3 h-9 rounded-lg text-foreground"
             >
               <Link href={actionHref}>{actionLabel}</Link>
             </Button>

@@ -1,9 +1,9 @@
 import { getRuntimeDatabase } from '@/server/db/runtime';
+import { createEnrollmentRepository } from '@/server/modules/enrollment/repository';
 
 import { parseAuthEnvironment } from './auth-policy';
 import { createBetterAuth } from './better-auth';
 import { createInvitationEnrollmentGate } from './invitation-enrollment';
-import { createDrizzleInvitationRepository } from './invitation-repository';
 
 type RuntimeEnvironment = Record<string, string | undefined>;
 
@@ -12,7 +12,7 @@ let runtimeAuth: ReturnType<typeof createBetterAuth> | undefined;
 export function createRuntimeAuth(environment: RuntimeEnvironment) {
   const authEnvironment = parseAuthEnvironment(environment);
   const database = getRuntimeDatabase(environment);
-  const repository = createDrizzleInvitationRepository(database);
+  const repository = createEnrollmentRepository(database);
   const enrollmentGate = createInvitationEnrollmentGate({ repository });
 
   return createBetterAuth({

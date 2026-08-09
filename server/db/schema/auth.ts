@@ -14,7 +14,7 @@ const authTimestamp = (name: string) => timestamp(name, {
   withTimezone: true,
 });
 
-export const userStatus = pgEnum('UserStatus', ['active', 'suspended', 'revoked']);
+export const userStatus = pgEnum('UserStatus', ['pending', 'active', 'suspended', 'revoked']);
 export const userRole = pgEnum('UserRole', ['owner', 'user']);
 
 export const user = pgTable('user', {
@@ -23,7 +23,7 @@ export const user = pgTable('user', {
   email: text('email').notNull(),
   emailVerified: boolean('emailVerified').default(false).notNull(),
   image: text('image'),
-  status: userStatus('status').default('active').notNull(),
+  status: userStatus('status').default('pending').notNull(),
   role: userRole('role').default('user').notNull(),
   createdAt: authTimestamp('createdAt').defaultNow().notNull(),
   updatedAt: authTimestamp('updatedAt').defaultNow().notNull(),

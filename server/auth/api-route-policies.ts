@@ -1,6 +1,8 @@
 export type ApiRoutePolicy =
   | 'public'
   | 'invitation-token'
+  | 'enrollment-code'
+  | 'enrollment-session'
   | 'pairing-token'
   | 'owner'
   | 'workspace-owner'
@@ -9,8 +11,13 @@ export type ApiRoutePolicy =
   | 'device-bearer';
 
 export const API_ROUTE_POLICIES = {
+  'app/api/admin/enrollment/code/rotate/route.ts': 'owner',
+  'app/api/admin/enrollment/code/route.ts': 'owner',
+  'app/api/admin/enrollment/route.ts': 'owner',
   'app/api/admin/invitations/[id]/route.ts': 'owner',
   'app/api/admin/invitations/route.ts': 'owner',
+  'app/api/admin/people/[userId]/route.ts': 'owner',
+  'app/api/admin/people/route.ts': 'owner',
   'app/api/articles/[id]/assets/[assetId]/route.ts': 'article-member',
   'app/api/articles/[id]/generate-cover/route.ts': 'article-member',
   'app/api/articles/[id]/generate-images/route.ts': 'article-member',
@@ -26,6 +33,8 @@ export const API_ROUTE_POLICIES = {
   'app/api/articles/generate-prompt/route.ts': 'active-user',
   'app/api/articles/route.ts': 'active-user',
   'app/api/auth/[...all]/route.ts': 'public',
+  'app/api/enrollment/claim/route.ts': 'enrollment-code',
+  'app/api/enrollment/complete/route.ts': 'enrollment-session',
   'app/api/generate-access/route.ts': 'active-user',
   'app/api/health/route.ts': 'public',
   'app/api/invitations/accept/route.ts': 'invitation-token',
