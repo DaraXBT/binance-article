@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { PlugZap, X } from 'lucide-react';
 
-import { AdminInvitationsCard } from '@/components/admin-invitations-card';
+import { AdminPeopleAccessCard } from '@/components/admin-people-access-card';
 import {
   ConsolePanel,
   FrameCornerHandles,
@@ -69,10 +69,10 @@ export function ConnectionsDialog({
   onOpenChange,
   workspaceRole,
 }: ConnectionsDialogProps) {
-  const [hasUncopiedInvitation, setHasUncopiedInvitation] = useState(false);
+  const [hasUncopiedEnrollmentAccess, setHasUncopiedEnrollmentAccess] = useState(false);
   const [hasUncopiedPairing, setHasUncopiedPairing] = useState(false);
   const [closeConfirmationOpen, setCloseConfirmationOpen] = useState(false);
-  const hasSensitiveValue = hasUncopiedInvitation || hasUncopiedPairing;
+  const hasSensitiveValue = hasUncopiedEnrollmentAccess || hasUncopiedPairing;
   // If URL state closes underneath an uncopied value (for example Browser
   // Back), retain the mounted dialog long enough to ask for confirmation.
   const effectiveOpen = open || hasSensitiveValue;
@@ -213,8 +213,8 @@ export function ConnectionsDialog({
               </ConnectionSection>
 
               {/* This owner-only card removes itself when its API probe is rejected. */}
-              <AdminInvitationsCard
-                onUncopiedInvitationChange={setHasUncopiedInvitation}
+              <AdminPeopleAccessCard
+                onUncopiedAccessChange={setHasUncopiedEnrollmentAccess}
               />
             </div>
           </div>
@@ -229,7 +229,7 @@ export function ConnectionsDialog({
           <AlertDialogHeader>
             <AlertDialogTitle>Close before copying?</AlertDialogTitle>
             <AlertDialogDescription>
-              A one-time invitation link or pairing code is still being created or has not been copied. If you close now, you may need to revoke it and create another one.
+              A one-time enrollment code, join link, or pairing code is still being created or has not been copied. If you close now, you may need to rotate or create it again.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -243,7 +243,7 @@ export function ConnectionsDialog({
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                setHasUncopiedInvitation(false);
+                setHasUncopiedEnrollmentAccess(false);
                 setHasUncopiedPairing(false);
                 setCloseConfirmationOpen(false);
                 onOpenChange(false);

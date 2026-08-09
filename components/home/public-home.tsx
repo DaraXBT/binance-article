@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react
 import Link from 'next/link';
 import {
   FileText,
+  KeyRound,
   Lightbulb,
   LogIn,
   MessageSquarePlus,
@@ -474,6 +475,15 @@ export function PublicHome({
         )}
         sidebarFooter={(
           <div className="space-y-2 p-1 group-data-[collapsible=icon]:p-0">
+            <Link
+              href="/join"
+              aria-label={copy.joinWithCode}
+              title={copy.joinWithCode}
+              className="flex h-9 w-full items-center justify-start gap-2 rounded-lg border border-sidebar-border/80 px-2.5 text-sm font-medium text-sidebar-foreground transition-colors hover:border-sidebar-primary/50 hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring/50 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
+            >
+              <KeyRound aria-hidden="true" className="size-4" />
+              <span className="group-data-[collapsible=icon]:hidden">{copy.joinWithCode}</span>
+            </Link>
             <Link
               href={signInHref}
               onClick={handleSignIn}

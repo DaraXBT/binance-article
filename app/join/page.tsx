@@ -8,7 +8,9 @@ import { ThemeToggle } from '@/components/theme-toggle';
 export default async function JoinPage({
   searchParams,
 }: {
-  searchParams: Promise<{ token?: string | string[] }>;
+  searchParams: Promise<{
+    token?: string | string[];
+  }>;
 }) {
   const params = await searchParams;
   const token = typeof params.token === 'string' ? params.token : null;
@@ -29,7 +31,7 @@ export default async function JoinPage({
       contentClassName="flex items-center justify-center py-3 sm:py-5"
       footer={(
         <>
-          <span className="font-mono uppercase tracking-[0.12em]">Invitation required</span>
+          <span className="font-mono uppercase tracking-[0.12em]">Enrollment code required</span>
           <span>Account enrollment</span>
         </>
       )}

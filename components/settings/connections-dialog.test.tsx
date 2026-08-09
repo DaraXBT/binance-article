@@ -32,21 +32,21 @@ vi.mock('@/components/publisher-device-pairing-card', () => ({
   ),
 }));
 
-vi.mock('@/components/admin-invitations-card', () => ({
-  AdminInvitationsCard: ({ onUncopiedInvitationChange }: any) => (
-    <section data-testid="invitations-card">
-      Invitations
+vi.mock('@/components/admin-people-access-card', () => ({
+  AdminPeopleAccessCard: ({ onUncopiedAccessChange }: any) => (
+    <section data-testid="people-access-card">
+      People &amp; access
       <button
         type="button"
-        onClick={() => onUncopiedInvitationChange?.(true)}
+        onClick={() => onUncopiedAccessChange?.(true)}
       >
-        Create one-time link
+        Create enrollment code
       </button>
       <button
         type="button"
-        onClick={() => onUncopiedInvitationChange?.(false)}
+        onClick={() => onUncopiedAccessChange?.(false)}
       >
-        Copy one-time link
+        Copy enrollment link
       </button>
     </section>
   ),
@@ -75,7 +75,7 @@ describe('ConnectionsDialog', () => {
     )).toBeTruthy();
     expect(screen.getByTestId('gemini-card').textContent).toContain('owner');
     expect(screen.getByTestId('publisher-card')).toBeTruthy();
-    expect(screen.getByTestId('invitations-card')).toBeTruthy();
+    expect(screen.getByTestId('people-access-card')).toBeTruthy();
     expect(document.querySelector('[data-connections-dialog-scroll]')).toBeTruthy();
   });
 
@@ -90,13 +90,13 @@ describe('ConnectionsDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it('confirms before discarding a one-time invitation link', () => {
+  it('confirms before discarding a one-time enrollment link', () => {
     const onOpenChange = vi.fn();
     render(
       <ConnectionsDialog open onOpenChange={onOpenChange} workspaceRole="owner" />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create one-time link' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create enrollment code' }));
     fireEvent.click(screen.getAllByRole('button', { name: 'Close connections' })[0]);
 
     expect(onOpenChange).not.toHaveBeenCalled();

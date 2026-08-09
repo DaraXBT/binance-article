@@ -1,4 +1,5 @@
 import { AuthPage } from '@/components/auth-page';
+import { AuthErrorPanel } from '@/components/auth/auth-error-panel';
 import { LoginForm } from '@/components/auth/login-form';
 import { normalizeLoginCallback } from '@/server/auth/page-authorization';
 
@@ -9,26 +10,17 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   const callbackURL = normalizeLoginCallback(params.callbackURL);
-  const accountDisabled = Array.isArray(params.error)
-    ? params.error.includes('account_disabled')
-    : params.error === 'account_disabled';
+  const error = Array.isArray(params.error) ? params.error[0] : params.error;
 
   return (
     <AuthPage>
       <div className="w-full">
-        {accountDisabled ? (
-          <div
-            className="mb-5 rounded-lg border border-destructive/40 bg-destructive/5 p-3 shadow-none"
-            role="alert"
-          >
-            <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-destructive">
-              Account status
-            </p>
-            <p className="mt-1 text-sm leading-relaxed text-destructive">
-              This account is suspended or revoked. Contact the workspace owner.
-            </p>
-          </div>
-        ) : null}
+        <AuthErrorPanel
+          error={error}
+          context="sign-in"
+          className="mb-5"
+          showAction={error !== 'account_disabled'}
+        />
         <LoginForm callbackURL={callbackURL} />
       </div>
     </AuthPage>

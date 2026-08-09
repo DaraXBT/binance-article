@@ -19,6 +19,33 @@ const authCopy = {
   enrollmentError: 'Google enrollment could not be started. Please try again.',
   checkInvitationAgain: 'Check invitation again',
   alreadyEnrolled: 'Already enrolled?',
+  joinCodeTitle: 'Join with an access code',
+  joinCodeDescription: 'Enter the code shared by the workspace owner to request private beta access.',
+  joinCodeLabel: 'Enrollment code',
+  joinCodePlaceholder: 'JOIN-XXXXX-XXXXX-XXXXX-XXXXX',
+  checkCode: 'Check code',
+  checkingCode: 'Checking code…',
+  codeAccepted: 'Code accepted.',
+  codeRequired: 'Enter the enrollment code shared by the workspace owner.',
+  codeInvalid: 'That enrollment code is invalid or no longer active.',
+  codeExpired: 'That enrollment code has expired.',
+  codeRotated: 'That enrollment code was rotated.',
+  codeCapacityFull: 'The private beta is currently full.',
+  codeRateLimited: 'Too many attempts.',
+  codeCheckFailed: 'The enrollment code could not be checked.',
+  enrollmentReady: 'Access confirmed. Continue with Google to finish enrollment.',
+  enrollmentComplete: 'Enrollment complete.',
+  enrollmentCompleteFailed: 'Enrollment could not be completed.',
+  enrollmentCancelled: 'Google sign-in was cancelled.',
+  authErrorTitle: 'Account access needs attention',
+  authErrorSignupDisabled: 'This sign-in link is for existing members.',
+  authErrorCancelled: 'Google sign-in was cancelled.',
+  authErrorInvalidClaim: 'This enrollment has expired or was revoked.',
+  authErrorCapacityFull: 'The private beta is currently full.',
+  authErrorGeneric: 'We could not finish sign-in.',
+  returnToJoin: 'Return to join',
+  returnToSignIn: 'Return to sign in',
+  continueEnrollment: 'Continue enrollment',
 };
 vi.mock('@/lib/auth-client', () => ({
   authClient: { signIn: { social: signInSocial } },
@@ -32,6 +59,7 @@ import { JoinForm } from './join-form';
 describe('JoinForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, '', '/join');
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
       success: true,
       email: 'invited@example.com',
@@ -59,9 +87,10 @@ describe('JoinForm', () => {
     }));
     expect(signInSocial).toHaveBeenCalledWith({
       provider: 'google',
-      callbackURL: '/workspace',
-      newUserCallbackURL: '/workspace',
+      callbackURL: '/join/complete',
+      newUserCallbackURL: '/join/complete',
       requestSignUp: true,
+      errorCallbackURL: '/auth/error?flow=enrollment',
     });
   });
 
@@ -74,7 +103,9 @@ describe('JoinForm', () => {
 
   it('fails closed for a missing or rejected invitation', async () => {
     const { rerender } = render(<JoinForm token={null} />);
-    expect(screen.getByText(/invalid or missing/i)).toBeTruthy();
+    expect(screen.getByRole('textbox', { name: /enrollment code/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /continue with google/i }).hasAttribute('disabled'))
+      .toBe(true);
 
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({
       error: 'The invitation is invalid or expired.',
@@ -111,5 +142,67 @@ describe('JoinForm', () => {
     fireEvent.click(retry);
 
     await waitFor(() => expect(signInSocial).toHaveBeenCalledTimes(2));
+  });
+
+  it('exchanges a fragment code for a claim, scrubs the URL, and completes through the join callback', async () => {
+    const rawCode = 'join-abcde-fghjk-mnpqr-stuvw';
+    window.history.replaceState({}, '', `/join#code=${rawCode}`);
+    const { container } = render(<JoinForm />);
+
+    await screen.findByText(/access confirmed/i);
+
+    expect(fetch).toHaveBeenCalledWith('/api/enrollment/claim', expect.objectContaining({
+      method: 'POST',
+      credentials: 'same-origin',
+      cache: 'no-store',
+    }));
+    const claimRequest = vi.mocked(fetch).mock.calls[0]?.[1];
+    expect(JSON.parse(String(claimRequest?.body))).toMatchObject({
+      code: 'JOIN-ABCDE-FGHJK-MNPQR-STUVW',
+    });
+    expect(window.location.hash).toBe('');
+    expect(window.location.pathname).toBe('/join');
+    expect(container.textContent).not.toContain(rawCode);
+
+    fireEvent.click(screen.getByRole('button', { name: /continue with google/i }));
+    expect(signInSocial).toHaveBeenCalledWith({
+      provider: 'google',
+      callbackURL: '/join/complete',
+      newUserCallbackURL: '/join/complete',
+      requestSignUp: true,
+      errorCallbackURL: '/auth/error?flow=enrollment',
+    });
+  });
+
+  it('accepts a manually entered shared code and maps rotated codes to safe guidance', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        code: 'ENROLLMENT_CODE_ROTATED',
+        error: 'internal detail that should not be rendered',
+      }), { status: 400, headers: { 'content-type': 'application/json' } }));
+    render(<JoinForm />);
+
+    fireEvent.change(screen.getByRole('textbox', { name: /enrollment code/i }), {
+      target: { value: 'join-abcde-fghjk-mnpqr-stuvw' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /check code/i }));
+
+    expect((await screen.findByRole('alert')).textContent).toMatch(/rotated/i);
+    expect(screen.queryByText(/internal detail/i)).toBeNull();
+  });
+
+  it('keeps a successful manual claim ready after clearing the bearer code input', async () => {
+    render(<JoinForm />);
+
+    fireEvent.change(screen.getByRole('textbox', { name: /enrollment code/i }), {
+      target: { value: 'join-abcde-fghjk-mnpqr-stuvw' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /check code/i }));
+
+    await screen.findByText(/access confirmed/i);
+    expect(screen.queryByRole('textbox', { name: /enrollment code/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /continue with google/i }).hasAttribute('disabled'))
+      .toBe(false);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

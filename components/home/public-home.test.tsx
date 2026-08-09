@@ -7,6 +7,7 @@ const messages = {
   publicHome: {
     privateBeta: 'Invite-only private beta',
     signIn: 'Sign in',
+    joinWithCode: 'Have a join code?',
     studioTitle: 'Article Studio',
     eyebrow: 'Binance Square article studio',
     newArticle: 'New article',
@@ -89,6 +90,8 @@ describe('PublicHome', () => {
       screen.getAllByRole('link', { name: messages.publicHome.signIn })
         .some((link) => link.getAttribute('href') === '/login?callbackURL=%2Fworkspace'),
     ).toBe(true);
+    expect(screen.getByRole('link', { name: messages.publicHome.joinWithCode }))
+      .toHaveProperty('href', expect.stringMatching(/\/join$/));
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });
