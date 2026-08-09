@@ -10,6 +10,7 @@ const TARGETS = {
     'BETTER_AUTH_URL',
     'GOOGLE_CLIENT_ID',
     'GOOGLE_CLIENT_SECRET',
+    'ENROLLMENT_CODE_PEPPER',
     'GEMINI_API_KEY',
     'AI_CREDENTIAL_KEYRING',
     'AI_CREDENTIAL_ACTIVE_KEY_ID',
@@ -142,6 +143,10 @@ export function validateRuntimeEnvironment(environment, targets = ['web']) {
 
   if (nonempty(environment.BETTER_AUTH_SECRET) && environment.BETTER_AUTH_SECRET.trim().length < 32) {
     errors.push('BETTER_AUTH_SECRET must contain at least 32 characters.');
+  }
+
+  if (nonempty(environment.ENROLLMENT_CODE_PEPPER) && environment.ENROLLMENT_CODE_PEPPER.trim().length < 32) {
+    errors.push('ENROLLMENT_CODE_PEPPER must contain at least 32 characters.');
   }
 
   validateCredentialKeyring(environment, errors);

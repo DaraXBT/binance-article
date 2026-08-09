@@ -41,6 +41,7 @@ describe('Cloudflare web Worker deployment configuration', () => {
       'BETTER_AUTH_URL',
       'GOOGLE_CLIENT_ID',
       'GOOGLE_CLIENT_SECRET',
+      'ENROLLMENT_CODE_PEPPER',
       'GEMINI_API_KEY',
       'AI_CREDENTIAL_KEYRING',
       'AI_CREDENTIAL_ACTIVE_KEY_ID',
