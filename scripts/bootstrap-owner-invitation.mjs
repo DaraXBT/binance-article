@@ -92,6 +92,7 @@ export async function issueOwnerBootstrapInvitation(options = {}) {
 
   const rawToken = randomBytes(32).toString('base64url');
   const invitationId = `bootstrap_${randomUuid()}`;
+  const auditEventId = `bootstrap_audit_${randomUuid()}`;
   const tokenHash = createHash('sha256').update(rawToken).digest('hex');
   const tokenPrefix = rawToken.slice(0, 8);
   const timestamp = now();
@@ -106,9 +107,24 @@ export async function issueOwnerBootstrapInvitation(options = {}) {
       ), decision AS (
         SELECT (
           NOT EXISTS (SELECT 1 FROM "user")
-          AND NOT EXISTS (SELECT 1 FROM "Invitation")
+          AND NOT EXISTS (
+            SELECT 1
+            FROM "user"
+            WHERE "role" = 'owner'::"UserRole"
+          )
         ) AS "canCreate"
         FROM bootstrap_lock
+      ), revoked_stale AS (
+        UPDATE "Invitation"
+        SET
+          "status" = 'revoked'::"InvitationStatus",
+          "revokedAt" = ${timestamp},
+          "updatedAt" = ${timestamp}
+        WHERE "id" LIKE 'bootstrap\\_%' ESCAPE '\\'
+          AND "status" IN ('pending'::"InvitationStatus", 'accepted'::"InvitationStatus")
+          AND "acceptedByUserId" IS NULL
+          AND EXISTS (SELECT 1 FROM decision WHERE "canCreate")
+        RETURNING "id"
       ), inserted AS (
         INSERT INTO "Invitation" (
           "id", "email", "tokenHash", "tokenPrefix", "status",
@@ -121,14 +137,31 @@ export async function issueOwnerBootstrapInvitation(options = {}) {
           NULL, NULL, ${timestamp}, ${timestamp}
         FROM decision
         WHERE "canCreate"
+          AND (SELECT count(*) FROM revoked_stale) >= 0
         RETURNING "id", "tokenPrefix"
+      ), audit_event AS (
+        INSERT INTO "AuditEvent" (
+          "id", "actorUserId", "workspaceId", "eventType", "subjectType",
+          "subjectId", "metadata", "ipHash", "createdAt"
+        )
+        SELECT
+          ${auditEventId}, NULL, NULL, 'bootstrap.owner_invitation_issued',
+          'invitation', inserted."id",
+          jsonb_build_object(
+            'source', 'operator',
+            'replacedStaleCount', (SELECT count(*) FROM revoked_stale)
+          ),
+          NULL, ${timestamp}
+        FROM inserted
+        RETURNING "subjectId"
       )
       SELECT
-        CASE WHEN inserted."id" IS NULL THEN 'state_not_empty' ELSE 'created' END AS "result",
+        CASE WHEN audit_event."subjectId" IS NULL THEN 'state_not_empty' ELSE 'created' END AS "result",
         inserted."id",
         inserted."tokenPrefix"
       FROM decision
       LEFT JOIN inserted ON true
+      LEFT JOIN audit_event ON audit_event."subjectId" = inserted."id"
     `;
   } catch {
     throw new Error('Owner bootstrap invitation could not be created.');
