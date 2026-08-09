@@ -38,7 +38,7 @@ describe('first-owner bootstrap invitation', () => {
     })).toThrow(/HTTPS/i);
   });
 
-  it('atomically creates the only bootstrap invitation and persists only its hash', async () => {
+  it('atomically replaces stale bootstrap invitations when no owner or user exists', async () => {
     const query = vi.fn(async () => ([{
       result: 'created',
       id: 'bootstrap_invite-id',
@@ -70,8 +70,12 @@ describe('first-owner bootstrap invitation', () => {
     const sql = strings.join('$value');
     expect(sql).toMatch(/pg_advisory_xact_lock/);
     expect(sql).toMatch(/NOT EXISTS[\s\S]*FROM "user"/);
-    expect(sql).toMatch(/NOT EXISTS[\s\S]*FROM "Invitation"/);
+    expect(sql).toMatch(/NOT EXISTS[\s\S]*"role" = 'owner'/);
+    expect(sql).toMatch(/UPDATE "Invitation"[\s\S]*"status" = 'revoked'/);
+    expect(sql).toMatch(/"id" LIKE 'bootstrap\\_%'/);
     expect(sql).toMatch(/INSERT INTO "Invitation"/);
+    expect(sql).toMatch(/INSERT INTO "AuditEvent"/);
+    expect(sql).toContain('bootstrap.owner_invitation_issued');
     expect(sql).toMatch(/"createdByUserId"/);
     expect(values).toContain('bootstrap_invite-id');
     expect(values).toContain('owner@example.com');
