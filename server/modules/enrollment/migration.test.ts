@@ -10,7 +10,14 @@ const journal = JSON.parse(readFileSync(`${root}drizzle/meta/_journal.json`, 'ut
 
 describe('shared enrollment migration', () => {
   it('adds pending auth state and durable versioned enrollment records', () => {
-    expect(migration).toContain(`ALTER TYPE "public"."UserStatus" ADD VALUE 'pending'`);
+    expect(migration).toContain(`ALTER TYPE "public"."UserStatus" RENAME TO "UserStatus_legacy"`);
+    expect(migration).toContain(
+      `CREATE TYPE "public"."UserStatus" AS ENUM('pending', 'active', 'suspended', 'revoked')`,
+    );
+    expect(migration).not.toContain(`ALTER TYPE "public"."UserStatus" ADD VALUE 'pending'`);
+    expect(migration).toContain(
+      `ALTER COLUMN "status" TYPE "public"."UserStatus" USING "status"::text::"public"."UserStatus"`,
+    );
     expect(migration).toContain(`ALTER TABLE "user" ALTER COLUMN "status" SET DEFAULT 'pending'`);
     expect(migration).toContain('CREATE TABLE "EnrollmentCode"');
     expect(migration).toContain('CREATE TABLE "EnrollmentClaim"');
