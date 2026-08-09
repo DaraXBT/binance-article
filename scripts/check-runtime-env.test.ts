@@ -18,6 +18,7 @@ const validWeb = {
     v1: Buffer.alloc(32, 1).toString('base64url'),
   }),
   AI_CREDENTIAL_ACTIVE_KEY_ID: 'v1',
+  ENROLLMENT_CODE_PEPPER: 'e'.repeat(48),
 };
 
 describe('runtime environment preflight', () => {
@@ -69,6 +70,18 @@ describe('runtime environment preflight', () => {
       AI_CREDENTIAL_ACTIVE_KEY_ID: ' v1 ',
     });
     expect(errors).toContain('AI_CREDENTIAL_ACTIVE_KEY_ID must be a canonical key ID.');
+  });
+
+  it('requires a sufficiently long enrollment-code pepper for the web target', () => {
+    expect(validateRuntimeEnvironment({
+      ...validWeb,
+      ENROLLMENT_CODE_PEPPER: undefined,
+    })).toContain('ENROLLMENT_CODE_PEPPER is required.');
+
+    expect(validateRuntimeEnvironment({
+      ...validWeb,
+      ENROLLMENT_CODE_PEPPER: 'short',
+    })).toContain('ENROLLMENT_CODE_PEPPER must contain at least 32 characters.');
   });
 
   it('parses strict target arguments', () => {
