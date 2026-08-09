@@ -182,6 +182,44 @@ describe('AdminPeopleAccessCard', () => {
     await screen.findByRole('button', { name: 'Restore' });
   });
 
+  it('protects the current owner while allowing another owner and a revoked user to be managed', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(overview))
+      .mockResolvedValueOnce(jsonResponse({
+        people: [{
+          ...people.people[0],
+          email: 'current-owner@example.com',
+        }, {
+          id: 'owner_2',
+          name: 'Second Owner',
+          email: 'second-owner@example.com',
+          role: 'owner',
+          status: 'active',
+          isCurrentUser: false,
+        }, {
+          id: 'user_revoked',
+          name: 'Revoked User',
+          email: 'revoked@example.com',
+          role: 'user',
+          status: 'revoked',
+          isCurrentUser: false,
+        }],
+      }));
+
+    render(<AdminPeopleAccessCard />);
+
+    const currentOwnerRow = (await screen.findByText('current-owner@example.com')).closest('li');
+    const secondOwnerRow = screen.getByText('second-owner@example.com').closest('li');
+    const revokedUserRow = screen.getByText('revoked@example.com').closest('li');
+    expect(currentOwnerRow).not.toBeNull();
+    expect(secondOwnerRow).not.toBeNull();
+    expect(revokedUserRow).not.toBeNull();
+    expect(within(currentOwnerRow!).queryByRole('button')).toBeNull();
+    expect(within(secondOwnerRow!).getByRole('button', { name: 'Suspend' })).toBeTruthy();
+    expect(within(secondOwnerRow!).getByRole('button', { name: 'Revoke' })).toBeTruthy();
+    expect(within(revokedUserRow!).getByRole('button', { name: 'Restore' })).toBeTruthy();
+  });
+
   it('removes itself when the owner-only API rejects the current user', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ code: 'OWNER_REQUIRED' }, 403))
