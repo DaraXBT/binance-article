@@ -54,7 +54,9 @@ describe('API authorization inventory', () => {
   it('keeps each policy attached to its concrete authorization boundary', () => {
     const markers = {
       public: ['toNextJsHandler', 'databaseStatus'],
-      'invitation-token': ['inspectInvitation'],
+      'invitation-token': ['claimLegacyInvitation'],
+      'enrollment-code': ['claimEnrollmentCode'],
+      'enrollment-session': ['requireEnrollmentUser'],
       'pairing-token': ['activatePublisherDevice'],
       owner: ['requireOwner: true'],
       'workspace-owner': ['requireActorWorkspaceOwner'],

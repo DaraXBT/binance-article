@@ -21,6 +21,10 @@ function transactionHarness(results: unknown[][]) {
   return { client: Object.assign(vi.fn(), { transaction }), queries, transaction };
 }
 
+function compactSql(sql: string): string {
+  return sql.replace(/\s+/g, ' ').trim();
+}
+
 const now = new Date('2026-08-09T00:00:00.000Z');
 
 describe('invitation administration repository', () => {
@@ -45,7 +49,7 @@ describe('invitation administration repository', () => {
     expect(harness.queries[0]?.text).toContain('pg_advisory_xact_lock');
     expect(harness.queries[0]?.values).toContain(ENROLLMENT_CAPACITY_LOCK_KEY);
 
-    const sql = harness.queries[1]?.text ?? '';
+    const sql = compactSql(harness.queries[1]?.text ?? '');
     expect(sql).toMatch(/FROM "user"[\s\S]*"status" = 'active'::"UserStatus"/);
     expect(sql).toMatch(
       /FROM "Invitation" AS live_invitation[\s\S]*live_invitation\."status" = 'pending'::"InvitationStatus"[\s\S]*live_invitation\."status" = 'accepted'::"InvitationStatus"[\s\S]*live_invitation\."acceptedByUserId" IS NULL/,
@@ -57,6 +61,8 @@ describe('invitation administration repository', () => {
     expect(sql).toMatch(
       /FROM "EnrollmentClaim" AS reserved_claim[\s\S]*reserved_claim\."status" = 'reserved'::"EnrollmentClaimStatus"[\s\S]*reserved_claim\."reservationExpiresAt" >[\s\S]*reserved_claim\."expiresAt" >/,
     );
+    expect(sql).not.toContain(`'pending'::"EnrollmentClaimStatus"`);
+    expect(sql).not.toContain(`'completed'::"EnrollmentClaimStatus"`);
     expect(harness.transaction).toHaveBeenCalledWith(expect.any(Function), {
       isolationLevel: 'ReadCommitted',
     });
@@ -84,7 +90,7 @@ describe('invitation administration repository', () => {
       /FROM "Invitation"[\s\S]*"status" = 'pending'::"InvitationStatus"[\s\S]*"status" = 'accepted'::"InvitationStatus"[\s\S]*"acceptedByUserId" IS NULL[\s\S]*FOR UPDATE/,
     );
     expect(sql).toMatch(
-      /UPDATE "EnrollmentClaim" AS claim[\s\S]*"status" = 'revoked'::"EnrollmentClaimStatus"[\s\S]*"reservationExpiresAt" = NULL[\s\S]*"revokedAt" =[\s\S]*"failureCode" = 'invitation_revoked'[\s\S]*claim\."sourceReferenceId" = target\."id"[\s\S]*claim\."source" IN \('legacy_invitation', 'bootstrap'\)[\s\S]*claim\."status" IN \('pending'::"EnrollmentClaimStatus", 'reserved'::"EnrollmentClaimStatus"\)/,
+      /UPDATE "EnrollmentClaim" AS claim[\s\S]*"status" = 'revoked'::"EnrollmentClaimStatus"[\s\S]*"reservationExpiresAt" = NULL[\s\S]*"revokedAt" =[\s\S]*"failureCode" = 'invitation_revoked'[\s\S]*claim\."sourceReferenceId" = target\."id"[\s\S]*claim\."source" IN \('legacy_invitation', 'bootstrap'\)[\s\S]*claim\."status" IN \(\s*'pending'::"EnrollmentClaimStatus",\s*'reserved'::"EnrollmentClaimStatus"\s*\)/,
     );
     expect(sql).toMatch(
       /UPDATE "Invitation" AS target_invitation[\s\S]*"status" = 'revoked'::"InvitationStatus"[\s\S]*"revokedAt" =/,

@@ -18,7 +18,7 @@ function jsonResponse(body: unknown, status = 200) {
 
 const overview = {
   activeCode: null,
-  capacity: { activeUsers: 1, reservedClaims: 0, limit: 10 },
+  capacity: { activeUsers: 1, legacyInvitations: 0, reservedClaims: 0, limit: 10 },
 };
 
 const people = {
@@ -54,6 +54,21 @@ describe('AdminPeopleAccessCard', () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+  });
+
+  it('includes live legacy invitation seats in the displayed beta capacity', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({
+        activeCode: null,
+        capacity: { activeUsers: 3, legacyInvitations: 2, reservedClaims: 1, limit: 10 },
+      }))
+      .mockResolvedValueOnce(jsonResponse(people));
+
+    render(<AdminPeopleAccessCard />);
+
+    const invited = await screen.findByText('Invited');
+    expect(invited.parentElement?.textContent).toContain('2');
+    expect(screen.getByText('6/10')).toBeTruthy();
   });
 
   it('creates a one-time shared code and fragment link, then marks it copied', async () => {

@@ -39,6 +39,10 @@ describe('AuthErrorPanel', () => {
     expect(screen.queryByText('signup_disabled')).toBeNull();
   });
 
+  it('handles a provider code copied with a trailing query delimiter', () => {
+    expect(classifyAuthError('signup_disabled?')).toBe('signup-disabled');
+  });
+
   it('uses an allowlisted generic message for unknown provider errors', () => {
     render(<AuthErrorPanel error="provider_database_internal_secret" />);
 

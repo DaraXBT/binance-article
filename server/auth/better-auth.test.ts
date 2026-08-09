@@ -45,6 +45,7 @@ describe('Better Auth factory', () => {
       advanced: expect.objectContaining({
         ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] },
       }),
+      onAPIError: { errorURL: 'https://articles.example.com/auth/error' },
       socialProviders: {
         google: expect.objectContaining({
           clientId: environment.googleClientId,
@@ -82,7 +83,7 @@ describe('Better Auth factory', () => {
     expect(enrollmentGate.afterUserCreate).toHaveBeenCalledWith(candidate, context);
   });
 
-  it('marks role and status as server-controlled user fields', () => {
+  it('creates new identities as pending with server-controlled role and status fields', () => {
     createBetterAuth({
       database: {} as never,
       environment,
@@ -93,7 +94,7 @@ describe('Better Auth factory', () => {
       user: { additionalFields: Record<string, { input: boolean; defaultValue: string }> };
     };
     expect(options.user.additionalFields).toMatchObject({
-      status: { input: false, defaultValue: 'active' },
+      status: { input: false, defaultValue: 'pending' },
       role: { input: false, defaultValue: 'user' },
     });
   });

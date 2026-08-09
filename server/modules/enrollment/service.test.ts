@@ -5,7 +5,9 @@ import { AppError } from '@/server/http/errors';
 import {
   ENROLLMENT_CLAIM_TTL_MS,
   MAX_ACTIVE_ENROLLMENT_USERS,
+  type EnrollmentClaimRepository,
   claimEnrollmentCode,
+  claimLegacyInvitation,
   completeEnrollmentClaim,
   reserveEnrollmentClaim,
   rotateEnrollmentCode,
@@ -14,13 +16,14 @@ import {
 const now = new Date('2026-08-09T00:00:00.000Z');
 const pepper = 'pepper'.repeat(8);
 const code = 'JOIN-01234-56789-ABCDE-FGHJK';
+const claimToken = 'A'.repeat(43);
 
 function repository(overrides: Record<string, unknown> = {}) {
   return {
     findActiveCodeByHash: vi.fn(async () => ({
       id: 'code_1', version: 1, codePrefix: '01234567', status: 'active' as const,
     })),
-    createClaim: vi.fn(async (input: Record<string, unknown>) => ({
+    createClaim: vi.fn(async (input: Parameters<EnrollmentClaimRepository['createClaim']>[0]) => ({
       id: 'claim_1',
       codeId: input.codeId,
       codeVersion: input.codeVersion,
@@ -31,9 +34,16 @@ function repository(overrides: Record<string, unknown> = {}) {
       email: null,
       userId: null,
     })),
+    createLegacyClaim: vi.fn(async (input: { expiresAt: Date }) => ({
+      id: 'legacy_claim_1', codeId: null, codeVersion: null,
+      source: 'legacy_invitation' as const, status: 'pending' as const,
+      email: 'invited@example.com', userId: null,
+      expiresAt: input.expiresAt, reservationExpiresAt: null,
+    })),
     reserveClaim: vi.fn(async () => ({ outcome: 'reserved' as const, claimId: 'claim_1' })),
     completeClaim: vi.fn(async () => ({ outcome: 'completed' as const, claimId: 'claim_1' })),
-    rotateCode: vi.fn(async () => ({ revokedCodeId: 'code_1', revokedClaims: 2 })),
+    releaseClaim: vi.fn(async () => true),
+    rotateCode: vi.fn(async () => ({ version: 2, revokedCodeId: 'code_1', revokedClaims: 2 })),
     ...overrides,
   };
 }
@@ -46,7 +56,6 @@ describe('enrollment service', () => {
       code,
       pepper,
       now,
-      entropy: new Uint8Array(13),
       claimEntropy: new Uint8Array(32),
       id: 'claim_1',
     });
@@ -67,11 +76,77 @@ describe('enrollment service', () => {
       .rejects.toMatchObject({ code: 'INVALID_ENROLLMENT_CODE', status: 400 });
   });
 
+  it('exchanges a legacy invitation into a deterministic retry-safe claim', async () => {
+    const repo = repository();
+    const invitationToken = 'legacy_invitation_token_12345678901234567890';
+    const first = await claimLegacyInvitation({
+      repository: repo,
+      invitationToken,
+      id: 'legacy_claim_1',
+      now,
+    });
+    const replay = await claimLegacyInvitation({
+      repository: repo,
+      invitationToken,
+      id: 'legacy_claim_2',
+      now,
+    });
+
+    expect(first.claimToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(replay.claimToken).toBe(first.claimToken);
+    expect(first.email).toBe('invited@example.com');
+    expect(JSON.stringify(repo.createLegacyClaim.mock.calls)).not.toContain(invitationToken);
+  });
+
+  it('returns the same opaque claim token when a client safely retries one exchange', async () => {
+    const repo = repository();
+    const first = await claimEnrollmentCode({
+      repository: repo,
+      code,
+      pepper,
+      idempotencyKey: 'attempt-12345678',
+      id: 'claim_1',
+      now,
+    });
+    const replay = await claimEnrollmentCode({
+      repository: repo,
+      code: code.toLowerCase(),
+      pepper,
+      idempotencyKey: 'attempt-12345678',
+      id: 'claim_2',
+      now,
+    });
+
+    expect(replay.claimToken).toBe(first.claimToken);
+    expect(repo.createClaim.mock.calls[1]?.[0].tokenHash)
+      .toBe(repo.createClaim.mock.calls[0]?.[0].tokenHash);
+  });
+
+  it('reissues the same cookie for a duplicate tab after the claim was reserved', async () => {
+    const repo = repository({
+      createClaim: vi.fn(async (input: Parameters<EnrollmentClaimRepository['createClaim']>[0]) => ({
+        id: 'claim_1', codeId: input.codeId, codeVersion: input.codeVersion,
+        source: input.source, status: 'reserved' as const, email: 'user@example.com',
+        userId: null, expiresAt: input.expiresAt,
+        reservationExpiresAt: new Date(now.getTime() + 60_000),
+      })),
+    });
+
+    await expect(claimEnrollmentCode({
+      repository: repo,
+      code,
+      pepper,
+      idempotencyKey: 'attempt-12345678',
+      id: 'claim_2',
+      now,
+    })).resolves.toMatchObject({ status: 'pending' });
+  });
+
   it('reserves capacity atomically and exposes a capacity error', async () => {
     const repo = repository({ reserveClaim: vi.fn(async () => ({ outcome: 'capacity_full' as const })) });
     await expect(reserveEnrollmentClaim({
       repository: repo,
-      claimToken: 'claim-token-for-test-1234567890',
+      claimToken,
       email: ' User@Example.com ',
       now,
     })).rejects.toMatchObject({ code: 'BETA_USER_CAP_REACHED', status: 409 });
@@ -86,7 +161,7 @@ describe('enrollment service', () => {
     const repo = repository({ reserveClaim: vi.fn(async () => ({ outcome: 'email_mismatch' as const })) });
     await expect(reserveEnrollmentClaim({
       repository: repo,
-      claimToken: 'claim-token-for-test-1234567890',
+      claimToken,
       email: 'other@example.com',
       now,
     })).rejects.toMatchObject({ code: 'ENROLLMENT_IDENTITY_MISMATCH', status: 403 });
@@ -96,7 +171,7 @@ describe('enrollment service', () => {
     const repo = repository({ completeClaim: vi.fn(async () => ({ outcome: 'already_completed' as const, claimId: 'claim_1' })) });
     await expect(completeEnrollmentClaim({
       repository: repo,
-      claimToken: 'claim-token-for-test-1234567890',
+      claimToken,
       userId: 'user_1',
       now,
     })).resolves.toEqual({ completed: true, replayed: true, claimId: 'claim_1' });
@@ -117,15 +192,16 @@ describe('enrollment service', () => {
     expect(repo.rotateCode).toHaveBeenCalledWith(expect.objectContaining({
       actorUserId: 'owner_1',
       codeId: 'code_2',
-      codeVersion: 1,
+      reason: 'owner_rotation',
     }));
+    expect(result.version).toBe(2);
   });
 
   it('preserves AppError semantics for repository decisions', async () => {
     const repo = repository({ reserveClaim: vi.fn(async () => ({ outcome: 'invalid' as const })) });
     const error = await reserveEnrollmentClaim({
       repository: repo,
-      claimToken: 'claim-token-for-test-1234567890',
+      claimToken,
       email: 'user@example.com',
       now,
     }).catch((value: unknown) => value);

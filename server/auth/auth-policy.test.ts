@@ -88,4 +88,8 @@ describe('Better Auth security policy', () => {
     });
   });
 
+  it('routes OAuth failures to the owned, sanitized error experience', () => {
+    expect(policy.errorURL).toBe('https://articles.example.com/auth/error');
+  });
+
 });

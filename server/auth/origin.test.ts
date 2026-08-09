@@ -35,7 +35,7 @@ describe('strict browser mutation origin policy', () => {
       { referer: 'https://evil.example/join' },
       { origin: canonicalOrigin, 'sec-fetch-site': 'cross-site' },
     ]) {
-      expect(() => assertTrustedMutationOrigin(request(headers), canonicalOrigin))
+      expect(() => assertTrustedMutationOrigin(request(headers as HeadersInit), canonicalOrigin))
         .toThrow(expect.objectContaining({ code: 'CROSS_SITE_REQUEST_BLOCKED' }));
     }
   });

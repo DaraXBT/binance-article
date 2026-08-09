@@ -8,8 +8,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/server/db/runtime', () => ({ getRuntimeDatabase: mocks.getRuntimeDatabase }));
-vi.mock('./invitation-repository', () => ({
-  createDrizzleInvitationRepository: mocks.createRepository,
+vi.mock('@/server/modules/enrollment/repository', () => ({
+  createEnrollmentRepository: mocks.createRepository,
 }));
 vi.mock('./invitation-enrollment', () => ({
   createInvitationEnrollmentGate: mocks.createGate,
