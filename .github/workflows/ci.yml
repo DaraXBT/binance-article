@@ -64,6 +64,7 @@ jobs:
           BETTER_AUTH_URL: https://app.example.invalid
           GOOGLE_CLIENT_ID: ci-client-id
           GOOGLE_CLIENT_SECRET: ci-client-secret
+          ENROLLMENT_CODE_PEPPER: ci-only-enrollment-code-pepper-at-least-32-characters
           GEMINI_API_KEY: ci-gemini-key
           AI_CREDENTIAL_KEYRING: '{"v1":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}'
           AI_CREDENTIAL_ACTIVE_KEY_ID: v1

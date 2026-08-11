@@ -86,4 +86,9 @@ describe('Cloudflare dependency cleanup', () => {
     expect(ci).toContain('npm run db:check');
     expect(ci).toContain('MIGRATION_DATABASE_URL');
   });
+
+  it('supplies a synthetic enrollment-code pepper to the CI runtime preflight', () => {
+    const ci = projectFile('.github/workflows/ci.yml');
+    expect(ci).toMatch(/ENROLLMENT_CODE_PEPPER:\s*ci-only-enrollment-code-pepper-at-least-32-characters/);
+  });
 });

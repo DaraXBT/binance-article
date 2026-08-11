@@ -97,11 +97,13 @@ hash and bounded metadata are stored.
 - The product interface is English-only. Imported source text and generated
   article content may remain in their original language; stale UI-language
   cookies or browser storage are normalized back to English.
-- Enrollment is invitation-only through Google. App-global owners manage
-  invitations in **Settings → Connections**: create one (the join link is
-  shown once; only its hash is stored), see pending/accepted/expired status,
-  and revoke pending invitations. The `owner-bootstrap:create` script remains
-  the way to issue the very first invitation on an empty database.
+- App-global owners manage enrollment in **Settings → Connections**. After the
+  one-time bootstrap invitation on an empty database, owners create one
+  reusable shared `JOIN-...` code and privately distribute its `#code=` URL.
+  Only an HMAC hash is stored. A code claim is short-lived and becomes an active
+  account only after verified Google sign-in; rotating a code invalidates every
+  unfinished claim made with the previous version. Existing legacy invitation
+  links remain usable until expiry or revocation.
 - Returning users sign in with Google.
 - Suspended or revoked users are rejected on every request.
 - The account control stays pinned to the bottom of the workspace rail. Select
@@ -110,6 +112,8 @@ hash and bounded metadata are stored.
   desktop rail, the same menu opens beside the account icon rather than moving
   into the article list.
 - The private beta enforces one workspace membership per account and one owner per workspace.
+  Its capacity counts active users, live legacy invitations, and live reserved
+  enrollment claims; unreserved pending claims do not consume a seat.
 - New workspaces are account-owned and do not issue recovery secrets.
 - Pre-account workspaces can be claimed once with their old `dwk_...` key during the database-stamped 30-day migration window. A successful claim consumes the window and deletes legacy browser sessions.
 

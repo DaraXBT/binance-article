@@ -15,6 +15,10 @@ Copy `.env.example` to `.env.local`. At minimum configure:
 - `DATABASE_URL`: PostgreSQL/Neon runtime URL with TLS for remote hosts.
 - `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL`.
 - Google OAuth client ID and secret.
+- `ENROLLMENT_CODE_PEPPER` for HMAC-hashing shared `JOIN-...` enrollment
+  codes. Generate a stable, deployment-specific value of at least 32
+  characters; it is required only by the web Worker. Rotating it invalidates
+  every issued shared code, so preserve it as a long-lived secret.
 - Gemini credentials while the generation provider is enabled.
 - `AI_CREDENTIAL_KEYRING` and `AI_CREDENTIAL_ACTIVE_KEY_ID` for encrypted
   workspace Gemini connections. Use the same values on the web and Workflow
@@ -35,8 +39,8 @@ After filling local values, validate both runtime targets:
 npm run env:check -- --target all
 ```
 
-The web target requires the database, Better Auth, Google OAuth, Gemini, and
-BYOK keyring values. The Workflow target requires the database, Gemini, and
+The web target requires the database, Better Auth, Google OAuth, enrollment
+code pepper, Gemini, and BYOK keyring values. The Workflow target requires the database, Gemini, and
 the same BYOK keyring values. Remote
 database URLs must use TLS (`sslmode=require`), and deployed Better Auth URLs
 must use HTTPS.
@@ -44,7 +48,8 @@ must use HTTPS.
 ## 3. Database
 
 Use a separate least-privileged runtime role and migration role. Before applying
-`0015_workspace_ai_credential`, stage the same `AI_CREDENTIAL_KEYRING`,
+`0016_shared_enrollment`, stage `ENROLLMENT_CODE_PEPPER` on the web Worker and
+verify it is stable. Also stage the same `AI_CREDENTIAL_KEYRING`,
 `AI_CREDENTIAL_ACTIVE_KEY_ID`, `GEMINI_TEXT_MODEL`, and `GEMINI_IMAGE_MODEL`
 values for both Worker deployments. Review migrations, back up deployed data,
 then apply with the dedicated URL:
@@ -75,7 +80,7 @@ active Telegram route, Worker, OAuth flow, or UI in the current product; keep
 those migrations and snapshots unchanged so existing databases retain a valid
 forward history.
 
-## 4. Better Auth and invitations
+## 4. Better Auth and enrollment
 
 Configure the Google callback URL for the deployment origin. On a freshly migrated,
 empty database, create the one-time first-owner invitation from an operator shell:
@@ -89,9 +94,17 @@ npm run owner-bootstrap:create
 
 The command refuses databases containing any user or invitation, stores only the
 invitation-token hash, and prints the join URL once. The invited Google identity
-becomes the sole application owner when it enrolls. Afterwards, create normal
-invitations from the owner administration surface. The application limits the
-private beta to ten active users plus pending invitations.
+becomes the sole application owner when it enrolls.
+
+After `0016_shared_enrollment`, owners issue one reusable `JOIN-...` shared
+code from **Settings → Connections**. Give its `#code=` URL privately to
+approved users; only the HMAC hash is stored. A visitor claims the code before
+Google sign-in, receives a short-lived pending claim, and becomes active only
+when their verified Google identity completes the claim. Code rotation revokes
+all pending or reserved claims on the old code. Legacy invitation links remain
+valid until they expire or are revoked, but new enrollment should use shared
+codes. The private beta capacity includes active users, live legacy invitations,
+and live reservations; pending unreserved claims do not consume a seat.
 
 ## 5. Cloudflare resources
 
@@ -109,8 +122,9 @@ private beta to ten active users plus pending invitations.
 - Deploy the non-public article Workflow Worker separately and bind it to the
   web Worker by `script_name`.
 - Confirm the staged credential keyring and Gemini model values remain identical
-  on both Workers. After migration `0015`, deploy the Workflow Worker first,
-  then the web Worker. Existing workspaces continue to use platform credits
+  on both Workers. After migration `0016`, deploy the Workflow Worker first,
+  then the web Worker in the same maintenance window; do not serve old and new
+  web enrollment flows concurrently. Existing workspaces continue to use platform credits
   until an owner activates a saved key.
 - Keep `DEEPSEEK_API_KEY` unset unless an operator-controlled internal workflow
   explicitly enables the dormant compatibility path. Public generation does
