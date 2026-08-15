@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -19,6 +19,20 @@ async function extractArchive(archivePath: string, destination: string): Promise
     const outputPath = path.join(destination, entryPath);
     await mkdir(path.dirname(outputPath), { recursive: true });
     await writeFile(outputPath, await entry.async('nodebuffer'));
+  }
+}
+
+async function linkInstalledDependencies(distributionRoot: string): Promise<void> {
+  for (const project of [
+    'publisher-companion',
+    '.agents/skills/baoyu-post-to-binance-square/scripts',
+    '.agents/skills/baoyu-post-to-x/scripts',
+  ]) {
+    await symlink(
+      path.join(process.cwd(), project, 'node_modules'),
+      path.join(distributionRoot, project, 'node_modules'),
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
   }
 }
 
@@ -106,5 +120,29 @@ describe('publisher companion release artifact', () => {
     });
 
     expect(build.status, `${build.stdout}\n${build.stderr}`).toBe(0);
+  });
+
+  it('loads the extracted runtime with dependencies installed in each packaged project', async () => {
+    const outputDirectory = await mkdtemp(path.join(os.tmpdir(), 'publisher-artifact-runtime-'));
+    const extractionDirectory = await mkdtemp(path.join(os.tmpdir(), 'publisher-runtime-extract-'));
+    temporaryDirectories.push(outputDirectory, extractionDirectory);
+
+    const result = await buildPublisherCompanionArtifact({
+      root: process.cwd(),
+      outputDirectory,
+    });
+    await extractArchive(result.archivePath, extractionDirectory);
+    const distributionRoot = path.join(extractionDirectory, result.directoryName);
+    await linkInstalledDependencies(distributionRoot);
+
+    const imported = spawnSync('bun', [
+      '-e',
+      "await import('./src/main.ts')",
+    ], {
+      cwd: path.join(distributionRoot, 'publisher-companion'),
+      encoding: 'utf8',
+    });
+
+    expect(imported.status, `${imported.stdout}\n${imported.stderr}`).toBe(0);
   });
 });
