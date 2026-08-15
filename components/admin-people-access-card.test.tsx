@@ -197,6 +197,7 @@ describe('AdminPeopleAccessCard', () => {
     fireEvent.click(within(confirmation).getByRole('button', { name: 'Disable code' }));
 
     expect(await screen.findByRole('button', { name: 'Create code' })).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain('Refresh unavailable');
     expect(screen.queryByRole('button', { name: 'Rotate code' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Disable code' })).toBeNull();
   });
