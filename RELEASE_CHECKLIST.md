@@ -113,9 +113,7 @@ version blindly after a version bump.
     restore, and revoke smoke users; verify sessions/devices/claims invalidate
     and capacity is released. Remove the temporary restriction, retain rate
     limits, and monitor for 30 minutes.
-11. Verify restore, lock duration, the one-time V1 draft backfill, and
-   active-command drain. Do not resume a V1 writer after the backfill.
-12. Confirm `https://binance.v27.tech/api/health` returns `200` without exposing
+11. Confirm `https://binance.v27.tech/api/health` returns `200` without exposing
    dependency details and that no Vercel deployment is serving the production
    hostname.
    Then smoke the Workflow Worker without writing data or spending tokens:
@@ -124,25 +122,25 @@ version blindly after a version bump.
    must show an errored instance with `NonRetryableError: Job payload not
    found.` and a successful `finalize failed article job` step — proving the
    worker boots, reaches the database, and fails closed.
-13. Confirm stale non-English browser preferences still render the English UI.
-14. As a workspace owner, save and test a disposable Gemini key, confirm the
+12. Confirm stale non-English browser preferences still render the English UI.
+13. As a workspace owner, save and test a disposable Gemini key, confirm the
    default remains Platform credits, then explicitly switch to Workspace Gemini
    key. Generate a disposable article and confirm prompt generation, slide
    images, the dedicated cover, and retries complete with the selected source.
    Switch back to Platform credits, delete the copy, and confirm generation
    remains on Platform; revoke the disposable key at Google separately.
-15. Verify workspace settings navigation at the target responsive breakpoints:
+14. Verify workspace settings navigation at the target responsive breakpoints:
    collapse the desktop rail and confirm the signed-in account control stays
    pinned at its bottom and opens its menu beside the rail; then open
    **Settings** and confirm the Connections panel has no horizontal overflow on
    mobile and shows its settings rail on desktop.
-16. Pair one disposable browser device and verify it appears as active under
+15. Pair one disposable browser device and verify it appears as active under
    **Settings → Connections**.
-17. With explicit operator authorization, prepare and publish one controlled
+16. With explicit operator authorization, prepare and publish one controlled
    Binance smoke post and one controlled X smoke post. Review and approve each
    exact live composer separately.
-18. Confirm canonical result URLs and inspect the command/audit records.
-19. Revoke the disposable device and confirm its token can no longer poll.
+17. Confirm canonical result URLs and inspect the command/audit records.
+18. Revoke the disposable device and confirm its token can no longer poll.
 
 If Telegram was ever deployed, drain its jobs, remove its webhook and Workers,
 delete its secrets, and revoke unused OAuth credentials after retention

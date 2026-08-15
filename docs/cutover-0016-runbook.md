@@ -1,11 +1,12 @@
 # Shared enrollment cutover runbook (migration 0016)
 
 This is the operator script for the one window that ships shared enrollment. It
-supplements `RELEASE_CHECKLIST.md`. Keep account IDs, database project IDs,
-deployment version IDs, database URLs, IP allowlists, and scratch paths in the
-private operator shell or change ticket—not in this repository.
-Secret values, database URLs, enrollment codes/links, claim or invitation
-tokens, OAuth credentials, and disposable identity details belong only in the
+supplements `RELEASE_CHECKLIST.md`. Keep non-secret infrastructure identifiers,
+such as account IDs, database project IDs, deployment version IDs, IP allowlists,
+and scratch paths, in the private operator shell or an access-controlled change
+ticket—not in this repository. Secret values and secret-bearing connection
+strings, including database URLs, enrollment codes/links, claim or invitation
+tokens, OAuth credentials, and disposable identity details, belong only in the
 secret manager or operator process, never in Git, logs, or tickets.
 
 ## Required state at the start of the window
