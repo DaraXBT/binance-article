@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   })),
   getEnrollmentCodePepper: vi.fn(() => 'p'.repeat(48)),
   createInitialEnrollmentCode: vi.fn(async () => ({ code: 'JOIN-ABCDE-FGHJK-MNPQR-STUVW', codePrefix: 'ABCDEFGH', version: 1 })),
+  revokeEnrollmentCode: vi.fn(async () => ({ changed: true, revokedClaims: 2 })),
 }));
 
 vi.mock('@/server/auth/authorization', () => ({ requireActiveUser: mocks.requireActiveUser }));
@@ -24,6 +25,7 @@ vi.mock('@/server/modules/enrollment/repository', () => ({ createEnrollmentRepos
 vi.mock('@/server/modules/enrollment/service', () => ({
   getEnrollmentCodePepper: mocks.getEnrollmentCodePepper,
   createInitialEnrollmentCode: mocks.createInitialEnrollmentCode,
+  revokeEnrollmentCode: mocks.revokeEnrollmentCode,
 }));
 
 describe('POST /api/admin/enrollment/code', () => {
@@ -79,5 +81,49 @@ describe('POST /api/admin/enrollment/code', () => {
       key: expect.stringContaining('owner_1'),
     }));
     expect(mocks.createInitialEnrollmentCode).not.toHaveBeenCalled();
+  });
+});
+
+describe('DELETE /api/admin/enrollment/code', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('lets an owner disable enrollment without returning code material', async () => {
+    const { DELETE } = await import('./route');
+    const request = new Request('https://poisoned.example/api/admin/enrollment/code', {
+      method: 'DELETE',
+      headers: { origin: 'https://articles.example.com' },
+    });
+    const response = await DELETE(request as never);
+
+    expect(response.status).toBe(200);
+    expect(mocks.assertTrustedMutationOrigin).toHaveBeenCalledWith(request, 'https://articles.example.com');
+    expect(mocks.requireActiveUser).toHaveBeenCalledWith(request, { requireOwner: true });
+    expect(mocks.revokeEnrollmentCode).toHaveBeenCalledWith(expect.objectContaining({
+      repository: { repository: true }, actorUserId: 'owner_1',
+    }));
+    expect(mocks.getEnrollmentCodePepper).not.toHaveBeenCalled();
+    expect(await response.json()).toEqual({
+      disabled: true,
+      changed: true,
+      revokedClaims: 2,
+    });
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('referrer-policy')).toBe('no-referrer');
+  });
+
+  it('preserves the active code when the owner mutation limit is exhausted', async () => {
+    mocks.consumeAtomicRateLimit.mockResolvedValueOnce({
+      allowed: false,
+      remaining: 0,
+      resetAt: new Date(Date.now() + 60_000),
+    });
+    const { DELETE } = await import('./route');
+    const response = await DELETE(new Request(
+      'https://articles.example.com/api/admin/enrollment/code',
+      { method: 'DELETE', headers: { origin: 'https://articles.example.com' } },
+    ) as never);
+
+    expect(response.status).toBe(429);
+    expect(mocks.revokeEnrollmentCode).not.toHaveBeenCalled();
   });
 });

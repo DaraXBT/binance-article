@@ -9,6 +9,7 @@ import {
   claimEnrollmentCode,
   claimLegacyInvitation,
   completeEnrollmentClaim,
+  revokeEnrollmentCode,
   reserveEnrollmentClaim,
   rotateEnrollmentCode,
 } from './service';
@@ -43,6 +44,9 @@ function repository(overrides: Record<string, unknown> = {}) {
     reserveClaim: vi.fn(async () => ({ outcome: 'reserved' as const, claimId: 'claim_1' })),
     completeClaim: vi.fn(async () => ({ outcome: 'completed' as const, claimId: 'claim_1' })),
     releaseClaim: vi.fn(async () => true),
+    revokeCode: vi.fn(async () => ({
+      outcome: 'revoked' as const, revokedCodeId: 'code_1', revokedClaims: 2,
+    })),
     rotateCode: vi.fn(async () => ({ version: 2, revokedCodeId: 'code_1', revokedClaims: 2 })),
     ...overrides,
   };
@@ -195,6 +199,32 @@ describe('enrollment service', () => {
       reason: 'owner_rotation',
     }));
     expect(result.version).toBe(2);
+  });
+
+  it('disables the active code idempotently and reports revoked unfinished claims', async () => {
+    const repo = repository();
+    await expect(revokeEnrollmentCode({
+      repository: repo,
+      actorUserId: 'owner_1',
+      auditEventId: 'audit_1',
+      now,
+    })).resolves.toEqual({ changed: true, revokedClaims: 2 });
+    expect(repo.revokeCode).toHaveBeenCalledWith({
+      actorUserId: 'owner_1',
+      auditEventId: 'audit_1',
+      reason: 'owner_disabled',
+      now,
+    });
+
+    const alreadyDisabled = repository({
+      revokeCode: vi.fn(async () => ({ outcome: 'no_active_code' as const })),
+    });
+    await expect(revokeEnrollmentCode({
+      repository: alreadyDisabled,
+      actorUserId: 'owner_1',
+      auditEventId: 'audit_2',
+      now,
+    })).resolves.toEqual({ changed: false, revokedClaims: 0 });
   });
 
   it('preserves AppError semantics for repository decisions', async () => {

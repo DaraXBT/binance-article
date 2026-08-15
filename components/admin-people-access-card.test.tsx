@@ -148,6 +148,35 @@ describe('AdminPeopleAccessCard', () => {
     );
   });
 
+  it('disables the shared code without creating a replacement', async () => {
+    const activeOverview = {
+      activeCode: { version: 1, codePrefix: 'ABCDEFGH', status: 'active' },
+      capacity: overview.capacity,
+    };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(activeOverview))
+      .mockResolvedValueOnce(jsonResponse(people))
+      .mockResolvedValueOnce(jsonResponse({
+        disabled: true, changed: true, revokedClaims: 1,
+      }))
+      .mockResolvedValueOnce(jsonResponse(overview))
+      .mockResolvedValueOnce(jsonResponse(people));
+    render(<AdminPeopleAccessCard />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Disable code' }));
+    const confirmation = screen.getByRole('alertdialog', { name: 'Disable the enrollment code?' });
+    expect(confirmation.textContent).toMatch(/no replacement/i);
+    expect(confirmation.textContent).toMatch(/unfinished enrollment/i);
+    fireEvent.click(within(confirmation).getByRole('button', { name: 'Disable code' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      '/api/admin/enrollment/code',
+      expect.objectContaining({ method: 'DELETE' }),
+    ));
+    await screen.findByRole('button', { name: 'Create code' });
+  });
+
   it('confirms suspension and refreshes the People list', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({

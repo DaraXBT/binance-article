@@ -226,6 +226,7 @@ describe('enrollment repository', () => {
   it('rotates linearly and revokes all pending or reserved claims on the old version', async () => {
     const harness = transactionHarness([
       [],
+      [{ id: 'code_1', version: 1 }],
       [{ version: 2, revokedCodeId: 'code_1', revokedClaims: 3 }],
     ]);
     const repository = createEnrollmentRepository({ $client: harness.client } as never);
@@ -237,10 +238,38 @@ describe('enrollment repository', () => {
 
     const sql = harness.queries.map((query) => query.text).join('\n');
     expect(sql).toMatch(/pg_advisory_xact_lock/);
+    expect(harness.queries[1]?.text).toMatch(/FROM "EnrollmentCode"[\s\S]*FOR UPDATE/);
     expect(sql).toMatch(/UPDATE "EnrollmentCode"[\s\S]*"status" = 'revoked'/);
     expect(sql).toMatch(/UPDATE "EnrollmentClaim"[\s\S]*"status" IN \('pending', 'reserved'\)/);
     expect(sql).toMatch(/INSERT INTO "EnrollmentCode"/);
     expect(sql).toMatch(/INSERT INTO "AuditEvent"/);
+  });
+
+  it('disables the active code without replacement and revokes only its unfinished shared claims', async () => {
+    const harness = transactionHarness([
+      [],
+      [{ id: 'code_1', version: 1 }],
+      [{ outcome: 'revoked', revokedCodeId: 'code_1', revokedClaims: 3 }],
+    ]);
+    const repository = createEnrollmentRepository({ $client: harness.client } as never);
+
+    await expect(repository.revokeCode({
+      actorUserId: 'owner_1', auditEventId: 'audit_1', reason: 'owner_disabled', now,
+    })).resolves.toEqual({
+      outcome: 'revoked', revokedCodeId: 'code_1', revokedClaims: 3,
+    });
+
+    expect(harness.queries).toHaveLength(3);
+    expect(harness.queries[0]?.text).toMatch(/pg_advisory_xact_lock/);
+    expect(harness.queries[1]?.text).toMatch(/FROM "EnrollmentCode"[\s\S]*"status" = 'active'[\s\S]*FOR UPDATE/);
+    const mutationSql = harness.queries[2]?.text ?? '';
+    expect(mutationSql).toMatch(/UPDATE "EnrollmentCode"[\s\S]*"status" = 'revoked'/);
+    expect(mutationSql).toMatch(/UPDATE "EnrollmentClaim"[\s\S]*claim\."source" = 'shared_code'/);
+    expect(mutationSql).toMatch(/claim\."status" IN \('pending', 'reserved'\)/);
+    expect(mutationSql).toMatch(/"reservationExpiresAt" = NULL/);
+    expect(mutationSql).toMatch(/"failureCode" = 'code_revoked'/);
+    expect(mutationSql).toMatch(/'enrollment\.code_revoked'/);
+    expect(mutationSql).not.toMatch(/INSERT INTO "EnrollmentCode"/);
   });
 
   it('releases only the matching live reservation back to pending', async () => {
