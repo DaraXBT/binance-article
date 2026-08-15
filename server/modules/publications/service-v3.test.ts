@@ -116,6 +116,8 @@ describe('PublicationRecipeV3 preparation', () => {
       actorUserId: 'user_1', workspaceId: 'workspace_1', articleId: 'article_1',
       target: 'x', kind: 'article', expectedRevision: 2, now,
     })).rejects.toMatchObject({ code: 'PUBLISHER_UPGRADE_REQUIRED', status: 409 });
+    expect(repository.loadPreparationContext.mock.calls[0]?.[0])
+      .not.toHaveProperty('minimumProtocolVersion');
     expect(repository.commitPreparedPublication).not.toHaveBeenCalled();
   });
 
