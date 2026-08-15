@@ -49,26 +49,31 @@ describe('production rollback readiness check', () => {
       rollbackEligible: true,
     }]));
     const createSql = vi.fn(() => query);
+    const waitForDrainInterval = vi.fn(async () => {});
 
     await expect(verifyProductionRollbackReadiness({
       environment: validEnvironment,
       createSql,
+      waitForDrainInterval,
     })).resolves.toBeUndefined();
 
     expect(createSql).toHaveBeenCalledWith(validEnvironment.MIGRATION_DATABASE_URL);
-    expect(query).toHaveBeenCalledOnce();
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(waitForDrainInterval).toHaveBeenCalledWith(300_000);
     const [strings, ...values] = query.mock.calls[0] as unknown as [
       TemplateStringsArray,
       ...unknown[],
     ];
     const statement = strings.join('');
     expect(statement).toMatch(/current_database\(\)[\s\S]*current_user/);
-    expect(statement).toMatch(/"EnrollmentCode"[\s\S]*"EnrollmentClaim"/);
-    expect(statement).toMatch(/"user"[\s\S]*"createdAt"/);
-    expect(statement).toMatch(/pg_stat_activity[\s\S]*pg_locks/);
+    expect(statement).toMatch(/public\."EnrollmentCode"[\s\S]*public\."EnrollmentClaim"/);
+    expect(statement).toMatch(/public\."user"[\s\S]*"createdAt"/);
+    expect(statement).toMatch(/pg_stat_activity[\s\S]*pg_locks[\s\S]*pg_prepared_xacts/);
     expect(statement).toMatch(/backend_type = 'client backend'/);
     expect(statement).toMatch(/state IS DISTINCT FROM 'idle'/);
+    expect(statement).toMatch(/statement_timestamp\(\)/);
     expect(values).toEqual([baseline.cutoverStartedAt, baseline.baselineUserCount]);
+    expect(query.mock.calls[1]).toEqual(query.mock.calls[0]);
   });
 
   it.each([
@@ -85,6 +90,32 @@ describe('production rollback readiness check', () => {
     })).rejects.toThrow('Production rollback readiness check failed.');
   });
 
+  it('fails closed when state changes during the enforced drain interval', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce([{
+        databaseName: 'app',
+        migrationRole: 'migration_role',
+        drainClear: true,
+        rollbackEligible: true,
+      }])
+      .mockResolvedValueOnce([{
+        databaseName: 'app',
+        migrationRole: 'migration_role',
+        drainClear: true,
+        rollbackEligible: false,
+      }]);
+    const waitForDrainInterval = vi.fn(async () => {});
+
+    await expect(verifyProductionRollbackReadiness({
+      environment: validEnvironment,
+      createSql: vi.fn(() => query),
+      waitForDrainInterval,
+    })).rejects.toThrow('Production rollback readiness check failed.');
+
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(waitForDrainInterval).toHaveBeenCalledWith(300_000);
+  });
+
   it('uses fixed success and failure messages without printing private state', async () => {
     const log = vi.fn();
     const error = vi.fn();
@@ -98,6 +129,7 @@ describe('production rollback readiness check', () => {
     await expect(runProductionRollbackReadinessCheck({
       environment: validEnvironment,
       createSql: successSql,
+      waitForDrainInterval: vi.fn(async () => {}),
       log,
       error,
     })).resolves.toBe(0);

@@ -23,6 +23,7 @@ describe('production cutover baseline capture', () => {
     const query = vi.fn(async () => ([{
       databaseName: 'app',
       migrationRole: 'migration_role',
+      preMigrationSchema: true,
       ...baseline,
     }]));
     const createSql = vi.fn(() => query);
@@ -40,16 +41,19 @@ describe('production cutover baseline capture', () => {
     ];
     const statement = strings.join('');
     expect(statement).toMatch(/current_database\(\)[\s\S]*current_user/);
-    expect(statement).toMatch(/clock_timestamp\(\)[\s\S]*count\(\*\)[\s\S]*FROM "user"/);
+    expect(statement).toMatch(/statement_timestamp\(\)[\s\S]*count\(\*\)[\s\S]*FROM public\."user"/);
+    expect(statement).toMatch(/to_regclass\('public\."EnrollmentCode"'\)/);
+    expect(statement).toMatch(/to_regclass\('public\."EnrollmentClaim"'\)/);
     expect(values).toEqual([]);
   });
 
   it.each([
-    { databaseName: 'unexpected', migrationRole: 'migration_role', ...baseline },
-    { databaseName: 'app', migrationRole: 'unexpected', ...baseline },
-    { databaseName: 'app', migrationRole: 'migration_role', ...baseline, cutoverStartedAt: 'ambiguous' },
-    { databaseName: 'app', migrationRole: 'migration_role', ...baseline, cutoverStartedAt: '2026-02-31T08:30:00.123456Z' },
-    { databaseName: 'app', migrationRole: 'migration_role', ...baseline, baselineUserCount: '-1' },
+    { databaseName: 'unexpected', migrationRole: 'migration_role', preMigrationSchema: true, ...baseline },
+    { databaseName: 'app', migrationRole: 'unexpected', preMigrationSchema: true, ...baseline },
+    { databaseName: 'app', migrationRole: 'migration_role', preMigrationSchema: false, ...baseline },
+    { databaseName: 'app', migrationRole: 'migration_role', preMigrationSchema: true, ...baseline, cutoverStartedAt: 'ambiguous' },
+    { databaseName: 'app', migrationRole: 'migration_role', preMigrationSchema: true, ...baseline, cutoverStartedAt: '2026-02-31T08:30:00.123456Z' },
+    { databaseName: 'app', migrationRole: 'migration_role', preMigrationSchema: true, ...baseline, baselineUserCount: '-1' },
   ])('rejects target drift or malformed baseline data: %o', async (row) => {
     const createSql = vi.fn(() => vi.fn(async () => ([row])));
 
@@ -65,6 +69,7 @@ describe('production cutover baseline capture', () => {
     const createSql = vi.fn(() => vi.fn(async () => ([{
       databaseName: 'app',
       migrationRole: 'migration_role',
+      preMigrationSchema: true,
       ...baseline,
     }])));
 
