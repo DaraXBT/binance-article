@@ -1,7 +1,10 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { chromium, type Browser, type Page } from 'playwright';
 
-import { readXArticleEditorSnapshot } from '../../.agents/skills/baoyu-post-to-x/scripts/x-article';
+import {
+  readXArticleEditorSnapshot,
+  xArticleImageFingerprintsMatch,
+} from '../../.agents/skills/baoyu-post-to-x/scripts/x-article';
 
 function pageBackedCdp(page: Page) {
   return {
@@ -137,5 +140,39 @@ describe('X Article browser evidence', () => {
 
     const snapshot = await readXArticleEditorSnapshot(pageBackedCdp(page), 'synthetic-session');
     expect(snapshot.coverSources).toHaveLength(2);
+  });
+
+  it('includes transparency in decoded image identity', async () => {
+    await installArticleEditor(page);
+    const setBlackImage = async (alpha: number) => {
+      await page.evaluate(async (nextAlpha) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 8;
+        canvas.height = 8;
+        const context = canvas.getContext('2d')!;
+        context.fillStyle = `rgba(0, 0, 0, ${nextAlpha})`;
+        context.fillRect(0, 0, 8, 8);
+        const image = document.querySelector<HTMLImageElement>('#body-image')!;
+        image.src = canvas.toDataURL('image/png');
+        await image.decode();
+      }, alpha);
+    };
+
+    await setBlackImage(1);
+    const opaque = await readXArticleEditorSnapshot(pageBackedCdp(page), 'synthetic-session');
+    await setBlackImage(0);
+    const transparent = await readXArticleEditorSnapshot(pageBackedCdp(page), 'synthetic-session');
+
+    const opaqueMedia = opaque.bodySequence.find((token) => token.kind === 'media');
+    const transparentMedia = transparent.bodySequence.find((token) => token.kind === 'media');
+    expect(opaqueMedia?.kind).toBe('media');
+    expect(transparentMedia?.kind).toBe('media');
+    if (opaqueMedia?.kind !== 'media' || transparentMedia?.kind !== 'media') {
+      throw new Error('Synthetic X Article media fingerprint was unavailable.');
+    }
+    expect(xArticleImageFingerprintsMatch(
+      opaqueMedia.fingerprint,
+      transparentMedia.fingerprint,
+    )).toBe(false);
   });
 });
