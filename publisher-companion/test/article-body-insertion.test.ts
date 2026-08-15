@@ -19,4 +19,10 @@ describe.each([
     expect(isInserted('', 'A short article.')).toBe(false);
     expect(isInserted('A short', 'A short article.')).toBe(false);
   });
+
+  it('rejects a long article truncated after the matching prefix', () => {
+    const expected = 'A reviewed article begins with this exact prefix and continues to its conclusion.';
+
+    expect(isInserted(expected.slice(0, 40), expected)).toBe(false);
+  });
 });
