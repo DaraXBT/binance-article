@@ -7,9 +7,11 @@ const mocks = vi.hoisted(() => ({
   commandRepository: { commands: true },
   createDeviceRepository: vi.fn(),
   createCommandRepository: vi.fn(),
-  authenticateDevice: vi.fn(async () => ({ id: 'device_1', status: 'active' })),
-  claimNext: vi.fn(async (): Promise<{ id: string; state: string; revision: number } | null> => ({
-    id: 'command_1', state: 'claimed', revision: 3,
+  authenticateDevice: vi.fn(async () => ({ id: 'device_1', status: 'active', protocolVersion: 1 })),
+  claimNext: vi.fn(async (): Promise<{
+    id: string; state: string; revision: number; kind: 'article';
+  } | null> => ({
+    id: 'command_1', state: 'claimed', revision: 3, kind: 'article',
   })),
 }));
 mocks.getRuntimeDatabase.mockReturnValue(mocks.database);
@@ -56,5 +58,19 @@ describe('POST /api/publisher/commands/claim', () => {
       method: 'POST', headers: { authorization: 'Bearer opaque-device-token' },
     }) as never);
     expect(response.status).toBe(204);
+  });
+
+  it('includes kind metadata for a protocol-v2 device', async () => {
+    mocks.authenticateDevice.mockResolvedValueOnce({
+      id: 'device_2', status: 'active', protocolVersion: 2,
+    });
+    const { POST } = await import('./route');
+    const response = await POST(new Request('https://articles.example.com/api/publisher/commands/claim', {
+      method: 'POST', headers: { authorization: 'Bearer opaque-device-token' },
+    }) as never);
+
+    expect(await response.json()).toEqual({
+      command: { id: 'command_1', state: 'claimed', revision: 3, kind: 'article' },
+    });
   });
 });

@@ -196,6 +196,19 @@ describe('XExportDialog', () => {
       .toBe('Hand-edited post text.');
   });
 
+  it('uses the platform code-point limit without a UTF-16 maxlength trap', async () => {
+    installPublicationFetch();
+    renderInEnglish(<XExportDialog open onOpenChange={vi.fn()} deck={deck} />);
+    const textarea = screen.getByLabelText('X post text') as HTMLTextAreaElement;
+    const emojiPost = '🚀'.repeat(280);
+
+    expect(textarea.getAttribute('maxlength')).toBeNull();
+    fireEvent.change(textarea, { target: { value: emojiPost } });
+
+    expect(textarea.value).toBe(emojiPost);
+    expect(screen.getByText('280/280 characters')).toBeTruthy();
+  });
+
   it('surfaces a draft load failure, blocks prepare, and retries on demand', async () => {
     const fetchMock = vi.fn(async () => { throw new Error('network down'); });
     vi.stubGlobal('fetch', fetchMock);
@@ -259,6 +272,47 @@ describe('XExportDialog', () => {
       '/api/articles/deck-1/publications/x?kind=article',
       expect.objectContaining({ cache: 'no-store' }),
     );
+  });
+
+  it('keeps the selected format fixed while preparation is in flight', async () => {
+    let resolveSave!: (response: Response) => void;
+    const saveResponse = new Promise<Response>((resolve) => { resolveSave = resolve; });
+    const fetchMock = vi.fn(async (input: string | URL | Request, options?: RequestInit) => {
+      const url = requestUrl(input);
+      const method = options?.method ?? 'GET';
+      const parsedUrl = new URL(url, 'https://app.example.test');
+      if (method === 'GET' && parsedUrl.pathname.endsWith('/publications/x')) {
+        return jsonResponse({ draft: null });
+      }
+      if (method === 'PUT' && parsedUrl.pathname.endsWith('/publications/x')) return saveResponse;
+      if (method === 'POST' && parsedUrl.pathname.endsWith('/publications/x/prepare')) {
+        return jsonResponse({
+          command: {
+            id: 'command_x_post', draftId: 'draft_x_post', target: 'x', kind: 'post',
+            state: 'succeeded', revision: 1, recipeHash: 'a'.repeat(64),
+            expiresAt: '2026-08-17T00:00:00.000Z',
+          },
+        });
+      }
+      throw new Error(`Unexpected request: ${method} ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    renderInEnglish(<XExportDialog open onOpenChange={vi.fn()} deck={deck} />);
+
+    const postTab = screen.getByRole('tab', { name: 'Post' }) as HTMLButtonElement;
+    const articleTab = screen.getByRole('tab', { name: 'Article' }) as HTMLButtonElement;
+    const prepare = screen.getByRole('button', { name: 'Prepare on X' });
+    await waitFor(() => expect((prepare as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(prepare);
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'PUT')).toBe(true));
+
+    expect(postTab.disabled).toBe(true);
+    expect(articleTab.disabled).toBe(true);
+    fireEvent.click(articleTab);
+    expect(postTab.getAttribute('aria-selected')).toBe('true');
+
+    resolveSave(jsonResponse({ draft: { revision: 1 } }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(true));
   });
 
   it('prepares a text-only Post after clearing every selected image', async () => {
@@ -348,7 +402,22 @@ describe('XExportDialog', () => {
 
   it('makes the generated cover and body images optional for an Article', async () => {
     installPublicationFetch();
-    renderInEnglish(<XExportDialog open onOpenChange={vi.fn()} deck={deck} />);
+    const deckWithCover: DeckDetailResponse = {
+      ...deck,
+      cover: {
+        id: 'cover-1',
+        generationRevision: 1,
+        style: 'binance-master',
+        styleMode: 'scene',
+        prompt: 'text-free cover',
+        status: 'generated',
+        imageUrl: 'r2://article-assets/cover_asset_1/cover-source.png',
+        error: null,
+        createdAt: '2026-07-20T00:00:00.000Z',
+        updatedAt: '2026-07-20T00:00:00.000Z',
+      },
+    };
+    renderInEnglish(<XExportDialog open onOpenChange={vi.fn()} deck={deckWithCover} />);
     fireEvent.click(screen.getByRole('tab', { name: 'Article' }));
 
     const cover = await screen.findByLabelText('Use article cover');

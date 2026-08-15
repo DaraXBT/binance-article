@@ -154,6 +154,24 @@ describe('kind-aware publication drafts', () => {
     expect(input.repository.saveDraft).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['missing selected image', 'Body without the selected image.'],
+    ['duplicate selected image', '![One](asset:asset_1)\n\n![Two](asset:asset_1)'],
+    ['external image', '![One](asset:asset_1)\n\n![External](https://example.invalid/x.png)'],
+    ['reference-style image', '![One](asset:asset_1)\n\n![External][ref]\n[ref]: /etc/x.png'],
+    ['raw HTML image', '![One](asset:asset_1)\n\n<img src="/etc/x.png">'],
+    ['code-hidden image', '![One](asset:asset_1)\n\n`![Hidden](/etc/x.png)`'],
+  ])('rejects an Article draft with a %s before persistence', async (_name, markdown) => {
+    const input = serviceInput('x', 'article', {
+      title: 'Strict reviewed media', markdown, orderedAssetIds: ['asset_1'],
+    });
+
+    await expect(saveKindAwareDraft(input)).rejects.toMatchObject({
+      code: 'INVALID_PUBLICATION_DRAFT', status: 400,
+    });
+    expect(input.repository.saveDraft).not.toHaveBeenCalled();
+  });
+
   it('queries drafts by target and kind so four drafts can coexist', async () => {
     const repo = repository();
 
@@ -195,6 +213,58 @@ describe('kind-aware publication drafts', () => {
 
     expect(serializeKindAwareDraft(record)).toMatchObject({
       target: 'x', kind: 'article', title: 'Title', markdown: 'Body',
+    });
+  });
+
+  it('loads a migrated legacy Binance article whose focal cover has no asset ID', () => {
+    const record = {
+      id: 'draft_binance_legacy',
+      workspaceId: 'workspace_1',
+      articleId: 'article_1',
+      target: 'binance-square',
+      kind: 'article',
+      revision: 4,
+      status: 'draft',
+      payload: {
+        title: 'Legacy article',
+        markdown: 'Legacy body',
+        cover: { focalX: 0.25, focalY: 0.75, targetWidth: 1000, targetHeight: 400 },
+        orderedAssetIds: [],
+      },
+      expiresAt: new Date('2026-08-16T00:15:00.000Z'),
+      publishedUrl: null,
+      updatedAt: now,
+    };
+
+    expect(serializeKindAwareDraft(record)).toMatchObject({
+      target: 'binance-square',
+      kind: 'article',
+      cover: { focalX: 0.25, focalY: 0.75, targetWidth: 1000, targetHeight: 400 },
+    });
+  });
+
+  it('accepts the legacy omitted-kind Binance payload shape after migration', async () => {
+    const repo = repository();
+
+    await expect(savePublicationDraft({
+      repository: repo as never,
+      actorUserId: 'user_1',
+      workspaceId: 'workspace_1',
+      articleId: 'article_1',
+      target: 'binance-square',
+      draftId: 'draft_binance_legacy',
+      input: {
+        expectedRevision: 4,
+        title: 'Legacy article',
+        markdown: 'Legacy body',
+        cover: { focalX: 0.25, focalY: 0.75 },
+        orderedAssetIds: [],
+      },
+      now,
+    })).resolves.toMatchObject({
+      target: 'binance-square',
+      kind: 'article',
+      cover: { focalX: 0.25, focalY: 0.75, targetWidth: 1000, targetHeight: 400 },
     });
   });
 });

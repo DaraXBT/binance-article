@@ -150,6 +150,22 @@ describe('PublicationRecipeV3', () => {
     expect(PublicationRecipeSchema.safeParse(recipe).success).toBe(false);
   });
 
+  it.each([
+    ['missing selected image', 'Body without the selected image.'],
+    ['duplicate selected image', '![One](asset:asset_body)\n\n![Two](asset:asset_body)'],
+    ['external image', '![One](asset:asset_body)\n\n![External](https://example.invalid/x.png)'],
+    ['reference-style image', '![One](asset:asset_body)\n\n![External][ref]\n[ref]: /etc/x.png'],
+    ['raw HTML image', '![One](asset:asset_body)\n\n<img src="/etc/x.png">'],
+    ['code-hidden image', '![One](asset:asset_body)\n\n`![Hidden](/etc/x.png)`'],
+  ])('rejects V3 Article Markdown with a %s', (_name, markdown) => {
+    expect(PublicationRecipeSchema.safeParse({
+      ...mediaFreeArticle('x'),
+      markdown,
+      orderedAssetIds: [bodyAsset.id],
+      assets: [bodyAsset],
+    }).success).toBe(false);
+  });
+
   it('exports the post/article kind schema as part of the domain contract', async () => {
     const publicationRecipe = await import('./publication-recipe');
     const kindSchema = (publicationRecipe as unknown as Record<string, {

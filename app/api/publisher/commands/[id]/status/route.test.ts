@@ -3,10 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   database: { db: true }, deviceRepository: { devices: true }, commandRepository: { commands: true },
   getRuntimeDatabase: vi.fn(), createDeviceRepository: vi.fn(), createCommandRepository: vi.fn(),
-  authenticateDevice: vi.fn(async () => ({ id: 'device_1', status: 'active' })),
+  authenticateDevice: vi.fn(async () => ({ id: 'device_1', status: 'active', protocolVersion: 1 })),
   getStatus: vi.fn(async () => ({
     id: 'command_1', state: 'approved', revision: 3, recipeHash: 'a'.repeat(64),
-    expiresAt: new Date('2026-07-19T00:15:00Z'),
+    kind: 'article' as const, expiresAt: new Date('2026-07-19T00:15:00Z'),
   })),
 }));
 mocks.getRuntimeDatabase.mockReturnValue(mocks.database);
@@ -35,5 +35,17 @@ describe('GET /api/publisher/commands/:id/status', () => {
         expiresAt: '2026-07-19T00:15:00.000Z',
       },
     });
+  });
+
+  it('includes kind metadata for a protocol-v2 device', async () => {
+    mocks.authenticateDevice.mockResolvedValueOnce({
+      id: 'device_2', status: 'active', protocolVersion: 2,
+    });
+    const { GET } = await import('./route');
+    const response = await GET(new Request('https://app.example/api/publisher/commands/command_1/status', {
+      headers: { authorization: 'Bearer opaque-device-token' },
+    }) as never, { params: Promise.resolve({ id: 'command_1' }) });
+
+    expect(await response.json()).toMatchObject({ command: { kind: 'article' } });
   });
 });

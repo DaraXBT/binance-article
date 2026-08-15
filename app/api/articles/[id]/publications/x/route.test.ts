@@ -49,4 +49,27 @@ describe('/api/articles/:id/publications/x', () => {
     });
     expect(await response.json()).toMatchObject({ draft: { target: 'x', revision: 2 } });
   });
+
+  it('loads and saves an explicit X Article draft independently', async () => {
+    const { GET, PUT } = await import('./route');
+    await GET(new Request(
+      'https://articles.example.com/api/articles/article_1/publications/x?kind=article',
+    ) as never, { params: Promise.resolve({ id: 'article_1' }) });
+    expect(mocks.getDraft).toHaveBeenCalledWith(expect.objectContaining({
+      target: 'x', kind: 'article', articleId: 'article_1',
+    }));
+
+    const body = {
+      kind: 'article', expectedRevision: 0, title: 'Title', markdown: 'Body', orderedAssetIds: [],
+    };
+    const request = new Request('https://articles.example.com/api/articles/article_1/publications/x', {
+      method: 'PUT',
+      headers: { origin: 'https://articles.example.com', 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    await PUT(request as never, { params: Promise.resolve({ id: 'article_1' }) });
+    expect(mocks.saveDraft).toHaveBeenCalledWith(expect.objectContaining({
+      target: 'x', kind: 'article', input: body,
+    }));
+  });
 });

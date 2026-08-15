@@ -12,7 +12,7 @@ const requiredPaths = [
 ];
 
 describe('release tree guard', () => {
-  it('requires every current contract migration and snapshot through publication kind', () => {
+  it('requires every current contract migration, snapshot, and cutover runbook', () => {
     expect(REQUIRED_RELEASE_PATHS).toEqual(expect.arrayContaining([
       'drizzle/0015_workspace_ai_credential.sql',
       'drizzle/meta/0015_snapshot.json',
@@ -20,6 +20,7 @@ describe('release tree guard', () => {
       'drizzle/meta/0016_snapshot.json',
       'drizzle/0017_publication-kind.sql',
       'drizzle/meta/0017_snapshot.json',
+      'docs/cutover-0017-runbook.md',
     ]));
   });
 
