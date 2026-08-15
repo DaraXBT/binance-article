@@ -25,4 +25,17 @@ describe.each([
 
     expect(isInserted(expected.slice(0, 40), expected)).toBe(false);
   });
+
+  it('rejects equal-length corruption after the matching prefix', () => {
+    const expected = 'A reviewed article begins with this exact prefix and continues to its conclusion.';
+    const corrupted = `${expected.slice(0, 40)}${'x'.repeat(expected.length - 40)}`;
+
+    expect(isInserted(corrupted, expected)).toBe(false);
+  });
+
+  it('rejects a body inserted more than once', () => {
+    const expected = 'A complete reviewed article body.';
+
+    expect(isInserted(`${expected}\n\n${expected}`, expected)).toBe(false);
+  });
 });
