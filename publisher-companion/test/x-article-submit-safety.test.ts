@@ -87,6 +87,20 @@ describe('standalone X Article submit safety', () => {
     await expect(submitVerifiedXArticle(options)).rejects.toThrow(/new|stale|canonical.*evidence/i);
   });
 
+  it('uses the publication baseline captured atomically with the guarded click', async () => {
+    const stale = 'https://x.com/i/article/456';
+    const options = {
+      assertCurrent: async () => ({ editorId: '4g3nm' }),
+      readPublicationCandidates: async () => [],
+      clickPublish: async () => ({ clicked: true, baselineCandidates: [stale] }),
+      waitForPublishedUrl: async () => stale,
+    } as unknown as Parameters<typeof submitVerifiedXArticle>[0];
+
+    await expect(submitVerifiedXArticle(options)).rejects.toThrow(
+      /new|stale|canonical.*evidence/i,
+    );
+  });
+
   it.each([
     'https://x.com:443/i/article/1',
     'https://X.com/i/article/1',
