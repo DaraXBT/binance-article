@@ -77,7 +77,7 @@ export async function DELETE(request: NextRequest) {
     return errorResponse(error, {
       code: 'ENROLLMENT_CODE_REVOKE_FAILED',
       message: 'The enrollment code could not be disabled.',
-      status: 400,
+      status: 500,
     });
   }
 }
