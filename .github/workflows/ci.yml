@@ -20,6 +20,7 @@ jobs:
       BETTER_AUTH_URL: ${{ vars.E2E_BASE_URL != '' && vars.E2E_BASE_URL || 'http://127.0.0.1:3100' }}
       GOOGLE_CLIENT_ID: e2e-google-client
       GOOGLE_CLIENT_SECRET: e2e-google-secret
+      ENROLLMENT_CODE_PEPPER: ci-only-enrollment-code-pepper-at-least-32-characters
       GEMINI_API_KEY: e2e-not-used
       E2E_SEED_AUTH: ${{ secrets.E2E_DATABASE_URL != '' && secrets.E2E_BETTER_AUTH_SECRET != '' && '1' || '0' }}
       E2E_AUTHENTICATED: ${{ secrets.E2E_DATABASE_URL != '' && secrets.E2E_BETTER_AUTH_SECRET != '' && '1' || '0' }}
