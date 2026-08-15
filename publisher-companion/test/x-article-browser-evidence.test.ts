@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { chromium, type Browser, type Page } from 'playwright';
+import sharp from 'sharp';
 
 import {
   readXArticleEditorSnapshot,
@@ -72,19 +73,34 @@ describe('X Article browser evidence', () => {
 
   beforeAll(async () => {
     browser = await chromium.launch();
-    const png = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
-      'base64',
-    );
+    const renderedPng = await sharp({
+      create: {
+        width: 8,
+        height: 8,
+        channels: 4,
+        background: { r: 220, g: 38, b: 38, alpha: 1 },
+      },
+    }).png().toBuffer();
+    const corsRefetchPng = await sharp({
+      create: {
+        width: 8,
+        height: 8,
+        channels: 4,
+        background: { r: 37, g: 99, b: 235, alpha: 1 },
+      },
+    }).png().toBuffer();
     imageServer = Bun.serve({
       hostname: '127.0.0.1',
       port: 0,
-      fetch: () => new Response(png, {
+      fetch: (request) => new Response(
+        request.headers.has('origin') ? corsRefetchPng : renderedPng,
+        {
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Content-Type': 'image/png',
         },
-      }),
+        },
+      ),
     });
   });
   beforeEach(async () => { page = await browser.newPage(); });
@@ -197,7 +213,7 @@ describe('X Article browser evidence', () => {
     )).toBe(false);
   });
 
-  it('fingerprints a CORS-capable CDN image even when the rendered node taints canvas', async () => {
+  it('rejects evidence from a second CORS request when the rendered response is unreadable', async () => {
     await installArticleEditor(page);
     await page.evaluate(async (source) => {
       const image = document.querySelector<HTMLImageElement>('#body-image')!;
@@ -206,11 +222,8 @@ describe('X Article browser evidence', () => {
       await image.decode();
     }, `http://127.0.0.1:${imageServer.port}/cdn-image.png`);
 
-    const snapshot = await readXArticleEditorSnapshot(pageBackedCdp(page), 'synthetic-session');
-    const media = snapshot.bodySequence.find((token) => token.kind === 'media');
-    expect(media?.kind).toBe('media');
-    if (media?.kind !== 'media') throw new Error('Synthetic CDN media fingerprint was unavailable.');
-    expect(media.fingerprint.colorSamples.length).toBeGreaterThan(0);
+    await expect(readXArticleEditorSnapshot(pageBackedCdp(page), 'synthetic-session'))
+      .rejects.toThrow(/rendered|canvas|cross-origin|identity|fingerprint/i);
   });
 
   it('does not canonicalize malformed toast links into publication evidence', async () => {
