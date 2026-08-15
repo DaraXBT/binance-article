@@ -76,7 +76,7 @@ describe('PublicationRecipeV3 preparation', () => {
     expect(prepared.recipeHash).toBe(await hashPublicationRecipe(prepared.recipe));
     expect(repository.loadPreparationContext).toHaveBeenCalledWith(expect.objectContaining({ target, kind }));
     expect(repository.loadPreparationContext).toHaveBeenCalledWith(expect.objectContaining({
-      minimumProtocolVersion: 2,
+      preferredProtocolVersion: 2,
     }));
     expect(repository.commitPreparedPublication).toHaveBeenCalledWith(expect.objectContaining({
       target, kind, recipe: prepared.recipe, command: prepared.command,
@@ -116,8 +116,9 @@ describe('PublicationRecipeV3 preparation', () => {
       actorUserId: 'user_1', workspaceId: 'workspace_1', articleId: 'article_1',
       target: 'x', kind: 'article', expectedRevision: 2, now,
     })).rejects.toMatchObject({ code: 'PUBLISHER_UPGRADE_REQUIRED', status: 409 });
-    expect(repository.loadPreparationContext.mock.calls[0]?.[0])
-      .not.toHaveProperty('minimumProtocolVersion');
+    const lookup = repository.loadPreparationContext.mock.calls[0]?.[0];
+    expect(lookup).toMatchObject({ preferredProtocolVersion: 2 });
+    expect(lookup).not.toHaveProperty('minimumProtocolVersion');
     expect(repository.commitPreparedPublication).not.toHaveBeenCalled();
   });
 
