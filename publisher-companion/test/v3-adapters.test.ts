@@ -185,7 +185,32 @@ describe('V3 live publisher adapters', () => {
     });
 
     expect(result.publishedUrl).toBe('https://x.com/i/article/123');
-    expect(order).toEqual(['snapshot', 'snapshot', 'begin', 'click', 'close']);
+    expect(order).toEqual(['snapshot', 'snapshot', 'begin', 'snapshot', 'click', 'close']);
+    expect(draft.clickPublish).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not report an X Article publish as verified without a canonical URL', async () => {
+    const draft: XArticleDraft = {
+      id: 'x-article-missing-evidence',
+      snapshot: mock(async () => articleReady),
+      clickPublish: mock(async () => true),
+      waitForPublishedUrl: mock(async () => undefined),
+      close: mock(async () => undefined),
+    };
+    const adapter = new BaoyuXArticleAdapter({
+      prepare: mock(async () => ({
+        draft,
+        expectedTitle: articleReady.title,
+        expectedBody: articleReady.body,
+        expectedImageCount: 1,
+        expectedCover: false,
+      })),
+    });
+    const prepared = await adapter.prepare('/tmp/x-article.zip');
+
+    await expect(adapter.publish(prepared.draftId, {
+      beforeClick: async () => undefined,
+    })).rejects.toThrow(/canonical.*article/i);
     expect(draft.clickPublish).toHaveBeenCalledTimes(1);
   });
 
