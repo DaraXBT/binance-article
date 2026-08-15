@@ -52,13 +52,124 @@ const I18N_SELECTORS = {
   ],
 };
 
-interface ArticleOptions {
+function decodeArticleHtml(text: string): string {
+  return text
+    .replace(/&#x([0-9A-Fa-f]+);/g, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&nbsp;/gi, '\u00a0')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&amp;/gi, '&');
+}
+
+function articleHtmlToText(html: string): string {
+  return decodeArticleHtml(html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(?:blockquote|div|h[1-6]|li|ol|p|pre|ul)>/gi, '\n')
+    .replace(/<[^>]*>/g, ''));
+}
+
+function normalizeArticleBodyText(value: string): string {
+  return value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+export function isXArticleBodyInserted(actualText: string, expectedText: string): boolean {
+  const actual = normalizeArticleBodyText(actualText);
+  const expected = normalizeArticleBodyText(expectedText);
+  if (!expected) return false;
+  return actual === expected;
+}
+
+export interface XArticleCompositionContext {
+  cdp: CdpConnection;
+  sessionId: string;
+  targetId: string;
+  ownsBrowser: boolean;
+  ownsTarget: boolean;
+  title: string;
+  body: string;
+  imageCount: number;
+  coverPresent: boolean;
+}
+
+export type XArticleBrowserResource = {
+  cdp: Pick<CdpConnection, 'send' | 'close'>;
+  targetId?: string;
+  ownsBrowser: boolean;
+  ownsTarget: boolean;
+};
+
+const releasedBrowserConnections = new WeakSet<object>();
+
+export async function releaseXArticleBrowserResource(
+  resource: XArticleBrowserResource,
+): Promise<void> {
+  const connection = resource.cdp as object;
+  if (releasedBrowserConnections.has(connection)) return;
+  releasedBrowserConnections.add(connection);
+  try {
+    if (resource.ownsBrowser) {
+      await resource.cdp.send('Browser.close', {}, { timeoutMs: 5_000 });
+    } else if (resource.ownsTarget && resource.targetId) {
+      await resource.cdp.send('Target.closeTarget', { targetId: resource.targetId });
+    }
+  } catch {
+    // The operator may already have closed the owned browser or target.
+  } finally {
+    resource.cdp.close();
+  }
+}
+
+export async function openManagedXArticlePage(
+  resource: XArticleBrowserResource,
+): Promise<{ targetId: string; sessionId: string }> {
+  try {
+    let targetId: string | undefined;
+    if (resource.ownsBrowser) {
+      const targets = await resource.cdp.send<{
+        targetInfos: Array<{ targetId: string; url: string; type: string }>;
+      }>('Target.getTargets', {});
+      targetId = targets.targetInfos.find((target) => (
+        target.type === 'page' && target.url.startsWith(X_ARTICLES_URL)
+      ))?.targetId;
+    }
+
+    if (!targetId) {
+      const created = await resource.cdp.send<{ targetId: string }>('Target.createTarget', {
+        url: X_ARTICLES_URL,
+      });
+      targetId = created.targetId;
+    }
+    if (!targetId) throw new Error('Target.createTarget did not return an X Article target ID.');
+
+    resource.targetId = targetId;
+    resource.ownsTarget = true;
+
+    const attached = await resource.cdp.send<{ sessionId: string }>('Target.attachToTarget', {
+      targetId,
+      flatten: true,
+    });
+    await resource.cdp.send('Target.activateTarget', { targetId });
+    await resource.cdp.send('Page.enable', {}, { sessionId: attached.sessionId });
+    await resource.cdp.send('Runtime.enable', {}, { sessionId: attached.sessionId });
+    await resource.cdp.send('DOM.enable', {}, { sessionId: attached.sessionId });
+    return { targetId, sessionId: attached.sessionId };
+  } catch (error) {
+    await releaseXArticleBrowserResource(resource);
+    throw error;
+  }
+}
+
+export interface ArticleOptions {
   markdownPath: string;
   coverImage?: string;
   title?: string;
   submit?: boolean;
   profileDir?: string;
   chromePath?: string;
+  inferCoverFromFirstImage?: boolean;
+  onComposed?: (context: XArticleCompositionContext) => void | Promise<void>;
 }
 
 async function findExistingDebugPort(profileDir: string): Promise<number | null> {
@@ -87,6 +198,7 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
   const parsed = await parseMarkdown(markdownPath, {
     title: options.title,
     coverImage: options.coverImage,
+    inferCoverFromFirstImage: options.inferCoverFromFirstImage,
   });
 
   console.log(`[x-article] Title: ${parsed.title}`);
@@ -127,25 +239,19 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
   }
 
   let cdp: CdpConnection | null = null;
+  let handedOff = false;
+  let browserResource: XArticleBrowserResource | null = null;
 
   try {
     const wsUrl = await waitForChromeDebugPort(port, 30_000, { includeLastError: true });
     cdp = await CdpConnection.connect(wsUrl, 30_000, { defaultTimeoutMs: 60_000 });
-
-    // Get page target
-    const targets = await cdp.send<{ targetInfos: Array<{ targetId: string; url: string; type: string }> }>('Target.getTargets');
-    let pageTarget = targets.targetInfos.find((t) => t.type === 'page' && t.url.startsWith(X_ARTICLES_URL));
-
-    if (!pageTarget) {
-      const { targetId } = await cdp.send<{ targetId: string }>('Target.createTarget', { url: X_ARTICLES_URL });
-      pageTarget = { targetId, url: X_ARTICLES_URL, type: 'page' };
-    }
-
-    const { sessionId } = await cdp.send<{ sessionId: string }>('Target.attachToTarget', { targetId: pageTarget.targetId, flatten: true });
-
-    await cdp.send('Page.enable', {}, { sessionId });
-    await cdp.send('Runtime.enable', {}, { sessionId });
-    await cdp.send('DOM.enable', {}, { sessionId });
+    browserResource = {
+      cdp,
+      ownsBrowser: !existingPort,
+      ownsTarget: false,
+    };
+    const page = await openManagedXArticlePage(browserResource);
+    const { sessionId } = page;
 
     console.log('[x-article] Waiting for articles page...');
     await sleep(1000);
@@ -218,9 +324,19 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
     console.log('[x-article] Waiting for editor...');
     const editorFound = await waitForElement(titleSelectors, 30_000);
     if (!editorFound) {
-      console.log('[x-article] Editor not found. Please ensure you have X Premium and are logged in.');
-      await sleep(60_000);
-      throw new Error('Editor not found');
+      const state = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+        expression: `JSON.stringify({ url: window.location.href, text: document.body?.innerText || '' })`,
+        returnByValue: true,
+      }, { sessionId });
+      const page = JSON.parse(state.result.value) as { url: string; text: string };
+      const loginRequired = /\/i\/flow\/login(?:[/?#]|$)/.test(new URL(page.url).pathname)
+        || /\b(log in|sign in)\b/i.test(page.text);
+      throw Object.assign(
+        new Error(loginRequired
+          ? 'Log in to X before preparing an Article.'
+          : 'X Articles are unavailable for this account.'),
+        { code: loginRequired ? 'X_LOGIN_REQUIRED' : 'X_ARTICLES_UNAVAILABLE' },
+      );
     }
 
     // Upload cover image
@@ -343,6 +459,7 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
 
     // Read HTML content
     const htmlContent = fs.readFileSync(htmlPath, 'utf-8');
+    const expectedBodyText = articleHtmlToText(htmlContent);
 
     // Focus on DraftEditor body
     await cdp.send('Runtime.evaluate', {
@@ -387,13 +504,13 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
     await sleep(1000);
 
     // Check if content was inserted
-    const contentCheck = await cdp.send<{ result: { value: number } }>('Runtime.evaluate', {
-      expression: `document.querySelector('.DraftEditor-editorContainer [data-contents="true"]')?.innerText?.length || 0`,
+    const contentCheck = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+      expression: `document.querySelector('.DraftEditor-editorContainer [data-contents="true"]')?.innerText || ''`,
       returnByValue: true,
     }, { sessionId });
 
-    if (contentCheck.result.value > 50) {
-      console.log(`[x-article] Content inserted successfully (${contentCheck.result.value} chars)`);
+    if (isXArticleBodyInserted(contentCheck.result.value, expectedBodyText)) {
+      console.log(`[x-article] Content inserted successfully (${contentCheck.result.value.length} chars)`);
     } else {
       console.log('[x-article] Paste event may not have worked, trying insertHTML...');
 
@@ -411,13 +528,13 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
       await sleep(1000);
 
       // Check again
-      const check2 = await cdp.send<{ result: { value: number } }>('Runtime.evaluate', {
-        expression: `document.querySelector('.DraftEditor-editorContainer [data-contents="true"]')?.innerText?.length || 0`,
+      const check2 = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+        expression: `document.querySelector('.DraftEditor-editorContainer [data-contents="true"]')?.innerText || ''`,
         returnByValue: true,
       }, { sessionId });
 
-      if (check2.result.value > 50) {
-        console.log(`[x-article] Content inserted via execCommand (${check2.result.value} chars)`);
+      if (isXArticleBodyInserted(check2.result.value, expectedBodyText)) {
+        console.log(`[x-article] Content inserted via execCommand (${check2.result.value.length} chars)`);
       } else {
         console.log('[x-article] Auto-insert failed. HTML copied to clipboard - please paste manually (Cmd+V)');
         copyHtmlToClipboard(htmlPath);
@@ -730,6 +847,40 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
       console.log('[x-article] Preview button not found');
     }
 
+    if (options.onComposed) {
+      const snapshot = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+        expression: `JSON.stringify({
+          title: (() => {
+            const selectors = ${JSON.stringify(I18N_SELECTORS.titleInput)};
+            for (const selector of selectors) {
+              const element = document.querySelector(selector);
+              if (element) return element.value || element.innerText || element.textContent || '';
+            }
+            return '';
+          })(),
+          body: document.querySelector('.DraftEditor-editorContainer [data-contents="true"]')?.innerText || '',
+          imageCount: document.querySelectorAll('section[data-block="true"][contenteditable="false"] img[src^="blob:"]').length,
+          coverPresent: Boolean(document.querySelector('[data-testid*="cover" i] img, [data-testid*="headerMedia" i] img')),
+        })`,
+        returnByValue: true,
+      }, { sessionId });
+      const composed = JSON.parse(snapshot.result.value) as {
+        title: string;
+        body: string;
+        imageCount: number;
+        coverPresent: boolean;
+      };
+      await options.onComposed({
+        cdp,
+        sessionId,
+        targetId: page.targetId,
+        ownsBrowser: !existingPort,
+        ownsTarget: browserResource.ownsTarget,
+        ...composed,
+      });
+      handedOff = true;
+    }
+
     // Check for publish button
     if (submit) {
       console.log('[x-article] Publishing...');
@@ -752,11 +903,14 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
     }
 
   } finally {
-    // Disconnect CDP but keep browser open
-    if (cdp) {
-      cdp.close();
+    if (cdp && !handedOff) {
+      if (options.onComposed && browserResource) {
+        await releaseXArticleBrowserResource(browserResource);
+      } else {
+        // Standalone CLI mode keeps its historical manual-review lifecycle.
+        cdp.close();
+      }
     }
-    // Don't kill Chrome - let user review and close manually
   }
 }
 
@@ -828,7 +982,9 @@ async function main(): Promise<void> {
   await publishArticle({ markdownPath, title, coverImage, submit, profileDir });
 }
 
-await main().catch((err) => {
-  console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-  process.exit(1);
-});
+if (import.meta.main) {
+  await main().catch((err) => {
+    console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
+  });
+}

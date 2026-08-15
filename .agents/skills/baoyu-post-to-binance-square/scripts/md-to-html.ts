@@ -465,7 +465,14 @@ function convertMarkdownToHtml(
 
 export async function parseMarkdown(
   markdownPath: string,
-  options?: { coverImage?: string; title?: string; tempDir?: string; hashtags?: boolean; coinTags?: boolean },
+  options?: {
+    coverImage?: string;
+    title?: string;
+    tempDir?: string;
+    hashtags?: boolean;
+    coinTags?: boolean;
+    inferCoverFromFirstImage?: boolean;
+  },
 ): Promise<ParsedMarkdown> {
   const resolvedMarkdownPath = path.resolve(path.normalize(markdownPath));
   const content = readFileAtPath(resolvedMarkdownPath);
@@ -491,15 +498,19 @@ export async function parseMarkdown(
     title = path.basename(markdownPath, path.extname(markdownPath));
   }
 
-  let coverImagePath = stripWrappingQuotes(options?.coverImage ?? '') || pickFirstString(frontmatter, [
-    'cover_image',
-    'coverImage',
-    'cover',
-    'image',
-    'featureImage',
-    'feature_image',
-  ]) || null;
-  if (!coverImagePath) {
+  const allowImplicitCover = options?.inferCoverFromFirstImage !== false;
+  let coverImagePath = stripWrappingQuotes(options?.coverImage ?? '') || null;
+  if (!coverImagePath && allowImplicitCover) {
+    coverImagePath = pickFirstString(frontmatter, [
+      'cover_image',
+      'coverImage',
+      'cover',
+      'image',
+      'featureImage',
+      'feature_image',
+    ]) || null;
+  }
+  if (!coverImagePath && allowImplicitCover) {
     coverImagePath = findCoverImageNearMarkdown(baseDir);
   }
 
@@ -563,7 +574,7 @@ export async function parseMarkdown(
   for (const img of images) {
     const localPath = await resolveImagePath(img.originalPath, baseDir, tempDir, 'md-to-html');
 
-    if (isFirst && !coverImagePath) {
+    if (isFirst && !coverImagePath && allowImplicitCover) {
       firstImageAsCover = localPath;
     }
     isFirst = false;

@@ -277,7 +277,12 @@ function convertMarkdownToHtml(markdown: string, imageCallback: (src: string, al
 
 export async function parseMarkdown(
   markdownPath: string,
-  options?: { coverImage?: string; title?: string; tempDir?: string },
+  options?: {
+    coverImage?: string;
+    title?: string;
+    tempDir?: string;
+    inferCoverFromFirstImage?: boolean;
+  },
 ): Promise<ParsedMarkdown> {
   const content = fs.readFileSync(markdownPath, 'utf-8');
   const baseDir = path.dirname(markdownPath);
@@ -295,15 +300,19 @@ export async function parseMarkdown(
     title = path.basename(markdownPath, path.extname(markdownPath));
   }
 
-  let coverImagePath = stripWrappingQuotes(options?.coverImage ?? '') || pickFirstString(frontmatter, [
-    'cover_image',
-    'coverImage',
-    'cover',
-    'image',
-    'featureImage',
-    'feature_image',
-  ]) || null;
-  if (!coverImagePath) {
+  const allowImplicitCover = options?.inferCoverFromFirstImage !== false;
+  let coverImagePath = stripWrappingQuotes(options?.coverImage ?? '') || null;
+  if (!coverImagePath && allowImplicitCover) {
+    coverImagePath = pickFirstString(frontmatter, [
+      'cover_image',
+      'coverImage',
+      'cover',
+      'image',
+      'featureImage',
+      'feature_image',
+    ]) || null;
+  }
+  if (!coverImagePath && allowImplicitCover) {
     coverImagePath = findCoverImageNearMarkdown(baseDir);
   }
 
@@ -335,7 +344,7 @@ export async function parseMarkdown(
     const img = images[i]!;
     const localPath = await resolveImagePath(img.src, baseDir, tempDir);
 
-    if (i === 0 && !coverImagePath) {
+    if (i === 0 && !coverImagePath && allowImplicitCover) {
       firstImageAsCover = localPath;
     }
 
@@ -448,7 +457,9 @@ async function main(): Promise<void> {
   }
 }
 
-await main().catch((err) => {
-  console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-  process.exit(1);
-});
+if (import.meta.main) {
+  await main().catch((err) => {
+    console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
+  });
+}

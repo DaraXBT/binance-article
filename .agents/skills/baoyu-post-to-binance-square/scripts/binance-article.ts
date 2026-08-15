@@ -15,7 +15,6 @@ import {
   findExistingChromeDebugPort,
   getDefaultProfileDir,
   launchChrome,
-  openPageSession,
   pasteFromClipboard,
   resolveSelector,
   sleep,
@@ -25,14 +24,86 @@ import {
 } from './binance-utils.js';
 
 export interface ArticleCompositionContext {
+  cdp: CdpConnection;
+  sessionId: string;
   debugPort: number;
   targetId: string;
+  ownsBrowser: boolean;
+  ownsTarget: boolean;
   editorUrl: string;
   titleText: string;
   bodyText: string;
   titleHash: string;
   bodyHash: string;
   imageCount: number;
+}
+
+export type BinanceArticleBrowserResource = {
+  cdp: Pick<CdpConnection, 'send' | 'close'>;
+  targetId?: string;
+  ownsBrowser: boolean;
+  ownsTarget: boolean;
+};
+
+const releasedBrowserConnections = new WeakSet<object>();
+
+export async function releaseBinanceArticleBrowserResource(
+  resource: BinanceArticleBrowserResource,
+): Promise<void> {
+  const connection = resource.cdp as object;
+  if (releasedBrowserConnections.has(connection)) return;
+  releasedBrowserConnections.add(connection);
+  try {
+    if (resource.ownsBrowser) {
+      await resource.cdp.send('Browser.close', {}, { timeoutMs: 5_000 });
+    } else if (resource.ownsTarget && resource.targetId) {
+      await resource.cdp.send('Target.closeTarget', { targetId: resource.targetId });
+    }
+  } catch {
+    // The operator may already have closed the owned browser or target.
+  } finally {
+    resource.cdp.close();
+  }
+}
+
+export async function openManagedBinanceArticlePage(
+  resource: BinanceArticleBrowserResource,
+): Promise<{ targetId: string; sessionId: string }> {
+  try {
+    let targetId: string | undefined;
+    if (resource.ownsBrowser) {
+      const targets = await resource.cdp.send<{
+        targetInfos: Array<{ targetId: string; url: string; type: string }>;
+      }>('Target.getTargets', {});
+      targetId = targets.targetInfos.find((target) => (
+        target.type === 'page' && target.url.includes('binance.com')
+      ))?.targetId;
+    }
+
+    if (!targetId) {
+      const created = await resource.cdp.send<{ targetId: string }>('Target.createTarget', {
+        url: BS_CREATOR_CENTER_URL,
+      });
+      targetId = created.targetId;
+    }
+    if (!targetId) throw new Error('Target.createTarget did not return a Binance Article target ID.');
+
+    resource.targetId = targetId;
+    resource.ownsTarget = true;
+
+    const attached = await resource.cdp.send<{ sessionId: string }>('Target.attachToTarget', {
+      targetId,
+      flatten: true,
+    });
+    await resource.cdp.send('Target.activateTarget', { targetId });
+    await resource.cdp.send('Page.enable', {}, { sessionId: attached.sessionId });
+    await resource.cdp.send('Runtime.enable', {}, { sessionId: attached.sessionId });
+    await resource.cdp.send('DOM.enable', {}, { sessionId: attached.sessionId });
+    return { targetId, sessionId: attached.sessionId };
+  } catch (error) {
+    await releaseBinanceArticleBrowserResource(resource);
+    throw error;
+  }
 }
 
 export interface ArticleOptions {
@@ -44,6 +115,8 @@ export interface ArticleOptions {
   chromePath?: string;
   hashtags?: boolean;
   coinTags?: boolean;
+  inferCoverFromFirstImage?: boolean;
+  handoffBrowserSession?: boolean;
   onComposed?: (context: ArticleCompositionContext) => Promise<void>;
 }
 
@@ -72,6 +145,17 @@ function decodeHtmlEntities(text: string): string {
 
 function htmlToText(html: string): string {
   return decodeHtmlEntities(html.replace(/<[^>]*>/g, '')).trim();
+}
+
+function normalizeArticleBodyText(value: string): string {
+  return value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+export function isBinanceArticleBodyInserted(actualText: string, expectedText: string): boolean {
+  const actual = normalizeArticleBodyText(actualText);
+  const expected = normalizeArticleBodyText(expectedText);
+  if (!expected) return false;
+  return actual === expected;
 }
 
 function parseBlockStructure(html: string): Block[] {
@@ -452,6 +536,7 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
     coverImage: options.coverImage,
     hashtags: options.hashtags,
     coinTags: options.coinTags,
+    inferCoverFromFirstImage: options.inferCoverFromFirstImage,
   });
 
   console.log(`[binance-article] Title: ${parsed.title}`);
@@ -478,20 +563,19 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
   }
 
   let cdp: CdpConnection | null = null;
+  let compositionCompleted = false;
+  let handedOff = false;
+  let browserResource: BinanceArticleBrowserResource | null = null;
 
   try {
     const wsUrl = await waitForChromeDebugPort(port, 30_000, { includeLastError: true });
     cdp = await CdpConnection.connect(wsUrl, 30_000, { defaultTimeoutMs: 60_000 });
-
-    const page = await openPageSession({
+    browserResource = {
       cdp,
-      reusing,
-      url: BS_CREATOR_CENTER_URL,
-      matchTarget: (target) => target.type === 'page' && target.url.includes('binance.com'),
-      enablePage: true,
-      enableRuntime: true,
-      enableDom: true,
-    });
+      ownsBrowser: !reusing,
+      ownsTarget: false,
+    };
+    const page = await openManagedBinanceArticlePage(browserResource);
     let sessionId = page.sessionId;
 
     console.log('[binance-article] Waiting for Creator Center...');
@@ -578,6 +662,9 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
     console.log('[binance-article] Waiting for article editor...');
     const titleSel = await waitForAnySelector(cdp, sessionId, BS_SELECTORS.articleTitleInput, 30_000);
     if (!titleSel) {
+      if (options.onComposed) {
+        throw new Error('The Binance Article editor was not available for managed review.');
+      }
       console.log('[binance-article] Article editor not found. Please navigate to the article editor in this Chrome window.');
       console.log('[binance-article] Waiting 60s for manual navigation...');
       await sleep(60_000);
@@ -642,6 +729,7 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
     // Insert HTML content (4-method fallback; Method 0 uses React fiber to preserve heading structure)
     console.log('[binance-article] Inserting content...');
     const htmlContent = fs.readFileSync(htmlPath, 'utf-8');
+    const expectedBodyText = htmlToText(htmlContent);
 
     await cdp.send('Runtime.evaluate', {
       expression: `(() => {
@@ -743,13 +831,13 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
     console.log(`[binance-article] Component tree result: ${fiberStatus}`);
 
     if (fiberStatus.startsWith('ok')) {
-      const fiberCheck = await cdp.send<{ result: { value: number } }>('Runtime.evaluate', {
-        expression: `document.querySelector(${JSON.stringify(editorSel)})?.innerText?.length || 0`,
+      const fiberCheck = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+        expression: `document.querySelector(${JSON.stringify(editorSel)})?.innerText || ''`,
         returnByValue: true,
       }, { sessionId });
-      if (fiberCheck.result.value > 50) {
+      if (isBinanceArticleBodyInserted(fiberCheck.result.value, expectedBodyText)) {
         contentInserted = true;
-        console.log(`[binance-article] Content inserted via React fiber (${fiberCheck.result.value} chars)`);
+        console.log(`[binance-article] Content inserted via React fiber (${fiberCheck.result.value.length} chars)`);
         const fmtRes = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
           expression: `JSON.stringify({ h2: document.querySelector(${JSON.stringify(editorSel)})?.querySelectorAll('h2').length||0, h3: document.querySelector(${JSON.stringify(editorSel)})?.querySelectorAll('h3').length||0, p: document.querySelector(${JSON.stringify(editorSel)})?.querySelectorAll('p').length||0 })`,
           returnByValue: true,
@@ -771,15 +859,15 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
         await sleep(2000);
 
         const clipCheck = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
-          expression: `JSON.stringify({ len: document.querySelector(${JSON.stringify(editorSel)})?.innerText?.length || 0, h2: document.querySelector(${JSON.stringify(editorSel)})?.querySelectorAll('h2').length || 0 })`,
+          expression: `JSON.stringify({ text: document.querySelector(${JSON.stringify(editorSel)})?.innerText || '', h2: document.querySelector(${JSON.stringify(editorSel)})?.querySelectorAll('h2').length || 0 })`,
           returnByValue: true,
         }, { sessionId });
-        let clipResult: { len: number; h2: number } = { len: 0, h2: 0 };
+        let clipResult: { text: string; h2: number } = { text: '', h2: 0 };
         try { clipResult = JSON.parse(clipCheck.result.value); } catch {}
 
-        if (clipResult.len > 50) {
+        if (isBinanceArticleBodyInserted(clipResult.text, expectedBodyText)) {
           contentInserted = true;
-          console.log(`[binance-article] Content inserted via clipboard paste (${clipResult.len} chars, ${clipResult.h2} h2)`);
+          console.log(`[binance-article] Content inserted via clipboard paste (${clipResult.text.length} chars, ${clipResult.h2} h2)`);
         } else {
           console.log('[binance-article] Clipboard paste did not produce content, trying fallbacks...');
         }
@@ -808,14 +896,14 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
 
       await sleep(1500);
 
-      const contentCheck = await cdp.send<{ result: { value: number } }>('Runtime.evaluate', {
-        expression: `document.querySelector(${JSON.stringify(editorSel)})?.innerText?.length || 0`,
+      const contentCheck = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+        expression: `document.querySelector(${JSON.stringify(editorSel)})?.innerText || ''`,
         returnByValue: true,
       }, { sessionId });
 
-      if (contentCheck.result.value > 50) {
+      if (isBinanceArticleBodyInserted(contentCheck.result.value, expectedBodyText)) {
         contentInserted = true;
-        console.log(`[binance-article] Content inserted via paste event (${contentCheck.result.value} chars)`);
+        console.log(`[binance-article] Content inserted via paste event (${contentCheck.result.value.length} chars)`);
         const fmtRes = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
           expression: `JSON.stringify({ h2: document.querySelector(${JSON.stringify(editorSel)})?.querySelectorAll('h2').length||0, h3: document.querySelector(${JSON.stringify(editorSel)})?.querySelectorAll('h3').length||0, p: document.querySelector(${JSON.stringify(editorSel)})?.querySelectorAll('p').length||0 })`,
           returnByValue: true,
@@ -836,14 +924,14 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
         }, { sessionId });
         await sleep(1000);
 
-        const check2 = await cdp.send<{ result: { value: number } }>('Runtime.evaluate', {
-          expression: `document.querySelector(${JSON.stringify(editorSel)})?.innerText?.length || 0`,
+        const check2 = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+          expression: `document.querySelector(${JSON.stringify(editorSel)})?.innerText || ''`,
           returnByValue: true,
         }, { sessionId });
 
-        if (check2.result.value > 50) {
+        if (isBinanceArticleBodyInserted(check2.result.value, expectedBodyText)) {
           contentInserted = true;
-          console.log(`[binance-article] Content inserted via execCommand (${check2.result.value} chars)`);
+          console.log(`[binance-article] Content inserted via execCommand (${check2.result.value.length} chars)`);
         } else {
           // Method 3: Manual clipboard paste
           console.log('[binance-article] Auto-insert failed. Copying HTML to clipboard for manual paste (Cmd+V)...');
@@ -1095,8 +1183,7 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
       try { multiCodeCount = JSON.parse(mcRes.result.value).count ?? 0; } catch { multiCodeCount = 0; }
     }
     const expectedText = htmlToText(parsed.html);
-    const bodyMatches = finalContent.result.value.trim().length > 0 &&
-      (expectedText.length < 40 || finalContent.result.value.includes(expectedText.slice(0, 40)));
+    const bodyMatches = isBinanceArticleBodyInserted(finalContent.result.value, expectedText);
     const report = {
       titleMatches: titleValue.result.value.trim() === parsed.title.trim(),
       bodyMatches,
@@ -1146,17 +1233,29 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
     if (options.onComposed) {
       await options.onComposed({
         ...prepared,
+        cdp,
+        sessionId,
         debugPort: port,
         targetId: page.targetId,
+        ownsBrowser: !reusing,
+        ownsTarget: browserResource.ownsTarget,
         titleHash: sha256Text(prepared.titleText.trim()),
         bodyHash: sha256Text(prepared.bodyText.trim()),
       });
+      compositionCompleted = true;
+      handedOff = options.handoffBrowserSession === true;
     }
 
     console.log('[binance-article] Article composed (draft mode). Browser remains open for review.');
 
   } finally {
-    if (cdp) cdp.close();
+    if (cdp) {
+      if (options.onComposed && !compositionCompleted && browserResource) {
+        await releaseBinanceArticleBrowserResource(browserResource);
+      } else if (!handedOff) {
+        cdp.close();
+      }
+    }
   }
 }
 
