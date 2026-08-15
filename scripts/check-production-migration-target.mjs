@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { neon } from '@neondatabase/serverless';
 
 const FAILURE_MESSAGE = 'Production migration target check failed.';
+const ALLOWED_CONNECTION_PARAMETERS = new Set(['sslmode', 'channel_binding']);
 
 function fail() {
   throw new Error(FAILURE_MESSAGE);
@@ -42,8 +43,14 @@ export function validateProductionMigrationTarget(environment = process.env) {
     if (parsed.protocol !== 'postgresql:' && parsed.protocol !== 'postgres:') fail();
     if (!parsed.hostname || !parsed.host || isLocalDatabaseHost(parsed.hostname)) fail();
     if (parsed.hash) fail();
+    for (const parameter of parsed.searchParams.keys()) {
+      if (!ALLOWED_CONNECTION_PARAMETERS.has(parameter)) fail();
+    }
     if (parsed.searchParams.getAll('sslmode').length !== 1) fail();
     if (parsed.searchParams.get('sslmode') !== 'require') fail();
+    const channelBinding = parsed.searchParams.getAll('channel_binding');
+    if (channelBinding.length > 1) fail();
+    if (channelBinding.length === 1 && channelBinding[0] !== 'require') fail();
 
     const database = decodeURIComponent(parsed.pathname.slice(1));
     const role = decodeURIComponent(parsed.username);
