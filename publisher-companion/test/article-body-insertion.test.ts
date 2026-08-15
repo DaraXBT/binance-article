@@ -74,7 +74,7 @@ describe('Binance Article rendered-body expectations', () => {
     expect(expected).not.toContain(imagePlaceholder);
     expect(expected).not.toContain(codePlaceholder);
     expect(isBinanceArticleBodyInserted(
-      'Before media.\nconst answer = 42;\nreturn answer.\nAfter media.',
+      'Before media.\nconst answer = 42;\nreturn answer;\nAfter media.',
       expected,
     )).toBe(true);
     expect(isBinanceArticleBodyInserted(
