@@ -95,6 +95,11 @@ async function readSnapshot(context: XArticleCompositionContext): Promise<XArtic
   const mediaSources = snapshot.bodySequence
     .filter((token) => token.kind === 'media')
     .map((token) => `${token.blockId}:${bindingByBlockId.get(token.blockId) ?? 'unbound'}`);
+  const bodySequence = snapshot.bodySequence.map((token) => (
+    token.kind === 'text'
+      ? { kind: 'text' as const, text: token.text }
+      : { kind: 'media' as const, blockId: token.blockId }
+  ));
   if (
     context.coverFingerprint
     && (
@@ -115,6 +120,7 @@ async function readSnapshot(context: XArticleCompositionContext): Promise<XArtic
     editorId: snapshot.editorId,
     title: snapshot.title,
     body: snapshot.body,
+    bodySequence,
     imageCount: mediaSources.length,
     mediaSources,
     bodyMediaDomSources: [...snapshot.mediaSources],
@@ -319,14 +325,20 @@ export function createManagedXArticleDraft(
         const bindingByBlockId = new Map(${JSON.stringify(
           context.mediaBindings.map((binding) => [binding.blockId, binding.assetId]),
         )});
+        const bodySequence = [];
         const mediaSources = [];
         const bodyMediaDomSources = [];
         const mediaBlockIds = new Set();
         const accountedBodyImages = new Set();
         for (const block of blocks.filter((candidate) => candidate.getAttribute('data-editor') === expected.editorId)) {
           const images = Array.from(block.querySelectorAll('img')).filter(visible);
-          if (images.length === 0) continue;
           const text = block.innerText || block.textContent || '';
+          if (images.length === 0) {
+            if (text.replace(/\\s+/g, ' ').trim()) {
+              bodySequence.push({ kind: 'text', text });
+            }
+            continue;
+          }
           if (images.length !== 1 || text.replace(/\\s+/g, ' ').trim()) {
             return { clicked: false, guardMatched: false, baselineCandidates };
           }
@@ -339,6 +351,7 @@ export function createManagedXArticleDraft(
           }
           mediaBlockIds.add(blockId);
           accountedBodyImages.add(images[0]);
+          bodySequence.push({ kind: 'media', blockId });
           mediaSources.push(blockId + ':' + assetId);
           bodyMediaDomSources.push(images[0].currentSrc || images[0].src || '');
         }
@@ -359,8 +372,18 @@ export function createManagedXArticleDraft(
         const button = buttons.length === 1 ? buttons[0] : null;
         const titleValue = title.value || title.innerText || title.textContent || '';
         const bodyValue = body.innerText || body.textContent || '';
+        const sameBodySequence = Array.isArray(expected.bodySequence)
+          && bodySequence.length === expected.bodySequence.length
+          && bodySequence.every((token, index) => {
+            const expectedToken = expected.bodySequence[index];
+            return expectedToken && token.kind === expectedToken.kind
+              && (token.kind === 'text'
+                ? token.text === expectedToken.text
+                : token.blockId === expectedToken.blockId);
+          });
         const guardMatched = window.location.href === expected.url
           && titleValue === expected.title && bodyValue === expected.body
+          && sameBodySequence
           && same(mediaSources, expected.mediaSources)
           && (!expected.bodyMediaDomSources
             || same(bodyMediaDomSources, expected.bodyMediaDomSources))

@@ -34,6 +34,10 @@ const articleReady: XArticleSnapshotFixture = {
   url: 'https://x.com/compose/articles/123',
   title: 'Reviewed X Article',
   body: 'Reviewed body',
+  bodySequence: [
+    { kind: 'text', text: 'Reviewed body' },
+    { kind: 'media', blockId: 'x-reviewed-block' },
+  ],
   imageCount: 1,
   mediaSources: ['blob:x-reviewed'],
   coverSource: null,
@@ -274,6 +278,37 @@ describe('V3 live publisher adapters', () => {
     })).rejects.toThrow(/body changed/i);
     expect(draft.clickPublish).not.toHaveBeenCalled();
     expect(order).toEqual(['snapshot', 'snapshot', 'begin', 'snapshot', 'close']);
+  });
+
+  it('rejects changed X Article body media placement before begin', async () => {
+    const movedMedia = {
+      ...articleReady,
+      bodySequence: [articleReady.bodySequence[1]!, articleReady.bodySequence[0]!],
+    };
+    const snapshots = [articleReady, movedMedia];
+    const beforeClick = mock(async () => undefined);
+    const draft: XArticleDraft = {
+      id: 'x-article-moved-media',
+      snapshot: mock(async () => snapshots.shift()!),
+      clickPublish: mock(async () => true),
+      waitForPublishedUrl: mock(async () => undefined),
+      close: mock(async () => undefined),
+    };
+    const adapter = new BaoyuXArticleAdapter({
+      prepare: mock(async () => ({
+        draft,
+        expectedTitle: articleReady.title,
+        expectedBody: articleReady.body,
+        expectedImageCount: 1,
+        expectedCover: false,
+      })),
+    });
+    const prepared = await adapter.prepare('/tmp/x-article.zip');
+
+    await expect(adapter.publish(prepared.draftId, { beforeClick }))
+      .rejects.toThrow(/media placement changed/i);
+    expect(beforeClick).not.toHaveBeenCalled();
+    expect(draft.clickPublish).not.toHaveBeenCalled();
   });
 
   it('passes the exact final X Article guard to the atomic draft click', async () => {

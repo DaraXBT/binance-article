@@ -66,6 +66,7 @@ describe('managed X Article publication evidence', () => {
       editorId: 'editor-a',
       title: 'Reviewed title',
       body: 'Reviewed body',
+      bodySequence: [{ kind: 'text', text: 'Reviewed body' }],
       imageCount: 0,
       mediaSources: [],
       bodyMediaDomSources: [],

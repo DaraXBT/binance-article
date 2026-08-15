@@ -16,11 +16,16 @@ export class XArticleEligibilityError extends Error {
   }
 }
 
+export type XArticleBodySequenceToken =
+  | Readonly<{ kind: 'text'; text: string }>
+  | Readonly<{ kind: 'media'; blockId: string }>;
+
 export type XArticleSnapshot = {
   url: string;
   editorId: string;
   title: string;
   body: string;
+  bodySequence: readonly XArticleBodySequenceToken[];
   imageCount: number;
   mediaSources: string[];
   bodyMediaDomSources?: string[];
@@ -32,7 +37,7 @@ export type XArticleSnapshot = {
   publishButtonEnabled: boolean;
 };
 
-export type XArticlePublishGuard = XArticleSnapshot;
+export type XArticlePublishGuard = Readonly<XArticleSnapshot>;
 
 export type XArticleDraft = {
   id: string;
@@ -69,6 +74,7 @@ function assertReady(
     mediaSources?: readonly string[];
     coverSource?: string | null;
     coverSources?: readonly string[];
+    bodySequence?: readonly XArticleBodySequenceToken[];
     editorId?: string;
     draftUrl?: string;
   },
@@ -88,6 +94,19 @@ function assertReady(
     || (expected.bodySnapshot !== undefined && normalizeText(snapshot.body) !== expected.bodySnapshot)
   ) {
     throw new Error('The X Article body changed after preparation.');
+  }
+  if (expected.bodySequence && (
+    snapshot.bodySequence.length !== expected.bodySequence.length
+    || snapshot.bodySequence.some((token, index) => {
+      const expectedToken = expected.bodySequence?.[index];
+      return !expectedToken
+        || token.kind !== expectedToken.kind
+        || (token.kind === 'text'
+          ? token.text !== (expectedToken.kind === 'text' ? expectedToken.text : undefined)
+          : token.blockId !== (expectedToken.kind === 'media' ? expectedToken.blockId : undefined));
+    })
+  )) {
+    throw new Error('The X Article body media placement changed after preparation.');
   }
   if (snapshot.imageCount !== expected.expectedImageCount) {
     throw new Error(`The X Article has ${snapshot.imageCount} body images; expected ${expected.expectedImageCount}.`);
@@ -123,6 +142,7 @@ export class BaoyuXArticleAdapter implements PublisherAdapter {
   readonly #drafts = new Map<string, PreparedXArticle & {
     attempted: boolean;
     bodySnapshot: string;
+    bodySequence: XArticleBodySequenceToken[];
     mediaSources: string[];
     coverSource: string | null;
     coverSources: string[];
@@ -152,6 +172,7 @@ export class BaoyuXArticleAdapter implements PublisherAdapter {
       ...prepared,
       attempted: false,
       bodySnapshot: normalizeText(snapshot.body),
+      bodySequence: snapshot.bodySequence.map((token) => ({ ...token })),
       mediaSources: [...snapshot.mediaSources],
       coverSource: snapshot.coverSource,
       coverSources: [...snapshot.coverSources],
@@ -171,6 +192,7 @@ export class BaoyuXArticleAdapter implements PublisherAdapter {
     try {
       assertReady(await prepared.draft.snapshot(), {
         ...prepared,
+        bodySequence: prepared.bodySequence,
         mediaSources: prepared.mediaSources,
         coverSource: prepared.coverSource,
         coverSources: prepared.coverSources,
@@ -180,6 +202,7 @@ export class BaoyuXArticleAdapter implements PublisherAdapter {
       const finalSnapshot = await prepared.draft.snapshot();
       assertReady(finalSnapshot, {
         ...prepared,
+        bodySequence: prepared.bodySequence,
         mediaSources: prepared.mediaSources,
         coverSource: prepared.coverSource,
         coverSources: prepared.coverSources,

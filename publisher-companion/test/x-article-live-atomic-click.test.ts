@@ -100,7 +100,7 @@ describe('managed X Article atomic click', () => {
         assetId: 'reviewed-asset-a',
         fingerprint: media.fingerprint,
       }],
-    } as XArticleCompositionContext;
+    } as unknown as XArticleCompositionContext;
     const guard = {
       url: snapshot.url,
       editorId: snapshot.editorId,

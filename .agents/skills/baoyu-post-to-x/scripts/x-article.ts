@@ -228,21 +228,12 @@ async function xArticleImageFingerprint(image) {
     const sourceBefore = image.currentSrc || image.src || '';
     if (!sourceBefore) throw new Error('X Article media has no readable source.');
     if (!image.complete || !image.naturalWidth || !image.naturalHeight) await image.decode();
-    let readableImage = image;
-    if (/^https?:/i.test(sourceBefore) && !image.crossOrigin) {
-      const corsImage = new Image();
-      corsImage.crossOrigin = 'anonymous';
-      corsImage.referrerPolicy = image.referrerPolicy || '';
-      corsImage.src = sourceBefore;
-      await corsImage.decode();
-      readableImage = corsImage;
-    }
     const sourceAfter = image.currentSrc || image.src || '';
     if (sourceAfter !== sourceBefore) {
       await new Promise((resolve) => setTimeout(resolve, 100));
       continue;
     }
-    if (!readableImage.naturalWidth || !readableImage.naturalHeight) {
+    if (!image.naturalWidth || !image.naturalHeight) {
       throw new Error('X Article media did not decode to nonzero dimensions.');
     }
 
@@ -251,7 +242,7 @@ async function xArticleImageFingerprint(image) {
     differenceCanvas.height = 32;
     const differenceContext = differenceCanvas.getContext('2d', { willReadFrequently: true });
     if (!differenceContext) throw new Error('X Article media fingerprint canvas is unavailable.');
-    differenceContext.drawImage(readableImage, 0, 0, 33, 32);
+    differenceContext.drawImage(image, 0, 0, 33, 32);
     const differencePixels = differenceContext.getImageData(0, 0, 33, 32).data;
     const bits = [];
     for (let y = 0; y < 32; y += 1) {
@@ -276,7 +267,7 @@ async function xArticleImageFingerprint(image) {
     colorCanvas.height = 16;
     const colorContext = colorCanvas.getContext('2d', { willReadFrequently: true });
     if (!colorContext) throw new Error('X Article media color fingerprint canvas is unavailable.');
-    colorContext.drawImage(readableImage, 0, 0, 16, 16);
+    colorContext.drawImage(image, 0, 0, 16, 16);
     const colorPixels = colorContext.getImageData(0, 0, 16, 16).data;
     const colorSamples = [];
     const alphaSamples = [];
@@ -285,7 +276,7 @@ async function xArticleImageFingerprint(image) {
       alphaSamples.push(colorPixels[index + 3]);
     }
     return {
-      aspectRatio: readableImage.naturalWidth / readableImage.naturalHeight,
+      aspectRatio: image.naturalWidth / image.naturalHeight,
       differenceHash,
       colorSamples,
       alphaSamples,
