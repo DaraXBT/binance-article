@@ -22,7 +22,10 @@ describe('Neon atomic rate limiter', () => {
     expect(client).toHaveBeenCalledTimes(1);
     expect(captured[0]?.text).toMatch(/INSERT INTO "RateLimitBucket"/);
     expect(captured[0]?.text).toMatch(/ON CONFLICT \("key"\) DO UPDATE/);
-    expect(captured[0]?.text).toMatch(/LEAST[\s\S]*"count" \+ 1/);
+    expect(captured[0]?.text).toMatch(
+      /LEAST\("RateLimitBucket"\."count" \+ 1/,
+    );
+    expect(captured[0]?.text).not.toMatch(/LEAST\("count" \+ 1/);
     expect(captured[0]?.text).toMatch(/RETURNING "count", "resetAt"/);
     expect(captured[0]?.values).toContain('legacy-workspace-claim:user_1');
   });
