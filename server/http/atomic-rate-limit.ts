@@ -36,7 +36,7 @@ export async function consumeAtomicRateLimit(input: {
     SET
       "count" = CASE
         WHEN "RateLimitBucket"."resetAt" <= ${now} THEN 1
-        ELSE LEAST("count" + 1, ${boundedCount})
+        ELSE LEAST("RateLimitBucket"."count" + 1, ${boundedCount})
       END,
       "resetAt" = CASE
         WHEN "RateLimitBucket"."resetAt" <= ${now} THEN ${nextResetAt}
