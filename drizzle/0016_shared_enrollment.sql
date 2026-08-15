@@ -1,3 +1,5 @@
+SET LOCAL lock_timeout = '5s';--> statement-breakpoint
+SET LOCAL statement_timeout = '2min';--> statement-breakpoint
 CREATE TYPE "public"."EnrollmentClaimSource" AS ENUM('shared_code', 'legacy_invitation', 'bootstrap');--> statement-breakpoint
 CREATE TYPE "public"."EnrollmentClaimStatus" AS ENUM('pending', 'reserved', 'completed', 'expired', 'revoked');--> statement-breakpoint
 CREATE TYPE "public"."EnrollmentCodeStatus" AS ENUM('active', 'revoked');--> statement-breakpoint
