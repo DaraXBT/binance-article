@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { hashPublicationRecipe } from '@/server/domain/publication-recipe';
 
-import { preparePublication } from './service';
+import { preparePublication, type PublicationPreparationContext } from './service';
 
 const now = new Date('2026-08-16T00:00:00.000Z');
 
@@ -120,7 +120,7 @@ describe('PublicationRecipeV3 preparation', () => {
   });
 
   it('upgrades a migrated assetless legacy Binance cover to a coverless V3 Article', async () => {
-    const loaded = context('binance-square', 'article');
+    const loaded: PublicationPreparationContext = context('binance-square', 'article');
     loaded.draft.payload = {
       title: 'Migrated article',
       markdown: 'Migrated body',
@@ -142,5 +142,46 @@ describe('PublicationRecipeV3 preparation', () => {
       version: 3, target: 'binance-square', kind: 'article', title: 'Migrated article',
     });
     expect(prepared.recipe).not.toHaveProperty('cover');
+  });
+
+  it.each([
+    ['missing', 'Legacy body without its selected image reference.'],
+    ['duplicated', '![First](asset:asset_1)\n\n![Second](asset:asset_1)'],
+    ['noncanonical', '![Body image](images/slide-01.png)'],
+  ])('rejects omitted-kind Binance preparation when a selected body image is %s', async (_case, markdown) => {
+    const loaded: PublicationPreparationContext = context('binance-square', 'article');
+    loaded.draft.payload = {
+      title: 'Legacy article',
+      markdown,
+      cover: { focalX: 0.5, focalY: 0.5, targetWidth: 1000, targetHeight: 400 },
+      orderedAssetIds: ['asset_1'],
+    };
+    loaded.generatedCoverAssetId = 'asset_cover';
+    loaded.assets = [
+      {
+        id: 'asset_cover', purpose: 'cover_image', mimeType: 'image/png',
+        sizeBytes: 1_024, sha256: 'a'.repeat(64),
+      },
+      {
+        id: 'asset_1', purpose: 'slide_image', mimeType: 'image/png',
+        sizeBytes: 1_024, sha256: 'b'.repeat(64),
+      },
+    ];
+    const repository = {
+      loadPreparationContext: vi.fn(async () => loaded),
+      commitPreparedPublication: vi.fn(async () => true),
+    };
+
+    await expect(preparePublication({
+      repository,
+      actorUserId: 'user_1',
+      workspaceId: 'workspace_1',
+      articleId: 'article_1',
+      target: 'binance-square',
+      expectedRevision: 2,
+      commandId: 'command_1',
+      now,
+    })).rejects.toThrow();
+    expect(repository.commitPreparedPublication).not.toHaveBeenCalled();
   });
 });

@@ -72,4 +72,28 @@ describe('/api/articles/:id/publications/x', () => {
       target: 'x', kind: 'article', input: body,
     }));
   });
+
+  it('accepts a valid 100,000-character Article whose JSON encoding exceeds 512,000 bytes', async () => {
+    const { PUT } = await import('./route');
+    const body = {
+      kind: 'article', expectedRevision: 0, title: 'Large escaped article',
+      markdown: '\u0000'.repeat(100_000), orderedAssetIds: [],
+    };
+    const encodedBody = JSON.stringify(body);
+    expect(new TextEncoder().encode(encodedBody).byteLength).toBeGreaterThan(512_000);
+
+    const response = await PUT(new Request(
+      'https://articles.example.com/api/articles/article_1/publications/x',
+      {
+        method: 'PUT',
+        headers: { origin: 'https://articles.example.com', 'content-type': 'application/json' },
+        body: encodedBody,
+      },
+    ) as never, { params: Promise.resolve({ id: 'article_1' }) });
+
+    expect(response.status).toBe(200);
+    expect(mocks.saveDraft).toHaveBeenCalledWith(expect.objectContaining({
+      target: 'x', kind: 'article', input: body,
+    }));
+  });
 });

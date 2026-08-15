@@ -216,7 +216,7 @@ describe('kind-aware publication drafts', () => {
     });
   });
 
-  it('loads a migrated legacy Binance article whose focal cover has no asset ID', () => {
+  it('keeps a migrated legacy Binance article readable so invalid media references can be repaired', () => {
     const record = {
       id: 'draft_binance_legacy',
       workspaceId: 'workspace_1',
@@ -227,9 +227,9 @@ describe('kind-aware publication drafts', () => {
       status: 'draft',
       payload: {
         title: 'Legacy article',
-        markdown: 'Legacy body',
+        markdown: 'Legacy body without its selected image reference.',
         cover: { focalX: 0.25, focalY: 0.75, targetWidth: 1000, targetHeight: 400 },
-        orderedAssetIds: [],
+        orderedAssetIds: ['asset_1'],
       },
       expiresAt: new Date('2026-08-16T00:15:00.000Z'),
       publishedUrl: null,
@@ -240,6 +240,7 @@ describe('kind-aware publication drafts', () => {
       target: 'binance-square',
       kind: 'article',
       cover: { focalX: 0.25, focalY: 0.75, targetWidth: 1000, targetHeight: 400 },
+      orderedAssetIds: ['asset_1'],
     });
   });
 
@@ -266,5 +267,31 @@ describe('kind-aware publication drafts', () => {
       kind: 'article',
       cover: { focalX: 0.25, focalY: 0.75, targetWidth: 1000, targetHeight: 400 },
     });
+  });
+
+  it.each([
+    ['missing', 'Legacy body without its selected image reference.'],
+    ['duplicated', '![First](asset:asset_1)\n\n![Second](asset:asset_1)'],
+    ['noncanonical', '![Body image](images/slide-01.png)'],
+  ])('rejects an omitted-kind Binance draft whose selected body image is %s', async (_case, markdown) => {
+    const repo = repository();
+
+    await expect(savePublicationDraft({
+      repository: repo as never,
+      actorUserId: 'user_1',
+      workspaceId: 'workspace_1',
+      articleId: 'article_1',
+      target: 'binance-square',
+      draftId: 'draft_binance_legacy',
+      input: {
+        expectedRevision: 4,
+        title: 'Legacy article',
+        markdown,
+        cover: { focalX: 0.25, focalY: 0.75 },
+        orderedAssetIds: ['asset_1'],
+      },
+      now,
+    })).rejects.toMatchObject({ code: 'INVALID_PUBLICATION_DRAFT', status: 400 });
+    expect(repo.saveDraft).not.toHaveBeenCalled();
   });
 });
