@@ -59,6 +59,8 @@ describe('production migration target check', () => {
     },
     { MIGRATION_DATABASE_URL: 'postgresql://migration_role:password@db.example.invalid/app' },
     { MIGRATION_DATABASE_URL: 'postgresql://migration_role:password@db.example.invalid/app?sslmode=require&sslmode=disable' },
+    { MIGRATION_DATABASE_URL: 'postgresql://migration_role:password@db.example.invalid:5432/app?sslmode=require&host=override.example.invalid' },
+    { MIGRATION_DATABASE_URL: 'postgresql://migration_role:password@db.example.invalid:5432/app?sslmode=require&options=-c%20search_path%3Dother' },
     { MIGRATION_DATABASE_URL: 'postgresql://:password@db.example.invalid/app?sslmode=require' },
     { MIGRATION_DATABASE_URL: 'postgresql://migration_role:password@db.example.invalid/?sslmode=require' },
   ])('rejects an incomplete or unsafe production URL: %o', (override) => {
