@@ -3,6 +3,7 @@ import { chromium, type Browser, type Page } from 'playwright';
 
 import {
   readXArticleEditorSnapshot,
+  readXArticlePublicationCandidates,
   xArticleImageFingerprintsMatch,
 } from '../../.agents/skills/baoyu-post-to-x/scripts/x-article';
 
@@ -210,5 +211,23 @@ describe('X Article browser evidence', () => {
     expect(media?.kind).toBe('media');
     if (media?.kind !== 'media') throw new Error('Synthetic CDN media fingerprint was unavailable.');
     expect(media.fingerprint.colorSamples.length).toBeGreaterThan(0);
+  });
+
+  it('does not canonicalize malformed toast links into publication evidence', async () => {
+    await page.setContent(`
+      <div role="status">
+        <a href="https://x.com:443/i/article/1">explicit port</a>
+        <a href="https://X.com/i/article/2">uppercase host</a>
+        <a href="https://x.com/ignored/../i/article/3">dot segment</a>
+        <a href="https://user@x.com/i/article/4">userinfo</a>
+        <a href="/i/article/5">relative</a>
+        <a href="https://x.com/i/article/6">canonical</a>
+      </div>
+    `);
+
+    await expect(readXArticlePublicationCandidates(
+      pageBackedCdp(page),
+      'synthetic-session',
+    )).resolves.toEqual(['https://x.com/i/article/6']);
   });
 });
