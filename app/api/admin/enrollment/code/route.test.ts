@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '@/server/http/errors';
+
 const mocks = vi.hoisted(() => ({
   requireActiveUser: vi.fn(async () => ({ id: 'owner_1', role: 'owner' })),
   assertTrustedMutationOrigin: vi.fn(),
@@ -94,6 +96,32 @@ describe('POST /api/admin/enrollment/code', () => {
     });
     expect(logged.cause).toContain('INTERNAL_SENTINEL');
     expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('preserves an expected active-code conflict without logging a server error', async () => {
+    mocks.createInitialEnrollmentCode.mockRejectedValueOnce(new AppError({
+      code: 'ENROLLMENT_CODE_ALREADY_ACTIVE',
+      message: 'An enrollment code is already active.',
+      status: 409,
+    }));
+    const logSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { POST } = await import('./route');
+    const response = await POST(new Request(
+      'https://articles.example.com/api/admin/enrollment/code',
+      {
+        method: 'POST',
+        headers: { origin: 'https://articles.example.com', 'content-type': 'application/json' },
+        body: '{}',
+      },
+    ) as never);
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: 'An enrollment code is already active.',
+      code: 'ENROLLMENT_CODE_ALREADY_ACTIVE',
+    });
+    expect(logSpy).not.toHaveBeenCalled();
+    logSpy.mockRestore();
   });
 
   it('returns 429 and does not create a code when the owner mutation limit is exhausted', async () => {

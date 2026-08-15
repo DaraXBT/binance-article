@@ -61,6 +61,35 @@ describe('POST /api/admin/enrollment/code/rotate', () => {
     });
   });
 
+  it('returns and logs a generic 500 when rotation fails unexpectedly', async () => {
+    mocks.rotateEnrollmentCode.mockRejectedValueOnce(new Error('ROTATE_INTERNAL_SENTINEL'));
+    const logSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { POST } = await import('./route');
+    const response = await POST(new Request(
+      'https://articles.example.com/api/admin/enrollment/code/rotate',
+      {
+        method: 'POST',
+        headers: { origin: 'https://articles.example.com', 'content-type': 'application/json' },
+        body: JSON.stringify({ reason: 'owner_rotation' }),
+      },
+    ) as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body).toEqual({
+      error: 'The enrollment code could not be rotated.',
+      code: 'ENROLLMENT_CODE_ROTATE_FAILED',
+    });
+    expect(JSON.stringify(body)).not.toContain('ROTATE_INTERNAL_SENTINEL');
+    expect(logSpy).toHaveBeenCalledOnce();
+    const logged = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
+    expect(logged).toMatchObject({
+      event: 'api.error',
+      code: 'ENROLLMENT_CODE_ROTATE_FAILED',
+    });
+    logSpy.mockRestore();
+  });
+
   it('returns 429 and preserves the current code when the owner mutation limit is exhausted', async () => {
     mocks.consumeAtomicRateLimit.mockResolvedValueOnce({
       allowed: false,

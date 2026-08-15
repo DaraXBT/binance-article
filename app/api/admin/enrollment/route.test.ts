@@ -46,4 +46,28 @@ describe('GET /api/admin/enrollment', () => {
     });
     expect(response.headers.get('cache-control')).toBe('no-store');
   });
+
+  it('returns and logs a generic 500 when the overview fails unexpectedly', async () => {
+    mocks.getEnrollmentOverview.mockRejectedValueOnce(new Error('OVERVIEW_INTERNAL_SENTINEL'));
+    const logSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { GET } = await import('./route');
+    const response = await GET(new Request(
+      'https://articles.example.com/api/admin/enrollment',
+    ) as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body).toEqual({
+      error: 'Enrollment access could not be loaded.',
+      code: 'ENROLLMENT_OVERVIEW_FAILED',
+    });
+    expect(JSON.stringify(body)).not.toContain('OVERVIEW_INTERNAL_SENTINEL');
+    expect(logSpy).toHaveBeenCalledOnce();
+    const logged = JSON.parse(logSpy.mock.calls[0]?.[0] as string);
+    expect(logged).toMatchObject({
+      event: 'api.error',
+      code: 'ENROLLMENT_OVERVIEW_FAILED',
+    });
+    logSpy.mockRestore();
+  });
 });

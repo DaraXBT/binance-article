@@ -9,6 +9,7 @@ import {
   claimEnrollmentCode,
   claimLegacyInvitation,
   completeEnrollmentClaim,
+  createInitialEnrollmentCode,
   revokeEnrollmentCode,
   reserveEnrollmentClaim,
   rotateEnrollmentCode,
@@ -44,6 +45,7 @@ function repository(overrides: Record<string, unknown> = {}) {
     reserveClaim: vi.fn(async () => ({ outcome: 'reserved' as const, claimId: 'claim_1' })),
     completeClaim: vi.fn(async () => ({ outcome: 'completed' as const, claimId: 'claim_1' })),
     releaseClaim: vi.fn(async () => true),
+    createCode: vi.fn(async () => ({ outcome: 'created' as const, version: 1 })),
     revokeCode: vi.fn(async () => ({
       outcome: 'revoked' as const, revokedCodeId: 'code_1', revokedClaims: 2,
     })),
@@ -199,6 +201,25 @@ describe('enrollment service', () => {
       reason: 'owner_rotation',
     }));
     expect(result.version).toBe(2);
+  });
+
+  it('maps an existing active code to the expected domain conflict', async () => {
+    const repo = repository({
+      createCode: vi.fn(async () => ({ outcome: 'active_exists' as const })),
+    });
+
+    await expect(createInitialEnrollmentCode({
+      repository: repo,
+      actorUserId: 'owner_1',
+      pepper,
+      id: 'code_1',
+      auditEventId: 'audit_1',
+      entropy: new Uint8Array(13),
+      now,
+    })).rejects.toMatchObject({
+      code: 'ENROLLMENT_CODE_ALREADY_ACTIVE',
+      status: 409,
+    });
   });
 
   it('disables the active code idempotently and reports revoked unfinished claims', async () => {
