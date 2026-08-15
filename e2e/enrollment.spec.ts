@@ -90,9 +90,10 @@ test('owner can create, rotate, and disable a reusable enrollment code', async (
   expect(rotated.revokedClaims).toBe(1);
 
   const oldAttempt = await openEnrollmentLink(browser, created.joinUrl, 400);
-  await expect(oldAttempt.page.locator('[data-auth-panel="join"]')).toHaveAttribute('data-auth-state', 'invalid');
-  await expect(oldAttempt.page.getByRole('alert')).toContainText(/invalid|no longer/i);
-  await expect(oldAttempt.page.getByRole('button', { name: 'Continue with Google' })).toBeDisabled();
+  const oldJoinPanel = oldAttempt.page.locator('[data-auth-panel="join"]');
+  await expect(oldJoinPanel).toHaveAttribute('data-auth-state', 'invalid');
+  await expect(oldJoinPanel.getByRole('alert')).toContainText(/invalid|no longer/i);
+  await expect(oldJoinPanel.getByRole('button', { name: 'Continue with Google' })).toBeDisabled();
   await oldAttempt.context.close();
 
   const replacementAttempt = await openEnrollmentLink(browser, rotated.joinUrl, 201);
