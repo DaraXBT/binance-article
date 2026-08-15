@@ -174,7 +174,7 @@ export function createLiveXArticleDriver(): XArticleDriver {
         const prepared: PreparedXArticle = {
           draft,
           expectedTitle: extracted.title ?? '',
-          expectedBody: context.body,
+          expectedBody: context.expectedBody,
           expectedImageCount: extracted.imagePaths.length,
           expectedCover: Boolean(extracted.coverPath),
         };

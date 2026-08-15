@@ -52,15 +52,26 @@ function normalizeText(value: string): string {
   return value.replace(/\u00a0/g, ' ').replace(/\r\n?/g, '\n').trim();
 }
 
+function normalizeReviewedBody(value: string): string {
+  return value.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 function assertReady(
   snapshot: XArticleSnapshot,
-  expected: PreparedXArticle & { mediaSources?: readonly string[]; coverSource?: string | null },
+  expected: PreparedXArticle & {
+    bodySnapshot?: string;
+    mediaSources?: readonly string[];
+    coverSource?: string | null;
+  },
 ): void {
   if (!snapshot.editorVisible) throw new Error('The prepared X Article editor is no longer open.');
   if (normalizeText(snapshot.title) !== normalizeText(expected.expectedTitle)) {
     throw new Error('The X Article title changed after preparation.');
   }
-  if (normalizeText(snapshot.body) !== normalizeText(expected.expectedBody)) {
+  if (
+    normalizeReviewedBody(snapshot.body) !== normalizeReviewedBody(expected.expectedBody)
+    || (expected.bodySnapshot !== undefined && normalizeText(snapshot.body) !== expected.bodySnapshot)
+  ) {
     throw new Error('The X Article body changed after preparation.');
   }
   if (snapshot.imageCount !== expected.expectedImageCount) {
@@ -87,6 +98,7 @@ export class BaoyuXArticleAdapter implements PublisherAdapter {
   readonly #driver: XArticleDriver;
   readonly #drafts = new Map<string, PreparedXArticle & {
     attempted: boolean;
+    bodySnapshot: string;
     mediaSources: string[];
     coverSource: string | null;
   }>();
@@ -112,6 +124,7 @@ export class BaoyuXArticleAdapter implements PublisherAdapter {
     this.#drafts.set(prepared.draft.id, {
       ...prepared,
       attempted: false,
+      bodySnapshot: normalizeText(snapshot.body),
       mediaSources: [...snapshot.mediaSources],
       coverSource: snapshot.coverSource,
     });

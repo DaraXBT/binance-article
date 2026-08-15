@@ -154,14 +154,43 @@ function decodeHtmlEntities(text: string): string {
   return text
     .replace(/&#x([0-9A-Fa-f]+);/g, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&nbsp;/gi, '\u00a0')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&amp;/g, '&');
 }
 
-function htmlToText(html: string): string {
-  return decodeHtmlEntities(html.replace(/<[^>]*>/g, '')).trim();
+export function binanceArticleHtmlToText(html: string): string {
+  return decodeHtmlEntities(html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(?:blockquote|div|h[1-6]|li|ol|p|pre|ul)>/gi, '\n')
+    .replace(/<[^>]*>/g, ''))
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+}
+
+function replaceRenderedPlaceholder(text: string, placeholder: string, replacement: string): string {
+  const escaped = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text.replace(new RegExp(`${escaped}(?!\\d)`, 'g'), () => replacement);
+}
+
+export function deriveBinanceArticleFinalBodyText(
+  html: string,
+  imagePlaceholders: readonly string[],
+  codeBlocks: ReadonlyArray<{ placeholder: string; content: string }>,
+): string {
+  let expected = binanceArticleHtmlToText(html);
+  const replacements = [
+    ...imagePlaceholders.map((placeholder) => ({ placeholder, replacement: '' })),
+    ...codeBlocks.map((block) => ({ placeholder: block.placeholder, replacement: block.content })),
+  ].sort((a, b) => b.placeholder.length - a.placeholder.length);
+  for (const { placeholder, replacement } of replacements) {
+    expected = replaceRenderedPlaceholder(expected, placeholder, replacement);
+  }
+  return expected;
 }
 
 function normalizeArticleBodyText(value: string): string {
@@ -183,10 +212,10 @@ function parseBlockStructure(html: string): Block[] {
     const inner = m[2] ?? '';
     if (tag === 'ul' || tag === 'ol') {
       const items = [...inner.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)]
-        .map(li => htmlToText(li[1]));
+        .map(li => binanceArticleHtmlToText(li[1]));
       blocks.push({ type: tag, items });
     } else {
-      blocks.push({ type: tag, text: htmlToText(inner) });
+      blocks.push({ type: tag, text: binanceArticleHtmlToText(inner) });
     }
   }
   return blocks;
@@ -751,7 +780,7 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
     // Insert HTML content (4-method fallback; Method 0 uses React fiber to preserve heading structure)
     console.log('[binance-article] Inserting content...');
     const htmlContent = fs.readFileSync(htmlPath, 'utf-8');
-    const expectedBodyText = htmlToText(htmlContent);
+    const expectedBodyText = binanceArticleHtmlToText(htmlContent);
 
     await cdp.send('Runtime.evaluate', {
       expression: `(() => {
@@ -1204,7 +1233,11 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
       }, { sessionId });
       try { multiCodeCount = JSON.parse(mcRes.result.value).count ?? 0; } catch { multiCodeCount = 0; }
     }
-    const expectedText = htmlToText(parsed.html);
+    const expectedText = deriveBinanceArticleFinalBodyText(
+      parsed.html,
+      parsed.contentImages.map((image) => image.placeholder),
+      parsed.codeBlocks,
+    );
     const bodyMatches = isBinanceArticleBodyInserted(finalContent.result.value, expectedText);
     const report = {
       titleMatches: titleValue.result.value.trim() === parsed.title.trim(),

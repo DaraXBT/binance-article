@@ -63,7 +63,7 @@ function decodeArticleHtml(text: string): string {
     .replace(/&amp;/gi, '&');
 }
 
-function articleHtmlToText(html: string): string {
+export function xArticleHtmlToText(html: string): string {
   return decodeArticleHtml(html
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(?:blockquote|div|h[1-6]|li|ol|p|pre|ul)>/gi, '\n')
@@ -81,6 +81,75 @@ export function isXArticleBodyInserted(actualText: string, expectedText: string)
   return actual === expected;
 }
 
+function renderedPlaceholderPattern(placeholder: string): RegExp {
+  const escaped = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`${escaped}(?!\\d)`, 'g');
+}
+
+export function deriveXArticleFinalBodyText(
+  html: string,
+  imagePlaceholders: readonly string[],
+): string {
+  let expected = xArticleHtmlToText(html);
+  for (const placeholder of [...imagePlaceholders].sort((a, b) => b.length - a.length)) {
+    expected = expected.replace(renderedPlaceholderPattern(placeholder), '');
+  }
+  return expected;
+}
+
+export async function insertXArticleBodyExactly({
+  expectedText,
+  clear,
+  attempts,
+  read,
+}: {
+  expectedText: string;
+  clear: () => Promise<void>;
+  attempts: Array<() => Promise<void>>;
+  read: () => Promise<string>;
+}): Promise<void> {
+  let lastAttemptError: unknown;
+  for (const attempt of attempts) {
+    await clear();
+    try {
+      await attempt();
+      if (isXArticleBodyInserted(await read(), expectedText)) return;
+    } catch (error) {
+      lastAttemptError = error;
+    }
+  }
+  const detail = lastAttemptError instanceof Error ? ` Last attempt: ${lastAttemptError.message}` : '';
+  throw new Error(`X Article body insertion failed: no attempt produced the exact reviewed body.${detail}`);
+}
+
+export interface XArticleCompositionReport {
+  titleMatches: boolean;
+  bodyMatches: boolean;
+  expectedImages: number;
+  actualImages: number;
+  remainingPlaceholders: string[];
+  expectedCover: boolean;
+  actualCover: boolean;
+}
+
+export function assertXArticleCompositionReady(report: XArticleCompositionReport): void {
+  const failures: string[] = [];
+  if (!report.titleMatches) failures.push('title does not match the reviewed draft');
+  if (!report.bodyMatches) failures.push('body does not match the reviewed draft');
+  if (report.actualImages !== report.expectedImages) {
+    failures.push(`image count ${report.actualImages}/${report.expectedImages}`);
+  }
+  if (report.remainingPlaceholders.length > 0) {
+    failures.push(`remaining placeholders: ${report.remainingPlaceholders.join(', ')}`);
+  }
+  if (report.actualCover !== report.expectedCover) {
+    failures.push(`cover state ${report.actualCover ? 'present' : 'missing'}/${report.expectedCover ? 'expected' : 'not expected'}`);
+  }
+  if (failures.length > 0) {
+    throw new Error(`X Article composition failed: ${failures.join('; ')}.`);
+  }
+}
+
 export interface XArticleCompositionContext {
   cdp: CdpConnection;
   sessionId: string;
@@ -89,6 +158,7 @@ export interface XArticleCompositionContext {
   ownsTarget: boolean;
   title: string;
   body: string;
+  expectedBody: string;
   imageCount: number;
   coverPresent: boolean;
 }
@@ -511,90 +581,86 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
 
     // Read HTML content
     const htmlContent = fs.readFileSync(htmlPath, 'utf-8');
-    const expectedBodyText = articleHtmlToText(htmlContent);
+    const expectedBodyText = xArticleHtmlToText(htmlContent);
 
-    // Focus on DraftEditor body
-    await cdp.send('Runtime.evaluate', {
-      expression: `(() => {
-        const editor = document.querySelector('.DraftEditor-editorContainer [contenteditable="true"]');
-        if (editor) {
-          editor.focus();
-          editor.click();
-          return true;
-        }
-        return false;
-      })()`,
-    }, { sessionId });
-    await sleep(300);
-
-    // Method 1: Simulate paste event with HTML data
-    console.log('[x-article] Attempting to insert HTML via paste event...');
-    const pasteResult = await cdp.send<{ result: { value: boolean } }>('Runtime.evaluate', {
-      expression: `(() => {
-        const editor = document.querySelector('.DraftEditor-editorContainer [contenteditable="true"]');
-        if (!editor) return false;
-
-        const html = ${JSON.stringify(htmlContent)};
-
-        // Create a paste event with HTML data
-        const dt = new DataTransfer();
-        dt.setData('text/html', html);
-        dt.setData('text/plain', html.replace(/<[^>]*>/g, ''));
-
-        const pasteEvent = new ClipboardEvent('paste', {
-          bubbles: true,
-          cancelable: true,
-          clipboardData: dt
-        });
-
-        editor.dispatchEvent(pasteEvent);
-        return true;
-      })()`,
-      returnByValue: true,
-    }, { sessionId });
-
-    await sleep(1000);
-
-    // Check if content was inserted
-    const contentCheck = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
-      expression: `document.querySelector('.DraftEditor-editorContainer [data-contents="true"]')?.innerText || ''`,
-      returnByValue: true,
-    }, { sessionId });
-
-    if (isXArticleBodyInserted(contentCheck.result.value, expectedBodyText)) {
-      console.log(`[x-article] Content inserted successfully (${contentCheck.result.value.length} chars)`);
-    } else {
-      console.log('[x-article] Paste event may not have worked, trying insertHTML...');
-
-      // Method 2: Use execCommand insertHTML
-      await cdp.send('Runtime.evaluate', {
+    const clearArticleBody = async (): Promise<void> => {
+      const cleared = await cdp!.send<{ result: { value: boolean } }>('Runtime.evaluate', {
         expression: `(() => {
           const editor = document.querySelector('.DraftEditor-editorContainer [contenteditable="true"]');
-          if (!editor) return false;
+          const contents = document.querySelector('.DraftEditor-editorContainer [data-contents="true"]');
+          if (!editor || !contents) return false;
           editor.focus();
-          document.execCommand('insertHTML', false, ${JSON.stringify(htmlContent)});
+          const range = document.createRange();
+          range.selectNodeContents(contents);
+          const selection = window.getSelection();
+          if (!selection) return false;
+          selection.removeAllRanges();
+          selection.addRange(range);
+          if (!document.execCommand('delete', false)) {
+            document.execCommand('insertText', false, '');
+          }
           return true;
         })()`,
+        returnByValue: true,
       }, { sessionId });
-
-      await sleep(1000);
-
-      // Check again
-      const check2 = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+      if (!cleared.result.value) throw new Error('The X Article body editor could not be cleared safely.');
+      await sleep(300);
+    };
+    const readArticleBody = async (): Promise<string> => {
+      const result = await cdp!.send<{ result: { value: string } }>('Runtime.evaluate', {
         expression: `document.querySelector('.DraftEditor-editorContainer [data-contents="true"]')?.innerText || ''`,
         returnByValue: true,
       }, { sessionId });
+      return result.result.value;
+    };
 
-      if (isXArticleBodyInserted(check2.result.value, expectedBodyText)) {
-        console.log(`[x-article] Content inserted via execCommand (${check2.result.value.length} chars)`);
-      } else {
-        console.log('[x-article] Auto-insert failed. HTML copied to clipboard - please paste manually (Cmd+V)');
-        copyHtmlToClipboard(htmlPath);
-        // Wait for manual paste
-        console.log('[x-article] Waiting 30s for manual paste...');
-        await sleep(30_000);
-      }
-    }
+    await insertXArticleBodyExactly({
+      expectedText: expectedBodyText,
+      clear: clearArticleBody,
+      attempts: [
+        async () => {
+          console.log('[x-article] Attempting to insert HTML via paste event...');
+          await cdp!.send('Runtime.evaluate', {
+            expression: `(() => {
+              const editor = document.querySelector('.DraftEditor-editorContainer [contenteditable="true"]');
+              if (!editor) return false;
+              const dt = new DataTransfer();
+              dt.setData('text/html', ${JSON.stringify(htmlContent)});
+              dt.setData('text/plain', ${JSON.stringify(expectedBodyText)});
+              editor.dispatchEvent(new ClipboardEvent('paste', {
+                bubbles: true,
+                cancelable: true,
+                clipboardData: dt,
+              }));
+              return true;
+            })()`,
+          }, { sessionId });
+          await sleep(1000);
+        },
+        async () => {
+          console.log('[x-article] Paste event did not produce exact content; trying insertHTML...');
+          await cdp!.send('Runtime.evaluate', {
+            expression: `(() => {
+              const editor = document.querySelector('.DraftEditor-editorContainer [contenteditable="true"]');
+              if (!editor) return false;
+              editor.focus();
+              return document.execCommand('insertHTML', false, ${JSON.stringify(htmlContent)});
+            })()`,
+          }, { sessionId });
+          await sleep(1000);
+        },
+        async () => {
+          console.log('[x-article] Automatic insertion failed. Copying HTML for one isolated manual paste...');
+          if (!copyHtmlToClipboard(htmlPath)) {
+            throw new Error('The reviewed X Article HTML could not be copied to the clipboard.');
+          }
+          console.log('[x-article] Waiting 30s for manual paste (Cmd+V)...');
+          await sleep(30_000);
+        },
+      ],
+      read: readArticleBody,
+    });
+    console.log('[x-article] Exact reviewed body insertion verified.');
 
     // Insert content images (reverse order to maintain positions)
     if (parsed.contentImages.length > 0) {
@@ -824,43 +890,51 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
       }
 
       console.log('[x-article] All images processed.');
-
-      // Final verification: check placeholder residue and image count
-      console.log('[x-article] Running post-composition verification...');
-      const finalEditorContent = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
-        expression: `document.querySelector('.DraftEditor-editorContainer [data-contents="true"]')?.innerText || ''`,
-        returnByValue: true,
-      }, { sessionId });
-
-      const remainingPlaceholders: string[] = [];
-      for (const img of parsed.contentImages) {
-        const regex = new RegExp(img.placeholder + '(?!\\d)');
-        if (regex.test(finalEditorContent.result.value)) {
-          remainingPlaceholders.push(img.placeholder);
-        }
-      }
-
-      const finalImgCount = await cdp.send<{ result: { value: number } }>('Runtime.evaluate', {
-        expression: `document.querySelectorAll('section[data-block="true"][contenteditable="false"] img[src^="blob:"]').length`,
-        returnByValue: true,
-      }, { sessionId });
-
-      const expectedCount = parsed.contentImages.length;
-      const actualCount = finalImgCount.result.value;
-
-      if (remainingPlaceholders.length > 0 || actualCount < expectedCount) {
-        console.warn('[x-article] ⚠ POST-COMPOSITION CHECK FAILED:');
-        if (remainingPlaceholders.length > 0) {
-          console.warn(`[x-article]   Remaining placeholders: ${remainingPlaceholders.join(', ')}`);
-        }
-        if (actualCount < expectedCount) {
-          console.warn(`[x-article]   Image count: expected ${expectedCount}, found ${actualCount}`);
-        }
-        console.warn('[x-article]   Please check the article before publishing.');
-      } else {
-        console.log(`[x-article] ✓ Verification passed: ${actualCount} image(s), no remaining placeholders.`);
-      }
     }
+
+    // This gate runs for text-only and media-bearing Articles alike. The
+    // reviewed body is the source of truth; the browser snapshot never becomes
+    // its own approval baseline.
+    console.log('[x-article] Running post-composition verification...');
+    const expectedFinalBodyText = deriveXArticleFinalBodyText(
+      htmlContent,
+      parsed.contentImages.map((image) => image.placeholder),
+    );
+    const verifiedSnapshotResult = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+      expression: `JSON.stringify({
+        title: (() => {
+          const selectors = ${JSON.stringify(I18N_SELECTORS.titleInput)};
+          for (const selector of selectors) {
+            const element = document.querySelector(selector);
+            if (element) return element.value || element.innerText || element.textContent || '';
+          }
+          return '';
+        })(),
+        body: document.querySelector('.DraftEditor-editorContainer [data-contents="true"]')?.innerText || '',
+        imageCount: document.querySelectorAll('section[data-block="true"][contenteditable="false"] img[src^="blob:"]').length,
+        coverPresent: Boolean(document.querySelector('[data-testid*="cover" i] img, [data-testid*="headerMedia" i] img')),
+      })`,
+      returnByValue: true,
+    }, { sessionId });
+    const verifiedComposition = JSON.parse(verifiedSnapshotResult.result.value) as {
+      title: string;
+      body: string;
+      imageCount: number;
+      coverPresent: boolean;
+    };
+    const remainingPlaceholders = parsed.contentImages
+      .map((image) => image.placeholder)
+      .filter((placeholder) => renderedPlaceholderPattern(placeholder).test(verifiedComposition.body));
+    assertXArticleCompositionReady({
+      titleMatches: verifiedComposition.title.trim() === parsed.title.trim(),
+      bodyMatches: isXArticleBodyInserted(verifiedComposition.body, expectedFinalBodyText),
+      expectedImages: parsed.contentImages.length,
+      actualImages: verifiedComposition.imageCount,
+      remainingPlaceholders,
+      expectedCover: Boolean(parsed.coverImage),
+      actualCover: verifiedComposition.coverPresent,
+    });
+    console.log(`[x-article] Verification passed: ${verifiedComposition.imageCount} image(s), exact reviewed body, expected cover state.`);
 
     // Before preview: blur editor to trigger save
     console.log('[x-article] Triggering content save...');
@@ -900,35 +974,14 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
     }
 
     if (options.onComposed) {
-      const snapshot = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
-        expression: `JSON.stringify({
-          title: (() => {
-            const selectors = ${JSON.stringify(I18N_SELECTORS.titleInput)};
-            for (const selector of selectors) {
-              const element = document.querySelector(selector);
-              if (element) return element.value || element.innerText || element.textContent || '';
-            }
-            return '';
-          })(),
-          body: document.querySelector('.DraftEditor-editorContainer [data-contents="true"]')?.innerText || '',
-          imageCount: document.querySelectorAll('section[data-block="true"][contenteditable="false"] img[src^="blob:"]').length,
-          coverPresent: Boolean(document.querySelector('[data-testid*="cover" i] img, [data-testid*="headerMedia" i] img')),
-        })`,
-        returnByValue: true,
-      }, { sessionId });
-      const composed = JSON.parse(snapshot.result.value) as {
-        title: string;
-        body: string;
-        imageCount: number;
-        coverPresent: boolean;
-      };
       await options.onComposed({
         cdp,
         sessionId,
         targetId: page.targetId,
         ownsBrowser: !existingPort,
         ownsTarget: browserResource.ownsTarget,
-        ...composed,
+        ...verifiedComposition,
+        expectedBody: expectedFinalBodyText,
       });
       handedOff = true;
     }
