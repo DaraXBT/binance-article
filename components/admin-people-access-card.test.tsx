@@ -177,6 +177,30 @@ describe('AdminPeopleAccessCard', () => {
     await screen.findByRole('button', { name: 'Create code' });
   });
 
+  it('keeps a successfully disabled code closed when the follow-up refresh fails', async () => {
+    const activeOverview = {
+      activeCode: { version: 1, codePrefix: 'ABCDEFGH', status: 'active' },
+      capacity: overview.capacity,
+    };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(activeOverview))
+      .mockResolvedValueOnce(jsonResponse(people))
+      .mockResolvedValueOnce(jsonResponse({
+        disabled: true, changed: true, revokedClaims: 0,
+      }))
+      .mockResolvedValueOnce(jsonResponse({ error: 'Refresh unavailable' }, 503))
+      .mockResolvedValueOnce(jsonResponse(people));
+    render(<AdminPeopleAccessCard />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Disable code' }));
+    const confirmation = screen.getByRole('alertdialog', { name: 'Disable the enrollment code?' });
+    fireEvent.click(within(confirmation).getByRole('button', { name: 'Disable code' }));
+
+    expect(await screen.findByRole('button', { name: 'Create code' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Rotate code' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Disable code' })).toBeNull();
+  });
+
   it('confirms suspension and refreshes the People list', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({
