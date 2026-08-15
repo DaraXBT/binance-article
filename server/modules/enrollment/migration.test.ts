@@ -9,6 +9,17 @@ const journal = JSON.parse(readFileSync(`${root}drizzle/meta/_journal.json`, 'ut
 };
 
 describe('shared enrollment migration', () => {
+  it('bounds the access-exclusive enum rewrite inside the migration transaction', () => {
+    expect(migration).toMatch(/^SET LOCAL lock_timeout = '5s';--> statement-breakpoint/);
+    expect(migration).toContain("SET LOCAL statement_timeout = '2min';--> statement-breakpoint");
+    expect(migration.indexOf('SET LOCAL lock_timeout')).toBeLessThan(
+      migration.indexOf('ALTER TYPE "public"."UserStatus"'),
+    );
+    expect(migration.indexOf('SET LOCAL statement_timeout')).toBeLessThan(
+      migration.indexOf('ALTER TYPE "public"."UserStatus"'),
+    );
+  });
+
   it('adds pending auth state and durable versioned enrollment records', () => {
     expect(migration).toContain(`ALTER TYPE "public"."UserStatus" RENAME TO "UserStatus_legacy"`);
     expect(migration).toContain(
