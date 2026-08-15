@@ -111,6 +111,45 @@ describe('DELETE /api/admin/enrollment/code', () => {
     expect(response.headers.get('referrer-policy')).toBe('no-referrer');
   });
 
+  it('returns a safe success response when enrollment is already disabled', async () => {
+    mocks.revokeEnrollmentCode.mockResolvedValueOnce({ changed: false, revokedClaims: 0 });
+    const { DELETE } = await import('./route');
+    const response = await DELETE(new Request(
+      'https://articles.example.com/api/admin/enrollment/code',
+      { method: 'DELETE', headers: { origin: 'https://articles.example.com' } },
+    ) as never);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      disabled: true,
+      changed: false,
+      revokedClaims: 0,
+    });
+    expect(mocks.getEnrollmentCodePepper).not.toHaveBeenCalled();
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('referrer-policy')).toBe('no-referrer');
+  });
+
+  it('returns a generic 500 response when disabling enrollment fails unexpectedly', async () => {
+    mocks.revokeEnrollmentCode.mockRejectedValueOnce(new Error('INTERNAL_SENTINEL'));
+    const logSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { DELETE } = await import('./route');
+    const response = await DELETE(new Request(
+      'https://articles.example.com/api/admin/enrollment/code',
+      { method: 'DELETE', headers: { origin: 'https://articles.example.com' } },
+    ) as never);
+    const body = await response.json();
+    logSpy.mockRestore();
+
+    expect(response.status).toBe(500);
+    expect(body).toEqual({
+      error: 'The enrollment code could not be disabled.',
+      code: 'ENROLLMENT_CODE_REVOKE_FAILED',
+    });
+    expect(JSON.stringify(body)).not.toContain('INTERNAL_SENTINEL');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
   it('preserves the active code when the owner mutation limit is exhausted', async () => {
     mocks.consumeAtomicRateLimit.mockResolvedValueOnce({
       allowed: false,

@@ -272,6 +272,24 @@ describe('enrollment repository', () => {
     expect(mutationSql).not.toMatch(/INSERT INTO "EnrollmentCode"/);
   });
 
+  it('treats disabling with no active code as an idempotent no-op', async () => {
+    const harness = transactionHarness([
+      [],
+      [],
+      [{ outcome: 'no_active_code', revokedCodeId: null, revokedClaims: 0 }],
+    ]);
+    const repository = createEnrollmentRepository({ $client: harness.client } as never);
+
+    await expect(repository.revokeCode({
+      actorUserId: 'owner_1', auditEventId: 'audit_1', reason: 'owner_disabled', now,
+    })).resolves.toEqual({ outcome: 'no_active_code' });
+
+    expect(harness.queries).toHaveLength(3);
+    expect(harness.queries[1]?.text).toMatch(
+      /FROM "EnrollmentCode"[\s\S]*"status" = 'active'[\s\S]*FOR UPDATE/,
+    );
+  });
+
   it('releases only the matching live reservation back to pending', async () => {
     const harness = queryHarness([{ id: 'claim_1' }]);
     const repository = createEnrollmentRepository({ $client: harness.client } as never);
