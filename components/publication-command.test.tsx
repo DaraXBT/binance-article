@@ -79,9 +79,18 @@ describe('reviewed publication command UI', () => {
     unmount();
   });
 
-  it('shows the terminal companion failure code', () => {
+  it.each([
+    [
+      'X_LOGIN_REQUIRED',
+      'Log in to X in the companion Chrome window, then prepare again.',
+    ],
+    [
+      'X_ARTICLES_UNAVAILABLE',
+      'X Articles are unavailable for this account. Use an X Post or enable Articles access, then prepare again.',
+    ],
+  ])('shows actionable guidance for companion abort %s', (failureReason, guidance) => {
     render(<PublicationCommandPanel
-      command={{ ...command, state: 'failed', failureReason: 'EDITOR_COMPOSITION_FAILED' }}
+      command={{ ...command, state: 'cancelled', failureReason }}
       error={null}
       isApproving={false}
       isCancelling={false}
@@ -89,7 +98,46 @@ describe('reviewed publication command UI', () => {
       onCancel={vi.fn()}
     />, { wrapper: EnglishLanguageProvider });
 
-    expect(screen.getByText(/EDITOR_COMPOSITION_FAILED/)).toBeTruthy();
+    expect(screen.getByText(guidance)).toBeTruthy();
+    expect(screen.queryByText(failureReason)).toBeNull();
+  });
+
+  it('renders guidance after the companion asynchronously aborts an X Article', async () => {
+    const queued = { ...command, kind: 'article' as const, state: 'queued' as const };
+    const aborted = {
+      ...queued,
+      state: 'cancelled' as const,
+      failureReason: 'X_LOGIN_REQUIRED',
+    };
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      command: aborted,
+    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const { result, unmount } = renderHook(
+      () => usePublicationCommand('x', 'article_1', 'article'),
+      { wrapper: EnglishLanguageProvider },
+    );
+
+    await act(async () => {
+      await result.current.prepare(async () => ({ command: queued }));
+    });
+    await waitFor(() => expect(result.current.command).toEqual(aborted), { timeout: 2_500 });
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/publisher/commands/${command.id}`,
+      expect.objectContaining({ cache: 'no-store' }),
+    );
+
+    render(<PublicationCommandPanel
+      command={result.current.command}
+      error={result.current.error}
+      isApproving={result.current.isApproving}
+      isCancelling={result.current.isCancelling}
+      onApprove={result.current.approve}
+      onCancel={result.current.cancel}
+    />, { wrapper: EnglishLanguageProvider });
+    expect(screen.getByText(
+      'Log in to X in the companion Chrome window, then prepare again.',
+    )).toBeTruthy();
+    unmount();
   });
 
   it('preserves the sanitized server error instead of replacing it with a generic fallback', async () => {
