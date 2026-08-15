@@ -199,6 +199,34 @@ describe('V3 live publisher adapters', () => {
     expect(draft.clickPublish).not.toHaveBeenCalled();
   });
 
+  it('matches the reviewed X Article canonically while pinning the exact browser snapshot', async () => {
+    const preparedSnapshot = { ...articleReady, body: 'Reviewed\nbody' };
+    const changedSnapshot = { ...articleReady, body: 'Reviewed  body' };
+    const snapshots = [preparedSnapshot, changedSnapshot];
+    const beforeClick = mock(async () => undefined);
+    const draft: XArticleDraft = {
+      id: 'x-article-reviewed-whitespace',
+      snapshot: mock(async () => snapshots.shift()!),
+      clickPublish: mock(async () => true),
+      waitForPublishedUrl: mock(async () => undefined),
+      close: mock(async () => undefined),
+    };
+    const adapter = new BaoyuXArticleAdapter({
+      prepare: mock(async () => ({
+        draft,
+        expectedTitle: articleReady.title,
+        expectedBody: 'Reviewed body',
+        expectedImageCount: 1,
+        expectedCover: false,
+      })),
+    });
+    const prepared = await adapter.prepare('/tmp/x-article.zip');
+
+    await expect(adapter.publish(prepared.draftId, { beforeClick })).rejects.toThrow(/body changed/i);
+    expect(beforeClick).not.toHaveBeenCalled();
+    expect(draft.clickPublish).not.toHaveBeenCalled();
+  });
+
   it.each(['X_LOGIN_REQUIRED', 'X_ARTICLES_UNAVAILABLE'] as const)(
     'preserves the structured %s eligibility abort',
     async (code) => {
