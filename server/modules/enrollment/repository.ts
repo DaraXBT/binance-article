@@ -810,7 +810,7 @@ export function createEnrollmentRepository(database: AppDatabase): EnrollmentRep
                 'version', inserted."version",
                 'revokedCodeId', (SELECT "id" FROM revoked_code LIMIT 1),
                 'revokedClaimCount', (SELECT count(*) FROM revoked_claims),
-                'reason', ${input.reason}
+                'reason', ${input.reason}::text
               ),
               ${input.now}
             FROM owner, inserted
@@ -906,7 +906,7 @@ export function createEnrollmentRepository(database: AppDatabase): EnrollmentRep
               jsonb_build_object(
                 'version', revoked_code."version",
                 'revokedClaimCount', (SELECT count(*) FROM revoked_claims),
-                'reason', ${input.reason}
+                'reason', ${input.reason}::text
               ),
               ${input.now}
             FROM owner, revoked_code
