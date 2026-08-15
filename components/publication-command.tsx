@@ -278,6 +278,15 @@ function stateCopy(
   }
 }
 
+function failureReasonCopy(
+  reason: string,
+  copy: PublishingMessages['command'],
+): string {
+  if (reason === 'X_LOGIN_REQUIRED') return copy.xLoginRequired;
+  if (reason === 'X_ARTICLES_UNAVAILABLE') return copy.xArticlesUnavailable;
+  return reason;
+}
+
 export function PublicationCommandPanel({
   command,
   error,
@@ -342,9 +351,9 @@ export function PublicationCommandPanel({
             </a>
           ) : null}
           {command.failureReason ? (
-            <code className="block break-all font-mono text-[0.68rem] text-destructive">
-              {command.failureReason}
-            </code>
+            <p className="text-xs leading-relaxed text-destructive">
+              {failureReasonCopy(command.failureReason, copy)}
+            </p>
           ) : null}
         </>
       ) : null}
