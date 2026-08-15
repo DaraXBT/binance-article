@@ -152,6 +152,10 @@ describe('prepareBinancePublication', () => {
             ...context().draft,
             payload: {
               ...(context().draft.payload as Record<string, unknown>),
+              markdown: [
+                '## Thesis',
+                ...ids.map((id, index) => `![Chart ${index + 1}](asset:${id})`),
+              ].join('\n\n'),
               orderedAssetIds: ids,
             },
           },
