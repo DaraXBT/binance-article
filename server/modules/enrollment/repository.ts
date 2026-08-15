@@ -797,6 +797,8 @@ export function createEnrollmentRepository(database: AppDatabase): EnrollmentRep
               'active'::"EnrollmentCodeStatus", owner."id", NULL, NULL, NULL,
               ${input.now}, ${input.now}
             FROM owner, next_version
+            WHERE NOT EXISTS (SELECT 1 FROM active_code)
+              OR EXISTS (SELECT 1 FROM revoked_code)
             RETURNING "id", "version"
           ), audit_event AS (
             INSERT INTO "AuditEvent" (
