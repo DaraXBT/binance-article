@@ -66,10 +66,33 @@ describe('publisher device pairing', () => {
       pairingHash: await hashInvitationToken('pairing_code_value_12345678901234567890'),
       deviceTokenHash: await hashInvitationToken(result.deviceToken),
       deviceTokenPrefix: result.deviceToken.slice(0, 8),
+      protocolVersion: 1,
       notBefore: new Date(now.getTime() - DEVICE_PAIRING_LIFETIME_MS),
       now,
     });
     expect(JSON.stringify(repo.activatePending.mock.calls)).not.toContain(result.deviceToken);
+  });
+
+  it('persists an explicitly advertised protocol version during pairing', async () => {
+    const repo = repository({
+      activatePending: vi.fn(async () => ({
+        id: 'device_1', name: 'My Mac', protocolVersion: 2,
+      })),
+    });
+
+    await expect(activatePublisherDevice({
+      repository: repo,
+      pairingCode: 'pairing_code_value_12345678901234567890',
+      protocolVersion: 2,
+      entropy: deviceEntropy,
+      now,
+    })).resolves.toMatchObject({
+      device: { id: 'device_1', protocolVersion: 2 },
+    });
+
+    expect(repo.activatePending).toHaveBeenCalledWith(expect.objectContaining({
+      protocolVersion: 2,
+    }));
   });
 
   it('rejects invalid, expired, used, or revoked pairing codes generically', async () => {

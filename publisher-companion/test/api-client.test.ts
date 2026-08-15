@@ -32,6 +32,28 @@ describe('publisher companion API client', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  it('negotiates publisher protocol V2 while pairing', async () => {
+    const fetchImpl = mock(async (_request: string | URL | Request, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body))).toEqual({
+        pairingCode: 'P'.repeat(43),
+        protocolVersion: 2,
+      });
+      return Response.json({
+        device: { id: 'device_1' },
+        deviceToken: 'T'.repeat(43),
+      });
+    });
+    const client = new PublisherApiClient({
+      baseUrl: 'https://articles.example.com',
+      getDeviceToken: async () => 'A'.repeat(43),
+      fetchImpl,
+    });
+
+    await expect(client.pairDevice('P'.repeat(43))).resolves.toMatchObject({
+      device: { id: 'device_1' },
+    });
+  });
+
   it('parses metadata-only status and never accepts credential fields', async () => {
     const fetchImpl = mock(async () => Response.json({
       command: {

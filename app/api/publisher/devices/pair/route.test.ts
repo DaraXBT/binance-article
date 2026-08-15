@@ -27,7 +27,7 @@ describe('POST /api/publisher/devices/pair', () => {
     const request = new Request('https://articles.example.com/api/publisher/devices/pair', {
       method: 'POST',
       headers: { origin: 'https://articles.example.com', 'content-type': 'application/json' },
-      body: JSON.stringify({ pairingCode: 'pairing_secret' }),
+      body: JSON.stringify({ pairingCode: 'pairing_secret', protocolVersion: 2 }),
     });
     const response = await POST(request as never);
 
@@ -35,6 +35,7 @@ describe('POST /api/publisher/devices/pair', () => {
     expect(mocks.activate).toHaveBeenCalledWith({
       repository: mocks.repository,
       pairingCode: 'pairing_secret',
+      protocolVersion: 2,
     });
     expect(await response.json()).toEqual({
       device: { id: 'device_1', name: 'My Mac', protocolVersion: 1 },

@@ -29,7 +29,8 @@ describe('publisher device repository liveness', () => {
     })).resolves.toEqual({ id: 'device_1' });
     await expect(repository.activatePending({
       pairingHash: 'a'.repeat(64), deviceTokenHash: 'b'.repeat(64),
-      deviceTokenPrefix: 'bbbbbbbb', notBefore: new Date(now.getTime() - 600_000), now,
+      deviceTokenPrefix: 'bbbbbbbb', protocolVersion: 2,
+      notBefore: new Date(now.getTime() - 600_000), now,
     })).resolves.toMatchObject({ id: 'device_1', status: 'active' });
     await expect(repository.authenticate({ tokenHash: 'b'.repeat(64), now }))
       .resolves.toMatchObject({ id: 'device_1', status: 'active' });
@@ -41,6 +42,8 @@ describe('publisher device repository liveness', () => {
       expect(query.text).toMatch(/member\."userId"[\s\S]*member\."workspaceId"/);
     }
     expect(captured[1]?.text).toMatch(/UPDATE "PublisherDevice"/);
+    expect(captured[1]?.text).toMatch(/"protocolVersion" =/);
+    expect(captured[1]?.values).toContain(2);
     expect(captured[2]?.text).toMatch(/UPDATE "PublisherDevice"/);
   });
 
