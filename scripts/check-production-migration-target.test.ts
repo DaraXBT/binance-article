@@ -19,6 +19,14 @@ describe('production migration target check', () => {
     expect(validateProductionMigrationTarget(validEnvironment)).toBeUndefined();
   });
 
+  it('accepts the sole optional TLS query parameter exactly once', () => {
+    expect(validateProductionMigrationTarget({
+      ...validEnvironment,
+      MIGRATION_DATABASE_URL:
+        `${validEnvironment.MIGRATION_DATABASE_URL}&channel_binding=require`,
+    })).toBeUndefined();
+  });
+
   it('connects read-only and verifies the database and role without returning identity data', async () => {
     const query = vi.fn(async () => ([{
       databaseName: 'app',
@@ -61,6 +69,9 @@ describe('production migration target check', () => {
     { MIGRATION_DATABASE_URL: 'postgresql://migration_role:password@db.example.invalid/app?sslmode=require&sslmode=disable' },
     { MIGRATION_DATABASE_URL: 'postgresql://migration_role:password@db.example.invalid:5432/app?sslmode=require&host=override.example.invalid' },
     { MIGRATION_DATABASE_URL: 'postgresql://migration_role:password@db.example.invalid:5432/app?sslmode=require&options=-c%20search_path%3Dother' },
+    { MIGRATION_DATABASE_URL: 'postgresql://migration_role:password@db.example.invalid:5432/app?sslmode=require&application_name=unapproved' },
+    { MIGRATION_DATABASE_URL: 'postgresql://migration_role:password@db.example.invalid:5432/app?sslmode=require&channel_binding=disable' },
+    { MIGRATION_DATABASE_URL: 'postgresql://migration_role:password@db.example.invalid:5432/app?sslmode=require&channel_binding=require&channel_binding=require' },
     { MIGRATION_DATABASE_URL: 'postgresql://:password@db.example.invalid/app?sslmode=require' },
     { MIGRATION_DATABASE_URL: 'postgresql://migration_role:password@db.example.invalid/?sslmode=require' },
   ])('rejects an incomplete or unsafe production URL: %o', (override) => {
