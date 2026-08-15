@@ -14,6 +14,7 @@ import {
   dismissCookieConsent,
   findExistingChromeDebugPort,
   getDefaultProfileDir,
+  gracefulKillChrome,
   launchChrome,
   pasteFromClipboard,
   resolveSelector,
@@ -44,6 +45,22 @@ export type BinanceArticleBrowserResource = {
   ownsBrowser: boolean;
   ownsTarget: boolean;
 };
+
+export async function acquireBinanceArticleCdp<T>(
+  acquire: () => Promise<T>,
+  releaseOwnedChrome?: () => void | Promise<void>,
+): Promise<T> {
+  try {
+    return await acquire();
+  } catch (error) {
+    try {
+      await releaseOwnedChrome?.();
+    } catch {
+      // Preserve the acquisition failure; cleanup is best effort.
+    }
+    throw error;
+  }
+}
 
 const releasedBrowserConnections = new WeakSet<object>();
 
@@ -553,13 +570,14 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
   const existingPort = await findExistingChromeDebugPort(profileDir);
   const reusing = existingPort !== null;
   let port = existingPort ?? 0;
+  let ownedLaunch: Awaited<ReturnType<typeof launchChrome>> | null = null;
 
   if (reusing) {
     console.log(`[binance-article] Reusing existing Chrome instance on port ${port}`);
   } else {
     console.log('[binance-article] Launching Chrome...');
-    const launched = await launchChrome(BS_CREATOR_CENTER_URL, profileDir, options.chromePath);
-    port = launched.port;
+    ownedLaunch = await launchChrome(BS_CREATOR_CENTER_URL, profileDir, options.chromePath);
+    port = ownedLaunch.port;
   }
 
   let cdp: CdpConnection | null = null;
@@ -568,8 +586,12 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
   let browserResource: BinanceArticleBrowserResource | null = null;
 
   try {
-    const wsUrl = await waitForChromeDebugPort(port, 30_000, { includeLastError: true });
-    cdp = await CdpConnection.connect(wsUrl, 30_000, { defaultTimeoutMs: 60_000 });
+    cdp = await acquireBinanceArticleCdp(async () => {
+      const wsUrl = await waitForChromeDebugPort(port, 30_000, { includeLastError: true });
+      return CdpConnection.connect(wsUrl, 30_000, { defaultTimeoutMs: 60_000 });
+    }, ownedLaunch
+      ? () => gracefulKillChrome(ownedLaunch!.chrome, ownedLaunch!.port)
+      : undefined);
     browserResource = {
       cdp,
       ownsBrowser: !reusing,
@@ -1255,6 +1277,9 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
       } else if (!handedOff) {
         cdp.close();
       }
+    }
+    if (options.onComposed && !compositionCompleted && ownedLaunch) {
+      await gracefulKillChrome(ownedLaunch.chrome, ownedLaunch.port);
     }
   }
 }

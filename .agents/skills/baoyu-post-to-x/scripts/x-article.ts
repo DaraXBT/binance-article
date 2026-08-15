@@ -100,6 +100,52 @@ export type XArticleBrowserResource = {
   ownsTarget: boolean;
 };
 
+export async function acquireXArticleCdp<T>(
+  acquire: () => Promise<T>,
+  releaseOwnedChrome?: () => void | Promise<void>,
+): Promise<T> {
+  try {
+    return await acquire();
+  } catch (error) {
+    try {
+      await releaseOwnedChrome?.();
+    } catch {
+      // Preserve the acquisition failure; cleanup is best effort.
+    }
+    throw error;
+  }
+}
+
+function chromeHasExited(chrome: ReturnType<typeof spawn>): boolean {
+  return chrome.exitCode !== null || chrome.signalCode !== null;
+}
+
+async function terminateOwnedXChrome(chrome: ReturnType<typeof spawn>): Promise<void> {
+  if (chromeHasExited(chrome)) return;
+  try {
+    chrome.kill('SIGTERM');
+  } catch {
+    return;
+  }
+  if (chromeHasExited(chrome)) return;
+  await new Promise<void>((resolve) => {
+    const finish = () => {
+      clearTimeout(timer);
+      chrome.off('exit', finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, 2_000);
+    chrome.once('exit', finish);
+  });
+  if (!chromeHasExited(chrome)) {
+    try {
+      chrome.kill('SIGKILL');
+    } catch {
+      // The exact owned process may have exited between the state check and kill.
+    }
+  }
+}
+
 const releasedBrowserConnections = new WeakSet<object>();
 
 export async function releaseXArticleBrowserResource(
@@ -217,6 +263,8 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
   const existingPort = await findExistingDebugPort(profileDir);
   const port = existingPort ?? await getFreePort();
 
+  let ownedChrome: ReturnType<typeof spawn> | null = null;
+  let ownedChromeLaunchError: Promise<never> | null = null;
   if (existingPort) {
     console.log(`[x-article] Reusing existing Chrome instance on port ${port}`);
   } else {
@@ -230,12 +278,11 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
       '--start-maximized',
       X_ARTICLES_URL,
     ];
-    if (process.platform === 'darwin') {
-      const appPath = chromePath.replace(/\/Contents\/MacOS\/Google Chrome$/, '');
-      spawn('open', ['-na', appPath, '--args', ...chromeArgs], { stdio: 'ignore' });
-    } else {
-      spawn(chromePath, chromeArgs, { stdio: 'ignore' });
-    }
+    ownedChrome = spawn(chromePath, chromeArgs, { stdio: 'ignore' });
+    ownedChromeLaunchError = new Promise<never>((_resolve, reject) => {
+      ownedChrome!.once('error', reject);
+    });
+    ownedChrome.unref();
   }
 
   let cdp: CdpConnection | null = null;
@@ -243,8 +290,13 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
   let browserResource: XArticleBrowserResource | null = null;
 
   try {
-    const wsUrl = await waitForChromeDebugPort(port, 30_000, { includeLastError: true });
-    cdp = await CdpConnection.connect(wsUrl, 30_000, { defaultTimeoutMs: 60_000 });
+    cdp = await acquireXArticleCdp(async () => {
+      const ready = waitForChromeDebugPort(port, 30_000, { includeLastError: true });
+      const wsUrl = ownedChromeLaunchError
+        ? await Promise.race([ready, ownedChromeLaunchError])
+        : await ready;
+      return CdpConnection.connect(wsUrl, 30_000, { defaultTimeoutMs: 60_000 });
+    }, ownedChrome ? () => terminateOwnedXChrome(ownedChrome) : undefined);
     browserResource = {
       cdp,
       ownsBrowser: !existingPort,
@@ -910,6 +962,9 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
         // Standalone CLI mode keeps its historical manual-review lifecycle.
         cdp.close();
       }
+    }
+    if (options.onComposed && !handedOff && ownedChrome) {
+      await terminateOwnedXChrome(ownedChrome);
     }
   }
 }
