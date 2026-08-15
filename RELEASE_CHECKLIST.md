@@ -55,6 +55,10 @@ that the authenticated specs ran instead of skipping.
 
 Playwright reports and test results are uploaded only when CI fails and expire
 after seven days. The absence of a report artifact on a green run is expected.
+After pushing the final release commit, require a green CI run whose head SHA is
+that exact commit before touching production. GitHub may replace an older
+pending run in the shared-database concurrency group; rerun the exact SHA if
+that happens, and never substitute a green run from another commit.
 
 Publish the ZIP and its `.sha256` sidecar from `.artifacts/` with the same
 version as `publisher-companion/package.json`. On a clean computer, extract the
@@ -89,30 +93,56 @@ version blindly after a version bump.
    production-like restored branch, and verify migration history ends at
    `0015` before the production cutover. Confirm an active owner exists, no
    unexpected `UserStatus` dependents exist, and at least three capacity units
-   are free for the two shared-code smoke users plus one legacy invitation.
-6. Verify an active owner session and permanent Cloudflare rate rules: `/api/enrollment/claim` and
-   `/api/invitations/accept` at 10 requests/10 minutes, and
+   are free for the two shared-code smoke users plus one valid, unexpired legacy
+   invitation issued before migration and retained only in the secret manager.
+6. Verify an active owner session and permanent Cloudflare rate rules:
+   `/api/enrollment/claim` and `/api/invitations/accept` at 10 requests/10
+   minutes, and
    `/api/auth/callback/google` at 20 requests/10 minutes. During the short
    maintenance window, restrict `/join*`, `/api/enrollment/claim`,
    `/api/enrollment/complete`, `/api/invitations/accept`,
-   `/api/auth/sign-in/social`, and `/api/auth/callback/google` to operator/tester IPs.
-7. Load `MIGRATION_DATABASE_URL` securely, require it with
-   `: "${MIGRATION_DATABASE_URL:?}"`, run only `npm run db:migrate:deploy`, then
-   `unset MIGRATION_DATABASE_URL`.
+   `/api/auth/sign-in/social`, and `/api/auth/callback/google` to operator/tester
+   IPs.
+   Confirm the restriction is active and do not exercise an allowed signup route
+   before migration.
+7. Unset the rehearsal URL and close that shell. In a fresh operator shell, load
+   the production `MIGRATION_DATABASE_URL`; fail closed unless its host+port,
+   database, and role match the privately approved production identifiers and
+   the connected database/role identity using `npm run db:target-check`. Permit
+   exactly one `sslmode=require` query parameter and optionally exactly one
+   `channel_binding=require`; reject every other query parameter.
+   Through that exact connection, rerun the ledger, dependency, capacity,
+   ownership, and immediate long-transaction/lock preflight. Then run
+   `npm run --silent db:cutover-baseline` exactly once and copy its sole JSON
+   output directly into the secret manager as the immutable
+   `PRODUCTION_ROLLBACK_BASELINE`; never use ordinary `npm run`, command
+   substitution/history, or a later recapture. Freeze direct database writes and
+   immediately run only `npm run db:migrate:deploy` through the runbook's guarded
+   status/cleanup block; require its original exit status and guaranteed removal
+   of the connection and expected-identity variables.
    Do not run manual SQL or `db push`. Validate `UserStatus` now includes
    `pending` with a `pending` default and the enrollment tables/indexes exist.
 8. Deploy the article Workflow Worker and then the web Worker at 100% from the
    same commit. Do not canary the web Worker: old and new enrollment flows cannot
-   safely run together. Keep the temporary restriction until basic smoke passes.
+   safely run together. Require the Workflow deploy and fresh web build to exit
+   zero before the web deploy; a failed build must never fall through to a stale
+   `.open-next` artifact. Pass the privately selected `CLOUDFLARE_ACCOUNT_ID`
+   inline to every Wrangler command so an unexported shell variable cannot fall
+   back to another authenticated account. Keep the temporary restriction until
+   basic smoke passes.
 9. Verify health and routes: `/api/health` is `200`; `/join`, `/join/complete`,
-   and the friendly `signup_disabled?` error page load; enrollment/admin APIs no
-   longer return `404`. Create a code and use two disposable verified Google
-   identities to prove code reuse and separate workspaces. Rotate a code to
-   invalidate its old code and claim, then retain a final undistributed code.
-10. Smoke one valid legacy invitation with a disposable identity. Suspend,
+   and `/auth/error?error=signup_disabled&flow=enrollment` load;
+   enrollment/admin APIs no longer return `404`. Create a code and use two
+   disposable verified Google identities to prove code reuse and separate
+   workspaces. Rotate a code to
+   invalidate its old code and claim. Create another pending claim, disable the
+   replacement without rotation, prove its code/claim fail and zero active codes
+   remain, then create a final undistributed code.
+10. Smoke the pre-cutover legacy invitation with a disposable identity. Suspend,
     restore, and revoke smoke users; verify sessions/devices/claims invalidate
     and capacity is released. Remove the temporary restriction, retain rate
-    limits, and monitor for 30 minutes.
+    limits, monitor for 30 minutes, and only then distribute the retained
+    `#code=` link privately through the approved secret-sharing channel.
 11. Confirm `https://binance.v27.tech/api/health` returns `200` without exposing
    dependency details and that no Vercel deployment is serving the production
    hostname.
@@ -153,13 +183,28 @@ locally authenticated Chrome publishing profiles controlled by the operator.
 
 ## Rollback
 
-Keep the previous web/Workflow/companion artifacts available. Only before any
-shared-code claim, pending account, or completed enrollment exists may you
-re-enable the temporary restriction and roll back the web Worker to the
-captured post-pepper old version; leave the database forward. Once any of that
-enrollment state exists, do not restore the old Worker: block enrollment and
-forward-fix instead. A database restore is last resort and requires explicit
-data-loss approval. Stop new publication preparation, drain
-active commands, and roll back only after no command is in `publishing`; an
+Keep the previous web/Workflow/companion artifacts available. First apply and
+confirm an all-user maintenance deny on the production hostname with no operator
+bypass, allowing only the health probe. Keep it active through rollback and
+old-Worker verification and freeze direct database writes. Pause health monitors;
+require a harmless non-health probe to appear as blocked in Cloudflare Security
+Events but absent from Worker invocations, and require no active/incomplete or
+post-freeze web invocation in Workers Observability. In a fresh rollback shell,
+securely load `MIGRATION_DATABASE_URL`, all three `EXPECTED_PRODUCTION_*`
+identifiers, and the original `PRODUCTION_ROLLBACK_BASELINE`, then use the
+runbook's guaranteed-cleanup block to run `npm run db:rollback-check`; it
+revalidates target identity and performs two
+parameterized database drain/eligibility samples across a built-in 300-second
+interval. Keep every freeze active and watch the edge views throughout. Any
+failed/uncertain observation means no rollback. Only after the command succeeds
+may you verify the selected account/Worker/current and target versions read-only
+and roll back the web Worker with Wrangler's confirmation prompt; leave the
+database forward. Once any
+enrollment code, claim, or user created since the cutover baseline exists, do not
+restore the old Worker: block/disable enrollment and forward-fix instead. After
+an eligible rollback, retain the enrollment/signup deny when lifting maintenance
+for existing-user traffic. A database restore is last resort and requires
+explicit data-loss approval. Stop new publication preparation, drain active
+commands, and roll back only after no command is in `publishing`; an
 uncertain post-click result must remain `outcome_unknown` and must never be
 retried automatically.
