@@ -74,6 +74,12 @@ describe('POST /api/admin/enrollment/code', () => {
       },
     ) as never);
     const body = await response.json();
+    expect(logSpy).toHaveBeenCalledOnce();
+    const logged = JSON.parse(logSpy.mock.calls[0]?.[0] as string) as {
+      event?: string;
+      code?: string;
+      cause?: string;
+    };
     logSpy.mockRestore();
 
     expect(response.status).toBe(500);
@@ -82,6 +88,11 @@ describe('POST /api/admin/enrollment/code', () => {
       code: 'ENROLLMENT_CODE_CREATE_FAILED',
     });
     expect(JSON.stringify(body)).not.toContain('INTERNAL_SENTINEL');
+    expect(logged).toMatchObject({
+      event: 'api.error',
+      code: 'ENROLLMENT_CODE_CREATE_FAILED',
+    });
+    expect(logged.cause).toContain('INTERNAL_SENTINEL');
     expect(response.headers.get('cache-control')).toBe('no-store');
   });
 
