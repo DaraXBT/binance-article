@@ -8,6 +8,7 @@ import {
   RefreshCcw,
   RotateCw,
   ShieldCheck,
+  ShieldOff,
   UserRoundCheck,
   UserRoundX,
 } from 'lucide-react';
@@ -359,8 +360,9 @@ export function AdminPeopleAccessCard({
   const [actionError, setActionError] = useState<string | null>(null);
   const [oneTimeCode, setOneTimeCode] = useState<OneTimeCode | null>(null);
   const [copiedValue, setCopiedValue] = useState<'code' | 'link' | null>(null);
-  const [codeAction, setCodeAction] = useState<'create' | 'rotate' | null>(null);
+  const [codeAction, setCodeAction] = useState<'create' | 'rotate' | 'disable' | null>(null);
   const [rotationConfirmOpen, setRotationConfirmOpen] = useState(false);
+  const [disableConfirmOpen, setDisableConfirmOpen] = useState(false);
   const [personAction, setPersonAction] = useState<{ person: PersonRow; action: PersonAction } | null>(null);
   const [personActionBusy, setPersonActionBusy] = useState(false);
   const refreshSequenceRef = useRef(0);
@@ -423,6 +425,28 @@ export function AdminPeopleAccessCard({
     } finally {
       setCodeAction(null);
       setRotationConfirmOpen(false);
+    }
+  };
+
+  const disableCode = async () => {
+    if (codeAction) return;
+    setCodeAction('disable');
+    setActionError(null);
+    try {
+      const response = await fetch('/api/admin/enrollment/code', {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      });
+      await readAdminJson(response, 'The enrollment code could not be disabled.');
+      setOneTimeCode(null);
+      setCopiedValue(null);
+      onUncopiedAccessChange?.(false);
+      await refresh();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'The enrollment code could not be disabled.');
+    } finally {
+      setCodeAction(null);
+      setDisableConfirmOpen(false);
     }
   };
 
@@ -510,10 +534,16 @@ export function AdminPeopleAccessCard({
                 )}
               </div>
               {activeCode ? (
-                <Button type="button" size="sm" variant="outline" className="h-9 gap-1.5 rounded-lg" disabled={codeAction !== null} onClick={() => setRotationConfirmOpen(true)}>
-                  {codeAction === 'rotate' ? <Loader2 aria-hidden="true" className="size-3.5 animate-spin" /> : <RotateCw aria-hidden="true" className="size-3.5" />}
-                  Rotate code
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button type="button" size="sm" variant="outline" className="h-9 gap-1.5 rounded-lg" disabled={codeAction !== null} onClick={() => setRotationConfirmOpen(true)}>
+                    {codeAction === 'rotate' ? <Loader2 aria-hidden="true" className="size-3.5 animate-spin" /> : <RotateCw aria-hidden="true" className="size-3.5" />}
+                    Rotate code
+                  </Button>
+                  <Button type="button" size="sm" variant="destructive" className="h-9 gap-1.5 rounded-lg" disabled={codeAction !== null} onClick={() => setDisableConfirmOpen(true)}>
+                    {codeAction === 'disable' ? <Loader2 aria-hidden="true" className="size-3.5 animate-spin" /> : <ShieldOff aria-hidden="true" className="size-3.5" />}
+                    Disable code
+                  </Button>
+                </div>
               ) : (
                 <Button type="button" size="sm" className="h-9 gap-1.5 rounded-lg" disabled={codeAction !== null} onClick={() => void mutateCode('create')}>
                   {codeAction === 'create' ? <Loader2 aria-hidden="true" className="size-3.5 animate-spin" /> : <ShieldCheck aria-hidden="true" className="size-3.5" />}
@@ -600,6 +630,24 @@ export function AdminPeopleAccessCard({
           <AlertDialogFooter>
             <AlertDialogCancel>Keep current code</AlertDialogCancel>
             <AlertDialogAction onClick={() => void mutateCode('rotate')}>Rotate code</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={disableConfirmOpen} onOpenChange={setDisableConfirmOpen}>
+        <AlertDialogContent className="console-dialog border-dotted p-4 sm:max-w-md sm:p-5">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Disable the enrollment code?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The shared code and every unfinished enrollment using it will stop immediately. No replacement is created. Existing users keep access, and legacy invitation links are unaffected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={codeAction === 'disable'}>Keep enrollment open</AlertDialogCancel>
+            <AlertDialogAction disabled={codeAction === 'disable'} onClick={() => void disableCode()}>
+              {codeAction === 'disable' ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : <ShieldOff aria-hidden="true" className="size-4" />}
+              Disable code
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

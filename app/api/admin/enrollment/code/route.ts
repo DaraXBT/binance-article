@@ -11,6 +11,7 @@ import { createEnrollmentRepository } from '@/server/modules/enrollment/reposito
 import {
   createInitialEnrollmentCode,
   getEnrollmentCodePepper,
+  revokeEnrollmentCode,
 } from '@/server/modules/enrollment/service';
 
 export async function POST(request: NextRequest) {
@@ -46,6 +47,36 @@ export async function POST(request: NextRequest) {
     return errorResponse(error, {
       code: 'ENROLLMENT_CODE_CREATE_FAILED',
       message: 'The enrollment code could not be created.',
+      status: 400,
+    });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const environment = parseAuthEnvironment(process.env);
+    assertTrustedMutationOrigin(request, environment.baseUrl);
+    const actor = await requireActiveUser(request, { requireOwner: true });
+    const database = getRuntimeDatabase();
+    const rateLimited = await ownerMutationRateLimit({
+      database,
+      ownerUserId: actor.id,
+      scope: 'enrollment_code',
+    });
+    if (rateLimited) return rateLimited;
+    const revoked = await revokeEnrollmentCode({
+      repository: createEnrollmentRepository(database),
+      actorUserId: actor.id,
+    });
+    return NextResponse.json({
+      disabled: true,
+      changed: revoked.changed,
+      revokedClaims: revoked.revokedClaims,
+    }, { headers: withNoStoreHeaders({ 'Referrer-Policy': 'no-referrer' }) });
+  } catch (error) {
+    return errorResponse(error, {
+      code: 'ENROLLMENT_CODE_REVOKE_FAILED',
+      message: 'The enrollment code could not be disabled.',
       status: 400,
     });
   }

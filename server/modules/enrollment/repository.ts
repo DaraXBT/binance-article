@@ -741,8 +741,14 @@ export function createEnrollmentRepository(database: AppDatabase): EnrollmentRep
     },
 
     async rotateCode(input) {
-      const [, result] = await database.$client.transaction((transaction) => [
+      const [, , result] = await database.$client.transaction((transaction) => [
         transaction`SELECT pg_advisory_xact_lock(${ENROLLMENT_CODE_LOCK_KEY})`,
+        transaction`
+          SELECT "id", "version"
+          FROM "EnrollmentCode"
+          WHERE "status" = 'active'::"EnrollmentCodeStatus"
+          FOR UPDATE
+        `,
         transaction`
           WITH owner AS MATERIALIZED (
             SELECT "id"
@@ -752,9 +758,8 @@ export function createEnrollmentRepository(database: AppDatabase): EnrollmentRep
               AND "status" = 'active'::"UserStatus"
           ), active_code AS MATERIALIZED (
             SELECT "id", "version"
-            FROM "EnrollmentCode"
-            WHERE "status" = 'active'::"EnrollmentCodeStatus"
-            FOR UPDATE
+          FROM "EnrollmentCode"
+          WHERE "status" = 'active'::"EnrollmentCodeStatus"
           ), next_version AS MATERIALIZED (
             SELECT COALESCE(max("version"), 0) + 1 AS version FROM "EnrollmentCode"
           ), revoked_code AS (
@@ -835,6 +840,101 @@ export function createEnrollmentRepository(database: AppDatabase): EnrollmentRep
       return {
         version,
         revokedCodeId: row.revokedCodeId as string | null,
+        revokedClaims,
+      };
+    },
+
+    async revokeCode(input) {
+      const [, , result] = await database.$client.transaction((transaction) => [
+        transaction`SELECT pg_advisory_xact_lock(${ENROLLMENT_CODE_LOCK_KEY})`,
+        transaction`
+          SELECT "id", "version"
+          FROM "EnrollmentCode"
+          WHERE "status" = 'active'::"EnrollmentCodeStatus"
+          FOR UPDATE
+        `,
+        transaction`
+          WITH owner AS MATERIALIZED (
+            SELECT "id"
+            FROM "user"
+            WHERE "id" = ${input.actorUserId}
+              AND "role" = 'owner'::"UserRole"
+              AND "status" = 'active'::"UserStatus"
+          ), active_code AS MATERIALIZED (
+            SELECT "id", "version"
+            FROM "EnrollmentCode"
+            WHERE "status" = 'active'::"EnrollmentCodeStatus"
+          ), decision AS MATERIALIZED (
+            SELECT CASE
+              WHEN NOT EXISTS (SELECT 1 FROM owner) THEN 'not_authorized'
+              WHEN EXISTS (SELECT 1 FROM active_code) THEN 'revoked'
+              ELSE 'no_active_code'
+            END AS outcome
+          ), revoked_code AS (
+            UPDATE "EnrollmentCode" AS code
+            SET
+              "status" = 'revoked'::"EnrollmentCodeStatus",
+              "revokedByUserId" = owner."id",
+              "revokedAt" = ${input.now},
+              "revocationReason" = ${input.reason},
+              "updatedAt" = ${input.now}
+            FROM owner
+            WHERE code."id" IN (SELECT "id" FROM active_code)
+            RETURNING code."id", code."version"
+          ), revoked_claims AS (
+            UPDATE "EnrollmentClaim" AS claim
+            SET
+              "status" = 'revoked'::"EnrollmentClaimStatus",
+              "reservationExpiresAt" = NULL,
+              "revokedAt" = ${input.now},
+              "failureCode" = 'code_revoked',
+              "updatedAt" = ${input.now}
+            FROM revoked_code
+            WHERE claim."codeId" = revoked_code."id"
+              AND claim."codeVersion" = revoked_code."version"
+              AND claim."source" = 'shared_code'::"EnrollmentClaimSource"
+              AND claim."status" IN ('pending', 'reserved')
+            RETURNING claim."id"
+          ), audit_event AS (
+            INSERT INTO "AuditEvent" (
+              "id", "actorUserId", "workspaceId", "eventType", "subjectType",
+              "subjectId", "metadata", "createdAt"
+            )
+            SELECT
+              ${input.auditEventId}, owner."id", NULL, 'enrollment.code_revoked',
+              'enrollment_code', revoked_code."id",
+              jsonb_build_object(
+                'version', revoked_code."version",
+                'revokedClaimCount', (SELECT count(*) FROM revoked_claims),
+                'reason', ${input.reason}
+              ),
+              ${input.now}
+            FROM owner, revoked_code
+            RETURNING "subjectId"
+          )
+          SELECT
+            decision.outcome,
+            (SELECT "id" FROM revoked_code LIMIT 1) AS "revokedCodeId",
+            (SELECT count(*) FROM revoked_claims)::integer AS "revokedClaims"
+          FROM decision
+          LEFT JOIN audit_event ON false
+          LIMIT 1
+        `,
+      ], { isolationLevel: 'ReadCommitted' });
+      const row = rows(result, 'Enrollment code revocation returned invalid data.')[0] as
+        | Record<string, unknown>
+        | undefined;
+      if (row?.outcome === 'no_active_code') return { outcome: 'no_active_code' };
+      const revokedClaims = Number(row?.revokedClaims);
+      if (
+        row?.outcome !== 'revoked' || typeof row.revokedCodeId !== 'string' ||
+        !Number.isSafeInteger(revokedClaims) || revokedClaims < 0
+      ) {
+        throw new Error('Enrollment code revocation returned invalid data.');
+      }
+      return {
+        outcome: 'revoked',
+        revokedCodeId: row.revokedCodeId,
         revokedClaims,
       };
     },

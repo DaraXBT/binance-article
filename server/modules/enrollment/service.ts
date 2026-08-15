@@ -138,12 +138,25 @@ export interface EnrollmentCodeRotationRepository {
   }>;
 }
 
+export interface EnrollmentCodeRevocationRepository {
+  revokeCode(input: {
+    actorUserId: string;
+    auditEventId: string;
+    reason: string;
+    now: Date;
+  }): Promise<
+    | { outcome: 'revoked'; revokedCodeId: string; revokedClaims: number }
+    | { outcome: 'no_active_code' }
+  >;
+}
+
 export interface EnrollmentRepository extends
   EnrollmentClaimRepository,
   LegacyEnrollmentClaimRepository,
   EnrollmentReservationRepository,
   EnrollmentCompletionRepository,
-  EnrollmentCodeRotationRepository {}
+  EnrollmentCodeRotationRepository,
+  EnrollmentCodeRevocationRepository {}
 
 const IdentifierSchema = z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,199}$/);
 const EmailSchema = z.string().trim().email().max(320).transform((value) => value.toLowerCase());
@@ -490,4 +503,22 @@ export async function rotateEnrollmentCode(input: {
     revokedCodeId: rotated.revokedCodeId,
     revokedClaims: rotated.revokedClaims,
   };
+}
+
+export async function revokeEnrollmentCode(input: {
+  repository: Pick<EnrollmentCodeRevocationRepository, 'revokeCode'>;
+  actorUserId: string;
+  auditEventId?: string;
+  now?: Date;
+}): Promise<{ changed: boolean; revokedClaims: number }> {
+  const result = await input.repository.revokeCode({
+    actorUserId: IdentifierSchema.parse(input.actorUserId),
+    auditEventId: IdentifierSchema.parse(input.auditEventId ?? crypto.randomUUID()),
+    reason: 'owner_disabled',
+    now: validNow(input.now),
+  });
+  if (result.outcome === 'no_active_code') {
+    return { changed: false, revokedClaims: 0 };
+  }
+  return { changed: true, revokedClaims: result.revokedClaims };
 }
