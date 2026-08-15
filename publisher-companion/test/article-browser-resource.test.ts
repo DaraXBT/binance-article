@@ -91,6 +91,24 @@ describe.each([
   });
 });
 
+describe('X Article owned process fallback', () => {
+  it('terminates the exact owned Chrome process when protocol close fails', async () => {
+    const cdp = fakeCdp('Browser.close');
+    const releaseOwnedBrowser = mock(async () => undefined);
+
+    await releaseXArticleBrowserResource({
+      cdp: cdp as never,
+      targetId: 'target_owned',
+      ownsBrowser: true,
+      ownsTarget: true,
+      releaseOwnedBrowser,
+    } as never);
+
+    expect(releaseOwnedBrowser).toHaveBeenCalledTimes(1);
+    expect(cdp.close).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe.each([
   ['X', acquireXArticleCdp],
   ['Binance', acquireBinanceArticleCdp],
