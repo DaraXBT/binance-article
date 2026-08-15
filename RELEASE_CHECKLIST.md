@@ -153,12 +153,13 @@ locally authenticated Chrome publishing profiles controlled by the operator.
 
 ## Rollback
 
-Keep the previous web/Workflow/companion artifacts available. Before any new
-enrollment completes, re-enable the temporary restriction and roll back only
-the web Worker to the captured post-pepper old version; leave the database
-forward. After new enrollment exists, do not restore the old Worker: block
-enrollment and forward-fix instead. A database restore is last resort and
-requires explicit data-loss approval. Stop new publication preparation, drain
+Keep the previous web/Workflow/companion artifacts available. Only before any
+shared-code claim, pending account, or completed enrollment exists may you
+re-enable the temporary restriction and roll back the web Worker to the
+captured post-pepper old version; leave the database forward. Once any of that
+enrollment state exists, do not restore the old Worker: block enrollment and
+forward-fix instead. A database restore is last resort and requires explicit
+data-loss approval. Stop new publication preparation, drain
 active commands, and roll back only after no command is in `publishing`; an
 uncertain post-click result must remain `outcome_unknown` and must never be
 retried automatically.
