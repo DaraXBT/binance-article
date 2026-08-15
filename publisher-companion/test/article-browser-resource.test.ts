@@ -1,10 +1,12 @@
 import { describe, expect, it, mock } from 'bun:test';
 
 import {
+  acquireBinanceArticleCdp,
   openManagedBinanceArticlePage,
   releaseBinanceArticleBrowserResource,
 } from '../../.agents/skills/baoyu-post-to-binance-square/scripts/binance-article';
 import {
+  acquireXArticleCdp,
   openManagedXArticlePage,
   releaseXArticleBrowserResource,
 } from '../../.agents/skills/baoyu-post-to-x/scripts/x-article';
@@ -86,6 +88,43 @@ describe.each([
 
     expect(cdp.commands).toEqual([]);
     expect(cdp.close).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe.each([
+  ['X', acquireXArticleCdp],
+  ['Binance', acquireBinanceArticleCdp],
+] as const)('%s Article pre-CDP acquisition', (_platform, acquire) => {
+  it('releases the exact owned launch and preserves the acquisition error', async () => {
+    const failure = new Error('CDP connection failed');
+    const release = mock(async () => undefined);
+
+    await expect(acquire(async () => { throw failure; }, release)).rejects.toBe(failure);
+
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not release the owned launch after successful acquisition', async () => {
+    const connection = {};
+    const release = mock(async () => undefined);
+
+    expect(await acquire(async () => connection, release)).toBe(connection);
+    expect(release).not.toHaveBeenCalled();
+  });
+
+  it('does not require cleanup when reusing a browser', async () => {
+    const failure = new Error('reused connection failed');
+
+    await expect(acquire(async () => { throw failure; })).rejects.toBe(failure);
+  });
+
+  it('does not mask the acquisition error when cleanup also fails', async () => {
+    const failure = new Error('CDP connection failed');
+
+    await expect(acquire(
+      async () => { throw failure; },
+      async () => { throw new Error('cleanup failed'); },
+    )).rejects.toBe(failure);
   });
 });
 
