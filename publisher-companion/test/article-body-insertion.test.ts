@@ -8,10 +8,13 @@ import {
 } from '../../.agents/skills/baoyu-post-to-binance-square/scripts/binance-article';
 import {
   assertXArticleCompositionReady,
+  bindXArticleMediaAsset,
   deriveXArticleFinalBodyText,
   findSingleAddedXArticleMediaSource,
   insertXArticleBodyExactly,
   isXArticleBodyInserted,
+  assertXArticleBodyMediaEvidence,
+  scopeXArticleBodySnapshot,
   waitForXArticleBodyCleared,
   xArticleHtmlToText,
 } from '../../.agents/skills/baoyu-post-to-x/scripts/x-article';
@@ -247,6 +250,115 @@ describe('X Article ordered media provenance', () => {
     )).toBe('blob:same');
     expect(() => findSingleAddedXArticleMediaSource([], ['blob:one', 'blob:two']))
       .toThrow(/exactly one/i);
+  });
+});
+
+describe('X Article fail-closed body media evidence', () => {
+  const reviewedTextMediaText = [
+    { kind: 'text' as const, text: 'Before the reviewed image.' },
+    { kind: 'media' as const, assetId: 'sha256:asset-a' },
+    { kind: 'text' as const, text: 'After the reviewed image.' },
+  ];
+  const verifiedAssetBindings = [
+    { blockId: 'atomic-block-a', assetId: 'sha256:asset-a' },
+  ];
+
+  it('binds a browser media block only after its decoded pixels match the reviewed asset', () => {
+    expect(bindXArticleMediaAsset({
+      blockId: 'atomic-block-a',
+      assetId: 'sha256:reviewed-file-a',
+      reviewedPixelSha256: 'sha256:reviewed-rgba-a',
+      renderedPixelSha256: 'sha256:reviewed-rgba-a',
+    })).toEqual({
+      blockId: 'atomic-block-a',
+      assetId: 'sha256:reviewed-file-a',
+    });
+
+    expect(() => bindXArticleMediaAsset({
+      blockId: 'atomic-block-stale',
+      assetId: 'sha256:reviewed-file-b',
+      reviewedPixelSha256: 'sha256:reviewed-rgba-b',
+      renderedPixelSha256: 'sha256:stale-rgba-a',
+    })).toThrow(/pixel|asset|identity/i);
+  });
+
+  it('accepts the reviewed text, bound media asset, text sequence', () => {
+    expect(() => assertXArticleBodyMediaEvidence({
+      reviewedSequence: reviewedTextMediaText,
+      renderedSequence: [
+        { kind: 'text', text: 'Before the reviewed image.' },
+        { kind: 'media', blockId: 'atomic-block-a', source: 'blob:initial-a' },
+        { kind: 'text', text: 'After the reviewed image.' },
+      ],
+      verifiedAssetBindings,
+    })).not.toThrow();
+  });
+
+  it('rejects a reviewed image moved to the end of the article', () => {
+    expect(() => assertXArticleBodyMediaEvidence({
+      reviewedSequence: reviewedTextMediaText,
+      renderedSequence: [
+        { kind: 'text', text: 'Before the reviewed image.' },
+        { kind: 'text', text: 'After the reviewed image.' },
+        { kind: 'media', blockId: 'atomic-block-a', source: 'blob:initial-a' },
+      ],
+      verifiedAssetBindings,
+    })).toThrow(/media|sequence|position/i);
+  });
+
+  it('rejects a second rendered image that duplicates reviewed asset A instead of B', () => {
+    expect(() => assertXArticleBodyMediaEvidence({
+      reviewedSequence: [
+        { kind: 'text', text: 'First.' },
+        { kind: 'media', assetId: 'sha256:asset-a' },
+        { kind: 'text', text: 'Between.' },
+        { kind: 'media', assetId: 'sha256:asset-b' },
+        { kind: 'text', text: 'Last.' },
+      ],
+      renderedSequence: [
+        { kind: 'text', text: 'First.' },
+        { kind: 'media', blockId: 'atomic-block-a', source: 'blob:first' },
+        { kind: 'text', text: 'Between.' },
+        { kind: 'media', blockId: 'atomic-block-duplicate-a', source: 'blob:second' },
+        { kind: 'text', text: 'Last.' },
+      ],
+      verifiedAssetBindings: [
+        { blockId: 'atomic-block-a', assetId: 'sha256:asset-a' },
+        { blockId: 'atomic-block-duplicate-a', assetId: 'sha256:asset-a' },
+      ],
+    })).toThrow(/asset|binding|media/i);
+  });
+
+  it('retains verified asset identity when a stable media block URL transitions from blob to https', () => {
+    expect(() => assertXArticleBodyMediaEvidence({
+      reviewedSequence: reviewedTextMediaText,
+      renderedSequence: [
+        { kind: 'text', text: 'Before the reviewed image.' },
+        { kind: 'media', blockId: 'atomic-block-a', source: 'https://pbs.twimg.com/media/uploaded-a' },
+        { kind: 'text', text: 'After the reviewed image.' },
+      ],
+      verifiedAssetBindings,
+    })).not.toThrow();
+  });
+
+  it('excludes media outside the selected article editor from the scoped snapshot', () => {
+    expect(scopeXArticleBodySnapshot('article-editor', [
+      {
+        ownerEditorId: 'article-editor',
+        block: { kind: 'text', text: 'Reviewed body.' },
+      },
+      {
+        ownerEditorId: 'sidebar-preview',
+        block: { kind: 'media', blockId: 'off-editor-media', source: 'blob:sidebar' },
+      },
+      {
+        ownerEditorId: 'article-editor',
+        block: { kind: 'media', blockId: 'body-media', source: 'blob:body' },
+      },
+    ])).toEqual([
+      { kind: 'text', text: 'Reviewed body.' },
+      { kind: 'media', blockId: 'body-media', source: 'blob:body' },
+    ]);
   });
 });
 

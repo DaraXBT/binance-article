@@ -28,13 +28,16 @@ const binanceReady: BinancePostSnapshot = {
   publishButtonEnabled: true,
 };
 
-const articleReady: XArticleSnapshot = {
+type XArticleSnapshotFixture = XArticleSnapshot & { coverSources: string[] };
+
+const articleReady: XArticleSnapshotFixture = {
   url: 'https://x.com/compose/articles/123',
   title: 'Reviewed X Article',
   body: 'Reviewed body',
   imageCount: 1,
   mediaSources: ['blob:x-reviewed'],
   coverSource: null,
+  coverSources: [],
   editorVisible: true,
   publishButtonCount: 1,
   publishButtonEnabled: true,
@@ -184,6 +187,67 @@ describe('V3 live publisher adapters', () => {
     expect(result.publishedUrl).toBe('https://x.com/i/article/123');
     expect(order).toEqual(['snapshot', 'snapshot', 'begin', 'click', 'close']);
     expect(draft.clickPublish).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects two observable cover sources for a coverless X Article', async () => {
+    const ambiguousCoverSnapshot: XArticleSnapshotFixture = {
+      ...articleReady,
+      coverSources: ['blob:unexpected-cover-1', 'blob:unexpected-cover-2'],
+    };
+    const draft: XArticleDraft = {
+      id: 'x-article-ambiguous-cover',
+      snapshot: mock(async () => ambiguousCoverSnapshot),
+      clickPublish: mock(async () => true),
+      waitForPublishedUrl: mock(async () => undefined),
+      close: mock(async () => undefined),
+    };
+    const adapter = new BaoyuXArticleAdapter({
+      prepare: mock(async () => ({
+        draft,
+        expectedTitle: articleReady.title,
+        expectedBody: articleReady.body,
+        expectedImageCount: 1,
+        expectedCover: false,
+      })),
+    });
+
+    await expect(adapter.prepare('/tmp/x-article.zip')).rejects.toThrow(/cover changed/i);
+    expect(draft.clickPublish).not.toHaveBeenCalled();
+  });
+
+  it('revalidates an X Article after async beforeClick and prevents a raced mutation', async () => {
+    const order: string[] = [];
+    let mutated = false;
+    const draft: XArticleDraft = {
+      id: 'x-article-before-click-race',
+      snapshot: mock(async () => {
+        order.push('snapshot');
+        return mutated ? { ...articleReady, body: 'Changed during beforeClick' } : articleReady;
+      }),
+      clickPublish: mock(async () => { order.push('click'); return true; }),
+      waitForPublishedUrl: mock(async () => undefined),
+      close: mock(async () => { order.push('close'); }),
+    };
+    const adapter = new BaoyuXArticleAdapter({
+      prepare: mock(async () => ({
+        draft,
+        expectedTitle: articleReady.title,
+        expectedBody: articleReady.body,
+        expectedImageCount: 1,
+        expectedCover: false,
+      })),
+    });
+    const prepared = await adapter.prepare('/tmp/x-article.zip');
+
+    await expect(adapter.publish(prepared.draftId, {
+      beforeClick: async () => {
+        order.push('begin');
+        await Promise.resolve();
+        mutated = true;
+      },
+    })).rejects.toThrow(/body changed/i);
+    expect(draft.clickPublish).not.toHaveBeenCalled();
+    expect(order).toEqual(['snapshot', 'snapshot', 'begin', 'snapshot', 'close']);
   });
 
   it('treats X Article whitespace edits as a body snapshot change', async () => {
