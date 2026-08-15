@@ -48,6 +48,7 @@ describe('production cutover baseline capture', () => {
     { databaseName: 'unexpected', migrationRole: 'migration_role', ...baseline },
     { databaseName: 'app', migrationRole: 'unexpected', ...baseline },
     { databaseName: 'app', migrationRole: 'migration_role', ...baseline, cutoverStartedAt: 'ambiguous' },
+    { databaseName: 'app', migrationRole: 'migration_role', ...baseline, cutoverStartedAt: '2026-02-31T08:30:00.123456Z' },
     { databaseName: 'app', migrationRole: 'migration_role', ...baseline, baselineUserCount: '-1' },
   ])('rejects target drift or malformed baseline data: %o', async (row) => {
     const createSql = vi.fn(() => vi.fn(async () => ([row])));

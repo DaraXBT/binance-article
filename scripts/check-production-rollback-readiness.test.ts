@@ -30,6 +30,7 @@ describe('production rollback readiness check', () => {
     '',
     ' {"cutoverStartedAt":"2026-08-15T08:30:00.123456Z","baselineUserCount":"7"}',
     '{"cutoverStartedAt":"ambiguous","baselineUserCount":"7"}',
+    '{"cutoverStartedAt":"2026-02-31T08:30:00.123456Z","baselineUserCount":"7"}',
     '{"cutoverStartedAt":"2026-08-15T08:30:00.123456Z","baselineUserCount":7}',
     '{"cutoverStartedAt":"2026-08-15T08:30:00.123456Z","baselineUserCount":"-1"}',
     '{"cutoverStartedAt":"2026-08-15T08:30:00.123456Z","baselineUserCount":"7","extra":true}',
