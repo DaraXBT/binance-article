@@ -16,7 +16,7 @@ npm run lint
 npm run security:audit
 npm run build
 npm run test:e2e
-MIGRATION_DATABASE_URL='postgresql://...' npm run db:check
+npm run db:check
 npm run publisher:package
 npm run workflow:dry-run
 npm run cloudflare:dry-run
@@ -90,12 +90,15 @@ version blindly after a version bump.
    `0015` before the production cutover. Confirm an active owner exists, no
    unexpected `UserStatus` dependents exist, and at least three capacity units
    are free for the two shared-code smoke users plus one legacy invitation.
-6. Verify permanent Cloudflare rate rules: `/api/enrollment/claim` and
+6. Verify an active owner session and permanent Cloudflare rate rules: `/api/enrollment/claim` and
    `/api/invitations/accept` at 10 requests/10 minutes, and
    `/api/auth/callback/google` at 20 requests/10 minutes. During the short
-   maintenance window, restrict `/join*`, enrollment and invitation acceptance,
-   and Google enrollment endpoints to operator/tester IPs.
-7. Apply only `MIGRATION_DATABASE_URL='postgresql://...' npm run db:migrate:deploy`.
+   maintenance window, restrict `/join*`, `/api/enrollment/claim`,
+   `/api/enrollment/complete`, `/api/invitations/accept`,
+   `/api/auth/sign-in/social`, and `/api/auth/callback/google` to operator/tester IPs.
+7. Load `MIGRATION_DATABASE_URL` securely, require it with
+   `: "${MIGRATION_DATABASE_URL:?}"`, run only `npm run db:migrate:deploy`, then
+   `unset MIGRATION_DATABASE_URL`.
    Do not run manual SQL or `db push`. Validate `UserStatus` now includes
    `pending` with a `pending` default and the enrollment tables/indexes exist.
 8. Deploy the article Workflow Worker and then the web Worker at 100% from the

@@ -55,8 +55,10 @@ values for both Worker deployments. Review migrations, back up deployed data,
 then apply with the dedicated URL:
 
 ```bash
-MIGRATION_DATABASE_URL='postgresql://...' npm run db:check
-MIGRATION_DATABASE_URL='postgresql://...' npm run db:migrate:deploy
+: "${MIGRATION_DATABASE_URL:?Load the migration-role URL securely first}"
+npm run db:check
+npm run db:migrate:deploy
+unset MIGRATION_DATABASE_URL
 ```
 
 Schema changes are generated offline with `npm run db:generate` (no database

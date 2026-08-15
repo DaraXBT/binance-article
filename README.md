@@ -214,7 +214,9 @@ command.
 Database migrations are an explicit operator action and are never run by an application build:
 
 ```bash
-MIGRATION_DATABASE_URL='postgresql://...' npm run db:migrate:deploy
+: "${MIGRATION_DATABASE_URL:?Load the migration-role URL securely first}"
+npm run db:migrate:deploy
+unset MIGRATION_DATABASE_URL
 ```
 
 Legacy Prisma-era databases must first pass the guarded
@@ -228,10 +230,11 @@ syntax and top-level shapes before acquiring short-lived table locks and
 converting only those four columns:
 
 ```bash
+: "${MIGRATION_DATABASE_URL:?Load the migration-role URL securely first}"
 ALLOW_LEGACY_JSON_REPAIR=1 \
 CONFIRM_LEGACY_JSON_REPAIR_BACKUP=1 \
-MIGRATION_DATABASE_URL='postgresql://...' \
 npm run db:repair:legacy-json
+unset MIGRATION_DATABASE_URL
 ```
 
 Run the guarded baseline only after this repair succeeds. Both commands are
