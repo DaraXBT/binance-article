@@ -226,6 +226,7 @@ BETTER_AUTH_URL='http://127.0.0.1:3100' \
 ENROLLMENT_CODE_PEPPER='local-e2e-only-enrollment-pepper-32-chars' \
 E2E_SEED_AUTH=1 \
 E2E_AUTHENTICATED=1 \
+E2E_ENROLLMENT_MUTATIONS=1 \
 E2E_STORAGE_STATE='.playwright/.auth/user.json' \
 npm run test:e2e
 ```

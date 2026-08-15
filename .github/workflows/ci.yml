@@ -7,8 +7,10 @@ on:
     branches: [master]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Every authenticated run uses the same disposable E2E database. Serialize
+  # all refs so two runs cannot reset each other's deterministic fixtures.
+  group: ${{ github.workflow }}-shared-e2e-database
+  cancel-in-progress: false
 
 jobs:
   ci:
@@ -24,6 +26,7 @@ jobs:
       GEMINI_API_KEY: e2e-not-used
       E2E_SEED_AUTH: ${{ secrets.E2E_DATABASE_URL != '' && secrets.E2E_BETTER_AUTH_SECRET != '' && '1' || '0' }}
       E2E_AUTHENTICATED: ${{ secrets.E2E_DATABASE_URL != '' && secrets.E2E_BETTER_AUTH_SECRET != '' && '1' || '0' }}
+      E2E_ENROLLMENT_MUTATIONS: ${{ secrets.E2E_DATABASE_URL != '' && secrets.E2E_BETTER_AUTH_SECRET != '' && vars.E2E_BASE_URL == '' && '1' || '0' }}
       E2E_STORAGE_STATE: .playwright/.auth/user.json
 
     steps:

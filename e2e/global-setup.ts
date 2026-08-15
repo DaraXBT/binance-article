@@ -38,9 +38,14 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
   const sessionId = randomUUID();
   const sessionToken = randomUUID().replaceAll('-', '');
 
-  // Reset only the deterministic principal in the dedicated E2E database.
-  await sql`DELETE FROM "EnrollmentClaim"`;
-  await sql`DELETE FROM "EnrollmentCode"`;
+  // Reset only enrollment state created by the deterministic E2E principal.
+  await sql`
+    DELETE FROM "EnrollmentClaim"
+    WHERE "codeId" IN (
+      SELECT "id" FROM "EnrollmentCode" WHERE "createdByUserId" = ${userId}
+    )
+  `;
+  await sql`DELETE FROM "EnrollmentCode" WHERE "createdByUserId" = ${userId}`;
   await sql`
     DELETE FROM "RateLimitBucket"
     WHERE "key" = ${`owner-mutation:enrollment_code:${userId}`}
