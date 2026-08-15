@@ -16,6 +16,7 @@ import {
   type XArticleDraft,
   type XArticleSnapshot,
 } from '../src/x-article-adapter';
+import { mapReviewedXArticleExpectations } from '../src/x-article-live-composer';
 
 const binanceReady: BinancePostSnapshot = {
   url: 'https://www.binance.com/en/square',
@@ -52,6 +53,18 @@ const binanceArticleReady: BinanceArticleSnapshot = {
 };
 
 describe('V3 live publisher adapters', () => {
+  it('maps the reviewed X body instead of the already-composed browser body', () => {
+    expect(mapReviewedXArticleExpectations(
+      { body: 'partial browser residue', expectedBody: 'Reviewed body' },
+      { title: 'Reviewed title', imageCount: 2, coverPresent: true },
+    )).toEqual({
+      expectedTitle: 'Reviewed title',
+      expectedBody: 'Reviewed body',
+      expectedImageCount: 2,
+      expectedCover: true,
+    });
+  });
+
   it('requires an observable reviewed Binance article cover before editor-ready', async () => {
     const draft: BinanceArticleDraft = {
       id: 'binance-article-cover',

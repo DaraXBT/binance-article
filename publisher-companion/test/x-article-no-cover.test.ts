@@ -33,4 +33,31 @@ describe('reviewed X Article cover policy', () => {
     expect(parsed.contentImages).toHaveLength(1);
     expect(parsed.contentImages[0]?.originalPath).toBe('./chart.png');
   });
+
+  it('namespaces image placeholders so literal author text cannot collide', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'xarticle-placeholder-'));
+    roots.push(root);
+    const articlePath = join(root, 'article.md');
+    const imagePath = join(root, 'chart.png');
+    await writeFile(imagePath, await sharp({
+      create: { width: 32, height: 18, channels: 3, background: 'green' },
+    }).png().toBuffer());
+    await writeFile(articlePath, [
+      '# Title',
+      '',
+      'Literal XIMGPH_1 must remain author text.',
+      '',
+      '![Chart](./chart.png)',
+      '',
+    ].join('\n'));
+
+    const parsed = await parseMarkdown(articlePath, {
+      inferCoverFromFirstImage: false,
+      tempDir: join(root, 'resolved'),
+    });
+
+    expect(parsed.html).toContain('Literal XIMGPH_1 must remain author text.');
+    expect(parsed.contentImages[0]?.placeholder).toMatch(/^X_[A-F0-9]{16}_IMG_1$/);
+    expect(parsed.contentImages[0]?.placeholder).not.toBe('XIMGPH_1');
+  });
 });

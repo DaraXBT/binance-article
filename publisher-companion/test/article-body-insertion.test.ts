@@ -2,14 +2,17 @@ import { describe, expect, it } from 'bun:test';
 
 import {
   binanceArticleHtmlToText,
+  buildBinanceArticleCompositionReport,
   deriveBinanceArticleFinalBodyText,
   isBinanceArticleBodyInserted,
 } from '../../.agents/skills/baoyu-post-to-binance-square/scripts/binance-article';
 import {
   assertXArticleCompositionReady,
   deriveXArticleFinalBodyText,
+  findSingleAddedXArticleMediaSource,
   insertXArticleBodyExactly,
   isXArticleBodyInserted,
+  waitForXArticleBodyCleared,
   xArticleHtmlToText,
 } from '../../.agents/skills/baoyu-post-to-x/scripts/x-article';
 
@@ -81,6 +84,23 @@ describe('Binance Article rendered-body expectations', () => {
       'Before media.\nconst answer = 41;\nreturn answer.\nAfter media.',
       expected,
     )).toBe(false);
+
+    expect(buildBinanceArticleCompositionReport({
+      expectedTitle: 'Reviewed title',
+      expectedHtml: html,
+      imagePlaceholders: [imagePlaceholder],
+      codeBlocks: [{ placeholder: codePlaceholder, content: 'const answer = 42;\nreturn answer;' }],
+      actualTitle: 'Reviewed title',
+      actualBody: 'Before media.\nconst answer = 42;\nreturn answer;\nAfter media.',
+      actualImages: 1,
+      remainingPlaceholders: [],
+      actualCodeBlocks: 1,
+    })).toMatchObject({
+      titleMatches: true,
+      bodyMatches: true,
+      expectedImages: 1,
+      expectedCodeBlocks: 1,
+    });
   });
 });
 
@@ -154,6 +174,45 @@ describe('X Article exact body insertion', () => {
     ]);
   });
 
+  it('isolates a later attempt after an earlier attempt mutates and throws', async () => {
+    let editorText = 'stale';
+    let clearCount = 0;
+
+    await insertXArticleBodyExactly({
+      expectedText: 'Reviewed article.',
+      clear: async () => {
+        clearCount += 1;
+        editorText = '';
+      },
+      attempts: [
+        async () => {
+          editorText = 'partial residue';
+          throw new Error('paste event failed');
+        },
+        async () => { editorText = 'Reviewed article.'; },
+      ],
+      read: async () => editorText,
+    });
+
+    expect(clearCount).toBe(2);
+    expect(editorText).toBe('Reviewed article.');
+  });
+
+  it('requires a stable empty DraftEditor before an insertion attempt', async () => {
+    const values = ['residue', '', ''];
+    await expect(waitForXArticleBodyCleared({
+      read: async () => values.shift() ?? '',
+      wait: async () => undefined,
+      maxChecks: 3,
+    })).resolves.toBeUndefined();
+
+    await expect(waitForXArticleBodyCleared({
+      read: async () => 'residue',
+      wait: async () => undefined,
+      maxChecks: 3,
+    })).rejects.toThrow(/clear/i);
+  });
+
   it('derives the exact final body after rendered image placeholders are removed', () => {
     const html = '<p>Before.</p><p>XIMGPH_1</p><p>After.</p>';
     const expected = deriveXArticleFinalBodyText(html, ['XIMGPH_1']);
@@ -161,6 +220,33 @@ describe('X Article exact body insertion', () => {
     expect(xArticleHtmlToText(html)).toContain('XIMGPH_1');
     expect(isXArticleBodyInserted('Before.\nAfter.', expected)).toBe(true);
     expect(isXArticleBodyInserted('Before.\nXIMGPH_1\nAfter.', expected)).toBe(false);
+  });
+
+  it('removes image 1 without corrupting image 10 at the supported boundary', () => {
+    const namespace = 'X_1234567890ABCDEF_';
+    const first = `${namespace}IMG_1`;
+    const tenth = `${namespace}IMG_10`;
+    const html = `<p>Before.</p><p>${first}</p><p>Middle.</p><p>${tenth}</p><p>After.</p>`;
+    const expected = deriveXArticleFinalBodyText(html, [first, tenth]);
+
+    expect(expected).not.toContain(first);
+    expect(expected).not.toContain(tenth);
+    expect(isXArticleBodyInserted('Before.\nMiddle.\nAfter.', expected)).toBe(true);
+  });
+});
+
+describe('X Article ordered media provenance', () => {
+  it('identifies exactly one newly inserted source using multiset semantics', () => {
+    expect(findSingleAddedXArticleMediaSource(
+      ['blob:one'],
+      ['blob:one', 'blob:two'],
+    )).toBe('blob:two');
+    expect(findSingleAddedXArticleMediaSource(
+      ['blob:same'],
+      ['blob:same', 'blob:same'],
+    )).toBe('blob:same');
+    expect(() => findSingleAddedXArticleMediaSource([], ['blob:one', 'blob:two']))
+      .toThrow(/exactly one/i);
   });
 });
 
@@ -170,25 +256,49 @@ describe('X Article final composition gate', () => {
     bodyMatches: true,
     expectedImages: 1,
     actualImages: 1,
+    expectedMediaSources: ['blob:reviewed-1'],
+    actualMediaSources: ['blob:reviewed-1'],
     remainingPlaceholders: [] as string[],
-    expectedCover: false,
-    actualCover: false,
+    coverRequested: false,
+    initialCoverSources: [] as string[],
+    actualCoverSources: [] as string[],
   };
 
   it('accepts only an exact reviewed title, body, media count, and cover state', () => {
     expect(() => assertXArticleCompositionReady(ready)).not.toThrow();
+    expect(() => assertXArticleCompositionReady({ ...ready, titleMatches: false }))
+      .toThrow(/title/i);
     expect(() => assertXArticleCompositionReady({ ...ready, bodyMatches: false }))
       .toThrow(/body/i);
     expect(() => assertXArticleCompositionReady({ ...ready, actualImages: 0 }))
       .toThrow(/image/i);
+    expect(() => assertXArticleCompositionReady({ ...ready, actualImages: 2 }))
+      .toThrow(/image/i);
+    expect(() => assertXArticleCompositionReady({
+      ...ready,
+      expectedImages: 2,
+      actualImages: 2,
+      expectedMediaSources: ['blob:reviewed-1', 'blob:reviewed-2'],
+      actualMediaSources: ['blob:reviewed-2', 'blob:reviewed-1'],
+    })).toThrow(/media|order/i);
     expect(() => assertXArticleCompositionReady({
       ...ready,
       remainingPlaceholders: ['XIMGPH_1'],
     })).toThrow(/placeholder/i);
     expect(() => assertXArticleCompositionReady({
       ...ready,
-      expectedCover: true,
-      actualCover: false,
+      actualCoverSources: ['blob:unexpected-cover'],
     })).toThrow(/cover/i);
+    expect(() => assertXArticleCompositionReady({
+      ...ready,
+      coverRequested: true,
+      initialCoverSources: ['blob:stale-cover'],
+      actualCoverSources: ['blob:stale-cover'],
+    })).toThrow(/cover/i);
+    expect(() => assertXArticleCompositionReady({
+      ...ready,
+      coverRequested: true,
+      actualCoverSources: ['blob:new-cover'],
+    })).not.toThrow();
   });
 });
