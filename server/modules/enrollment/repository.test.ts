@@ -237,12 +237,18 @@ describe('enrollment repository', () => {
     })).resolves.toEqual({ version: 2, revokedCodeId: 'code_1', revokedClaims: 3 });
 
     const sql = harness.queries.map((query) => query.text).join('\n');
+    const mutationSql = compactSql(harness.queries[2]?.text ?? '');
+    const insertedMatch = mutationSql.match(/inserted AS \(([\s\S]*?)\), audit_event AS \(/);
     expect(sql).toMatch(/pg_advisory_xact_lock/);
     expect(harness.queries[1]?.text).toMatch(/FROM "EnrollmentCode"[\s\S]*FOR UPDATE/);
     expect(sql).toMatch(/UPDATE "EnrollmentCode"[\s\S]*"status" = 'revoked'/);
     expect(sql).toMatch(/UPDATE "EnrollmentClaim"[\s\S]*"status" IN \('pending', 'reserved'\)/);
     expect(sql).toMatch(/INSERT INTO "EnrollmentCode"/);
     expect(sql).toMatch(/INSERT INTO "AuditEvent"/);
+    expect(insertedMatch, 'expected a replacement enrollment-code insertion CTE').not.toBeNull();
+    expect(insertedMatch?.[1]).toMatch(
+      /FROM owner, next_version WHERE NOT EXISTS \(SELECT 1 FROM active_code\) OR EXISTS \(SELECT 1 FROM revoked_code\)/,
+    );
     expect(compactSql(sql)).toMatch(/jsonb_build_object\([\s\S]*'reason', \?::text\s*\)/);
   });
 
