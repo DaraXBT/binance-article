@@ -12,6 +12,8 @@ const DISTRIBUTION_INPUTS = [
   'publisher-companion/package.json',
   'publisher-companion/bun.lock',
   'publisher-companion/README.md',
+  'server/domain/publication-recipe.ts',
+  'lib/binance-export.ts',
   '.agents/skills/baoyu-post-to-binance-square/scripts',
   '.agents/skills/baoyu-post-to-x/scripts',
 ];
@@ -27,6 +29,10 @@ function isDistributionFile(relativePath) {
   ) return false;
 
   if (normalized.startsWith('publisher-companion/src/')) return normalized.endsWith('.ts');
+  if (
+    normalized === 'server/domain/publication-recipe.ts'
+    || normalized === 'lib/binance-export.ts'
+  ) return true;
   if (normalized.startsWith('.agents/skills/')) {
     return normalized.endsWith('.ts')
       || normalized.endsWith('/package.json')
