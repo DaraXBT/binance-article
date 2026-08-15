@@ -53,6 +53,10 @@ describe('production migration target check', () => {
     { MIGRATION_DATABASE_URL: undefined },
     { MIGRATION_DATABASE_URL: 'https://db.example.invalid/app?sslmode=require' },
     { MIGRATION_DATABASE_URL: 'postgresql://migration_role:password@localhost/app?sslmode=require' },
+    {
+      MIGRATION_DATABASE_URL: 'postgresql://migration_role:password@[::1]:5432/app?sslmode=require',
+      EXPECTED_PRODUCTION_DATABASE_AUTHORITY: '[::1]:5432',
+    },
     { MIGRATION_DATABASE_URL: 'postgresql://migration_role:password@db.example.invalid/app' },
     { MIGRATION_DATABASE_URL: 'postgresql://migration_role:password@db.example.invalid/app?sslmode=require&sslmode=disable' },
     { MIGRATION_DATABASE_URL: 'postgresql://:password@db.example.invalid/app?sslmode=require' },
