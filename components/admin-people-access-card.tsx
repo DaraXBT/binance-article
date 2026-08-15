@@ -491,6 +491,15 @@ export function AdminPeopleAccessCard({
 
   const isLoading = overview === null || people === null;
   const activeCode = overview?.code?.status === 'active' ? overview.code : null;
+  const loadErrorNotice = loadError ? (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border border-dotted border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+      <p role="alert">{loadError}</p>
+      <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 rounded-lg text-xs" onClick={() => void refresh()}>
+        <RefreshCcw aria-hidden="true" className="size-3.5" />
+        Retry
+      </Button>
+    </div>
+  ) : null;
 
   return (
     <ConsolePanel corners={false} className={className ?? 'rounded-xl bg-card/70 p-3 sm:p-5'}>
@@ -508,13 +517,7 @@ export function AdminPeopleAccessCard({
       </div>
 
       {loadError && isLoading ? (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border border-dotted border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-          <p role="alert">{loadError}</p>
-          <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 rounded-lg text-xs" onClick={() => void refresh()}>
-            <RefreshCcw aria-hidden="true" className="size-3.5" />
-            Retry
-          </Button>
-        </div>
+        loadErrorNotice
       ) : isLoading ? (
         <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground" role="status">
           <Loader2 aria-hidden="true" className="size-4 animate-spin" />
@@ -522,6 +525,7 @@ export function AdminPeopleAccessCard({
         </p>
       ) : (
         <>
+          {loadErrorNotice}
           <section aria-labelledby="enrollment-code-title" className="mt-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
