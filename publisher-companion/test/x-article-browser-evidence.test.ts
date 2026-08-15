@@ -67,11 +67,31 @@ async function installArticleEditor(page: Page): Promise<void> {
 describe('X Article browser evidence', () => {
   let browser: Browser;
   let page: Page;
+  let imageServer: ReturnType<typeof Bun.serve>;
 
-  beforeAll(async () => { browser = await chromium.launch(); });
+  beforeAll(async () => {
+    browser = await chromium.launch();
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'base64',
+    );
+    imageServer = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch: () => new Response(png, {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'image/png',
+        },
+      }),
+    });
+  });
   beforeEach(async () => { page = await browser.newPage(); });
   afterEach(async () => { await page.close(); });
-  afterAll(async () => { await browser.close(); });
+  afterAll(async () => {
+    imageServer.stop(true);
+    await browser.close();
+  });
 
   it('is editor-scoped, ordered, and source-scheme agnostic', async () => {
     await installArticleEditor(page);
@@ -174,5 +194,21 @@ describe('X Article browser evidence', () => {
       opaqueMedia.fingerprint,
       transparentMedia.fingerprint,
     )).toBe(false);
+  });
+
+  it('fingerprints a CORS-capable CDN image even when the rendered node taints canvas', async () => {
+    await installArticleEditor(page);
+    await page.evaluate(async (source) => {
+      const image = document.querySelector<HTMLImageElement>('#body-image')!;
+      image.removeAttribute('crossorigin');
+      image.src = source;
+      await image.decode();
+    }, `http://127.0.0.1:${imageServer.port}/cdn-image.png`);
+
+    const snapshot = await readXArticleEditorSnapshot(pageBackedCdp(page), 'synthetic-session');
+    const media = snapshot.bodySequence.find((token) => token.kind === 'media');
+    expect(media?.kind).toBe('media');
+    if (media?.kind !== 'media') throw new Error('Synthetic CDN media fingerprint was unavailable.');
+    expect(media.fingerprint.colorSamples.length).toBeGreaterThan(0);
   });
 });
