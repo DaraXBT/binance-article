@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { neon } from '@neondatabase/serverless';
 import type { FullConfig } from '@playwright/test';
 
+import { resetE2eEnrollmentState } from '../scripts/e2e-enrollment-cleanup';
 import { restoreNextEnvDeclaration } from './next-env-restore';
 
 const AUTH_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
@@ -38,18 +39,9 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
   const sessionId = randomUUID();
   const sessionToken = randomUUID().replaceAll('-', '');
 
-  // Reset only enrollment state created by the deterministic E2E principal.
-  await sql`
-    DELETE FROM "EnrollmentClaim"
-    WHERE "codeId" IN (
-      SELECT "id" FROM "EnrollmentCode" WHERE "createdByUserId" = ${userId}
-    )
-  `;
-  await sql`DELETE FROM "EnrollmentCode" WHERE "createdByUserId" = ${userId}`;
-  await sql`
-    DELETE FROM "RateLimitBucket"
-    WHERE "key" = ${`owner-mutation:enrollment_code:${userId}`}
-  `;
+  if (process.env.E2E_ENROLLMENT_MUTATIONS === '1') {
+    await resetE2eEnrollmentState({ environment: process.env, sql });
+  }
   await sql`DELETE FROM "Workspace" WHERE "id" = ${workspaceId}`;
   await sql`DELETE FROM "user" WHERE "id" = ${userId}`;
   await sql`

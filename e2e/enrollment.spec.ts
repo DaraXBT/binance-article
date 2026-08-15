@@ -2,6 +2,7 @@ import { neon } from '@neondatabase/serverless';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
+import { resetE2eEnrollmentState } from '../scripts/e2e-enrollment-cleanup';
 import { authenticatedTest as test } from './fixtures/authenticated';
 
 type CodeResponse = {
@@ -16,30 +17,6 @@ type DisableResponse = {
   changed: boolean;
   revokedClaims: number;
 };
-
-async function resetE2eEnrollmentState(): Promise<void> {
-  if (
-    process.env.E2E_SEED_AUTH !== '1' ||
-    process.env.E2E_ENROLLMENT_MUTATIONS !== '1'
-  ) {
-    throw new Error('Enrollment E2E cleanup requires explicit disposable-database opt-in.');
-  }
-  const databaseUrl = process.env.DATABASE_URL?.trim();
-  if (!databaseUrl) throw new Error('DATABASE_URL is required for enrollment E2E cleanup.');
-  const sql = neon(databaseUrl);
-  const userId = 'e2e_user';
-  await sql`
-    DELETE FROM "EnrollmentClaim"
-    WHERE "codeId" IN (
-      SELECT "id" FROM "EnrollmentCode" WHERE "createdByUserId" = ${userId}
-    )
-  `;
-  await sql`DELETE FROM "EnrollmentCode" WHERE "createdByUserId" = ${userId}`;
-  await sql`
-    DELETE FROM "RateLimitBucket"
-    WHERE "key" = ${`owner-mutation:enrollment_code:${userId}`}
-  `;
-}
 
 async function openEnrollmentLink(
   browser: Browser,
@@ -69,7 +46,12 @@ test('owner can create, rotate, and disable a reusable enrollment code', async (
     'Enrollment lifecycle E2E is restricted to the local server backed by the disposable database.',
   );
   // Playwright retries do not rerun globalSetup, so make each attempt isolated.
-  await resetE2eEnrollmentState();
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+  if (!databaseUrl) throw new Error('DATABASE_URL is required for enrollment E2E cleanup.');
+  await resetE2eEnrollmentState({
+    environment: process.env,
+    sql: neon(databaseUrl),
+  });
   await page.goto('/workspace?settings=connections&source=e2e-enrollment');
   await expect(page.getByRole('dialog', { name: 'Connections' })).toBeVisible();
   const codePanel = page.locator('section[aria-labelledby="enrollment-code-title"]');
@@ -128,8 +110,6 @@ test('owner can create, rotate, and disable a reusable enrollment code', async (
   expect(disabledHttpResponse.status()).toBe(200);
   const disabled = await disabledHttpResponse.json() as DisableResponse;
   expect(disabled).toMatchObject({ disabled: true, changed: true, revokedClaims: 1 });
-  const databaseUrl = process.env.DATABASE_URL?.trim();
-  if (!databaseUrl) throw new Error('DATABASE_URL is required to verify enrollment revocation.');
   const sql = neon(databaseUrl);
   const revokedClaimRows = await sql`
     SELECT claim."status", claim."failureCode"
