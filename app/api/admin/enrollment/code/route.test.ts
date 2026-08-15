@@ -61,6 +61,30 @@ describe('POST /api/admin/enrollment/code', () => {
     expect(response.headers.get('cache-control')).toBe('no-store');
   });
 
+  it('returns a generic 500 response when creating enrollment fails unexpectedly', async () => {
+    mocks.createInitialEnrollmentCode.mockRejectedValueOnce(new Error('INTERNAL_SENTINEL'));
+    const logSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { POST } = await import('./route');
+    const response = await POST(new Request(
+      'https://articles.example.com/api/admin/enrollment/code',
+      {
+        method: 'POST',
+        headers: { origin: 'https://articles.example.com', 'content-type': 'application/json' },
+        body: '{}',
+      },
+    ) as never);
+    const body = await response.json();
+    logSpy.mockRestore();
+
+    expect(response.status).toBe(500);
+    expect(body).toEqual({
+      error: 'The enrollment code could not be created.',
+      code: 'ENROLLMENT_CODE_CREATE_FAILED',
+    });
+    expect(JSON.stringify(body)).not.toContain('INTERNAL_SENTINEL');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
   it('returns 429 and does not create a code when the owner mutation limit is exhausted', async () => {
     mocks.consumeAtomicRateLimit.mockResolvedValueOnce({
       allowed: false,
