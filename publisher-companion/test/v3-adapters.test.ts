@@ -276,6 +276,40 @@ describe('V3 live publisher adapters', () => {
     expect(order).toEqual(['snapshot', 'snapshot', 'begin', 'snapshot', 'close']);
   });
 
+  it('passes the exact final X Article guard to the atomic draft click', async () => {
+    const preparedSnapshot = Object.freeze({ ...articleReady });
+    const preClickSnapshot = Object.freeze({ ...articleReady });
+    const finalSnapshot = Object.freeze({ ...articleReady });
+    const snapshots = [preparedSnapshot, preClickSnapshot, finalSnapshot];
+    const clickPublish = mock(async (guard?: XArticleSnapshot) => {
+      expect(guard).toBe(finalSnapshot);
+      return true;
+    });
+    const draft: XArticleDraft = {
+      id: 'x-article-atomic-guard',
+      snapshot: mock(async () => snapshots.shift()!),
+      clickPublish,
+      waitForPublishedUrl: mock(async () => 'https://x.com/i/article/123'),
+      close: mock(async () => undefined),
+    };
+    const adapter = new BaoyuXArticleAdapter({
+      prepare: mock(async () => ({
+        draft,
+        expectedTitle: articleReady.title,
+        expectedBody: articleReady.body,
+        expectedImageCount: 1,
+        expectedCover: false,
+      })),
+    });
+    const prepared = await adapter.prepare('/tmp/x-article.zip');
+
+    await expect(adapter.publish(prepared.draftId, {
+      beforeClick: async () => undefined,
+    })).resolves.toMatchObject({ publishedUrl: 'https://x.com/i/article/123' });
+    expect(draft.snapshot).toHaveBeenCalledTimes(3);
+    expect(clickPublish).toHaveBeenCalledWith(finalSnapshot);
+  });
+
   it('rejects a same-content X Article that switched to another editor or draft URL', async () => {
     const replacement = {
       ...articleReady,
