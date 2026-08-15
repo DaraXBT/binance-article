@@ -8,13 +8,17 @@ on:
 
 concurrency:
   # Every authenticated run uses the same disposable E2E database. Serialize
-  # all refs so two runs cannot reset each other's deterministic fixtures.
+  # all refs so two runs cannot reset each other's deterministic fixtures. A
+  # trusted master push may cancel an in-progress PR so release CI is not
+  # starved. GitHub can still replace any older pending run in a concurrency
+  # group, so the release checklist requires green CI for the exact final SHA.
   group: ${{ github.workflow }}-shared-e2e-database
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
 
 jobs:
   ci:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
       MIGRATION_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
