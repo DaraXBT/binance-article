@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
-import { PublicationTargetSchema, type PublicationTarget } from '@/server/domain/publication-recipe';
+import {
+  PublicationKindSchema,
+  PublicationTargetSchema,
+  type PublicationKind,
+  type PublicationTarget,
+} from '@/server/domain/publication-recipe';
 import { AppError } from '@/server/http/errors';
 
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,199}$/);
@@ -11,6 +16,7 @@ export interface WebPublisherCommand {
   id: string;
   draftId: string;
   target: PublicationTarget;
+  kind?: PublicationKind;
   state: string;
   revision: number;
   recipeHash: string;
@@ -60,6 +66,7 @@ function serialize(command: WebPublisherCommand) {
     id: IdentifierSchema.parse(command.id),
     draftId: IdentifierSchema.parse(command.draftId),
     target: PublicationTargetSchema.parse(command.target),
+    ...(command.kind ? { kind: PublicationKindSchema.parse(command.kind) } : {}),
     state: z.enum([
       'queued', 'claimed', 'awaiting_review', 'awaiting_approval', 'approved', 'publishing',
       'succeeded', 'failed', 'cancelled', 'expired', 'outcome_unknown',

@@ -12,7 +12,11 @@ export function createBinanceDraftRepository(database: AppDatabase): BinanceDraf
   const repository = createPublicationDraftRepository(database);
   return {
     async getDraft(input) {
-      return flatten(await repository.getDraft({ ...input, target: 'binance-square' }));
+      return flatten(await repository.getDraft({
+        ...input,
+        target: 'binance-square',
+        kind: 'article',
+      }));
     },
     async saveDraft(input) {
       return flatten(await repository.saveDraft({
@@ -20,12 +24,13 @@ export function createBinanceDraftRepository(database: AppDatabase): BinanceDraf
         workspaceId: input.workspaceId,
         articleId: input.articleId,
         target: 'binance-square',
+        kind: 'article',
         draftId: input.draftId,
         expectedRevision: input.expectedRevision,
         payload: {
           title: input.title,
           markdown: input.markdown,
-          cover: input.cover,
+          ...(input.cover.assetId ? { cover: { ...input.cover, assetId: input.cover.assetId } } : {}),
           orderedAssetIds: input.orderedAssetIds,
         },
         expiresAt: input.expiresAt,

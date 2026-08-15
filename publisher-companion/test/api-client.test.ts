@@ -39,7 +39,7 @@ describe('publisher companion API client', () => {
         protocolVersion: 2,
       });
       return Response.json({
-        device: { id: 'device_1' },
+        device: { id: 'device_1', protocolVersion: 2 },
         deviceToken: 'T'.repeat(43),
       });
     });
@@ -50,8 +50,21 @@ describe('publisher companion API client', () => {
     });
 
     await expect(client.pairDevice('P'.repeat(43))).resolves.toMatchObject({
-      device: { id: 'device_1' },
+      device: { id: 'device_1', protocolVersion: 2 },
     });
+  });
+
+  it('rejects pairing when the server did not persist protocol V2', async () => {
+    const client = new PublisherApiClient({
+      baseUrl: 'https://articles.example.com',
+      getDeviceToken: async () => 'A'.repeat(43),
+      fetchImpl: mock(async () => Response.json({
+        device: { id: 'device_1', protocolVersion: 1 },
+        deviceToken: 'T'.repeat(43),
+      })),
+    });
+
+    await expect(client.pairDevice('P'.repeat(43))).rejects.toThrow();
   });
 
   it('parses metadata-only status and never accepts credential fields', async () => {

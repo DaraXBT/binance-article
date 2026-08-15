@@ -77,6 +77,26 @@ version blindly after a version bump.
 
 ## Database and deployment
 
+Determine the production migration ledger before selecting any procedure:
+
+- If it ends at `0015`, do not run migrations from a checkout whose journal
+  contains `0017`. Use the exact CI-green release whose journal ends at `0016`,
+  follow the [0016 cutover runbook](./docs/cutover-0016-runbook.md) through its
+  deployment and smoke tests, and verify the ledger ends at `0016`. Conduct
+  `0017` in a separate maintenance window afterward.
+- If it ends at `0016`, follow the dedicated
+  [0017 publication-kind cutover runbook](./docs/cutover-0017-runbook.md).
+  Freeze and drain publication writes, migrate, deploy the new web Worker at
+  100%, start only a protocol-v2 companion, smoke all four modes, and then
+  resume publishing.
+- If it already includes `0017`, do not rerun either cutover migration.
+- Abort on every other ledger state or any schema drift.
+
+Never run the 0016 procedure from a checkout whose journal contains `0017`:
+`db:migrate:deploy` applies every pending migration. After `0017` commits, never
+restore a pre-0017 publication writer; keep publication maintenance active and
+forward-fix.
+
 1. Confirm `wrangler.jsonc` still binds the web Worker custom domain
    `binance.v27.tech`, `vercel.json` keeps Git deployment disabled, and the
    legacy linked Vercel project is paused or removed in its dashboard.
@@ -89,6 +109,13 @@ version blindly after a version bump.
 4. Provision the same `AI_CREDENTIAL_KEYRING` and
    `AI_CREDENTIAL_ACTIVE_KEY_ID` bindings to the web and Workflow Workers. Keep
    `GEMINI_TEXT_MODEL` and `GEMINI_IMAGE_MODEL` identical on both Workers.
+
+### 0016-only enrollment cutover
+
+Steps 5–10 are the historical 0016 enrollment procedure. Execute them only from
+the exact release checkout whose migration journal ends at `0016`; they are not
+the 0017 deployment procedure.
+
 5. Back up the production database, rehearse `0016_shared_enrollment` on a
    production-like restored branch, and verify migration history ends at
    `0015` before the production cutover. Confirm an active owner exists, no
@@ -143,6 +170,12 @@ version blindly after a version bump.
     and capacity is released. Remove the temporary restriction, retain rate
     limits, monitor for 30 minutes, and only then distribute the retained
     `#code=` link privately through the approved secret-sharing channel.
+
+### Post-deployment verification
+
+For an 0017 cutover, reach these checks only after the dedicated 0017 runbook's
+migration, 100% web deployment, and no-rollback boundary have completed.
+
 11. Confirm `https://binance.v27.tech/api/health` returns `200` without exposing
    dependency details and that no Vercel deployment is serving the production
    hostname.
@@ -164,12 +197,15 @@ version blindly after a version bump.
    pinned at its bottom and opens its menu beside the rail; then open
    **Settings** and confirm the Connections panel has no horizontal overflow on
    mobile and shows its settings rail on desktop.
-15. Pair one disposable browser device and verify it appears as active under
-   **Settings → Connections**.
-16. With explicit operator authorization, prepare and publish one controlled
-   Binance smoke post and one controlled X smoke post. Review and approve each
-   exact live composer separately.
-17. Confirm canonical result URLs and inspect the command/audit records.
+15. Pair one disposable protocol-v2 browser device and verify it appears as
+   active under **Settings → Connections** with protocol version 2.
+16. With explicit operator authorization, smoke all four independent modes:
+   text-only Binance Post, text-only X Post, coverless/media-free Binance
+   Article, and coverless/media-free X Article. Then add optional media within
+   each platform limit. Review and approve every exact live composer separately.
+17. Confirm kind-matching canonical result URLs—including
+   `https://x.com/i/article/<numeric-id>` for X Articles—and inspect the
+   command/audit records.
 18. Revoke the disposable device and confirm its token can no longer poll.
 
 If Telegram was ever deployed, drain its jobs, remove its webhook and Workers,
@@ -183,28 +219,22 @@ locally authenticated Chrome publishing profiles controlled by the operator.
 
 ## Rollback
 
-Keep the previous web/Workflow/companion artifacts available. First apply and
-confirm an all-user maintenance deny on the production hostname with no operator
-bypass, allowing only the health probe. Keep it active through rollback and
-old-Worker verification and freeze direct database writes. Pause health monitors;
-require a harmless non-health probe to appear as blocked in Cloudflare Security
-Events but absent from Worker invocations, and require no active/incomplete or
-post-freeze web invocation in Workers Observability. In a fresh rollback shell,
-securely load `MIGRATION_DATABASE_URL`, all three `EXPECTED_PRODUCTION_*`
-identifiers, and the original `PRODUCTION_ROLLBACK_BASELINE`, then use the
-runbook's guaranteed-cleanup block to run `npm run db:rollback-check`; it
-revalidates target identity and performs two
-parameterized database drain/eligibility samples across a built-in 300-second
-interval. Keep every freeze active and watch the edge views throughout. Any
-failed/uncertain observation means no rollback. Only after the command succeeds
-may you verify the selected account/Worker/current and target versions read-only
-and roll back the web Worker with Wrangler's confirmation prompt; leave the
-database forward. Once any
-enrollment code, claim, or user created since the cutover baseline exists, do not
-restore the old Worker: block/disable enrollment and forward-fix instead. After
-an eligible rollback, retain the enrollment/signup deny when lifting maintenance
-for existing-user traffic. A database restore is last resort and requires
-explicit data-loss approval. Stop new publication preparation, drain active
-commands, and roll back only after no command is in `publishing`; an
-uncertain post-click result must remain `outcome_unknown` and must never be
-retried automatically.
+First determine the applied migration ledger.
+
+If `0017` has committed, do not use the 0016 rollback gate to authorize a
+captured pre-cutover web Worker. Apply an all-user maintenance deny, pause every
+companion, drain publication commands to terminal states, and forward-fix. A
+pre-0017 writer remains schema-incompatible even when no command is currently
+`publishing`. Restoring a pre-0017 database backup is disaster recovery—not an
+application rollback—and requires a full write freeze plus explicit data-loss
+approval. An uncertain post-click result must remain `outcome_unknown` and must
+never be retried automatically.
+
+Only when the ledger ends at `0016` and `0017` has never committed may the 0016
+rollback procedure be used. Follow the
+[0016 cutover runbook](./docs/cutover-0016-runbook.md), including its all-user
+maintenance deny, target checks, double-sample drain gate, cleanup traps, and
+enrollment-data eligibility checks. Leave the database forward. Once any
+enrollment code, claim, or user created since the cutover baseline exists, do
+not restore the old Worker: keep enrollment disabled and forward-fix. A database
+restore remains a last resort and requires explicit data-loss approval.

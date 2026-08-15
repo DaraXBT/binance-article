@@ -54,4 +54,20 @@ describe('POST /api/articles/:id/publications/binance/prepare', () => {
       command: { id: 'command_1', state: 'queued' },
     });
   });
+
+  it('prepares an explicit Binance Post revision', async () => {
+    const { POST } = await import('./route');
+    const request = new Request(
+      'https://articles.example.com/api/articles/article_1/publications/binance/prepare',
+      {
+        method: 'POST',
+        headers: { origin: 'https://articles.example.com', 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: 'post', expectedRevision: 8 }),
+      },
+    );
+    await POST(request as never, { params: Promise.resolve({ id: 'article_1' }) });
+    expect(mocks.prepare).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'post', expectedRevision: 8,
+    }));
+  });
 });

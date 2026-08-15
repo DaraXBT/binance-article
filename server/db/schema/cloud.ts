@@ -52,6 +52,7 @@ export const publicationDraftStatus = pgEnum('PublicationDraftStatus', [
   'outcome_unknown',
 ]);
 export const publicationTarget = pgEnum('PublicationTarget', ['binance-square', 'x']);
+export const publicationKind = pgEnum('PublicationKind', ['post', 'article']);
 export const publisherDeviceStatus = pgEnum('PublisherDeviceStatus', ['pending', 'active', 'revoked']);
 export const publisherCommandState = pgEnum('PublisherCommandState', [
   'queued',
@@ -437,7 +438,8 @@ export const publicationDraft = pgTable('PublicationDraft', {
     onUpdate: 'cascade',
   }),
   target: publicationTarget('target').notNull(),
-  version: integer('version').default(2).notNull(),
+  kind: publicationKind('kind').notNull(),
+  version: integer('version').default(3).notNull(),
   revision: integer('revision').default(1).notNull(),
   status: publicationDraftStatus('status').default('draft').notNull(),
   payload: jsonb('payload').notNull(),
@@ -449,11 +451,11 @@ export const publicationDraft = pgTable('PublicationDraft', {
 }, (table) => [
   index('PublicationDraft_workspaceId_updatedAt_idx').on(table.workspaceId, table.updatedAt),
   index('PublicationDraft_articleId_target_revision_idx').on(table.articleId, table.target, table.revision),
-  uniqueIndex('PublicationDraft_workspaceId_articleId_target_key')
-    .on(table.workspaceId, table.articleId, table.target),
+  uniqueIndex('PublicationDraft_workspaceId_articleId_target_kind_key')
+    .on(table.workspaceId, table.articleId, table.target, table.kind),
   index('PublicationDraft_status_expiresAt_idx').on(table.status, table.expiresAt),
   uniqueIndex('PublicationDraft_id_revision_key').on(table.id, table.revision),
-  check('PublicationDraft_version_check', sql`${table.version} = 2`),
+  check('PublicationDraft_version_check', sql`${table.version} IN (2, 3)`),
   check('PublicationDraft_revision_positive_check', sql`${table.revision} > 0`),
   check(
     'PublicationDraft_recipeHash_sha256_check',
@@ -535,6 +537,7 @@ export const publisherCommand = pgTable('PublisherCommand', {
     onUpdate: 'cascade',
   }),
   target: publicationTarget('target').default('binance-square').notNull(),
+  kind: publicationKind('kind').notNull(),
   deviceId: text('deviceId').references(() => publisherDevice.id, {
     onDelete: 'set null',
     onUpdate: 'cascade',

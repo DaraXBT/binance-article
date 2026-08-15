@@ -77,29 +77,33 @@ publisher companion and never receives the Gemini key.
 2. Start the companion. On first use, sign in to Binance manually in the
    companion-managed Chrome profile it opens; that local profile keeps the
    session for later runs.
-3. Generate the dedicated cover if it is not ready, then prepare the Binance
-   publication from the article studio.
-4. Review the exact title, body, cover, images, device, and revision.
+3. Open the Binance publishing dialog and choose **Post** or **Article**. A Post
+   may contain text, one to four images, or both. An Article requires a title
+   and body; its cover and zero to ten body images are independently optional.
+4. Review the exact text or title/body, optional media, device, and revision.
 5. Approve from the web app.
 6. Let the companion perform the single final click.
 
 The companion stores its device token in the operating-system keyring. Binance cookies, Chrome data, and local drafts remain on that computer. If Binance's result is ambiguous, the command ends as `outcome_unknown`; create a new reviewed command only after checking Binance manually.
 Before the final click begins, you can safely cancel the prepared publication from the same review panel. Expired commands close automatically and must be prepared again.
 
-## Publish a regular X post
+## Publish to X
 
 1. Start the paired companion. On first use, sign in to X manually in the
    companion-managed Chrome profile it opens; that local profile keeps the
    session for later runs.
-2. Open the article's **X post** dialog, review one caption and up to four
-   selected images, then choose **Prepare on X**.
-3. Inspect the live X composer opened by the companion.
+2. Open the X publishing dialog and choose **Post** or **Article**. A Post may
+   contain up to 280 characters, one to four images, or both. An Article
+   requires a title and body; its cover and zero to ten body images are
+   independently optional. X Articles also require account entitlement.
+3. Inspect the live X Post composer or Article editor opened by the companion.
 4. Approve the exact revision in the web app.
-5. The companion revalidates the composer and performs one Post click.
+5. The companion revalidates the exact editor snapshot and performs one publish
+   click.
 
-Success requires an exact canonical `https://x.com/<handle>/status/<id>` URL.
-If the result cannot be verified, the command ends as `outcome_unknown` and is
-not retried.
+Success requires an exact canonical `https://x.com/<handle>/status/<id>` Post
+URL or `https://x.com/i/article/<id>` Article URL. If the result cannot be
+verified, the command ends as `outcome_unknown` and is not retried.
 
 ## Companion and fallback files
 
@@ -121,8 +125,10 @@ a lost or replaced device there; a revoked companion must be paired again.
 - **Publisher asks to pair again:** the device token was revoked or its account/membership is no longer active.
 - **Publisher appears offline:** start the companion and confirm `bun run doctor`
   has no blocking errors.
-- **Cover is required:** generate the dedicated article cover before preparing
-  a Binance Square command.
+- **Publisher upgrade required:** install the latest companion and pair the
+  device again so it advertises protocol version 2.
+- **X Article unavailable:** sign in to X in the managed profile and confirm the
+  publishing account has X Articles entitlement. Regular X Posts remain usable.
 - **Outcome unknown:** inspect the social platform manually before creating a
   new reviewed command; never retry the old click automatically.
 

@@ -7,6 +7,7 @@ const command = {
   id: 'command_1',
   draftId: 'draft_1',
   target: 'x' as const,
+  kind: 'article' as const,
   state: 'approved',
   revision: 2,
   recipeHash: 'a'.repeat(64),
@@ -34,7 +35,9 @@ describe('web publication approval', () => {
       repository,
       actorUserId: 'user_1', commandId: 'command_1', revision: 2,
       recipeHash: 'a'.repeat(64), confirmed: true, approvalId: 'approval_1', now,
-    })).resolves.toMatchObject({ id: 'command_1', target: 'x', state: 'approved' });
+    })).resolves.toMatchObject({
+      id: 'command_1', target: 'x', kind: 'article', state: 'approved',
+    });
     expect(repository.approve).toHaveBeenCalledWith({
       approvalId: 'approval_1', actorUserId: 'user_1', commandId: 'command_1',
       revision: 2, recipeHash: 'a'.repeat(64), now,
@@ -50,7 +53,7 @@ describe('web publication approval', () => {
     };
     await expect(getWebPublisherCommand({
       repository, actorUserId: 'user_1', commandId: 'command_1', now,
-    })).resolves.toMatchObject({ state: 'expired', target: 'x' });
+    })).resolves.toMatchObject({ state: 'expired', target: 'x', kind: 'article' });
     expect(repository.expire).toHaveBeenCalledWith({
       actorUserId: 'user_1', commandId: 'command_1', now,
     });

@@ -15,13 +15,22 @@ selection never enter publication recipes, downloaded assets, companion logs,
 or companion configuration. The companion is isolated from AI generation
 credentials.
 
-The companion supports Binance Square long-form articles and regular X posts.
-X commands have hard limits of 280 characters and four images; they are
-materialized as reviewed X post bundles and filled into the live composer
-before the ready state is reported. After approval, the companion begins the
-server transition immediately before one scoped Post click. Only an exact
-`https://x.com/<handle>/status/<numeric-id>` URL is accepted as success; every
-ambiguous post-click result is terminal `outcome_unknown` and is never retried.
+The companion supports four independent modes:
+
+- X Post: text with zero to four images, or an image-only post with one to four
+  images; text is capped at 280 characters.
+- Binance Post: text with zero to four images, or an image-only post with one
+  to four images; text is capped at 2,100 characters.
+- X Article and Binance Article: required title and body, with an optional
+  cover and zero to ten optional body images.
+
+Each mode is materialized from a reviewed, target-and-kind-bound bundle before
+the ready state is reported. After approval, the companion revalidates the
+exact editor snapshot and begins the server transition immediately before one
+scoped publish click. Success requires a kind-matching canonical URL; X uses
+`https://x.com/<handle>/status/<numeric-id>` for Posts and
+`https://x.com/i/article/<numeric-id>` for Articles. Every ambiguous post-click
+result is terminal `outcome_unknown` and is never retried.
 
 The normal paired workflow does not require the user to download a content ZIP.
 The companion claims a command and downloads its immutable recipe and private
@@ -79,7 +88,10 @@ printf '%s\n' "$PAIRING_CODE" | bun run src/main.ts pair --api https://binance.v
 
 For an interactive terminal, omit the pipe; the prompt disables echo. Pairing
 accepts an HTTPS application origin only. Plain `http://localhost` is rejected;
-use an HTTPS preview or deployment for an end-to-end local companion test.
+use an HTTPS preview or deployment for an end-to-end local companion test. The
+current companion advertises protocol version 2 during pairing; pair it again
+after upgrading from a protocol-v1 release so V3 Post/Article commands can be
+prepared.
 
 Run one polling cycle:
 

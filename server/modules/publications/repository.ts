@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull } from 'drizzle-orm';
 
 import type { AppDatabase } from '@/server/db/client';
 import {
@@ -12,17 +12,26 @@ import {
 } from '@/server/db/schema';
 import { DEFAULT_USER_QUOTA } from '@/server/domain/quotas';
 
+import { defaultPublicationKind } from './draft-service';
 import type { PublicationPreparationContext, PublicationRepository } from './service';
 
 export function createPublicationRepository(database: AppDatabase): PublicationRepository {
   return {
-    async loadPreparationContext({ actorUserId, workspaceId, articleId, target }) {
+    async loadPreparationContext({
+      actorUserId,
+      workspaceId,
+      articleId,
+      target,
+      kind,
+      preferredProtocolVersion = 1,
+    }) {
       const draftRows = await database
         .select({
           id: publicationDraft.id,
           workspaceId: publicationDraft.workspaceId,
           articleId: publicationDraft.articleId,
           target: publicationDraft.target,
+          kind: publicationDraft.kind,
           revision: publicationDraft.revision,
           payload: publicationDraft.payload,
           expiresAt: publicationDraft.expiresAt,
@@ -38,6 +47,7 @@ export function createPublicationRepository(database: AppDatabase): PublicationR
           eq(publicationDraft.workspaceId, workspaceId),
           eq(publicationDraft.articleId, articleId),
           eq(publicationDraft.target, target),
+          eq(publicationDraft.kind, kind),
           inArray(publicationDraft.status, ['draft', 'prepared']),
         ))
         .orderBy(desc(publicationDraft.updatedAt))
@@ -61,6 +71,7 @@ export function createPublicationRepository(database: AppDatabase): PublicationR
             id: publisherDevice.id,
             status: publisherDevice.status,
             lastSeenAt: publisherDevice.lastSeenAt,
+            protocolVersion: publisherDevice.protocolVersion,
           })
           .from(publisherDevice)
           .where(and(
@@ -68,7 +79,10 @@ export function createPublicationRepository(database: AppDatabase): PublicationR
             eq(publisherDevice.workspaceId, workspaceId),
             eq(publisherDevice.status, 'active'),
           ))
-          .orderBy(desc(publisherDevice.lastSeenAt))
+          .orderBy(
+            desc(gte(publisherDevice.protocolVersion, preferredProtocolVersion)),
+            desc(publisherDevice.lastSeenAt),
+          )
           .limit(1),
         target === 'binance-square'
           ? database
@@ -85,12 +99,16 @@ export function createPublicationRepository(database: AppDatabase): PublicationR
       ]);
 
       const generatedCoverAssetId = coverRows[0]?.sourceAssetId ?? null;
-      const payload = draft.payload as { orderedAssetIds?: unknown };
+      const payload = draft.payload as {
+        cover?: { assetId?: unknown };
+        orderedAssetIds?: unknown;
+      };
       const orderedAssetIds = Array.isArray(payload.orderedAssetIds)
         ? payload.orderedAssetIds.filter((id): id is string => typeof id === 'string')
         : [];
       const assetIds = [...new Set([
         ...(generatedCoverAssetId ? [generatedCoverAssetId] : []),
+        ...(typeof payload.cover?.assetId === 'string' ? [payload.cover.assetId] : []),
         ...orderedAssetIds,
       ])];
       const assets = assetIds.length === 0 ? [] : await database
@@ -115,6 +133,7 @@ export function createPublicationRepository(database: AppDatabase): PublicationR
           workspaceId: draft.workspaceId,
           articleId: draft.articleId,
           target: draft.target,
+          kind: draft.kind,
           revision: draft.revision,
           payload: draft.payload,
           expiresAt: draft.expiresAt,
@@ -130,22 +149,25 @@ export function createPublicationRepository(database: AppDatabase): PublicationR
       actorUserId,
       workspaceId,
       target,
+      kind,
       expectedRevision,
       recipeHash,
       recipe,
       command,
     }) {
+      const resolvedKind = kind ?? defaultPublicationKind(target);
       // The draft status flips to 'queued' only when the command row actually
       // inserts; an idempotency-key conflict must leave the draft untouched,
       // otherwise it would be stuck 'queued' with no command to complete it.
       const [rows] = await database.$client.transaction((transaction) => [
         transaction`
           WITH candidate AS MATERIALIZED (
-            SELECT draft."id", draft."target"
+            SELECT draft."id", draft."target", draft."kind"
             FROM "PublicationDraft" AS draft
             WHERE draft."id" = ${command.draftId}
               AND draft."workspaceId" = ${workspaceId}
               AND draft."target" = ${target}::"PublicationTarget"
+              AND draft."kind" = ${resolvedKind}::"PublicationKind"
               AND draft."revision" = ${expectedRevision}
               AND draft."status" IN ('draft', 'prepared')
               AND draft."expiresAt" > now()
@@ -160,17 +182,19 @@ export function createPublicationRepository(database: AppDatabase): PublicationR
                   AND device."workspaceId" = draft."workspaceId"
                   AND device."userId" = ${actorUserId}
                   AND device."status" = 'active'
+                  AND device."protocolVersion" >= ${recipe.version === 3 ? 2 : 1}
               )
             FOR UPDATE
           ), inserted_command AS (
             INSERT INTO "PublisherCommand" (
-              "id", "draftId", "publicationDraftId", "target", "deviceId", "state", "revision",
+              "id", "draftId", "publicationDraftId", "target", "kind", "deviceId", "state", "revision",
               "recipeHash", "idempotencyKey", "expiresAt", "createdAt", "updatedAt"
             )
             SELECT
-              ${command.id}, NULL, candidate."id", candidate."target", ${command.deviceId},
+              ${command.id}, NULL, candidate."id", candidate."target", candidate."kind", ${command.deviceId},
               'queued'::"PublisherCommandState", ${command.revision}, ${command.recipeHash},
-              ${`prepare:${target}:${command.draftId}:${command.revision}`}, ${command.expiresAt}, now(), now()
+              ${`prepare:${target}:${resolvedKind}:${command.draftId}:${command.revision}`},
+              ${command.expiresAt}, now(), now()
             FROM candidate
             ON CONFLICT ("idempotencyKey") DO NOTHING
             RETURNING "id", "publicationDraftId"
@@ -178,13 +202,14 @@ export function createPublicationRepository(database: AppDatabase): PublicationR
             UPDATE "PublicationDraft" AS draft
             SET
               "status" = 'queued'::"PublicationDraftStatus",
-              "payload" = ${JSON.stringify(recipe.target === 'binance-square' ? {
-                title: recipe.title,
-                markdown: recipe.markdown,
-                cover: recipe.cover,
+              "version" = ${recipe.version},
+              "payload" = ${JSON.stringify(resolvedKind === 'article' ? {
+                title: 'title' in recipe ? recipe.title : undefined,
+                markdown: 'markdown' in recipe ? recipe.markdown : undefined,
+                ...('cover' in recipe && recipe.cover !== undefined ? { cover: recipe.cover } : {}),
                 orderedAssetIds: recipe.orderedAssetIds,
               } : {
-                text: recipe.text,
+                text: 'text' in recipe ? recipe.text : undefined,
                 orderedAssetIds: recipe.orderedAssetIds,
               })}::jsonb,
               "recipeHash" = ${recipeHash},

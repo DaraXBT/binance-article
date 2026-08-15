@@ -60,7 +60,8 @@ Users can cancel any pre-click command from the web UI. Expired pre-click comman
   Connections**.
 - Keep the `GEMINI_TEXT_MODEL` and `GEMINI_IMAGE_MODEL` variables identical on
   both Workers so connection validation matches generation.
-- Primary Binance and regular X publishing runs only in the local companion.
+- Primary Binance and X publishing, for both Posts and Articles, runs only in
+  the local companion.
   Its opaque device token is stored in the operating-system keyring; both social
   sessions stay in isolated, companion-managed local Chrome profiles. On first
   use, the user signs in manually inside the profile opened by the companion.
@@ -80,12 +81,12 @@ The default article path accepts pasted text, a topic prompt, or an HTTPS URL.
 The background Workflow Worker then produces structured slides, captions, slide
 images, and a dedicated cover. `binance-master` is the default illustration
 style; each image selects one of its Scene, Mechanism, Briefing, or Primer
-registers based on the content. Binance publication preparation records the
-cover focal point; in the paired path, the companion validates and crops the
-cover to the Binance 5:2 / 1000×400 contract after claiming the command and
-before browser composition. The fallback export performs that crop locally. X
-preparation instead selects up to four slide images and does not automatically
-attach the dedicated cover.
+registers based on the content. For either platform, a Post may be text-only,
+image-only, or contain both, with zero to four optional images; X text is capped
+at 280 characters and Binance text at 2,100. Articles require title and body,
+while their cover and zero to ten body images are independently optional.
+Binance cover preparation records the focal point and the companion validates
+and crops a selected cover to the 5:2 / 1000×400 contract before composition.
 
 Generation access can be locked for cost control. In that case an operator
 issues a one-time `gac_...` grant; the grant is bound to the user's workspace
@@ -119,23 +120,35 @@ hash and bounded metadata are stored.
 
 ## Binance publishing flow
 
-1. An authenticated member prepares an immutable, revision-bound recipe in the web app.
+1. An authenticated member chooses **Post** or **Article**, reviews the exact
+   text/title/body and optional media, and prepares an immutable,
+   revision-bound recipe in the web app.
 2. A paired local companion claims the command and verifies every private asset by MIME type, length, magic bytes, and SHA-256.
-3. The companion prepares the existing Binance Square skill locally and reports `awaiting_review`.
+3. The companion prepares the matching Binance Square Post composer or Article
+   editor locally and reports `awaiting_review`.
 4. The user approves the exact revision through the web UI.
 5. Immediately before the one allowed click, the companion revalidates the editor and calls the server's begin transition.
-6. Success requires a canonical Binance Square URL. Any uncertain post-click state is terminal and cannot be retried.
+6. Success requires a canonical, kind-matching Binance Square URL. Any
+   uncertain post-click state is terminal and cannot be retried.
 
-If the companion is unavailable, **Download fallback ZIP** keeps the manual local
-bundle workflow available through `.agents/skills/baoyu-post-to-binance-square`.
+For formats where the dialog offers it, **Download fallback ZIP** keeps the
+manual local bundle workflow available through
+`.agents/skills/baoyu-post-to-binance-square`.
 
 ## X publishing flow
 
-1. An authenticated member opens an article, chooses **X post**, reviews one regular post with up to four images, and selects **Prepare on X**.
-2. The paired companion claims the immutable command, verifies every downloaded byte, fills the companion-managed X Chrome composer, and reports `awaiting_review`.
+1. An authenticated member chooses **Post** or **Article**, reviews the exact
+   content and optional media, and selects **Prepare on X**. Articles require
+   the publishing account to have X Articles entitlement.
+2. The paired companion claims the immutable command, verifies every downloaded
+   byte, fills the companion-managed X Post composer or Article editor, and
+   reports `awaiting_review`.
 3. The user approves the exact revision through the web UI.
-4. Immediately before the one allowed Post click, the companion revalidates the composer and begins the server transition.
-5. Success requires an exact `https://x.com/<handle>/status/<numeric-id>` URL. Any uncertain post-click state is terminal and is never retried.
+4. Immediately before the one allowed click, the companion revalidates the
+   exact editor snapshot and begins the server transition.
+5. Success requires `https://x.com/<handle>/status/<numeric-id>` for a Post or
+   `https://x.com/i/article/<numeric-id>` for an Article. Any uncertain
+   post-click state is terminal and is never retried.
 
 If the companion is unavailable, **Download fallback ZIP** creates only
 `post.txt`, selected local images, and a strict SHA-256 manifest. It contains no
@@ -154,7 +167,9 @@ The fallback skill validates paths, signatures, hashes, and bounded extraction
 sizes before opening a local Chrome draft. Review it and click **Post** manually;
 the fallback never stores social credentials or claims publication success.
 
-This integration currently supports regular X posts only. X threads and Premium X Articles are separate workflows.
+X threads remain outside this workflow. If the managed X account lacks Article
+entitlement, only X Article preparation is cancelled; regular X Posts remain
+available.
 
 The paired companion path is always review-gated: the web app prepares the
 recipe, the user approves the exact revision, and only then can the companion

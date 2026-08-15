@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRuntimeDatabase } from '@/server/db/runtime';
 import { errorResponse, withNoStoreHeaders } from '@/server/http/errors';
 import { createPublisherCommandRepository } from '@/server/modules/publisher/commands/repository';
+import { publisherCommandForProtocol } from '@/server/modules/publisher/commands/protocol-response';
 import { getPublisherCommandStatus } from '@/server/modules/publisher/commands/service';
 import { createPublisherDeviceRepository } from '@/server/modules/publisher/devices/repository';
 import { authenticatePublisherDevice } from '@/server/modules/publisher/devices/service';
@@ -22,7 +23,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
       deviceId: device.id,
       commandId,
     });
-    return NextResponse.json({ command }, { headers: withNoStoreHeaders() });
+    return NextResponse.json({
+      command: publisherCommandForProtocol(command, device.protocolVersion),
+    }, { headers: withNoStoreHeaders() });
   } catch (error) {
     return errorResponse(error, {
       code: 'PUBLISHER_COMMAND_STATUS_FAILED',

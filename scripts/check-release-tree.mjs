@@ -14,6 +14,7 @@ export const REQUIRED_RELEASE_PATHS = [
   'drizzle/0014_web_approval_default.sql',
   'drizzle/0015_workspace_ai_credential.sql',
   'drizzle/0016_shared_enrollment.sql',
+  'drizzle/0017_publication-kind.sql',
   'drizzle/meta/0008_snapshot.json',
   'drizzle/meta/0009_snapshot.json',
   'drizzle/meta/0010_snapshot.json',
@@ -23,7 +24,9 @@ export const REQUIRED_RELEASE_PATHS = [
   'drizzle/meta/0014_snapshot.json',
   'drizzle/meta/0015_snapshot.json',
   'drizzle/meta/0016_snapshot.json',
+  'drizzle/meta/0017_snapshot.json',
   'drizzle/meta/_journal.json',
+  'docs/cutover-0017-runbook.md',
 ];
 
 export const REMOVED_RUNTIME_PATHS = [

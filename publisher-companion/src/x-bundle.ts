@@ -39,6 +39,28 @@ const ImageSchema = FileSchema.extend({
   height: z.number().int().positive(),
 }).strict();
 
+function validateImageOrder(
+  images: Array<z.infer<typeof ImageSchema>>,
+  context: z.RefinementCtx,
+): void {
+  const paths = new Set<string>();
+  const orders = new Set<number>();
+  const slideIds = new Set<string>();
+  for (const [index, image] of images.entries()) {
+    if (
+      image.order !== index
+      || paths.has(image.path)
+      || orders.has(image.order)
+      || slideIds.has(image.slideId)
+    ) {
+      context.addIssue({ code: 'custom', path: ['images'], message: 'X image metadata is reordered or duplicated.' });
+    }
+    paths.add(image.path);
+    orders.add(image.order);
+    slideIds.add(image.slideId);
+  }
+}
+
 const ManifestSchema = z.object({
   schemaVersion: z.literal(1),
   source: z.literal('xarticle'),
@@ -53,20 +75,28 @@ const ManifestSchema = z.object({
   }).strict(),
   images: z.array(ImageSchema).max(X_POST_MAX_IMAGES),
 }).strict().superRefine((manifest, context) => {
-  const paths = new Set<string>();
-  const orders = new Set<number>();
-  const slideIds = new Set<string>();
-  for (const image of manifest.images) {
-    if (paths.has(image.path) || orders.has(image.order) || slideIds.has(image.slideId)) {
-      context.addIssue({ code: 'custom', path: ['images'], message: 'X image metadata is duplicated.' });
-    }
-    paths.add(image.path);
-    orders.add(image.order);
-    slideIds.add(image.slideId);
-  }
+  validateImageOrder(manifest.images, context);
 });
 
-type Manifest = z.infer<typeof ManifestSchema>;
+const ManifestV2Schema = z.object({
+  schemaVersion: z.literal(2),
+  source: z.literal('xarticle'),
+  platform: z.literal('x'),
+  kind: z.literal('post'),
+  articleId: z.string().regex(IDENTIFIER_PATTERN),
+  exportedAt: z.string().datetime({ offset: true }),
+  content: FileSchema.extend({
+    path: z.literal('post.txt'),
+    mimeType: z.literal('text/plain'),
+    bytes: z.number().int().min(0).max(MAX_POST_BYTES),
+  }).strict(),
+  images: z.array(ImageSchema).max(X_POST_MAX_IMAGES),
+}).strict().superRefine((manifest, context) => {
+  validateImageOrder(manifest.images, context);
+});
+
+const AnyPostManifestSchema = z.union([ManifestSchema, ManifestV2Schema]);
+type Manifest = z.infer<typeof AnyPostManifestSchema>;
 
 function isSafePath(value: string): boolean {
   if (!value || value.includes('\0') || value.includes('\\') || value.includes('%')) return false;
@@ -83,7 +113,7 @@ function isSymbolicLink(entry: JSZip.JSZipObject): boolean {
 
 async function verifiedEntry(
   zip: JSZip,
-  metadata: Manifest['post'] | Manifest['images'][number],
+  metadata: z.infer<typeof FileSchema>,
 ): Promise<Uint8Array> {
   const entry = zip.file(metadata.path);
   if (!entry || entry.dir || isSymbolicLink(entry)) throw new Error('X bundle entry is missing or unsafe.');
@@ -130,17 +160,18 @@ export async function extractXPublicationBundle(bundlePath: string): Promise<{
   let manifest: Manifest;
   try {
     const text = new TextDecoder('utf-8', { fatal: true }).decode(manifestBytes);
-    manifest = ManifestSchema.parse(JSON.parse(text));
+    manifest = AnyPostManifestSchema.parse(JSON.parse(text));
   } catch {
     throw new Error('X publication manifest is invalid.');
   }
 
-  const expectedPaths = new Set(['manifest.json', manifest.post.path, ...manifest.images.map((image) => image.path)]);
+  const post = 'post' in manifest ? manifest.post : manifest.content;
+  const expectedPaths = new Set(['manifest.json', post.path, ...manifest.images.map((image) => image.path)]);
   if (entries.some((entry) => !expectedPaths.has(entry.name)) || expectedPaths.size !== entries.length) {
     throw new Error('X publication bundle contains an unlisted entry.');
   }
 
-  const postBytes = await verifiedEntry(zip, manifest.post);
+  const postBytes = await verifiedEntry(zip, post);
   let text: string;
   try {
     text = new TextDecoder('utf-8', { fatal: true }).decode(postBytes);

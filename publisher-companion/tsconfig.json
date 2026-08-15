@@ -3,6 +3,11 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "paths": {
+      "baoyu-md": ["../.agents/skills/baoyu-post-to-binance-square/scripts/types/baoyu-md.d.ts"],
+      "front-matter": ["../.agents/skills/baoyu-post-to-binance-square/scripts/types/front-matter.d.ts"]
+    },
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,

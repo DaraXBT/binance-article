@@ -2,9 +2,11 @@ import { z } from 'zod';
 
 import {
   hashPublicationRecipe,
+  publicationRecipeKind,
   publicationRecipeTarget,
   validatePublicationRecipe,
   type PublicationRecipe,
+  type PublicationKind,
   type PublicationTarget,
 } from '@/server/domain/publication-recipe';
 import { transitionPublisherCommand } from '@/server/domain/publisher-command';
@@ -19,6 +21,8 @@ const AbortReasonSchema = z.enum([
   'RECIPE_INVALID',
   'DEVICE_SHUTDOWN',
   'USER_CANCELLED',
+  'X_LOGIN_REQUIRED',
+  'X_ARTICLES_UNAVAILABLE',
 ]);
 
 type CommandState =
@@ -43,6 +47,7 @@ export interface PublisherCommandRecord {
   recipeHash: string;
   expiresAt: Date;
   target?: PublicationTarget;
+  kind?: PublicationKind;
 }
 
 export interface PublisherCommandRepository {
@@ -51,7 +56,10 @@ export interface PublisherCommandRepository {
     deviceId: string;
     commandId: string;
   }): Promise<{
-    command: Pick<PublisherCommandRecord, 'id' | 'deviceId' | 'state' | 'revision' | 'recipeHash' | 'target'>;
+    command: Pick<
+      PublisherCommandRecord,
+      'id' | 'deviceId' | 'state' | 'revision' | 'recipeHash' | 'target' | 'kind'
+    >;
     recipe: unknown;
   } | null>;
   compareAndSwap(input: {
@@ -123,6 +131,10 @@ export async function loadPublisherRecipe(input: {
   });
   if (publicationRecipeTarget(recipe) !== (loaded.command.target ?? 'binance-square')) {
     throw commandError('PUBLICATION_RECIPE_MISMATCH', 'Publication recipe target verification failed.');
+  }
+  const legacyKind = (loaded.command.target ?? 'binance-square') === 'x' ? 'post' : 'article';
+  if (publicationRecipeKind(recipe) !== (loaded.command.kind ?? legacyKind)) {
+    throw commandError('PUBLICATION_RECIPE_MISMATCH', 'Publication recipe kind verification failed.');
   }
   const actualHash = await hashPublicationRecipe(recipe);
   if (!constantTimeHashEqual(actualHash, loaded.command.recipeHash)) {
@@ -203,6 +215,7 @@ export async function reportPublishResult(input: {
     state: 'publishing' as const,
     revision,
     target: command.target ?? 'binance-square',
+    ...(command.kind ? { kind: command.kind } : {}),
     assignedDeviceId: deviceId,
     expiresAt: new Date(now.getTime() + 1),
   };
@@ -281,6 +294,7 @@ export async function getPublisherCommandStatus(input: {
   return {
     id: command.id,
     target: command.target ?? 'binance-square',
+    ...(command.kind ? { kind: command.kind } : {}),
     state: command.state,
     revision: command.revision,
     recipeHash: command.recipeHash,

@@ -1,18 +1,27 @@
 import { z } from 'zod';
 
 import {
+  PublicationKindSchema,
   PublicationRecipeV2Schema,
+  PublicationRecipeV3Schema,
   PublicationTargetSchema,
   hashPublicationRecipe,
+  type PublicationKind,
   type PublicationRecipeV2,
+  type PublicationRecipeV3,
   type PublicationTarget,
 } from '@/server/domain/publication-recipe';
 import { UserQuotaSchema } from '@/server/domain/quotas';
 import { AppError } from '@/server/http/errors';
 
 import {
+  ArticleDraftPayloadSchema,
+  BinanceCompatibleArticleDraftPayloadSchema,
+  BinanceSquarePostDraftPayloadSchema,
   BinanceSquareDraftPayloadSchema,
+  XPostDraftPayloadSchema,
   XDraftPayloadSchema,
+  defaultPublicationKind,
 } from './draft-service';
 
 export const PUBLISHER_DEVICE_ONLINE_WINDOW_MS = 2 * 60 * 1000;
@@ -27,6 +36,7 @@ const PreparationContextSchema = z.object({
     workspaceId: IdentifierSchema,
     articleId: IdentifierSchema,
     target: PublicationTargetSchema,
+    kind: PublicationKindSchema.optional(),
     revision: z.number().int().positive(),
     payload: z.unknown(),
     expiresAt: z.date(),
@@ -44,6 +54,7 @@ const PreparationContextSchema = z.object({
     id: IdentifierSchema,
     status: z.enum(['pending', 'active', 'revoked']),
     lastSeenAt: z.date().nullable(),
+    protocolVersion: z.number().int().positive().optional(),
   }).strict().nullable(),
 }).strict();
 
@@ -54,6 +65,7 @@ export interface PreparedPublisherCommand {
   draftId: string;
   deviceId: string;
   target: PublicationTarget;
+  kind?: PublicationKind;
   state: 'queued';
   revision: number;
   recipeHash: string;
@@ -66,14 +78,17 @@ export interface PublicationRepository {
     workspaceId: string;
     articleId: string;
     target: PublicationTarget;
+    kind: PublicationKind;
+    preferredProtocolVersion?: number;
   }): Promise<PublicationPreparationContext | null>;
   commitPreparedPublication(input: {
     actorUserId: string;
     workspaceId: string;
     target: PublicationTarget;
+    kind?: PublicationKind;
     expectedRevision: number;
     recipeHash: string;
-    recipe: PublicationRecipeV2;
+    recipe: PublicationRecipeV2 | PublicationRecipeV3;
     command: PreparedPublisherCommand;
   }): Promise<boolean>;
 }
@@ -88,11 +103,12 @@ export async function preparePublication(input: {
   workspaceId: string;
   articleId: string;
   target: PublicationTarget;
+  kind?: PublicationKind;
   expectedRevision: number;
   commandId?: string;
   now?: Date;
 }): Promise<{
-  recipe: PublicationRecipeV2;
+  recipe: PublicationRecipeV2 | PublicationRecipeV3;
   recipeHash: string;
   command: PreparedPublisherCommand;
 }> {
@@ -100,6 +116,8 @@ export async function preparePublication(input: {
   const workspaceId = IdentifierSchema.parse(input.workspaceId);
   const articleId = IdentifierSchema.parse(input.articleId);
   const target = PublicationTargetSchema.parse(input.target);
+  const legacyRecipe = input.kind === undefined;
+  const kind = PublicationKindSchema.parse(input.kind ?? defaultPublicationKind(target));
   const commandId = IdentifierSchema.parse(input.commandId ?? crypto.randomUUID());
   if (!Number.isSafeInteger(input.expectedRevision) || input.expectedRevision <= 0) {
     fail('PUBLICATION_REVISION_STALE', 'The publication draft revision is stale.');
@@ -110,11 +128,19 @@ export async function preparePublication(input: {
     workspaceId,
     articleId,
     target,
+    kind,
+    ...(!legacyRecipe ? { preferredProtocolVersion: 2 } : {}),
   });
   if (!loaded) fail('PUBLICATION_NOT_FOUND', 'Publication draft not found.', 404);
 
   const { draft, assets, generatedCoverAssetId, quota, device } = PreparationContextSchema.parse(loaded);
-  if (draft.workspaceId !== workspaceId || draft.articleId !== articleId || draft.target !== target) {
+  const draftKind = PublicationKindSchema.parse(draft.kind ?? defaultPublicationKind(draft.target));
+  if (
+    draft.workspaceId !== workspaceId
+    || draft.articleId !== articleId
+    || draft.target !== target
+    || draftKind !== kind
+  ) {
     fail('PUBLICATION_NOT_FOUND', 'Publication draft not found.', 404);
   }
   if (draft.revision !== input.expectedRevision || draft.expiresAt.getTime() <= now.getTime()) {
@@ -129,37 +155,63 @@ export async function preparePublication(input: {
   ) {
     fail('PUBLISHER_DEVICE_OFFLINE', 'An active local publisher must be online.');
   }
+  if (!legacyRecipe && (device.protocolVersion ?? 1) < 2) {
+    fail(
+      'PUBLISHER_UPGRADE_REQUIRED',
+      'Update the local publisher before preparing this publication.',
+    );
+  }
 
-  const binancePayload = target === 'binance-square'
-    ? BinanceSquareDraftPayloadSchema.parse(draft.payload)
+  const articlePayload = kind === 'article'
+    ? (legacyRecipe
+      ? BinanceSquareDraftPayloadSchema.parse(draft.payload)
+      : target === 'binance-square'
+        ? BinanceCompatibleArticleDraftPayloadSchema.parse(draft.payload)
+        : ArticleDraftPayloadSchema.parse(draft.payload))
     : null;
-  const xPayload = target === 'x' ? XDraftPayloadSchema.parse(draft.payload) : null;
-  const orderedAssetIds = binancePayload?.orderedAssetIds ?? xPayload!.orderedAssetIds;
+  const postPayload = kind === 'post'
+    ? (target === 'x'
+      ? (legacyRecipe
+        ? XDraftPayloadSchema.parse(draft.payload)
+        : XPostDraftPayloadSchema.parse(draft.payload))
+      : BinanceSquarePostDraftPayloadSchema.parse(draft.payload))
+    : null;
+  const orderedAssetIds = articlePayload?.orderedAssetIds ?? postPayload!.orderedAssetIds;
   if (
-    target === 'binance-square'
+    kind === 'article'
     && (orderedAssetIds.length > quota.maxSlidesPerArticle
       || orderedAssetIds.length > GLOBAL_MAX_SLIDES)
   ) {
     fail('SLIDE_LIMIT', 'The publication exceeds the allowed slide count.');
   }
-  if (target === 'binance-square' && !generatedCoverAssetId) {
+  if (legacyRecipe && target === 'binance-square' && !generatedCoverAssetId) {
     fail(
       'PUBLICATION_COVER_NOT_READY',
       'Generate the dedicated article cover before preparing this publication.',
     );
   }
 
+  const selectedCover = !legacyRecipe
+    && kind === 'article'
+    && articlePayload?.cover
+    && typeof articlePayload.cover.assetId === 'string'
+    ? { ...articlePayload.cover, assetId: articlePayload.cover.assetId }
+    : undefined;
+  const coverAssetId = legacyRecipe && target === 'binance-square'
+    ? generatedCoverAssetId
+    : selectedCover?.assetId ?? null;
   const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
-  const usedAssetIds = target === 'binance-square'
-    ? [...new Set([generatedCoverAssetId!, ...orderedAssetIds])]
-    : [...new Set(orderedAssetIds)];
+  const usedAssetIds = [...new Set([
+    ...(coverAssetId ? [coverAssetId] : []),
+    ...orderedAssetIds,
+  ])];
   const recipeAssetsWithPurpose = usedAssetIds.map((id) => assetsById.get(id));
   if (recipeAssetsWithPurpose.some((asset) => !asset)) {
     fail('PUBLICATION_ASSET_MISSING', 'A publication asset is missing or unavailable.');
   }
   if (
-    target === 'binance-square'
-    && assetsById.get(generatedCoverAssetId!)?.purpose !== 'cover_image'
+    coverAssetId
+    && assetsById.get(coverAssetId)?.purpose !== 'cover_image'
   ) {
     fail('PUBLICATION_COVER_NOT_READY', 'The dedicated article cover is unavailable.');
   }
@@ -170,43 +222,60 @@ export async function preparePublication(input: {
     sha256: asset!.sha256,
   }));
 
-  const recipe = PublicationRecipeV2Schema.parse(target === 'binance-square'
-    ? {
-      version: 2,
-      target,
-      draftId: draft.id,
-      articleId: draft.articleId,
-      revision: draft.revision,
-      expiresAt: draft.expiresAt.toISOString(),
-      title: binancePayload!.title,
-      markdown: binancePayload!.markdown,
-      cover: {
-        assetId: generatedCoverAssetId,
-        focalX: binancePayload!.cover.focalX,
-        focalY: binancePayload!.cover.focalY,
-        targetWidth: 1000,
-        targetHeight: 400,
-      },
-      orderedAssetIds,
-      assets: recipeAssets,
-    }
-    : {
-      version: 2,
-      target,
-      draftId: draft.id,
-      articleId: draft.articleId,
-      revision: draft.revision,
-      expiresAt: draft.expiresAt.toISOString(),
-      text: xPayload!.text,
-      orderedAssetIds,
-      assets: recipeAssets,
-    });
+  const recipeCommon = {
+    draftId: draft.id,
+    articleId: draft.articleId,
+    revision: draft.revision,
+    expiresAt: draft.expiresAt.toISOString(),
+    orderedAssetIds,
+    assets: recipeAssets,
+  };
+  const recipe: PublicationRecipeV2 | PublicationRecipeV3 = legacyRecipe
+    ? PublicationRecipeV2Schema.parse(target === 'binance-square'
+      ? {
+        ...recipeCommon,
+        version: 2,
+        target,
+        title: articlePayload!.title,
+        markdown: articlePayload!.markdown,
+        cover: {
+          assetId: generatedCoverAssetId,
+          focalX: articlePayload!.cover!.focalX,
+          focalY: articlePayload!.cover!.focalY,
+          targetWidth: 1000,
+          targetHeight: 400,
+        },
+      }
+      : {
+        ...recipeCommon,
+        version: 2,
+        target,
+        text: postPayload!.text,
+      })
+    : PublicationRecipeV3Schema.parse(kind === 'post'
+      ? {
+        ...recipeCommon,
+        version: 3,
+        target,
+        kind,
+        text: postPayload!.text,
+      }
+      : {
+        ...recipeCommon,
+        version: 3,
+        target,
+        kind,
+        title: articlePayload!.title,
+        markdown: articlePayload!.markdown,
+        ...(selectedCover ? { cover: selectedCover } : {}),
+      });
   const recipeHash = await hashPublicationRecipe(recipe);
   const command: PreparedPublisherCommand = {
     id: commandId,
     draftId: draft.id,
     deviceId: device.id,
     target,
+    ...(!legacyRecipe ? { kind } : {}),
     state: 'queued',
     revision: draft.revision,
     recipeHash,
@@ -216,6 +285,7 @@ export async function preparePublication(input: {
     actorUserId,
     workspaceId,
     target,
+    kind,
     expectedRevision: draft.revision,
     recipeHash,
     recipe,

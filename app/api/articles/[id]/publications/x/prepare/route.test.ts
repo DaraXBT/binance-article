@@ -36,11 +36,25 @@ describe('POST /api/articles/:id/publications/x/prepare', () => {
     expect(response.status).toBe(201);
     expect(mocks.prepare).toHaveBeenCalledWith({
       repository: mocks.repository,
-      actorUserId: 'user_1', workspaceId: 'workspace_1', articleId: 'article_1', expectedRevision: 2,
+      actorUserId: 'user_1', workspaceId: 'workspace_1', articleId: 'article_1',
+      expectedRevision: 2,
     });
     expect(await response.json()).toMatchObject({
       recipe: { version: 2, target: 'x' },
       command: { id: 'command_1', target: 'x', state: 'queued' },
     });
+  });
+
+  it('prepares an explicit X Article revision', async () => {
+    const { POST } = await import('./route');
+    const request = new Request('https://articles.example.com/api/articles/article_1/publications/x/prepare', {
+      method: 'POST',
+      headers: { origin: 'https://articles.example.com', 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'article', expectedRevision: 7 }),
+    });
+    await POST(request as never, { params: Promise.resolve({ id: 'article_1' }) });
+    expect(mocks.prepare).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'article', expectedRevision: 7,
+    }));
   });
 });

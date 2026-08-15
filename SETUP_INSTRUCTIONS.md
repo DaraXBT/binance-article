@@ -47,12 +47,8 @@ must use HTTPS.
 
 ## 3. Database
 
-Use a separate least-privileged runtime role and migration role. Before applying
-`0016_shared_enrollment`, stage `ENROLLMENT_CODE_PEPPER` on the web Worker and
-verify it is stable. Also stage the same `AI_CREDENTIAL_KEYRING`,
-`AI_CREDENTIAL_ACTIVE_KEY_ID`, `GEMINI_TEXT_MODEL`, and `GEMINI_IMAGE_MODEL`
-values for both Worker deployments. Review migrations, back up deployed data,
-then apply with the dedicated URL:
+Use a separate least-privileged runtime role and migration role. For a new local
+or disposable database, review the migrations and apply all of them with:
 
 ```bash
 : "${MIGRATION_DATABASE_URL:?Load the migration-role URL securely first}"
@@ -60,6 +56,17 @@ npm run db:check
 npm run db:migrate:deploy
 unset MIGRATION_DATABASE_URL
 ```
+
+For an existing deployed database, do not use that generic block until its
+ledger has selected the correct production runbook. A database ending at `0015`
+must first use an exact 0016-only release checkout and the
+[0016 cutover runbook](./docs/cutover-0016-runbook.md). A database ending at
+`0016` must use the [0017 cutover runbook](./docs/cutover-0017-runbook.md).
+Never run the 0016 procedure from a checkout whose journal already contains
+`0017`, because `db:migrate:deploy` applies every pending migration. Before an
+0016 cutover, stage a stable web-only `ENROLLMENT_CODE_PEPPER`; for every
+production cutover, preserve the reviewed Worker secrets and back up the
+database exactly as its runbook requires.
 
 Schema changes are generated offline with `npm run db:generate` (no database
 URL needed). Other development commands: `npm run workflow:dev` runs the
@@ -74,6 +81,14 @@ the V2 web app and companion compatibility release in the same maintenance
 window, smoke-test one prepared command, then resume publishing. Do not leave a
 V1 web writer running after the one-time legacy-draft backfill; the migration is
 expand-only, but it intentionally does not install a permanent dual-write bridge.
+
+Migration `0017_publication-kind` is also a maintenance cutover: it replaces the
+target-only draft key with a target-and-kind key, so the old web writer cannot
+share the migrated database. Follow the complete
+[0017 cutover runbook](./docs/cutover-0017-runbook.md): drain publishing, apply
+the migration, deploy the new web Worker at 100% with no canary, pair a
+protocol-v2 companion, smoke all four publication modes, and then resume writes.
+After `0017` commits, rollback is forward-only; never restore the old writer.
 
 The legacy workspace migration stamps only then-unowned workspaces with a 30-day claim deadline. New workspaces receive no claim deadline. Do not edit that deadline per request or extend it with an environment variable.
 
@@ -141,9 +156,9 @@ No deployment or live migration is performed by repository verification commands
 
 ## 6. Local publisher companion
 
-The paired companion is the primary publishing path for both Binance Square and
-regular X posts. It prepares the local Chrome editor, waits for explicit web
-approval of the exact revision, and permits one final click.
+The paired companion is the primary publishing path for Binance Square and X,
+for both Posts and Articles. It prepares the local Chrome editor, waits for
+explicit web approval of the exact revision, and permits one final click.
 
 ```bash
 cd publisher-companion

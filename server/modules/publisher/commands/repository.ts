@@ -7,7 +7,7 @@ import {
   publisherCommand,
   storageObject,
 } from '@/server/db/schema';
-import type { PublicationTarget } from '@/server/domain/publication-recipe';
+import type { PublicationKind, PublicationTarget } from '@/server/domain/publication-recipe';
 
 import type { PublisherCommandRecord, PublisherCommandRepository } from './service';
 
@@ -19,6 +19,7 @@ type GenericRecipeRow = {
     revision: number;
     recipeHash: string;
     target: PublicationTarget;
+    kind: PublicationKind;
   };
   draft: {
     id: string;
@@ -26,6 +27,8 @@ type GenericRecipeRow = {
     revision: number;
     expiresAt: Date;
     target: PublicationTarget;
+    kind: PublicationKind;
+    version: number;
     payload: unknown;
     workspaceId: string;
   };
@@ -88,7 +91,7 @@ export function createPublisherCommandRepository(database: AppDatabase): Publish
         WHERE command."id" = candidate."id"
         RETURNING
           command."id", COALESCE(command."publicationDraftId", command."draftId") AS "draftId",
-          command."deviceId", command."target", command."state", command."revision",
+          command."deviceId", command."target", command."kind", command."state", command."revision",
           command."recipeHash", command."expiresAt"
       `;
       return (rows[0] as PublisherCommandRecord | undefined) ?? null;
@@ -104,6 +107,7 @@ export function createPublisherCommandRepository(database: AppDatabase): Publish
             revision: publisherCommand.revision,
             recipeHash: publisherCommand.recipeHash,
             target: publisherCommand.target,
+            kind: publisherCommand.kind,
           },
           draft: {
             id: publicationDraft.id,
@@ -111,6 +115,8 @@ export function createPublisherCommandRepository(database: AppDatabase): Publish
             revision: publicationDraft.revision,
             expiresAt: publicationDraft.expiresAt,
             target: publicationDraft.target,
+            kind: publicationDraft.kind,
+            version: publicationDraft.version,
             payload: publicationDraft.payload,
             workspaceId: publicationDraft.workspaceId,
           },
@@ -131,8 +137,7 @@ export function createPublisherCommandRepository(database: AppDatabase): Publish
         const orderedAssetIds = Array.isArray(payload.orderedAssetIds)
           ? payload.orderedAssetIds.filter((id): id is string => typeof id === 'string')
           : [];
-        const coverId = generic.draft.target === 'binance-square'
-          && typeof payload.cover?.assetId === 'string'
+        const coverId = typeof payload.cover?.assetId === 'string'
           ? payload.cover.assetId
           : null;
         const assetIds = [...new Set([...(coverId ? [coverId] : []), ...orderedAssetIds])];
@@ -155,7 +160,6 @@ export function createPublisherCommandRepository(database: AppDatabase): Publish
           .map((assetId) => assetsById.get(assetId))
           .filter((asset): asset is NonNullable<typeof asset> => Boolean(asset));
         const common = {
-          version: 2 as const,
           target: generic.draft.target,
           draftId: generic.draft.id,
           articleId: generic.draft.articleId,
@@ -164,11 +168,26 @@ export function createPublisherCommandRepository(database: AppDatabase): Publish
           orderedAssetIds,
           assets,
         };
-        return {
-          command: generic.command,
-          recipe: generic.draft.target === 'binance-square'
+        const recipe = generic.draft.version === 3
+          ? generic.draft.kind === 'article'
             ? {
               ...common,
+              version: 3 as const,
+              kind: 'article' as const,
+              title: payload.title,
+              markdown: payload.markdown,
+              ...(payload.cover ? { cover: payload.cover } : {}),
+            }
+            : {
+              ...common,
+              version: 3 as const,
+              kind: 'post' as const,
+              text: payload.text,
+            }
+          : generic.draft.target === 'binance-square'
+            ? {
+              ...common,
+              version: 2 as const,
               target: 'binance-square' as const,
               title: payload.title,
               markdown: payload.markdown,
@@ -176,10 +195,11 @@ export function createPublisherCommandRepository(database: AppDatabase): Publish
             }
             : {
               ...common,
+              version: 2 as const,
               target: 'x' as const,
               text: payload.text,
-            },
-        };
+            };
+        return { command: generic.command, recipe };
       }
 
       // Compatibility for commands created before PublicationDraft V2 was deployed.
@@ -192,6 +212,7 @@ export function createPublisherCommandRepository(database: AppDatabase): Publish
             revision: publisherCommand.revision,
             recipeHash: publisherCommand.recipeHash,
             target: publisherCommand.target,
+            kind: publisherCommand.kind,
           },
           draft: {
             id: binancePublicationDraft.id,
@@ -327,7 +348,7 @@ export function createPublisherCommandRepository(database: AppDatabase): Publish
     async loadStatus({ deviceId, commandId }) {
       const rows = await database.$client`
         SELECT "id", COALESCE("publicationDraftId", "draftId") AS "draftId", "deviceId",
-          "target", "state", "revision", "recipeHash", "expiresAt"
+          "target", "kind", "state", "revision", "recipeHash", "expiresAt"
         FROM "PublisherCommand"
         WHERE "id" = ${commandId} AND "deviceId" = ${deviceId}
         LIMIT 1

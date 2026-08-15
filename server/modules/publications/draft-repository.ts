@@ -7,13 +7,14 @@ import type { PublicationDraftRecord, PublicationDraftRepository } from './draft
 
 export function createPublicationDraftRepository(database: AppDatabase): PublicationDraftRepository {
   return {
-    async getDraft({ actorUserId, workspaceId, articleId, target }) {
+    async getDraft({ actorUserId, workspaceId, articleId, target, kind }) {
       const rows = await database
         .select({
           id: publicationDraft.id,
           workspaceId: publicationDraft.workspaceId,
           articleId: publicationDraft.articleId,
           target: publicationDraft.target,
+          kind: publicationDraft.kind,
           revision: publicationDraft.revision,
           status: publicationDraft.status,
           payload: publicationDraft.payload,
@@ -30,6 +31,7 @@ export function createPublicationDraftRepository(database: AppDatabase): Publica
           eq(publicationDraft.workspaceId, workspaceId),
           eq(publicationDraft.articleId, articleId),
           eq(publicationDraft.target, target),
+          eq(publicationDraft.kind, kind),
         ))
         .limit(1);
       return (rows[0] as PublicationDraftRecord | undefined) ?? null;
@@ -39,12 +41,13 @@ export function createPublicationDraftRepository(database: AppDatabase): Publica
       const [rows] = await database.$client.transaction((transaction) => [
         transaction`
           INSERT INTO "PublicationDraft" (
-            "id", "workspaceId", "articleId", "createdByUserId", "target", "version",
+            "id", "workspaceId", "articleId", "createdByUserId", "target", "kind", "version",
             "revision", "status", "payload", "expiresAt", "createdAt", "updatedAt"
           )
           SELECT
             ${input.draftId}, ${input.workspaceId}, ${input.articleId}, ${input.actorUserId},
-            ${input.target}::"PublicationTarget", 2, 1, 'draft'::"PublicationDraftStatus",
+            ${input.target}::"PublicationTarget", ${input.kind}::"PublicationKind",
+            3, 1, 'draft'::"PublicationDraftStatus",
             ${JSON.stringify(input.payload)}::jsonb, ${input.expiresAt}, ${input.now}, ${input.now}
           FROM "DeckProject" article
           WHERE article."id" = ${input.articleId}
@@ -55,9 +58,10 @@ export function createPublicationDraftRepository(database: AppDatabase): Publica
               WHERE member."workspaceId" = article."workspaceId"
                 AND member."userId" = ${input.actorUserId}
             )
-          ON CONFLICT ("workspaceId", "articleId", "target") DO UPDATE
+          ON CONFLICT ("workspaceId", "articleId", "target", "kind") DO UPDATE
           SET
             "revision" = "PublicationDraft"."revision" + 1,
+            "version" = 3,
             "status" = 'draft'::"PublicationDraftStatus",
             "payload" = EXCLUDED."payload",
             "recipeHash" = NULL,
@@ -87,7 +91,7 @@ export function createPublicationDraftRepository(database: AppDatabase): Publica
                 AND member."userId" = ${input.actorUserId}
             )
           RETURNING
-            "id", "workspaceId", "articleId", "target", "revision", "status", "payload",
+            "id", "workspaceId", "articleId", "target", "kind", "revision", "status", "payload",
             "expiresAt", "publishedUrl", "updatedAt"
         `,
       ], { isolationLevel: 'ReadCommitted' });

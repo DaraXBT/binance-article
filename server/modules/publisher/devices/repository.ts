@@ -73,6 +73,7 @@ export function createPublisherDeviceRepository(
         SET "tokenHash" = ${input.deviceTokenHash},
             "tokenPrefix" = ${input.deviceTokenPrefix},
             "status" = 'active'::"PublisherDeviceStatus",
+            "protocolVersion" = ${input.protocolVersion},
             "pairedAt" = ${input.now},
             "lastSeenAt" = ${input.now},
             "updatedAt" = ${input.now}

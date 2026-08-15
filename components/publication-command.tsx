@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import type { PublishingMessages } from '@/lib/publishing-i18n';
 
 export type PublicationTarget = 'binance-square' | 'x';
+export type PublicationKind = 'post' | 'article';
 export type PublicationCommandState =
   | 'queued'
   | 'claimed'
@@ -25,6 +26,7 @@ export type PublicationCommand = {
   id: string;
   draftId: string;
   target: PublicationTarget;
+  kind?: PublicationKind;
   state: PublicationCommandState;
   revision: number;
   recipeHash: string;
@@ -59,7 +61,11 @@ async function responseJson(response: Response, fallback: string) {
   return body;
 }
 
-export function usePublicationCommand(target: PublicationTarget, articleId?: string) {
+export function usePublicationCommand(
+  target: PublicationTarget,
+  articleId?: string,
+  kind?: PublicationKind,
+) {
   const { messages } = useLanguage();
   const copy = messages.publishing.command;
   const [command, setCommand] = useState<PublicationCommand | null>(null);
@@ -68,7 +74,9 @@ export function usePublicationCommand(target: PublicationTarget, articleId?: str
   const [isApproving, setIsApproving] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const storageKey = articleId
-    ? `xarticle:publication-command:${target}:${articleId}`
+    ? kind
+      ? `xarticle:publication-command:${target}:${kind}:${articleId}`
+      : `xarticle:publication-command:${target}:${articleId}`
     : null;
 
   const setRememberedCommand = useCallback((next: PublicationCommand) => {
@@ -88,6 +96,11 @@ export function usePublicationCommand(target: PublicationTarget, articleId?: str
   }, [storageKey]);
 
   useEffect(() => {
+    setCommand(null);
+    setError(null);
+    setIsPreparing(false);
+    setIsApproving(false);
+    setIsCancelling(false);
     if (!storageKey) return;
     const storedCommandId = window.sessionStorage.getItem(storageKey);
     if (!storedCommandId) return;
@@ -99,7 +112,10 @@ export function usePublicationCommand(target: PublicationTarget, articleId?: str
       .then((body) => {
         if (cancelled) return;
         const restored = body.command as PublicationCommand;
-        if (restored.target !== target) {
+        if (
+          restored.target !== target ||
+          (kind && restored.kind !== kind)
+        ) {
           window.sessionStorage.removeItem(storageKey);
           throw new LocalizedPublicationError(copy.targetMismatch);
         }
@@ -112,7 +128,7 @@ export function usePublicationCommand(target: PublicationTarget, articleId?: str
       });
 
     return () => { cancelled = true; };
-  }, [copy.statusFailed, copy.targetMismatch, setRememberedCommand, storageKey, target]);
+  }, [copy.statusFailed, copy.targetMismatch, kind, setRememberedCommand, storageKey, target]);
 
   const prepare = useCallback(async (
     action: () => Promise<{ command: PublicationCommand }>,
@@ -121,7 +137,12 @@ export function usePublicationCommand(target: PublicationTarget, articleId?: str
     setError(null);
     try {
       const result = await action();
-      if (result.command.target !== target) throw new LocalizedPublicationError(copy.targetMismatch);
+      if (
+        result.command.target !== target ||
+        (kind && result.command.kind !== kind)
+      ) {
+        throw new LocalizedPublicationError(copy.targetMismatch);
+      }
       setRememberedCommand(result.command);
       return result.command;
     } catch (caught) {
@@ -130,7 +151,7 @@ export function usePublicationCommand(target: PublicationTarget, articleId?: str
     } finally {
       setIsPreparing(false);
     }
-  }, [copy.preparationFailed, copy.targetMismatch, setRememberedCommand, target]);
+  }, [copy.preparationFailed, copy.targetMismatch, kind, setRememberedCommand, target]);
 
   const approve = useCallback(async () => {
     if (!command || command.state !== 'awaiting_review') return;
@@ -195,7 +216,12 @@ export function usePublicationCommand(target: PublicationTarget, articleId?: str
         const body = await responseJson(response, copy.statusFailed);
         if (!cancelled) {
           const next = body.command as PublicationCommand;
-          if (next.target !== target) throw new LocalizedPublicationError(copy.targetMismatch);
+          if (
+            next.target !== target ||
+            (kind && next.kind !== kind)
+          ) {
+            throw new LocalizedPublicationError(copy.targetMismatch);
+          }
           errorStreak = 0;
           setError(null);
           setRememberedCommand(next);
@@ -218,7 +244,7 @@ export function usePublicationCommand(target: PublicationTarget, articleId?: str
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [commandId, commandState, copy.statusFailed, copy.targetMismatch, setRememberedCommand, target]);
+  }, [commandId, commandState, copy.statusFailed, copy.targetMismatch, kind, setRememberedCommand, target]);
 
   return {
     command,

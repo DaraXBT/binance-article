@@ -8,6 +8,7 @@ export const DEVICE_PAIRING_LIFETIME_MS = 10 * 60 * 1000;
 const IdentifierSchema = z.string().trim().min(1).max(200);
 const DeviceNameSchema = z.string().trim().min(1).max(80);
 const SecretSchema = z.string().regex(/^[A-Za-z0-9_-]{20,256}$/);
+const PublisherProtocolVersionSchema = z.number().int().min(1).max(2).default(1);
 
 export interface PublisherDeviceRecord {
   id: string;
@@ -42,6 +43,7 @@ export interface PublisherDeviceRepository {
     pairingHash: string;
     deviceTokenHash: string;
     deviceTokenPrefix: string;
+    protocolVersion: number;
     notBefore: Date;
     now: Date;
   }): Promise<PublisherDeviceRecord | null>;
@@ -103,6 +105,7 @@ export async function createPublisherDevicePairing(input: {
 export async function activatePublisherDevice(input: {
   repository: PublisherDeviceRepository;
   pairingCode: string;
+  protocolVersion?: unknown;
   entropy?: Uint8Array;
   now?: Date;
 }) {
@@ -111,11 +114,13 @@ export async function activatePublisherDevice(input: {
     throw deviceError('INVALID_PAIRING_CODE', 'The pairing code is invalid or expired.', 400);
   }
   const now = input.now ?? new Date();
+  const protocolVersion = PublisherProtocolVersionSchema.parse(input.protocolVersion);
   const deviceSecret = await createInvitationSecret(input.entropy);
   const device = await input.repository.activatePending({
     pairingHash: await hashInvitationToken(pairingCode.data),
     deviceTokenHash: deviceSecret.tokenHash,
     deviceTokenPrefix: deviceSecret.tokenPrefix,
+    protocolVersion,
     notBefore: new Date(now.getTime() - DEVICE_PAIRING_LIFETIME_MS),
     now,
   });

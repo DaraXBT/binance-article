@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
     const activated = await activatePublisherDevice({
       repository: createPublisherDeviceRepository(getRuntimeDatabase()),
       pairingCode: typeof body?.pairingCode === 'string' ? body.pairingCode : '',
+      protocolVersion: body?.protocolVersion,
     });
     return NextResponse.json(activated, { headers: withNoStoreHeaders() });
   } catch (error) {

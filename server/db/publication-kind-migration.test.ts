@@ -18,6 +18,13 @@ const journal = existsSync(journalPath)
   : {};
 
 describe('publication kind persistence', () => {
+  it('bounds lock acquisition and total statement execution during cutover', () => {
+    expect(migrationSql).toMatch(/^SET LOCAL lock_timeout = '5s';/);
+    expect(migrationSql).toMatch(
+      /^SET LOCAL lock_timeout = '5s';[\s\S]*SET LOCAL statement_timeout = '2min';/,
+    );
+  });
+
   it('models kind independently from the platform target', () => {
     const kindEnum = (databaseSchema as Record<string, unknown>).publicationKind as {
       enumName?: string;
@@ -53,6 +60,10 @@ describe('publication kind persistence', () => {
     );
     expect(migrationSql).toMatch(/ALTER TABLE "PublicationDraft" ALTER COLUMN "kind" SET NOT NULL/);
     expect(migrationSql).toMatch(/ALTER TABLE "PublisherCommand" ALTER COLUMN "kind" SET NOT NULL/);
+    expect(migrationSql).toMatch(/ALTER TABLE "PublicationDraft" ALTER COLUMN "version" SET DEFAULT 3/);
+    expect(migrationSql).toMatch(
+      /ADD CONSTRAINT "PublicationDraft_version_check" CHECK \("PublicationDraft"\."version" IN \(2, 3\)\)/,
+    );
     expect(migrationSql).not.toMatch(/UPDATE[\s\S]*"recipeHash"\s*=/i);
     expect(migrationSql).not.toMatch(/DROP (?:TABLE|COLUMN|TYPE)/i);
   });

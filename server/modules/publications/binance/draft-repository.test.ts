@@ -33,7 +33,9 @@ describe('Binance draft repository', () => {
 
     expect(captured).toHaveLength(1);
     expect(captured[0]?.text).toMatch(/INSERT INTO "PublicationDraft"/);
-    expect(captured[0]?.text).toMatch(/ON CONFLICT \("workspaceId", "articleId", "target"\) DO UPDATE/);
+    expect(captured[0]?.text).toMatch(
+      /ON CONFLICT \("workspaceId", "articleId", "target", "kind"\) DO UPDATE/,
+    );
     expect(captured[0]?.text).toMatch(/"WorkspaceMember"/);
     expect(captured[0]?.text).toMatch(/"DeckProject"/);
     // Expired queued drafts (dead companion device) may be saved over.

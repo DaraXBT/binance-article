@@ -120,6 +120,13 @@
       "when": 1786272216466,
       "tag": "0016_shared_enrollment",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1786817069209,
+      "tag": "0017_publication-kind",
+      "breakpoints": true
     }
   ]
 }

@@ -12,7 +12,7 @@ function classified(publishedUrl: string, kind: 'post' | 'article') {
 
 describe('kind-aware publication result classification', () => {
   it('accepts a canonical X Article URL only for an X article command', () => {
-    const publishedUrl = 'https://x.com/example_user/article/1234567890';
+    const publishedUrl = 'https://x.com/i/article/1234567890';
     expect(classified(publishedUrl, 'article')).toEqual({ outcome: 'succeeded', publishedUrl });
     expect(classified(publishedUrl, 'post')).toEqual({
       outcome: 'outcome_unknown',
@@ -30,17 +30,17 @@ describe('kind-aware publication result classification', () => {
   });
 
   it.each([
-    'http://x.com/example/article/1',
-    'https://www.x.com/example/article/1',
-    'https://twitter.com/example/article/1',
-    'https://x.com/example/article/not-a-number',
-    'https://x.com/example/article/1/analytics',
-    'https://x.com/example/article/1?ref=home',
-    'https://x.com/example/article/1#fragment',
-    'https://x.com:443/example/article/1',
-    'https://X.com/example/article/1',
-    'https://x.com/ignored/../example/article/1',
-    'https://x.com/this_username_is_too_long/article/1',
+    'https://x.com/example/article/1',
+    'http://x.com/i/article/1',
+    'https://www.x.com/i/article/1',
+    'https://twitter.com/i/article/1',
+    'https://x.com/i/article/not-a-number',
+    'https://x.com/i/article/1/analytics',
+    'https://x.com/i/article/1?ref=home',
+    'https://x.com/i/article/1#fragment',
+    'https://x.com:443/i/article/1',
+    'https://X.com/i/article/1',
+    'https://x.com/ignored/../i/article/1',
   ])('rejects noncanonical X Article evidence: %s', (publishedUrl) => {
     expect(classified(publishedUrl, 'article')).toEqual({
       outcome: 'outcome_unknown',

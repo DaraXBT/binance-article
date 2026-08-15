@@ -7,17 +7,21 @@ describe('web approval repository', () => {
     const captured: Array<{ text: string; values: unknown[] }> = [];
     const client = vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => {
       captured.push({ text: strings.join('?'), values });
-      return Promise.resolve([{ id: 'command_1', draftId: 'draft_1', target: 'x', state: 'approved',
+      return Promise.resolve([{ id: 'command_1', draftId: 'draft_1', target: 'x', kind: 'article', state: 'approved',
         revision: 2, recipeHash: 'a'.repeat(64), expiresAt: new Date() }]);
     });
     const repository = createWebPublishApprovalRepository({ $client: client } as never);
-    await repository.approve({
+    const approved = await repository.approve({
       approvalId: 'approval_1', actorUserId: 'user_1', commandId: 'command_1', revision: 2,
       recipeHash: 'a'.repeat(64), now: new Date(),
     });
+    expect(approved).toMatchObject({ target: 'x', kind: 'article', state: 'approved' });
     expect(captured[0]?.text).toMatch(/FOR UPDATE OF command/);
     expect(captured[0]?.text).toMatch(/command\."revision" = \?/);
     expect(captured[0]?.text).toMatch(/command\."recipeHash" = \?/);
+    expect(captured[0]?.text).toMatch(
+      /command\."kind" = CASE[\s\S]*draft\."kind"[\s\S]*ELSE 'article'::"PublicationKind" END/,
+    );
     expect(captured[0]?.text).toMatch(/'web'::"PublishApprovalVia"/);
     expect(captured[0]?.text).toMatch(/UPDATE "PublisherCommand"[\s\S]*INSERT INTO "PublishApproval"/);
     expect(captured[0]?.text).toMatch(/UPDATE "PublicationDraft"/);

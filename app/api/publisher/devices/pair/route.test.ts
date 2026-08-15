@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   repository: { repository: true },
   createRepository: vi.fn(),
   activate: vi.fn(async () => ({
-    device: { id: 'device_1', name: 'My Mac', protocolVersion: 1 },
+    device: { id: 'device_1', name: 'My Mac', protocolVersion: 2 },
     deviceToken: 'device_secret_returned_once',
   })),
 }));
@@ -38,7 +38,7 @@ describe('POST /api/publisher/devices/pair', () => {
       protocolVersion: 2,
     });
     expect(await response.json()).toEqual({
-      device: { id: 'device_1', name: 'My Mac', protocolVersion: 1 },
+      device: { id: 'device_1', name: 'My Mac', protocolVersion: 2 },
       deviceToken: 'device_secret_returned_once',
     });
     expect(response.headers.get('cache-control')).toBe('no-store');

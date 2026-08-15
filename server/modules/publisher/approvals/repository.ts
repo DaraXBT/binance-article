@@ -8,6 +8,7 @@ function commandRow(row: Record<string, unknown> | undefined): WebPublisherComma
     id: String(row.id),
     draftId: String(row.draftId),
     target: row.target as WebPublisherCommand['target'],
+    ...(row.kind ? { kind: row.kind as WebPublisherCommand['kind'] } : {}),
     state: String(row.state),
     revision: Number(row.revision),
     recipeHash: String(row.recipeHash),
@@ -27,7 +28,7 @@ export function createWebPublishApprovalRepository(
     async loadCommand({ actorUserId, commandId }) {
       const rows = await database.$client`
         SELECT command."id", COALESCE(draft."id", legacy_draft."id") AS "draftId",
-          command."target", command."state", command."revision", command."recipeHash",
+          command."target", command."kind", command."state", command."revision", command."recipeHash",
           command."expiresAt", command."resultUrl", command."failureReason", command."updatedAt"
         FROM "PublisherCommand" command
         LEFT JOIN "PublicationDraft" draft ON draft."id" = command."publicationDraftId"
@@ -95,7 +96,7 @@ export function createWebPublishApprovalRepository(
             )
           RETURNING approval."id"
         )
-        SELECT updated_command."id", candidate."draftId", updated_command."target",
+        SELECT updated_command."id", candidate."draftId", updated_command."target", updated_command."kind",
           updated_command."state", updated_command."revision", updated_command."recipeHash",
           updated_command."expiresAt", updated_command."resultUrl", updated_command."failureReason",
           updated_command."updatedAt"
@@ -156,7 +157,7 @@ export function createWebPublishApprovalRepository(
             )
           RETURNING approval."id"
         )
-        SELECT updated_command."id", candidate."draftId", updated_command."target",
+        SELECT updated_command."id", candidate."draftId", updated_command."target", updated_command."kind",
           updated_command."state", updated_command."revision", updated_command."recipeHash",
           updated_command."expiresAt", updated_command."resultUrl", updated_command."failureReason",
           updated_command."updatedAt"
@@ -195,6 +196,8 @@ export function createWebPublishApprovalRepository(
               THEN draft."recipeHash" ELSE legacy_draft."recipeHash" END = command."recipeHash"
             AND command."target" = CASE WHEN command."publicationDraftId" IS NOT NULL
               THEN draft."target" ELSE 'binance-square'::"PublicationTarget" END
+            AND command."kind" = CASE WHEN command."publicationDraftId" IS NOT NULL
+              THEN draft."kind" ELSE 'article'::"PublicationKind" END
             AND CASE WHEN command."publicationDraftId" IS NOT NULL
               THEN draft."status" ELSE legacy_draft."status" END = 'review_ready'::"PublicationDraftStatus"
             AND CASE WHEN command."publicationDraftId" IS NOT NULL
@@ -231,7 +234,7 @@ export function createWebPublishApprovalRepository(
           WHERE EXISTS (SELECT 1 FROM updated_draft) OR EXISTS (SELECT 1 FROM updated_legacy_draft)
           RETURNING "commandId"
         )
-        SELECT updated_command."id", candidate."draftId", updated_command."target",
+        SELECT updated_command."id", candidate."draftId", updated_command."target", updated_command."kind",
           updated_command."state", updated_command."revision", updated_command."recipeHash",
           updated_command."expiresAt", updated_command."resultUrl", updated_command."failureReason",
           updated_command."updatedAt"

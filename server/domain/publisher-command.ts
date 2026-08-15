@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { PublicationTargetSchema } from './publication-recipe';
+import { PublicationKindSchema, PublicationTargetSchema } from './publication-recipe';
 
 const IdentifierSchema = z.string().trim().min(1).max(200);
 const RevisionSchema = z.number().int().nonnegative().safe();
@@ -21,6 +21,10 @@ export const PublisherCommandStateSchema = z.object({
   ]),
   revision: RevisionSchema,
   target: PublicationTargetSchema.default('binance-square'),
+  // Commands created before recipe V3 did not persist kind. Keeping this
+  // optional here preserves their exact in-flight state while every V3
+  // command carries an explicit value from preparation onward.
+  kind: PublicationKindSchema.optional(),
   assignedDeviceId: IdentifierSchema.nullable(),
   expiresAt: z.date(),
   publishedUrl: z.string().url().optional(),
@@ -72,7 +76,11 @@ function assertDevice(command: PublisherCommandState, deviceId: string): void {
   }
 }
 
-function assertPublishedUrl(target: z.infer<typeof PublicationTargetSchema>, value: string): void {
+function assertPublishedUrl(
+  target: z.infer<typeof PublicationTargetSchema>,
+  kind: z.infer<typeof PublicationKindSchema> | undefined,
+  value: string,
+): void {
   let url: URL;
   try {
     url = new URL(value);
@@ -80,13 +88,18 @@ function assertPublishedUrl(target: z.infer<typeof PublicationTargetSchema>, val
     throw new Error(`Published URL is not a valid ${target === 'x' ? 'X' : 'Binance'} URL.`);
   }
 
-  const valid = target === 'x'
-    ? /^https:\/\/x\.com\/[A-Za-z0-9_]{1,15}\/status\/[0-9]+$/.test(value)
-    : url.protocol === 'https:'
-      && (url.hostname === 'binance.com' || url.hostname.endsWith('.binance.com'))
-      && /\/square\/(?:post|article)\/[^/]+/i.test(url.pathname);
+  const xValid = kind === 'article'
+    ? /^https:\/\/x\.com\/i\/article\/[0-9]+$/.test(value)
+    : /^https:\/\/x\.com\/[A-Za-z0-9_]{1,15}\/status\/[0-9]+$/.test(value);
+  const binanceMatch = value.match(
+    /^https:\/\/(?:www\.)?binance\.com\/(?:[a-z]{2}\/)?square\/(post|article)\/[^/?#]+$/,
+  );
+  const binanceKindValid = Boolean(binanceMatch) && (
+    kind === undefined || binanceMatch?.[1] === kind
+  );
+  const valid = target === 'x' ? xValid : binanceKindValid;
   if (!valid || url.username || url.password) {
-    throw new Error(`Published URL is not a canonical ${target === 'x' ? 'X status' : 'Binance Square'} URL.`);
+    throw new Error(`Published URL is not a canonical ${target === 'x' ? 'X' : 'Binance Square'} URL.`);
   }
 }
 
@@ -117,7 +130,7 @@ export function transitionPublisherCommand(
 
   switch (event.type) {
     case 'publish_succeeded':
-      assertPublishedUrl(command.target, event.publishedUrl);
+      assertPublishedUrl(command.target, command.kind, event.publishedUrl);
       return { ...command, state: 'succeeded', publishedUrl: event.publishedUrl };
 
     case 'publish_failed':

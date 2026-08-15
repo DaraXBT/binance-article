@@ -58,7 +58,7 @@ async function harness() {
       order.push('article:click');
       return {
         verified: true as const,
-        publishedUrl: 'https://x.com/example/article/123456',
+        publishedUrl: 'https://x.com/i/article/123456',
       };
     }),
   };
@@ -102,6 +102,103 @@ function runnerInput(h: Awaited<ReturnType<typeof harness>>) {
 }
 
 describe('target-and-kind publisher routing', () => {
+  it('keeps a kind-backfilled V2 Binance command on the target-only compatibility route', async () => {
+    const recipe = {
+      version: 2 as const,
+      target: 'binance-square' as const,
+      draftId: 'draft_legacy_binance',
+      articleId: 'article_1',
+      revision: 3,
+      expiresAt: '2026-07-19T00:15:00.000Z',
+      title: 'Legacy reviewed article',
+      markdown: 'Legacy body',
+      cover: {
+        assetId: 'asset_cover',
+        focalX: 0.5,
+        focalY: 0.5,
+        targetWidth: 1000 as const,
+        targetHeight: 400 as const,
+      },
+      orderedAssetIds: [],
+      assets: [{
+        id: 'asset_cover',
+        mimeType: 'image/png' as const,
+        sizeBytes: 8,
+        sha256: 'a'.repeat(64),
+      }],
+    };
+    const recipeHash = await hashPublicationRecipe(recipe);
+    const metadata = (state: 'claimed' | 'awaiting_review' | 'awaiting_approval' | 'approved') => ({
+      id: 'command_legacy_binance',
+      draftId: recipe.draftId,
+      deviceId: 'device_1',
+      state,
+      revision: recipe.revision,
+      recipeHash,
+      expiresAt: recipe.expiresAt,
+      target: recipe.target,
+      // Migration 0017 backfills this even though the recipe remains V2.
+      kind: 'article' as const,
+    });
+    const statuses = ['awaiting_review', 'awaiting_approval', 'approved'] as const;
+    let statusIndex = 0;
+    const api = {
+      claimCommand: mock(async () => metadata('claimed')),
+      getRecipe: mock(async () => recipe),
+      downloadAsset: mock(async () => new Response()),
+      reportEditorReady: mock(async () => undefined),
+      getCommandStatus: mock(async () => metadata(statuses[statusIndex++] ?? 'approved')),
+      beginPublish: mock(async () => undefined),
+      reportResult: mock(async () => undefined),
+      abortCommand: mock(async () => undefined),
+    };
+    const compatibilityAdapter = {
+      prepare: mock(async () => ({ draftId: 'legacy_browser_draft' })),
+      publish: mock(async (_draftId: string, options: { beforeClick: () => Promise<void> }) => {
+        await options.beforeClick();
+        return {
+          verified: true as const,
+          publishedUrl: 'https://www.binance.com/en/square/article/123456',
+        };
+      }),
+    };
+    const v3ArticleAdapter = {
+      prepare: mock(async () => ({ draftId: 'wrong_v3_draft' })),
+      publish: mock(async () => ({ verified: true as const })),
+    };
+    const compatibilityMaterializer = mock(async () => ({
+      bundleBytes: new Uint8Array([1]), manifest: { schemaVersion: 1 },
+    }));
+    const v3ArticleMaterializer = mock(async () => ({
+      bundleBytes: new Uint8Array([2]), manifest: { schemaVersion: 2 },
+    }));
+
+    await expect(runPublisherOnce({
+      api,
+      adapters: {
+        'binance-square': compatibilityAdapter,
+        'binance-square:article': v3ArticleAdapter,
+      },
+      materializers: {
+        'binance-square': compatibilityMaterializer,
+        'binance-square:article': v3ArticleMaterializer,
+      },
+      workspace: {
+        writeBundle: mock(async () => '/private/tmp/legacy-binance.zip'),
+        removeBundle: mock(async () => undefined),
+      },
+      now: () => new Date('2026-07-19T00:00:00.000Z'),
+      sleep: async () => undefined,
+    })).resolves.toEqual({
+      outcome: 'succeeded', commandId: 'command_legacy_binance',
+    });
+
+    expect(compatibilityMaterializer).toHaveBeenCalledTimes(1);
+    expect(compatibilityAdapter.prepare).toHaveBeenCalledTimes(1);
+    expect(v3ArticleMaterializer).not.toHaveBeenCalled();
+    expect(v3ArticleAdapter.prepare).not.toHaveBeenCalled();
+  });
+
   it('routes an X article through only the X article materializer and adapter', async () => {
     const h = await harness();
     await expect(runPublisherOnce(runnerInput(h))).resolves.toEqual({
@@ -167,6 +264,38 @@ describe('target-and-kind publisher routing', () => {
     });
     expect(h.api.beginPublish).not.toHaveBeenCalled();
     expect(h.articleAdapter.publish).not.toHaveBeenCalled();
+    expect(h.api.abortCommand).toHaveBeenCalledWith('command_1', 3, 'EDITOR_COMPOSITION_FAILED');
+  });
+
+  it('fails closed when a V3 command omits kind metadata', async () => {
+    const h = await harness();
+    h.api.claimCommand.mockResolvedValueOnce({
+      id: 'command_1', draftId: h.recipe.draftId, deviceId: 'device_1', state: 'claimed',
+      revision: h.recipe.revision, recipeHash: await hashPublicationRecipe(h.recipe),
+      expiresAt: h.recipe.expiresAt, target: 'x',
+    } as never);
+
+    await expect(runPublisherOnce(runnerInput(h))).resolves.toEqual({
+      outcome: 'cancelled', commandId: 'command_1',
+    });
+    expect(h.articleMaterializer).not.toHaveBeenCalled();
+    expect(h.articleAdapter.prepare).not.toHaveBeenCalled();
+    expect(h.api.abortCommand).toHaveBeenCalledWith('command_1', 3, 'ASSET_INTEGRITY_FAILED');
+  });
+
+  it('does not route V3 through a target-only compatibility adapter', async () => {
+    const h = await harness();
+    const targetOnlyAdapter = {
+      prepare: mock(async () => ({ draftId: 'wrong' })),
+      publish: mock(async () => ({ verified: true as const })),
+    };
+    const input = runnerInput(h);
+
+    await expect(runPublisherOnce({
+      ...input,
+      adapters: { x: targetOnlyAdapter },
+    })).resolves.toEqual({ outcome: 'cancelled', commandId: 'command_1' });
+    expect(targetOnlyAdapter.prepare).not.toHaveBeenCalled();
     expect(h.api.abortCommand).toHaveBeenCalledWith('command_1', 3, 'EDITOR_COMPOSITION_FAILED');
   });
 });

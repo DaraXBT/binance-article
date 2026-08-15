@@ -12,11 +12,27 @@ import { formatCompanionDoctorReport, runCompanionDoctor } from './doctor';
 import { acquireCompanionLock } from './lock';
 import { runPublisherLoop } from './loop';
 import { runPublisherOnce } from './runner';
+import { BaoyuBinanceArticleAdapter } from './binance-article-adapter';
+import { BaoyuBinancePostAdapter } from './binance-post-adapter';
 import { BaoyuBinanceSkillAdapter } from './skill-adapter';
 import { LocalBundleWorkspace } from './workspace';
 import { BaoyuXSkillAdapter } from './x-adapter';
+import { BaoyuXArticleAdapter } from './x-article-adapter';
 
 const KEYRING_SERVICE = 'xarticle-publisher';
+
+export function createPublisherAdapters() {
+  return {
+    // Target-only entries are one-release compatibility routes for V1/V2 commands.
+    'binance-square': new BaoyuBinanceSkillAdapter(),
+    x: new BaoyuXSkillAdapter(),
+    // Protocol V2/V3 commands are always dispatched by the exact target+kind route.
+    'binance-square:post': new BaoyuBinancePostAdapter(),
+    'binance-square:article': new BaoyuBinanceArticleAdapter(),
+    'x:post': new BaoyuXSkillAdapter(),
+    'x:article': new BaoyuXArticleAdapter(),
+  };
+}
 
 async function readPairingCode(): Promise<string> {
   if (!process.stdin.isTTY) {
@@ -98,10 +114,7 @@ async function run(once: boolean): Promise<void> {
   const lock = await acquireCompanionLock(path.join(path.dirname(configPath), 'companion.lock'));
   const runOnce = () => runPublisherOnce({
     api,
-    adapters: {
-      'binance-square': new BaoyuBinanceSkillAdapter(),
-      x: new BaoyuXSkillAdapter(),
-    },
+    adapters: createPublisherAdapters(),
     workspace: new LocalBundleWorkspace(),
   });
   try {

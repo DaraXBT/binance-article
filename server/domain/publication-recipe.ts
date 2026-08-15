@@ -1,8 +1,14 @@
 import { z } from 'zod';
+import {
+  getMarkdownImageReferenceErrors,
+} from '../../.agents/skills/baoyu-post-to-binance-square/scripts/markdown-image-references';
 
 export const PUBLICATION_DRAFT_LIFETIME_MS = 15 * 60 * 1000;
+export const PUBLICATION_DRAFT_REQUEST_MAX_BYTES = 640_000;
 export const X_POST_MAX_CHARACTERS = 280;
+export const BINANCE_POST_MAX_CHARACTERS = 2_100;
 export const X_POST_MAX_IMAGES = 4;
+export const BINANCE_POST_MAX_IMAGES = 4;
 
 const MAX_ARTICLE_CHARACTERS = 100_000;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -14,6 +20,8 @@ const IdentifierSchema = z.string().regex(IDENTIFIER_PATTERN);
 
 export const PublicationTargetSchema = z.enum(['binance-square', 'x']);
 export type PublicationTarget = z.infer<typeof PublicationTargetSchema>;
+export const PublicationKindSchema = z.enum(['post', 'article']);
+export type PublicationKind = z.infer<typeof PublicationKindSchema>;
 
 export const PublicationAssetV1Schema = z.object({
   id: IdentifierSchema,
@@ -162,7 +170,83 @@ export const PublicationRecipeV2Schema = z.discriminatedUnion('target', [
   }
 });
 
+const PublicationRecipeV3CommonShape = {
+  version: z.literal(3),
+  draftId: IdentifierSchema,
+  articleId: IdentifierSchema,
+  revision: z.number().int().positive().safe(),
+  expiresAt: z.string().datetime({ offset: true }),
+};
+
+function postTextSchema(target: PublicationTarget) {
+  const maximum = target === 'x' ? X_POST_MAX_CHARACTERS : BINANCE_POST_MAX_CHARACTERS;
+  return z.string().trim().refine(
+    (value) => [...value].length <= maximum,
+    `${target === 'x' ? 'X' : 'Binance Square'} post text must be ${maximum} characters or fewer.`,
+  );
+}
+
+function publicationPostRecipeV3Schema<T extends PublicationTarget>(target: T) {
+  const maximumImages = target === 'x' ? X_POST_MAX_IMAGES : BINANCE_POST_MAX_IMAGES;
+  return z.object({
+    ...PublicationRecipeV3CommonShape,
+    target: z.literal(target),
+    kind: z.literal('post'),
+    text: postTextSchema(target),
+    orderedAssetIds: z.array(IdentifierSchema).max(maximumImages),
+    assets: z.array(PublicationAssetV1Schema).max(maximumImages),
+  }).strict();
+}
+
+function publicationArticleRecipeV3Schema<T extends PublicationTarget>(target: T) {
+  return z.object({
+    ...PublicationRecipeV3CommonShape,
+    target: z.literal(target),
+    kind: z.literal('article'),
+    title: z.string().trim().min(1).max(200),
+    markdown: z.string().max(MAX_ARTICLE_CHARACTERS).refine(
+      (value) => value.trim().length > 0,
+      'Article Markdown must not be empty.',
+    ),
+    cover: PublicationCoverV1Schema.optional(),
+    orderedAssetIds: z.array(IdentifierSchema).max(MAX_BODY_ASSETS),
+    assets: z.array(PublicationAssetV1Schema).max(MAX_BODY_ASSETS + 1),
+  }).strict();
+}
+
+export const BinanceSquarePostPublicationRecipeV3Schema = publicationPostRecipeV3Schema('binance-square');
+export const XPostPublicationRecipeV3Schema = publicationPostRecipeV3Schema('x');
+export const BinanceSquareArticlePublicationRecipeV3Schema = publicationArticleRecipeV3Schema('binance-square');
+export const XArticlePublicationRecipeV3Schema = publicationArticleRecipeV3Schema('x');
+
+export const PublicationRecipeV3Schema = z.union([
+  BinanceSquarePostPublicationRecipeV3Schema,
+  XPostPublicationRecipeV3Schema,
+  BinanceSquareArticlePublicationRecipeV3Schema,
+  XArticlePublicationRecipeV3Schema,
+]).superRefine((recipe, context) => {
+  validateAssetReferences(recipe, context);
+  if (recipe.kind === 'article') {
+    const imageErrors = getMarkdownImageReferenceErrors(
+      recipe.markdown,
+      recipe.orderedAssetIds.map((id) => `asset:${id}`),
+      'Article Markdown',
+    );
+    for (const message of imageErrors) {
+      context.addIssue({ code: 'custom', path: ['markdown'], message });
+    }
+  }
+  if (recipe.kind === 'post' && recipe.text.length === 0 && recipe.orderedAssetIds.length === 0) {
+    context.addIssue({
+      code: 'custom',
+      path: ['text'],
+      message: 'A publication requires text or at least one image.',
+    });
+  }
+});
+
 export const PublicationRecipeSchema = z.union([
+  PublicationRecipeV3Schema,
   PublicationRecipeV2Schema,
   PublicationRecipeV1Schema,
 ]);
@@ -171,10 +255,17 @@ export type PublicationRecipeV1 = z.infer<typeof PublicationRecipeV1Schema>;
 export type PublicationRecipeV2 = z.infer<typeof PublicationRecipeV2Schema>;
 export type BinanceSquarePublicationRecipeV2 = z.infer<typeof BinanceSquarePublicationRecipeV2Schema>;
 export type XPublicationRecipeV2 = z.infer<typeof XPublicationRecipeV2Schema>;
+export type PublicationRecipeV3 = z.infer<typeof PublicationRecipeV3Schema>;
 export type PublicationRecipe = z.infer<typeof PublicationRecipeSchema>;
 
 export function publicationRecipeTarget(recipe: PublicationRecipe): PublicationTarget {
   return recipe.version === 1 ? 'binance-square' : recipe.target;
+}
+
+export function publicationRecipeKind(recipe: PublicationRecipe): PublicationKind {
+  if (recipe.version === 3) return recipe.kind;
+  if (recipe.version === 1) return 'article';
+  return recipe.target === 'x' ? 'post' : 'article';
 }
 
 function canonicalJson(value: unknown): string {

@@ -1,8 +1,10 @@
 import { z } from 'zod';
 
 import {
+  PublicationKindSchema,
   PublicationRecipeSchema,
   PublicationTargetSchema,
+  type PublicationKind,
   type PublicationTarget,
 } from '../../server/domain/publication-recipe';
 
@@ -21,15 +23,19 @@ const CommandSchema = z.object({
   recipeHash: z.string().regex(/^[a-f0-9]{64}$/),
   expiresAt: z.string().datetime({ offset: true }),
   target: PublicationTargetSchema.optional(),
+  kind: PublicationKindSchema.optional(),
 }).strict();
 
 export type PublisherCommandMetadata = z.infer<typeof CommandSchema>;
 export type PublisherTarget = PublicationTarget;
+export type PublisherKind = PublicationKind;
 export type PublisherAbortReason =
   | 'ASSET_INTEGRITY_FAILED'
   | 'EDITOR_COMPOSITION_FAILED'
   | 'EDITOR_CLOSED'
   | 'RECIPE_INVALID'
+  | 'X_LOGIN_REQUIRED'
+  | 'X_ARTICLES_UNAVAILABLE'
   | 'DEVICE_SHUTDOWN'
   | 'USER_CANCELLED';
 type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
@@ -141,10 +147,16 @@ export class PublisherApiClient {
     const response = await this.#request('/api/publisher/devices/pair', {
       method: 'POST',
       authenticated: false,
-      body: { pairingCode: SecretSchema.parse(pairingCode) },
+      body: {
+        pairingCode: SecretSchema.parse(pairingCode),
+        protocolVersion: 2,
+      },
     });
     return z.object({
-      device: z.object({ id: IdentifierSchema }).passthrough(),
+      device: z.object({
+        id: IdentifierSchema,
+        protocolVersion: z.literal(2),
+      }).passthrough(),
       deviceToken: SecretSchema,
     }).strict().parse(await response.json());
   }
@@ -222,7 +234,8 @@ export class PublisherApiClient {
           revision: z.number().int().positive().parse(revision),
           reasonCode: z.enum([
             'ASSET_INTEGRITY_FAILED', 'EDITOR_COMPOSITION_FAILED', 'EDITOR_CLOSED',
-            'RECIPE_INVALID', 'DEVICE_SHUTDOWN', 'USER_CANCELLED',
+            'RECIPE_INVALID', 'X_LOGIN_REQUIRED', 'X_ARTICLES_UNAVAILABLE',
+            'DEVICE_SHUTDOWN', 'USER_CANCELLED',
           ]).parse(reasonCode),
         },
       },

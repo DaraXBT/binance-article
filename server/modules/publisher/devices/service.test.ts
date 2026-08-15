@@ -95,6 +95,19 @@ describe('publisher device pairing', () => {
     }));
   });
 
+  it.each([0, 3, 1.5, '2'])('rejects unsupported protocol version %s', async (protocolVersion) => {
+    const repo = repository();
+
+    await expect(activatePublisherDevice({
+      repository: repo,
+      pairingCode: 'pairing_code_value_12345678901234567890',
+      protocolVersion,
+      entropy: deviceEntropy,
+      now,
+    })).rejects.toBeDefined();
+    expect(repo.activatePending).not.toHaveBeenCalled();
+  });
+
   it('rejects invalid, expired, used, or revoked pairing codes generically', async () => {
     await expect(activatePublisherDevice({
       repository: repository({ activatePending: vi.fn(async () => null) }),
