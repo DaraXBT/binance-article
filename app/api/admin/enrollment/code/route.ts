@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     return errorResponse(error, {
       code: 'ENROLLMENT_CODE_CREATE_FAILED',
       message: 'The enrollment code could not be created.',
-      status: 400,
+      status: 500,
     });
   }
 }
