@@ -243,6 +243,7 @@ describe('enrollment repository', () => {
     expect(sql).toMatch(/UPDATE "EnrollmentClaim"[\s\S]*"status" IN \('pending', 'reserved'\)/);
     expect(sql).toMatch(/INSERT INTO "EnrollmentCode"/);
     expect(sql).toMatch(/INSERT INTO "AuditEvent"/);
+    expect(compactSql(sql)).toMatch(/jsonb_build_object\([\s\S]*'reason', \?::text\)/);
   });
 
   it('disables the active code without replacement and revokes only its unfinished shared claims', async () => {
@@ -269,6 +270,7 @@ describe('enrollment repository', () => {
     expect(mutationSql).toMatch(/"reservationExpiresAt" = NULL/);
     expect(mutationSql).toMatch(/"failureCode" = 'code_revoked'/);
     expect(mutationSql).toMatch(/'enrollment\.code_revoked'/);
+    expect(compactSql(mutationSql)).toMatch(/jsonb_build_object\([\s\S]*'reason', \?::text\)/);
     expect(mutationSql).not.toMatch(/INSERT INTO "EnrollmentCode"/);
   });
 
