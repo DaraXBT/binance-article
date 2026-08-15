@@ -245,10 +245,12 @@ ${BUN_X} ${SKILL_DIR}/scripts/x-article.ts article.md --cover ./cover.jpg
 **Note**: Script opens browser with article filled in. User reviews and publishes manually.
 
 **Post-Composition Check**: The script automatically verifies after all images are inserted:
-- Remaining `XIMGPH_` placeholders in editor content
-- Expected vs actual image count
+- Exact reviewed title and normalized body text after the editor saves
+- No remaining namespaced `X_<random>_IMG_N` placeholders
+- Exact body-image count and insertion order
+- A newly applied, visible editor-header cover when one was reviewed
 
-If the check fails (warnings in output), alert the user with the specific issues before they publish.
+Any mismatch stops preparation before review or publication.
 
 ---
 

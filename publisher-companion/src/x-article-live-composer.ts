@@ -58,7 +58,11 @@ async function readSnapshot(context: XArticleCompositionContext): Promise<XArtic
     const bodyMedia = Array.from(document.querySelectorAll(
       'section[data-block="true"][contenteditable="false"] img[src^="blob:"]'
     )).filter(visible);
-    const cover = document.querySelector('[data-testid*="cover" i] img, [data-testid*="headerMedia" i] img');
+    const editorRoot = titleElement?.closest('main, [role="main"]') || titleElement?.closest('form') || document;
+    const coverSources = Array.from(new Set(Array.from(editorRoot.querySelectorAll(
+      '[data-testid*="cover" i] img, [data-testid*="headerMedia" i] img'
+    )).filter((image) => visible(image) && !image.closest('[role="dialog"][aria-modal="true"]'))
+      .map((image) => image.currentSrc || image.src || '').filter(Boolean)));
     const buttons = Array.from(new Set(${JSON.stringify(PUBLISH_SELECTORS)}.flatMap((selector) =>
       Array.from(document.querySelectorAll(selector)).filter(visible)
     )));
@@ -69,7 +73,7 @@ async function readSnapshot(context: XArticleCompositionContext): Promise<XArtic
       body: body?.innerText || body?.textContent || '',
       imageCount: bodyMedia.length,
       mediaSources: bodyMedia.map((image) => image.currentSrc || image.src || ''),
-      coverSource: cover && visible(cover) ? (cover.currentSrc || cover.src || '') : null,
+      coverSource: coverSources.length === 1 ? coverSources[0] : null,
       editorVisible: Boolean(body),
       publishButtonCount: buttons.length,
       publishButtonEnabled: Boolean(button && !button.disabled && button.getAttribute('aria-disabled') !== 'true'),
@@ -148,6 +152,18 @@ function eligibilityError(error: unknown): XArticleEligibilityError | null {
     : null;
 }
 
+export function mapReviewedXArticleExpectations(
+  context: Pick<XArticleCompositionContext, 'body' | 'expectedBody'>,
+  reviewed: { title?: string; imageCount: number; coverPresent: boolean },
+): Omit<PreparedXArticle, 'draft'> {
+  return {
+    expectedTitle: reviewed.title ?? '',
+    expectedBody: context.expectedBody,
+    expectedImageCount: reviewed.imageCount,
+    expectedCover: reviewed.coverPresent,
+  };
+}
+
 export function createLiveXArticleDriver(): XArticleDriver {
   return {
     async prepare(bundlePath: string): Promise<PreparedXArticle> {
@@ -173,10 +189,11 @@ export function createLiveXArticleDriver(): XArticleDriver {
         const draft = browserDraft(crypto.randomUUID(), context);
         const prepared: PreparedXArticle = {
           draft,
-          expectedTitle: extracted.title ?? '',
-          expectedBody: context.expectedBody,
-          expectedImageCount: extracted.imagePaths.length,
-          expectedCover: Boolean(extracted.coverPath),
+          ...mapReviewedXArticleExpectations(context, {
+            title: extracted.title,
+            imageCount: extracted.imagePaths.length,
+            coverPresent: Boolean(extracted.coverPath),
+          }),
         };
         contextBox.value = null;
         return prepared;

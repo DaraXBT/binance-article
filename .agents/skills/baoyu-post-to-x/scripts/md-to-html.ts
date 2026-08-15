@@ -5,7 +5,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import frontMatter from 'front-matter';
 import hljs from 'highlight.js/lib/common';
@@ -316,18 +316,23 @@ export async function parseMarkdown(
     coverImagePath = findCoverImageNearMarkdown(baseDir);
   }
 
-  const images: Array<{ src: string; alt: string; blockIndex: number }> = [];
+  let placeholderNamespace = '';
+  do {
+    placeholderNamespace = `X_${randomUUID().replace(/-/g, '').slice(0, 16).toUpperCase()}_`;
+  } while (body.includes(placeholderNamespace));
+
+  const images: Array<{ placeholder: string; src: string; alt: string; blockIndex: number }> = [];
   let imageCounter = 0;
 
   const { html, totalBlocks } = convertMarkdownToHtml(body, (src, alt) => {
-    const placeholder = `XIMGPH_${++imageCounter}`;
-    images.push({ src, alt, blockIndex: -1 });
+    const placeholder = `${placeholderNamespace}IMG_${++imageCounter}`;
+    images.push({ placeholder, src, alt, blockIndex: -1 });
     return placeholder;
   });
 
   const htmlLines = html.split('\n');
   for (let i = 0; i < images.length; i++) {
-    const placeholder = `XIMGPH_${i + 1}`;
+    const placeholder = images[i]!.placeholder;
     for (let lineIndex = 0; lineIndex < htmlLines.length; lineIndex++) {
       const regex = new RegExp(`\\b${placeholder}\\b`);
       if (regex.test(htmlLines[lineIndex]!)) {
@@ -349,7 +354,7 @@ export async function parseMarkdown(
     }
 
     contentImages.push({
-      placeholder: `XIMGPH_${i + 1}`,
+      placeholder: img.placeholder,
       localPath,
       originalPath: img.src,
       blockIndex: img.blockIndex,

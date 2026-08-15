@@ -67,7 +67,7 @@ Code blocks become blockquotes (X doesn't support code)
 
 1. **Cover Image**: First image or `cover_image` from frontmatter
 2. **Remote Images**: Automatically downloaded to temp directory
-3. **Placeholders**: Images in content use `XIMGPH_N` format
+3. **Placeholders**: Images in content use collision-resistant `X_<random>_IMG_N` tokens
 4. **Insertion**: Placeholders are found, selected, and replaced with actual images
 
 ## Markdown to HTML Script
@@ -92,7 +92,7 @@ JSON output:
   "coverImage": "/path/to/cover.jpg",
   "contentImages": [
     {
-      "placeholder": "XIMGPH_1",
+      "placeholder": "X_A1B2C3D4E5F60708_IMG_1",
       "localPath": "/tmp/x-article-images/img.png",
       "blockIndex": 5
     }
@@ -127,15 +127,17 @@ JSON output:
 5. **Upload Cover**: Use file input for cover image
 6. **Fill Title**: Type title into title field
 7. **Paste Content**: Copy HTML to clipboard, paste into editor
-8. **Insert Images**: For each placeholder (reverse order):
+8. **Insert Images**: For each namespaced placeholder in document order:
    - Find placeholder text in editor
    - Select the placeholder
    - Copy image to clipboard
    - Paste to replace selection
 9. **Post-Composition Check** (automatic):
-   - Scan editor for remaining `XIMGPH_` placeholders
-   - Compare expected vs actual image count
-   - Warn if issues found
+   - Require exact reviewed title and normalized body text after save
+   - Reject any remaining namespaced placeholders
+   - Require exact body-image count and insertion-source order
+   - Require a newly applied visible cover when reviewed
+   - Stop before review/publish on any mismatch
 10. **Review**: Browser stays open for 60s preview
 11. **Publish**: Only with `--submit` flag
 

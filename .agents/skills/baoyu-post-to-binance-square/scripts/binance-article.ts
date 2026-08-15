@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { parseMarkdown } from './md-to-html.js';
-import { assertCompositionReady } from './publish-safety.js';
+import { assertCompositionReady, type CompositionReport } from './publish-safety.js';
 import {
   BS_CREATOR_CENTER_URL,
   BS_SELECTORS,
@@ -202,6 +202,33 @@ export function isBinanceArticleBodyInserted(actualText: string, expectedText: s
   const expected = normalizeArticleBodyText(expectedText);
   if (!expected) return false;
   return actual === expected;
+}
+
+export function buildBinanceArticleCompositionReport(input: {
+  expectedTitle: string;
+  expectedHtml: string;
+  imagePlaceholders: readonly string[];
+  codeBlocks: ReadonlyArray<{ placeholder: string; content: string }>;
+  actualTitle: string;
+  actualBody: string;
+  actualImages: number;
+  remainingPlaceholders: string[];
+  actualCodeBlocks: number;
+}): CompositionReport {
+  const expectedBody = deriveBinanceArticleFinalBodyText(
+    input.expectedHtml,
+    input.imagePlaceholders,
+    input.codeBlocks,
+  );
+  return {
+    titleMatches: input.actualTitle.trim() === input.expectedTitle.trim(),
+    bodyMatches: isBinanceArticleBodyInserted(input.actualBody, expectedBody),
+    expectedImages: input.imagePlaceholders.length,
+    actualImages: input.actualImages,
+    remainingPlaceholders: input.remainingPlaceholders,
+    expectedCodeBlocks: input.codeBlocks.length,
+    actualCodeBlocks: input.actualCodeBlocks,
+  };
 }
 
 function parseBlockStructure(html: string): Block[] {
@@ -1233,21 +1260,17 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
       }, { sessionId });
       try { multiCodeCount = JSON.parse(mcRes.result.value).count ?? 0; } catch { multiCodeCount = 0; }
     }
-    const expectedText = deriveBinanceArticleFinalBodyText(
-      parsed.html,
-      parsed.contentImages.map((image) => image.placeholder),
-      parsed.codeBlocks,
-    );
-    const bodyMatches = isBinanceArticleBodyInserted(finalContent.result.value, expectedText);
-    const report = {
-      titleMatches: titleValue.result.value.trim() === parsed.title.trim(),
-      bodyMatches,
-      expectedImages: parsed.contentImages.length,
+    const report = buildBinanceArticleCompositionReport({
+      expectedTitle: parsed.title,
+      expectedHtml: parsed.html,
+      imagePlaceholders: parsed.contentImages.map((image) => image.placeholder),
+      codeBlocks: parsed.codeBlocks,
+      actualTitle: titleValue.result.value,
+      actualBody: finalContent.result.value,
       actualImages: finalImgCount.result.value,
       remainingPlaceholders,
-      expectedCodeBlocks: parsed.codeBlocks.length,
       actualCodeBlocks: multiCodeCount,
-    };
+    });
     try {
       assertCompositionReady(report);
       console.log(`[binance-article] Verification passed: ${report.actualImages} image(s), ${report.actualCodeBlocks} code block(s), no remaining placeholders.`);

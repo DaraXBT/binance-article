@@ -122,14 +122,60 @@ export async function insertXArticleBodyExactly({
   throw new Error(`X Article body insertion failed: no attempt produced the exact reviewed body.${detail}`);
 }
 
+export async function waitForXArticleBodyCleared({
+  read,
+  wait,
+  maxChecks,
+}: {
+  read: () => Promise<string>;
+  wait: () => Promise<void>;
+  maxChecks: number;
+}): Promise<void> {
+  let consecutiveEmptyChecks = 0;
+  for (let check = 0; check < maxChecks; check++) {
+    if (normalizeArticleBodyText(await read()) === '') {
+      consecutiveEmptyChecks += 1;
+      if (consecutiveEmptyChecks >= 2) return;
+    } else {
+      consecutiveEmptyChecks = 0;
+    }
+    if (check + 1 < maxChecks) await wait();
+  }
+  throw new Error('The X Article body editor did not clear to a stable empty state.');
+}
+
+export function findSingleAddedXArticleMediaSource(
+  before: readonly string[],
+  after: readonly string[],
+): string {
+  if (after.length !== before.length + 1) {
+    throw new Error('X Article media insertion did not add exactly one image.');
+  }
+  const remaining = new Map<string, number>();
+  for (const source of before) remaining.set(source, (remaining.get(source) ?? 0) + 1);
+  const added: string[] = [];
+  for (const source of after) {
+    const count = remaining.get(source) ?? 0;
+    if (count > 0) remaining.set(source, count - 1);
+    else added.push(source);
+  }
+  if (added.length !== 1 || [...remaining.values()].some((count) => count !== 0)) {
+    throw new Error('X Article media insertion did not add exactly one stable image source.');
+  }
+  return added[0]!;
+}
+
 export interface XArticleCompositionReport {
   titleMatches: boolean;
   bodyMatches: boolean;
   expectedImages: number;
   actualImages: number;
+  expectedMediaSources: readonly string[];
+  actualMediaSources: readonly string[];
   remainingPlaceholders: string[];
-  expectedCover: boolean;
-  actualCover: boolean;
+  coverRequested: boolean;
+  initialCoverSources: readonly string[];
+  actualCoverSources: readonly string[];
 }
 
 export function assertXArticleCompositionReady(report: XArticleCompositionReport): void {
@@ -139,11 +185,27 @@ export function assertXArticleCompositionReady(report: XArticleCompositionReport
   if (report.actualImages !== report.expectedImages) {
     failures.push(`image count ${report.actualImages}/${report.expectedImages}`);
   }
+  if (
+    report.expectedMediaSources.length !== report.expectedImages
+    || report.actualMediaSources.length !== report.actualImages
+    || report.actualMediaSources.length !== report.expectedMediaSources.length
+    || report.actualMediaSources.some((source, index) => source !== report.expectedMediaSources[index])
+  ) {
+    failures.push('body media order or insertion provenance does not match the reviewed draft');
+  }
   if (report.remainingPlaceholders.length > 0) {
     failures.push(`remaining placeholders: ${report.remainingPlaceholders.join(', ')}`);
   }
-  if (report.actualCover !== report.expectedCover) {
-    failures.push(`cover state ${report.actualCover ? 'present' : 'missing'}/${report.expectedCover ? 'expected' : 'not expected'}`);
+  const coverSources = [...new Set(report.actualCoverSources)];
+  if (report.coverRequested) {
+    if (
+      coverSources.length !== 1
+      || report.initialCoverSources.includes(coverSources[0] ?? '')
+    ) {
+      failures.push('cover does not contain one newly applied visible editor-header source');
+    }
+  } else if (coverSources.length !== 0) {
+    failures.push('cover is present even though the reviewed draft is coverless');
   }
   if (failures.length > 0) {
     throw new Error(`X Article composition failed: ${failures.join('; ')}.`);
@@ -461,13 +523,59 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
       );
     }
 
+    const readBodyMediaSources = async (): Promise<string[]> => {
+      const result = await cdp!.send<{ result: { value: string[] } }>('Runtime.evaluate', {
+        expression: `(() => {
+          const visible = (element) => {
+            const rect = element.getBoundingClientRect();
+            const style = getComputedStyle(element);
+            return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+          };
+          return Array.from(document.querySelectorAll(
+            'section[data-block="true"][contenteditable="false"] img[src^="blob:"]'
+          )).filter(visible).map((image) => image.currentSrc || image.src || '');
+        })()`,
+        returnByValue: true,
+      }, { sessionId });
+      return result.result.value;
+    };
+
+    const readVisibleCoverSources = async (): Promise<string[]> => {
+      const result = await cdp!.send<{ result: { value: string[] } }>('Runtime.evaluate', {
+        expression: `(() => {
+          const visible = (element) => {
+            const rect = element.getBoundingClientRect();
+            const style = getComputedStyle(element);
+            return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+          };
+          const titleSelectors = ${JSON.stringify(I18N_SELECTORS.titleInput)};
+          let title = null;
+          for (const selector of titleSelectors) {
+            title = document.querySelector(selector);
+            if (title) break;
+          }
+          const root = title?.closest('main, [role="main"]') || title?.closest('form') || document;
+          const sources = Array.from(root.querySelectorAll(
+            '[data-testid*="cover" i] img, [data-testid*="headerMedia" i] img'
+          )).filter((image) => visible(image) && !image.closest('[role="dialog"][aria-modal="true"]'))
+            .map((image) => image.currentSrc || image.src || '')
+            .filter(Boolean);
+          return Array.from(new Set(sources));
+        })()`,
+        returnByValue: true,
+      }, { sessionId });
+      return result.result.value;
+    };
+
+    const initialCoverSources = await readVisibleCoverSources();
+
     // Upload cover image
     if (parsed.coverImage) {
       console.log('[x-article] Uploading cover image...');
 
       // Click "Add photos or video" button
       const addPhotosSelectors = JSON.stringify(I18N_SELECTORS.addPhotosButton);
-      await cdp.send('Runtime.evaluate', {
+      const addPhotosClicked = await cdp.send<{ result: { value: boolean } }>('Runtime.evaluate', {
         expression: `(() => {
           const selectors = ${addPhotosSelectors};
           for (const sel of selectors) {
@@ -476,7 +584,11 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
           }
           return false;
         })()`,
+        returnByValue: true,
       }, { sessionId });
+      if (!addPhotosClicked.result.value) {
+        throw new Error('The X Article cover upload control was not found.');
+      }
       await sleep(500);
 
       // Use file input directly
@@ -486,66 +598,76 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
         selector: '[data-testid="fileInput"], input[type="file"][accept*="image"]',
       }, { sessionId });
 
-      if (nodeId) {
-        await cdp.send('DOM.setFileInputFiles', {
-          nodeId,
-          files: [parsed.coverImage],
+      if (!nodeId) throw new Error('The X Article cover file input was not found.');
+      await cdp.send('DOM.setFileInputFiles', {
+        nodeId,
+        files: [parsed.coverImage],
+      }, { sessionId });
+      console.log('[x-article] Cover image file set');
+
+      console.log('[x-article] Waiting for the cover crop Apply button...');
+      const applyFound = await waitForElement(
+        '[role="dialog"][aria-modal="true"] [data-testid="applyButton"]',
+        15_000,
+      );
+      if (!applyFound) throw new Error('The X Article cover crop Apply button was not found.');
+
+      const isModalOpen = async (): Promise<boolean> => {
+        const result = await cdp!.send<{ result: { value: boolean } }>('Runtime.evaluate', {
+          expression: `(() => {
+            const dialog = document.querySelector('[role="dialog"][aria-modal="true"]');
+            if (!dialog) return false;
+            const rect = dialog.getBoundingClientRect();
+            const style = getComputedStyle(dialog);
+            return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+          })()`,
+          returnByValue: true,
         }, { sessionId });
-        console.log('[x-article] Cover image file set');
+        return result.result.value;
+      };
 
-        // Wait for Apply button to appear and click it
-        console.log('[x-article] Waiting for Apply button...');
-        const applyFound = await waitForElement('[data-testid="applyButton"]', 15_000);
-        if (applyFound) {
-          // Check if modal is present
-          const isModalOpen = async (): Promise<boolean> => {
-            const result = await cdp!.send<{ result: { value: boolean } }>('Runtime.evaluate', {
-              expression: `!!document.querySelector('[role="dialog"][aria-modal="true"]')`,
-              returnByValue: true,
-            }, { sessionId });
-            return result.result.value;
-          };
-
-          // Click Apply button with retry logic
-          const maxRetries = 3;
-          for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            console.log(`[x-article] Clicking Apply button (attempt ${attempt}/${maxRetries})...`);
-
-            await cdp.send('Runtime.evaluate', {
-              expression: `document.querySelector('[data-testid="applyButton"]')?.click()`,
-            }, { sessionId });
-
-            // Wait for modal to close (up to 5 seconds per attempt)
-            const closeTimeout = 5000;
-            const checkInterval = 300;
-            const startTime = Date.now();
-            let modalClosed = false;
-
-            while (Date.now() - startTime < closeTimeout) {
-              await sleep(checkInterval);
-              const stillOpen = await isModalOpen();
-              if (!stillOpen) {
-                modalClosed = true;
-                break;
-              }
-            }
-
-            if (modalClosed) {
-              console.log('[x-article] Cover image applied, modal closed');
-              await sleep(500);
-              break;
-            }
-
-            if (attempt < maxRetries) {
-              console.log('[x-article] Modal still open, retrying...');
-            } else {
-              console.log('[x-article] Modal did not close after all attempts, continuing anyway...');
-            }
+      let modalClosed = false;
+      for (let attempt = 1; attempt <= 3 && !modalClosed; attempt++) {
+        console.log(`[x-article] Clicking cover Apply (attempt ${attempt}/3)...`);
+        const applyClicked = await cdp.send<{ result: { value: boolean } }>('Runtime.evaluate', {
+          expression: `(() => {
+            const buttons = Array.from(document.querySelectorAll(
+              '[role="dialog"][aria-modal="true"] [data-testid="applyButton"]'
+            ));
+            const button = buttons.find((element) => {
+              const rect = element.getBoundingClientRect();
+              const style = getComputedStyle(element);
+              return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+            });
+            if (!button) return false;
+            button.click();
+            return true;
+          })()`,
+          returnByValue: true,
+        }, { sessionId });
+        if (!applyClicked.result.value) continue;
+        const started = Date.now();
+        while (Date.now() - started < 5_000) {
+          await sleep(300);
+          if (!await isModalOpen()) {
+            modalClosed = true;
+            break;
           }
-        } else {
-          console.log('[x-article] Apply button not found, continuing...');
         }
       }
+      if (!modalClosed) throw new Error('The X Article cover crop dialog did not close after Apply.');
+
+      let coverApplied = false;
+      const coverStarted = Date.now();
+      while (Date.now() - coverStarted < 15_000) {
+        const sources = await readVisibleCoverSources();
+        if (sources.length === 1 && !initialCoverSources.includes(sources[0]!)) {
+          coverApplied = true;
+          break;
+        }
+        await sleep(300);
+      }
+      if (!coverApplied) throw new Error('The X Article editor did not show the newly applied cover.');
     }
 
     // Fill title using keyboard input
@@ -583,35 +705,44 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
     const htmlContent = fs.readFileSync(htmlPath, 'utf-8');
     const expectedBodyText = xArticleHtmlToText(htmlContent);
 
-    const clearArticleBody = async (): Promise<void> => {
-      const cleared = await cdp!.send<{ result: { value: boolean } }>('Runtime.evaluate', {
-        expression: `(() => {
-          const editor = document.querySelector('.DraftEditor-editorContainer [contenteditable="true"]');
-          const contents = document.querySelector('.DraftEditor-editorContainer [data-contents="true"]');
-          if (!editor || !contents) return false;
-          editor.focus();
-          const range = document.createRange();
-          range.selectNodeContents(contents);
-          const selection = window.getSelection();
-          if (!selection) return false;
-          selection.removeAllRanges();
-          selection.addRange(range);
-          if (!document.execCommand('delete', false)) {
-            document.execCommand('insertText', false, '');
-          }
-          return true;
-        })()`,
-        returnByValue: true,
-      }, { sessionId });
-      if (!cleared.result.value) throw new Error('The X Article body editor could not be cleared safely.');
-      await sleep(300);
-    };
     const readArticleBody = async (): Promise<string> => {
       const result = await cdp!.send<{ result: { value: string } }>('Runtime.evaluate', {
         expression: `document.querySelector('.DraftEditor-editorContainer [data-contents="true"]')?.innerText || ''`,
         returnByValue: true,
       }, { sessionId });
       return result.result.value;
+    };
+    const clearArticleBody = async (): Promise<void> => {
+      const focused = await cdp!.send<{ result: { value: boolean } }>('Runtime.evaluate', {
+        expression: `(() => {
+          const editor = document.querySelector('.DraftEditor-editorContainer [contenteditable="true"]');
+          if (!editor) return false;
+          editor.focus();
+          return true;
+        })()`,
+        returnByValue: true,
+      }, { sessionId });
+      if (!focused.result.value) throw new Error('The X Article body editor could not be focused for clearing.');
+      const selectionModifier = process.platform === 'darwin' ? 4 : 2;
+      await cdp!.send('Input.dispatchKeyEvent', {
+        type: 'rawKeyDown', key: 'a', code: 'KeyA', modifiers: selectionModifier,
+        windowsVirtualKeyCode: 65,
+      }, { sessionId });
+      await cdp!.send('Input.dispatchKeyEvent', {
+        type: 'keyUp', key: 'a', code: 'KeyA', modifiers: selectionModifier,
+        windowsVirtualKeyCode: 65,
+      }, { sessionId });
+      await cdp!.send('Input.dispatchKeyEvent', {
+        type: 'rawKeyDown', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8,
+      }, { sessionId });
+      await cdp!.send('Input.dispatchKeyEvent', {
+        type: 'keyUp', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8,
+      }, { sessionId });
+      await waitForXArticleBodyCleared({
+        read: readArticleBody,
+        wait: () => sleep(150),
+        maxChecks: 20,
+      });
     };
 
     await insertXArticleBodyExactly({
@@ -662,7 +793,9 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
     });
     console.log('[x-article] Exact reviewed body insertion verified.');
 
-    // Insert content images (reverse order to maintain positions)
+    const expectedBodyMediaSources: string[] = [];
+
+    // Insert content images at their reviewed placeholders.
     if (parsed.contentImages.length > 0) {
       console.log('[x-article] Inserting content images...');
 
@@ -674,7 +807,7 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
 
       console.log('[x-article] Checking for placeholders in content...');
       for (const img of parsed.contentImages) {
-        // Use regex for exact match (not followed by digit, e.g., XIMGPH_1 should not match XIMGPH_10)
+        // Use an exact suffix boundary so IMG_1 cannot match IMG_10.
         const regex = new RegExp(img.placeholder + '(?!\\d)');
         if (regex.test(editorContent.result.value)) {
           console.log(`[x-article] Found: ${img.placeholder}`);
@@ -683,9 +816,9 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
         }
       }
 
-      // Process images in XIMGPH order (1, 2, 3, ...) regardless of blockIndex
+      // Process images in their namespaced IMG order regardless of blockIndex.
       const getPlaceholderIndex = (placeholder: string): number => {
-        const match = placeholder.match(/XIMGPH_(\d+)/);
+        const match = placeholder.match(/IMG_(\d+)$/);
         return match ? Number(match[1]) : Number.POSITIVE_INFINITY;
       };
       const sortedImages = [...parsed.contentImages].sort(
@@ -715,11 +848,11 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
                   const text = node.textContent || '';
                   let searchStart = 0;
                   let idx;
-                  // Search for exact match (not prefix of longer placeholder like XIMGPH_1 in XIMGPH_10)
+                  // Search for an exact match (IMG_1 must not match IMG_10).
                   while ((idx = text.indexOf(placeholder, searchStart)) !== -1) {
                     const afterIdx = idx + placeholder.length;
                     const charAfter = text[afterIdx];
-                    // Exact match if next char is not a digit (XIMGPH_1 should not match XIMGPH_10)
+                    // An exact placeholder cannot be followed by another index digit.
                     if (charAfter === undefined || !/\\d/.test(charAfter)) {
                       // Found exact placeholder - scroll to it first
                       const parentElement = node.parentElement;
@@ -771,16 +904,14 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
         // Try to select the placeholder
         const selected = await selectPlaceholder(3);
         if (!selected) {
-          console.warn(`[x-article] Skipping image - could not select placeholder: ${img.placeholder}`);
-          continue;
+          throw new Error(`The X Article image placeholder could not be selected: ${img.placeholder}.`);
         }
 
         console.log(`[x-article] Copying image: ${path.basename(img.localPath)}`);
 
         // Copy image to clipboard
         if (!copyImageToClipboard(img.localPath)) {
-          console.warn(`[x-article] Failed to copy image to clipboard`);
-          continue;
+          throw new Error(`The reviewed X Article image could not be copied: ${path.basename(img.localPath)}.`);
         }
 
         // Wait for clipboard to be fully ready
@@ -837,11 +968,7 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
           await sleep(500);
         }
 
-        // Count existing image blocks before paste
-        const imgCountBefore = await cdp.send<{ result: { value: number } }>('Runtime.evaluate', {
-          expression: `document.querySelectorAll('section[data-block="true"][contenteditable="false"] img[src^="blob:"]').length`,
-          returnByValue: true,
-        }, { sessionId });
+        const mediaSourcesBefore = await readBodyMediaSources();
 
         // Focus editor to ensure cursor is in position
         await cdp.send('Runtime.evaluate', {
@@ -857,86 +984,43 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
         if (pasteFromClipboard('Google Chrome', 5, 1000)) {
           console.log(`[x-article] Image pasted: ${path.basename(img.localPath)}`);
         } else {
-          console.warn(`[x-article] Failed to paste image after retries`);
+          throw new Error(`The reviewed X Article image could not be pasted: ${path.basename(img.localPath)}.`);
         }
 
         // Verify image appeared in editor
         console.log(`[x-article] Verifying image upload...`);
-        const expectedImgCount = imgCountBefore.result.value + 1;
-        let imgUploadOk = false;
+        const expectedImgCount = mediaSourcesBefore.length + 1;
+        let insertedSource: string | null = null;
         const imgWaitStart = Date.now();
         while (Date.now() - imgWaitStart < 15_000) {
-          const r = await cdp!.send<{ result: { value: number } }>('Runtime.evaluate', {
-            expression: `document.querySelectorAll('section[data-block="true"][contenteditable="false"] img[src^="blob:"]').length`,
-            returnByValue: true,
-          }, { sessionId });
-          if (r.result.value >= expectedImgCount) {
-            imgUploadOk = true;
+          const mediaSourcesAfter = await readBodyMediaSources();
+          try {
+            insertedSource = findSingleAddedXArticleMediaSource(mediaSourcesBefore, mediaSourcesAfter);
             break;
-          }
+          } catch {}
           await sleep(1000);
         }
 
-        if (imgUploadOk) {
+        if (insertedSource) {
+          expectedBodyMediaSources.push(insertedSource);
           console.log(`[x-article] Image upload verified (${expectedImgCount} image block(s))`);
           // Wait for DraftEditor DOM to stabilize after image insertion
           await sleep(3000);
         } else {
-          console.warn(`[x-article] Image upload not detected after 15s`);
-          if (i === 0) {
-            console.error('[x-article] First image paste failed. Run check-paste-permissions.ts to diagnose.');
-          }
+          throw new Error(`The reviewed X Article image did not produce one new stable media source: ${path.basename(img.localPath)}.`);
         }
       }
 
       console.log('[x-article] All images processed.');
     }
 
-    // This gate runs for text-only and media-bearing Articles alike. The
-    // reviewed body is the source of truth; the browser snapshot never becomes
-    // its own approval baseline.
-    console.log('[x-article] Running post-composition verification...');
     const expectedFinalBodyText = deriveXArticleFinalBodyText(
       htmlContent,
       parsed.contentImages.map((image) => image.placeholder),
     );
-    const verifiedSnapshotResult = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
-      expression: `JSON.stringify({
-        title: (() => {
-          const selectors = ${JSON.stringify(I18N_SELECTORS.titleInput)};
-          for (const selector of selectors) {
-            const element = document.querySelector(selector);
-            if (element) return element.value || element.innerText || element.textContent || '';
-          }
-          return '';
-        })(),
-        body: document.querySelector('.DraftEditor-editorContainer [data-contents="true"]')?.innerText || '',
-        imageCount: document.querySelectorAll('section[data-block="true"][contenteditable="false"] img[src^="blob:"]').length,
-        coverPresent: Boolean(document.querySelector('[data-testid*="cover" i] img, [data-testid*="headerMedia" i] img')),
-      })`,
-      returnByValue: true,
-    }, { sessionId });
-    const verifiedComposition = JSON.parse(verifiedSnapshotResult.result.value) as {
-      title: string;
-      body: string;
-      imageCount: number;
-      coverPresent: boolean;
-    };
-    const remainingPlaceholders = parsed.contentImages
-      .map((image) => image.placeholder)
-      .filter((placeholder) => renderedPlaceholderPattern(placeholder).test(verifiedComposition.body));
-    assertXArticleCompositionReady({
-      titleMatches: verifiedComposition.title.trim() === parsed.title.trim(),
-      bodyMatches: isXArticleBodyInserted(verifiedComposition.body, expectedFinalBodyText),
-      expectedImages: parsed.contentImages.length,
-      actualImages: verifiedComposition.imageCount,
-      remainingPlaceholders,
-      expectedCover: Boolean(parsed.coverImage),
-      actualCover: verifiedComposition.coverPresent,
-    });
-    console.log(`[x-article] Verification passed: ${verifiedComposition.imageCount} image(s), exact reviewed body, expected cover state.`);
 
-    // Before preview: blur editor to trigger save
+    // Blur first, then verify the saved editor state. Standalone --submit and
+    // managed review therefore share the same post-save evidence.
     console.log('[x-article] Triggering content save...');
     await cdp.send('Runtime.evaluate', {
       expression: `(() => {
@@ -950,6 +1034,46 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
       })()`,
     }, { sessionId });
     await sleep(1500);
+
+    console.log('[x-article] Running post-save composition verification...');
+    const textSnapshotResult = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+      expression: `JSON.stringify({
+        title: (() => {
+          const selectors = ${JSON.stringify(I18N_SELECTORS.titleInput)};
+          for (const selector of selectors) {
+            const element = document.querySelector(selector);
+            if (element) return element.value || element.innerText || element.textContent || '';
+          }
+          return '';
+        })(),
+        body: document.querySelector('.DraftEditor-editorContainer [data-contents="true"]')?.innerText || '',
+      })`,
+      returnByValue: true,
+    }, { sessionId });
+    const textSnapshot = JSON.parse(textSnapshotResult.result.value) as { title: string; body: string };
+    const actualMediaSources = await readBodyMediaSources();
+    const actualCoverSources = await readVisibleCoverSources();
+    const verifiedComposition = {
+      ...textSnapshot,
+      imageCount: actualMediaSources.length,
+      coverPresent: actualCoverSources.length === 1,
+    };
+    const remainingPlaceholders = parsed.contentImages
+      .map((image) => image.placeholder)
+      .filter((placeholder) => renderedPlaceholderPattern(placeholder).test(verifiedComposition.body));
+    assertXArticleCompositionReady({
+      titleMatches: verifiedComposition.title.trim() === parsed.title.trim(),
+      bodyMatches: isXArticleBodyInserted(verifiedComposition.body, expectedFinalBodyText),
+      expectedImages: parsed.contentImages.length,
+      actualImages: verifiedComposition.imageCount,
+      expectedMediaSources: expectedBodyMediaSources,
+      actualMediaSources,
+      remainingPlaceholders,
+      coverRequested: Boolean(parsed.coverImage),
+      initialCoverSources,
+      actualCoverSources,
+    });
+    console.log(`[x-article] Verification passed: ${verifiedComposition.imageCount} ordered image(s), exact reviewed body, scoped cover evidence.`);
 
     // Click Preview button
     console.log('[x-article] Opening preview...');
