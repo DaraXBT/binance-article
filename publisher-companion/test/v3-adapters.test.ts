@@ -28,7 +28,7 @@ const binanceReady: BinancePostSnapshot = {
   publishButtonEnabled: true,
 };
 
-type XArticleSnapshotFixture = XArticleSnapshot & { coverSources: string[] };
+type XArticleSnapshotFixture = XArticleSnapshot & { coverSources: string[]; editorId: string };
 
 const articleReady: XArticleSnapshotFixture = {
   url: 'https://x.com/compose/articles/123',
@@ -38,6 +38,7 @@ const articleReady: XArticleSnapshotFixture = {
   mediaSources: ['blob:x-reviewed'],
   coverSource: null,
   coverSources: [],
+  editorId: '4g3nm',
   editorVisible: true,
   publishButtonCount: 1,
   publishButtonEnabled: true,
@@ -273,6 +274,37 @@ describe('V3 live publisher adapters', () => {
     })).rejects.toThrow(/body changed/i);
     expect(draft.clickPublish).not.toHaveBeenCalled();
     expect(order).toEqual(['snapshot', 'snapshot', 'begin', 'snapshot', 'close']);
+  });
+
+  it('rejects a same-content X Article that switched to another editor or draft URL', async () => {
+    const replacement = {
+      ...articleReady,
+      editorId: 'a1b2c',
+      url: 'https://x.com/compose/articles/replacement',
+    };
+    const snapshots = [articleReady, articleReady, replacement];
+    const draft: XArticleDraft = {
+      id: 'x-article-replaced-editor',
+      snapshot: mock(async () => snapshots.shift()!),
+      clickPublish: mock(async () => true),
+      waitForPublishedUrl: mock(async () => 'https://x.com/i/article/123'),
+      close: mock(async () => undefined),
+    };
+    const adapter = new BaoyuXArticleAdapter({
+      prepare: mock(async () => ({
+        draft,
+        expectedTitle: articleReady.title,
+        expectedBody: articleReady.body,
+        expectedImageCount: 1,
+        expectedCover: false,
+      })),
+    });
+    const prepared = await adapter.prepare('/tmp/x-article.zip');
+
+    await expect(adapter.publish(prepared.draftId, {
+      beforeClick: async () => undefined,
+    })).rejects.toThrow(/editor|draft|url|replaced/i);
+    expect(draft.clickPublish).not.toHaveBeenCalled();
   });
 
   it('treats X Article whitespace edits as a body snapshot change', async () => {
