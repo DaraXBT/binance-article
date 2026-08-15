@@ -441,6 +441,7 @@ export function AdminPeopleAccessCard({
       setOneTimeCode(null);
       setCopiedValue(null);
       onUncopiedAccessChange?.(false);
+      setOverview((current) => current ? { ...current, code: null } : current);
       await refresh();
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'The enrollment code could not be disabled.');
