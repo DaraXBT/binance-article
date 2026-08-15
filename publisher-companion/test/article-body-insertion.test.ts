@@ -254,32 +254,48 @@ describe('X Article ordered media provenance', () => {
 });
 
 describe('X Article fail-closed body media evidence', () => {
+  const fingerprintA = {
+    aspectRatio: 1.5,
+    differenceHash: '0011223344556677',
+    colorSamples: [24, 48, 72, 96, 120, 144, 168, 192, 216, 32, 64, 128],
+  };
+  const reencodedFingerprintA = {
+    aspectRatio: 1.5005,
+    differenceHash: '0011223344556676',
+    colorSamples: [25, 47, 73, 95, 121, 143, 169, 191, 217, 31, 65, 127],
+  };
+  const fingerprintB = {
+    aspectRatio: 0.75,
+    differenceHash: 'ffeeddccbbaa9988',
+    colorSamples: [220, 190, 160, 130, 100, 70, 40, 20, 10, 230, 200, 170],
+  };
   const reviewedTextMediaText = [
     { kind: 'text' as const, text: 'Before the reviewed image.' },
     { kind: 'media' as const, assetId: 'sha256:asset-a' },
     { kind: 'text' as const, text: 'After the reviewed image.' },
   ];
   const verifiedAssetBindings = [
-    { blockId: 'atomic-block-a', assetId: 'sha256:asset-a' },
+    { blockId: 'atomic-block-a', assetId: 'sha256:asset-a', fingerprint: fingerprintA },
   ];
 
-  it('binds a browser media block only after its decoded pixels match the reviewed asset', () => {
+  it('binds a browser media block only after its decoded fingerprint matches the reviewed asset', () => {
     expect(bindXArticleMediaAsset({
       blockId: 'atomic-block-a',
       assetId: 'sha256:reviewed-file-a',
-      reviewedPixelSha256: 'sha256:reviewed-rgba-a',
-      renderedPixelSha256: 'sha256:reviewed-rgba-a',
+      reviewedFingerprint: fingerprintA,
+      renderedFingerprint: reencodedFingerprintA,
     })).toEqual({
       blockId: 'atomic-block-a',
       assetId: 'sha256:reviewed-file-a',
+      fingerprint: fingerprintA,
     });
 
     expect(() => bindXArticleMediaAsset({
       blockId: 'atomic-block-stale',
       assetId: 'sha256:reviewed-file-b',
-      reviewedPixelSha256: 'sha256:reviewed-rgba-b',
-      renderedPixelSha256: 'sha256:stale-rgba-a',
-    })).toThrow(/pixel|asset|identity/i);
+      reviewedFingerprint: fingerprintB,
+      renderedFingerprint: fingerprintA,
+    })).toThrow(/fingerprint|asset|identity/i);
   });
 
   it('accepts the reviewed text, bound media asset, text sequence', () => {
@@ -287,7 +303,10 @@ describe('X Article fail-closed body media evidence', () => {
       reviewedSequence: reviewedTextMediaText,
       renderedSequence: [
         { kind: 'text', text: 'Before the reviewed image.' },
-        { kind: 'media', blockId: 'atomic-block-a', source: 'blob:initial-a' },
+        {
+          kind: 'media', blockId: 'atomic-block-a', source: 'blob:initial-a',
+          fingerprint: reencodedFingerprintA,
+        },
         { kind: 'text', text: 'After the reviewed image.' },
       ],
       verifiedAssetBindings,
@@ -300,7 +319,10 @@ describe('X Article fail-closed body media evidence', () => {
       renderedSequence: [
         { kind: 'text', text: 'Before the reviewed image.' },
         { kind: 'text', text: 'After the reviewed image.' },
-        { kind: 'media', blockId: 'atomic-block-a', source: 'blob:initial-a' },
+        {
+          kind: 'media', blockId: 'atomic-block-a', source: 'blob:initial-a',
+          fingerprint: reencodedFingerprintA,
+        },
       ],
       verifiedAssetBindings,
     })).toThrow(/media|sequence|position/i);
@@ -317,14 +339,19 @@ describe('X Article fail-closed body media evidence', () => {
       ],
       renderedSequence: [
         { kind: 'text', text: 'First.' },
-        { kind: 'media', blockId: 'atomic-block-a', source: 'blob:first' },
+        { kind: 'media', blockId: 'atomic-block-a', source: 'blob:first', fingerprint: fingerprintA },
         { kind: 'text', text: 'Between.' },
-        { kind: 'media', blockId: 'atomic-block-duplicate-a', source: 'blob:second' },
+        {
+          kind: 'media', blockId: 'atomic-block-duplicate-a', source: 'blob:second',
+          fingerprint: reencodedFingerprintA,
+        },
         { kind: 'text', text: 'Last.' },
       ],
       verifiedAssetBindings: [
-        { blockId: 'atomic-block-a', assetId: 'sha256:asset-a' },
-        { blockId: 'atomic-block-duplicate-a', assetId: 'sha256:asset-a' },
+        { blockId: 'atomic-block-a', assetId: 'sha256:asset-a', fingerprint: fingerprintA },
+        {
+          blockId: 'atomic-block-duplicate-a', assetId: 'sha256:asset-a', fingerprint: fingerprintA,
+        },
       ],
     })).toThrow(/asset|binding|media/i);
   });
@@ -334,7 +361,11 @@ describe('X Article fail-closed body media evidence', () => {
       reviewedSequence: reviewedTextMediaText,
       renderedSequence: [
         { kind: 'text', text: 'Before the reviewed image.' },
-        { kind: 'media', blockId: 'atomic-block-a', source: 'https://pbs.twimg.com/media/uploaded-a' },
+        {
+          kind: 'media', blockId: 'atomic-block-a',
+          source: 'https://pbs.twimg.com/media/uploaded-a',
+          fingerprint: reencodedFingerprintA,
+        },
         { kind: 'text', text: 'After the reviewed image.' },
       ],
       verifiedAssetBindings,
@@ -349,15 +380,19 @@ describe('X Article fail-closed body media evidence', () => {
       },
       {
         ownerEditorId: 'sidebar-preview',
-        block: { kind: 'media', blockId: 'off-editor-media', source: 'blob:sidebar' },
+        block: {
+          kind: 'media', blockId: 'off-editor-media', source: 'blob:sidebar', fingerprint: fingerprintB,
+        },
       },
       {
         ownerEditorId: 'article-editor',
-        block: { kind: 'media', blockId: 'body-media', source: 'blob:body' },
+        block: {
+          kind: 'media', blockId: 'body-media', source: 'blob:body', fingerprint: fingerprintA,
+        },
       },
     ])).toEqual([
       { kind: 'text', text: 'Reviewed body.' },
-      { kind: 'media', blockId: 'body-media', source: 'blob:body' },
+      { kind: 'media', blockId: 'body-media', source: 'blob:body', fingerprint: fingerprintA },
     ]);
   });
 });
