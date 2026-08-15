@@ -12,12 +12,14 @@ const requiredPaths = [
 ];
 
 describe('release tree guard', () => {
-  it('requires the workspace credential and shared enrollment migrations and snapshots', () => {
+  it('requires every current contract migration and snapshot through publication kind', () => {
     expect(REQUIRED_RELEASE_PATHS).toEqual(expect.arrayContaining([
       'drizzle/0015_workspace_ai_credential.sql',
       'drizzle/meta/0015_snapshot.json',
       'drizzle/0016_shared_enrollment.sql',
       'drizzle/meta/0016_snapshot.json',
+      'drizzle/0017_publication-kind.sql',
+      'drizzle/meta/0017_snapshot.json',
     ]));
   });
 
