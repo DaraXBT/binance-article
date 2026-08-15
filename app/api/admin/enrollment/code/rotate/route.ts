@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     return errorResponse(error, {
       code: 'ENROLLMENT_CODE_ROTATE_FAILED',
       message: 'The enrollment code could not be rotated.',
-      status: 400,
+      status: 500,
     });
   }
 }

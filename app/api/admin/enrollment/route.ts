@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     return errorResponse(error, {
       code: 'ENROLLMENT_OVERVIEW_FAILED',
       message: 'Enrollment access could not be loaded.',
-      status: 400,
+      status: 500,
     });
   }
 }
