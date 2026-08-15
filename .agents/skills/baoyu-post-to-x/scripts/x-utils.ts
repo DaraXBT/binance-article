@@ -155,7 +155,10 @@ export class CdpConnection {
   private ws: WebSocket;
   private nextId = 0;
   private pending = new Map<number, PendingRequest>();
-  private eventHandlers = new Map<string, Set<(params: unknown) => void>>();
+  private eventHandlers = new Map<
+    string,
+    Set<(params: unknown, metadata: { sessionId?: string }) => void>
+  >();
   private defaultTimeoutMs: number;
 
   private constructor(ws: WebSocket, options?: { defaultTimeoutMs?: number }) {
@@ -165,11 +168,18 @@ export class CdpConnection {
     this.ws.addEventListener('message', (event) => {
       try {
         const data = typeof event.data === 'string' ? event.data : new TextDecoder().decode(event.data as ArrayBuffer);
-        const msg = JSON.parse(data) as { id?: number; method?: string; params?: unknown; result?: unknown; error?: { message?: string } };
+        const msg = JSON.parse(data) as {
+          id?: number;
+          method?: string;
+          params?: unknown;
+          result?: unknown;
+          error?: { message?: string };
+          sessionId?: string;
+        };
 
         if (msg.method) {
           const handlers = this.eventHandlers.get(msg.method);
-          if (handlers) handlers.forEach((h) => h(msg.params));
+          if (handlers) handlers.forEach((handler) => handler(msg.params, { sessionId: msg.sessionId }));
         }
 
         if (msg.id) {
@@ -203,9 +213,17 @@ export class CdpConnection {
     return new CdpConnection(ws, options);
   }
 
-  on(method: string, handler: (params: unknown) => void): void {
+  on(
+    method: string,
+    handler: (params: unknown, metadata: { sessionId?: string }) => void,
+  ): () => void {
     if (!this.eventHandlers.has(method)) this.eventHandlers.set(method, new Set());
     this.eventHandlers.get(method)!.add(handler);
+    return () => {
+      const handlers = this.eventHandlers.get(method);
+      handlers?.delete(handler);
+      if (handlers?.size === 0) this.eventHandlers.delete(method);
+    };
   }
 
   async send<T = unknown>(method: string, params?: Record<string, unknown>, options?: { sessionId?: string; timeoutMs?: number }): Promise<T> {

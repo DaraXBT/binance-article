@@ -1,18 +1,20 @@
 import { rm } from 'node:fs/promises';
 
 import {
+  assertXArticleBodyMediaEvidence,
   publishArticle,
+  readXArticleEditorSnapshot,
   releaseXArticleBrowserResource,
+  xArticleImageFingerprintsMatch,
   type XArticleCompositionContext,
 } from '../../.agents/skills/baoyu-post-to-x/scripts/x-article';
-import { sleep } from '../../.agents/skills/baoyu-post-to-x/scripts/x-utils';
-
 import { extractV3PublicationBundle } from './v3-bundle';
 import {
   XArticleEligibilityError,
   type PreparedXArticle,
   type XArticleDraft,
   type XArticleDriver,
+  type XArticlePublishGuard,
   type XArticleSnapshot,
 } from './x-article-adapter';
 
@@ -31,6 +33,46 @@ const PUBLISH_SELECTORS = [
   'button[aria-label*="公開" i]',
   'button[aria-label*="게시" i]',
 ];
+const X_ARTICLE_PUBLICATION_CANDIDATES_BROWSER_SOURCE = String.raw`
+const xArticleCanonicalPublicationUrl = (value) => {
+  if (typeof value !== 'string' || !/^https:\/\/x\.com\/i\/article\/[0-9]+$/.test(value)) {
+    return null;
+  }
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname === 'x.com'
+      && !url.port && !url.username && !url.password && !url.search && !url.hash
+      && url.toString() === value ? value : null;
+  } catch {
+    return null;
+  }
+};
+const xArticlePublicationCandidates = () => {
+  const values = [xArticleCanonicalPublicationUrl(window.location.href)];
+  const roots = Array.from(document.querySelectorAll(
+    '[role="status"], [data-testid="toast"], [data-testid*="toast" i]'
+  ));
+  for (const root of roots) {
+    for (const link of root.querySelectorAll('a[href]')) {
+      values.push(xArticleCanonicalPublicationUrl(link.getAttribute('href')));
+    }
+  }
+  return Array.from(new Set(values.filter(Boolean)));
+};`;
+
+function strictRawXArticleUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || !/^https:\/\/x\.com\/i\/article\/[0-9]+$/.test(value)) {
+    return null;
+  }
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname === 'x.com'
+      && !url.port && !url.username && !url.password && !url.search && !url.hash
+      && url.toString() === value ? value : null;
+  } catch {
+    return null;
+  }
+}
 
 async function evaluate<T>(context: XArticleCompositionContext, expression: string): Promise<T> {
   const result = await context.cdp.send<{ result: { value: T } }>('Runtime.evaluate', {
@@ -41,104 +83,332 @@ async function evaluate<T>(context: XArticleCompositionContext, expression: stri
 }
 
 async function readSnapshot(context: XArticleCompositionContext): Promise<XArticleSnapshot> {
-  const serialized = await evaluate<string>(context, `(() => {
-    const visible = (element) => {
-      if (!element) return false;
-      const rect = element.getBoundingClientRect();
-      const style = getComputedStyle(element);
-      return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
-    };
-    const titleSelectors = ${JSON.stringify(TITLE_SELECTORS)};
-    let titleElement = null;
-    for (const selector of titleSelectors) {
-      const candidate = document.querySelector(selector);
-      if (candidate) { titleElement = candidate; break; }
-    }
-    const body = document.querySelector('.DraftEditor-editorContainer [data-contents="true"]');
-    const bodyMedia = Array.from(document.querySelectorAll(
-      'section[data-block="true"][contenteditable="false"] img[src^="blob:"]'
-    )).filter(visible);
-    const editorRoot = titleElement?.closest('main, [role="main"]') || titleElement?.closest('form') || document;
-    const coverSources = Array.from(new Set(Array.from(editorRoot.querySelectorAll(
-      '[data-testid*="cover" i] img, [data-testid*="headerMedia" i] img'
-    )).filter((image) => visible(image) && !image.closest('[role="dialog"][aria-modal="true"]'))
-      .map((image) => image.currentSrc || image.src || '').filter(Boolean)));
-    const buttons = Array.from(new Set(${JSON.stringify(PUBLISH_SELECTORS)}.flatMap((selector) =>
-      Array.from(document.querySelectorAll(selector)).filter(visible)
-    )));
-    const button = buttons.length === 1 ? buttons[0] : null;
-    return JSON.stringify({
-      url: window.location.href,
-      title: titleElement ? (titleElement.value || titleElement.innerText || titleElement.textContent || '') : '',
-      body: body?.innerText || body?.textContent || '',
-      imageCount: bodyMedia.length,
-      mediaSources: bodyMedia.map((image) => image.currentSrc || image.src || ''),
-      coverSource: coverSources.length === 1 ? coverSources[0] : null,
-      editorVisible: Boolean(body),
-      publishButtonCount: buttons.length,
-      publishButtonEnabled: Boolean(button && !button.disabled && button.getAttribute('aria-disabled') !== 'true'),
-    });
-  })()`);
-  return JSON.parse(serialized) as XArticleSnapshot;
+  const snapshot = await readXArticleEditorSnapshot(context.cdp, context.sessionId);
+  assertXArticleBodyMediaEvidence({
+    reviewedSequence: context.reviewedBodySequence,
+    renderedSequence: snapshot.bodySequence,
+    verifiedAssetBindings: context.mediaBindings,
+  });
+  const bindingByBlockId = new Map(
+    context.mediaBindings.map((binding) => [binding.blockId, binding.assetId]),
+  );
+  const mediaSources = snapshot.bodySequence
+    .filter((token) => token.kind === 'media')
+    .map((token) => `${token.blockId}:${bindingByBlockId.get(token.blockId) ?? 'unbound'}`);
+  if (
+    context.coverFingerprint
+    && (
+      snapshot.coverMedia.length !== 1
+      || !xArticleImageFingerprintsMatch(
+        context.coverFingerprint,
+        snapshot.coverMedia[0]!.fingerprint,
+      )
+    )
+  ) {
+    throw new Error('The X Article cover no longer matches the reviewed asset.');
+  }
+  const coverSources = context.coverFingerprint
+    ? ['reviewed-cover']
+    : snapshot.coverSources;
+  return {
+    url: snapshot.url,
+    editorId: snapshot.editorId,
+    title: snapshot.title,
+    body: snapshot.body,
+    imageCount: mediaSources.length,
+    mediaSources,
+    bodyMediaDomSources: [...snapshot.mediaSources],
+    coverSource: coverSources.length === 1 ? coverSources[0]! : null,
+    coverSources,
+    coverDomSources: [...snapshot.coverSources],
+    editorVisible: snapshot.editorVisible,
+    publishButtonCount: snapshot.publishButtonCount,
+    publishButtonEnabled: snapshot.publishButtonEnabled,
+  };
 }
 
 async function closeContext(context: XArticleCompositionContext): Promise<void> {
   await releaseXArticleBrowserResource(context);
 }
 
-function browserDraft(id: string, context: XArticleCompositionContext): XArticleDraft {
+export function createManagedXArticleDraft(
+  id: string,
+  context: XArticleCompositionContext,
+): XArticleDraft {
   let closed = false;
+  let preClickPublicationCandidates: ReadonlySet<string> | null = null;
+  let mainFrameId: string | null = null;
+  let evidenceSettled = false;
+  let evidencePollingStarted = false;
+  let evidenceTimer: ReturnType<typeof setTimeout> | null = null;
+  let pollTimer: ReturnType<typeof setTimeout> | null = null;
+  let evidencePhase: 'idle' | 'armed' | 'clicking' | 'postclick' | 'settled' = 'idle';
+  let resolveEvidence: ((value: string | undefined) => void) | null = null;
+  let rejectEvidence: ((error: Error) => void) | null = null;
+  let evidencePromise: Promise<string | undefined> | null = null;
+  let stopNavigationListeners: Array<() => void> = [];
+  const pendingNavigationCandidates = new Set<string>();
+
+  const cleanupEvidenceResources = (): void => {
+    for (const stopListening of stopNavigationListeners.splice(0)) stopListening();
+    if (evidenceTimer) clearTimeout(evidenceTimer);
+    if (pollTimer) clearTimeout(pollTimer);
+    evidenceTimer = null;
+    pollTimer = null;
+  };
+
+  const settleEvidence = (value: string | undefined): void => {
+    if (evidenceSettled) return;
+    evidenceSettled = true;
+    evidencePhase = 'settled';
+    cleanupEvidenceResources();
+    resolveEvidence?.(value);
+  };
+
+  const failEvidence = (error: Error): void => {
+    if (evidenceSettled) return;
+    evidenceSettled = true;
+    evidencePhase = 'settled';
+    cleanupEvidenceResources();
+    rejectEvidence?.(error);
+  };
+
+  const recordNavigationCandidate = (value: unknown): void => {
+    const candidate = strictRawXArticleUrl(value);
+    if (!candidate || evidenceSettled) return;
+    if (evidencePhase === 'idle' || evidencePhase === 'armed') return;
+    if (evidencePhase === 'clicking' || !preClickPublicationCandidates) {
+      pendingNavigationCandidates.add(candidate);
+      return;
+    }
+    if (!preClickPublicationCandidates.has(candidate)) settleEvidence(candidate);
+  };
+
+  const armNavigationEvidence = async (): Promise<void> => {
+    if (evidencePromise) throw new Error('X Article publication evidence is already armed.');
+    evidencePromise = new Promise<string | undefined>((resolve, reject) => {
+      resolveEvidence = resolve;
+      rejectEvidence = reject;
+    });
+    try {
+      const frameTree = await context.cdp.send<{
+        frameTree: { frame: { id: string } };
+      }>('Page.getFrameTree', {}, { sessionId: context.sessionId });
+      mainFrameId = frameTree.frameTree.frame.id;
+      if (!mainFrameId) throw new Error('The managed X Article main frame is unavailable.');
+      stopNavigationListeners.push(
+        context.cdp.on('Page.frameNavigated', (params, metadata) => {
+          if (metadata.sessionId !== context.sessionId) return;
+          const event = params as { frame?: { id?: unknown; url?: unknown; parentId?: unknown } };
+          if (
+            event.frame?.id !== mainFrameId
+            || (event.frame.parentId !== undefined && event.frame.parentId !== null)
+          ) return;
+          recordNavigationCandidate(event.frame.url);
+        }),
+      );
+      stopNavigationListeners.push(
+        context.cdp.on('Page.navigatedWithinDocument', (params, metadata) => {
+          if (metadata.sessionId !== context.sessionId) return;
+          const event = params as { frameId?: unknown; url?: unknown };
+          if (event.frameId !== mainFrameId) return;
+          recordNavigationCandidate(event.url);
+        }),
+      );
+      evidencePhase = 'armed';
+    } catch (error) {
+      settleEvidence(undefined);
+      throw error;
+    }
+  };
+
+  const startEvidenceTimeout = (): void => {
+    if (evidenceSettled || evidenceTimer) return;
+    evidenceTimer = setTimeout(() => settleEvidence(undefined), EVIDENCE_TIMEOUT_MS);
+  };
+
+  const scheduleDomPoll = (): void => {
+    if (evidenceSettled || closed) return;
+    pollTimer = setTimeout(() => {
+      pollTimer = null;
+      void pollDomEvidence();
+    }, 500);
+  };
+
+  const pollDomEvidence = async (): Promise<void> => {
+    if (evidenceSettled || closed || !preClickPublicationCandidates) return;
+    try {
+      const candidates = await evaluate<string[]>(context, `(() => {
+        ${X_ARTICLE_PUBLICATION_CANDIDATES_BROWSER_SOURCE}
+        return xArticlePublicationCandidates();
+      })()`);
+      if (evidenceSettled || closed) return;
+      const newCandidates = candidates.filter((candidate) => (
+        strictRawXArticleUrl(candidate) === candidate
+        && !preClickPublicationCandidates!.has(candidate)
+      ));
+      if (newCandidates.length === 1) {
+        settleEvidence(newCandidates[0]);
+        return;
+      }
+      if (newCandidates.length > 1) {
+        failEvidence(new Error('X exposed ambiguous new Article publication evidence.'));
+        return;
+      }
+    } catch {
+      // Top-level navigation can temporarily destroy the default execution context.
+      // Keep the already-armed navigation listeners active and retry until timeout.
+    }
+    scheduleDomPoll();
+  };
+
   return {
     id,
     snapshot: () => readSnapshot(context),
-    clickPublish: () => evaluate<boolean>(context, `(() => {
-      const visible = (element) => {
-        if (!element) return false;
-        const rect = element.getBoundingClientRect();
-        const style = getComputedStyle(element);
-        return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+    clickPublish: async (guard: XArticlePublishGuard) => {
+      if (closed) throw new Error('The managed X Article draft is already closed.');
+      await armNavigationEvidence();
+      let result: {
+        clicked: boolean;
+        guardMatched: boolean;
+        baselineCandidates: string[];
       };
-      const buttons = Array.from(new Set(${JSON.stringify(PUBLISH_SELECTORS)}.flatMap((selector) =>
-        Array.from(document.querySelectorAll(selector)).filter((button) =>
-          visible(button) && !button.disabled && button.getAttribute('aria-disabled') !== 'true'
-        )
-      )));
-      if (buttons.length !== 1) return false;
-      buttons[0].click();
-      return true;
-    })()`),
-    waitForPublishedUrl: async () => {
-      const started = Date.now();
-      while (Date.now() - started < EVIDENCE_TIMEOUT_MS) {
-        const candidates = await evaluate<string[]>(context, `(() => {
-          const canonical = (value) => {
-            try {
-              const url = new URL(value, window.location.href);
-              const parts = url.pathname.split('/');
-              return url.protocol === 'https:' && url.hostname === 'x.com'
-                && !url.port && !url.search && !url.hash
-                && parts.length === 4 && parts[1] === 'i'
-                && parts[2] === 'article' && /^[0-9]+$/.test(parts[3] || '')
-                ? url.toString() : null;
-            } catch { return null; }
-          };
-          const values = [canonical(window.location.href)];
-          const roots = Array.from(document.querySelectorAll(
-            '[role="status"], [data-testid="toast"], [data-testid*="toast" i]'
-          ));
-          for (const root of roots) {
-            for (const link of root.querySelectorAll('a[href]')) values.push(canonical(link.href));
+      try {
+        evidencePhase = 'clicking';
+        result = await evaluate(context, `(() => {
+        ${X_ARTICLE_PUBLICATION_CANDIDATES_BROWSER_SOURCE}
+        const baselineCandidates = xArticlePublicationCandidates();
+        const visible = (element) => {
+          if (!element || element.closest('[role="dialog"][aria-modal="true"]')) return false;
+          const rect = element.getBoundingClientRect();
+          const style = getComputedStyle(element);
+          return rect.width > 0 && rect.height > 0
+            && style.visibility !== 'hidden' && style.display !== 'none';
+        };
+        const same = (left, right) => left.length === right.length
+          && left.every((value, index) => value === right[index]);
+        const expected = ${JSON.stringify(guard)};
+        const titles = Array.from(new Set(${JSON.stringify(TITLE_SELECTORS)}.flatMap((selector) =>
+          Array.from(document.querySelectorAll(selector))
+        ))).filter(visible);
+        const bodies = Array.from(document.querySelectorAll(
+          '.DraftEditor-editorContainer [data-contents="true"]'
+        )).filter(visible);
+        if (titles.length !== 1 || bodies.length !== 1) {
+          return { clicked: false, guardMatched: false, baselineCandidates };
+        }
+        const title = titles[0];
+        const body = bodies[0];
+        let root = title.closest('main, [role="main"], form');
+        if (!root || !root.contains(body)) {
+          root = title.parentElement;
+          while (root && !root.contains(body)) root = root.parentElement;
+        }
+        if (!root) return { clicked: false, guardMatched: false, baselineCandidates };
+
+        const blocks = Array.from(body.querySelectorAll('[data-block="true"]'))
+          .filter((block) => !block.parentElement?.closest('[data-block="true"]'));
+        const blockOwnerIds = blocks.map((block) => block.getAttribute('data-editor'));
+        if (blockOwnerIds.some((ownerEditorId) => !ownerEditorId)) {
+          return { clicked: false, guardMatched: false, baselineCandidates };
+        }
+        const editorIds = Array.from(new Set(blockOwnerIds));
+        if (editorIds.length !== 1 || editorIds[0] !== expected.editorId) {
+          return { clicked: false, guardMatched: false, baselineCandidates };
+        }
+        const bindingByBlockId = new Map(${JSON.stringify(
+          context.mediaBindings.map((binding) => [binding.blockId, binding.assetId]),
+        )});
+        const mediaSources = [];
+        const bodyMediaDomSources = [];
+        const mediaBlockIds = new Set();
+        const accountedBodyImages = new Set();
+        for (const block of blocks.filter((candidate) => candidate.getAttribute('data-editor') === expected.editorId)) {
+          const images = Array.from(block.querySelectorAll('img')).filter(visible);
+          if (images.length === 0) continue;
+          const text = block.innerText || block.textContent || '';
+          if (images.length !== 1 || text.replace(/\\s+/g, ' ').trim()) {
+            return { clicked: false, guardMatched: false, baselineCandidates };
           }
-          return Array.from(new Set(values.filter(Boolean)));
+          const offsetKey = block.getAttribute('data-offset-key')
+            || block.querySelector('[data-offset-key]')?.getAttribute('data-offset-key') || '';
+          const blockId = offsetKey.match(/^(.+)-\\d+-\\d+$/)?.[1] || '';
+          const assetId = bindingByBlockId.get(blockId);
+          if (!blockId || !assetId || mediaBlockIds.has(blockId)) {
+            return { clicked: false, guardMatched: false, baselineCandidates };
+          }
+          mediaBlockIds.add(blockId);
+          accountedBodyImages.add(images[0]);
+          mediaSources.push(blockId + ':' + assetId);
+          bodyMediaDomSources.push(images[0].currentSrc || images[0].src || '');
+        }
+        const visibleBodyImages = Array.from(body.querySelectorAll('img')).filter(visible);
+        if (visibleBodyImages.length !== accountedBodyImages.size
+          || visibleBodyImages.some((image) => !accountedBodyImages.has(image))) {
+          return { clicked: false, guardMatched: false, baselineCandidates };
+        }
+        const coverDomSources = Array.from(root.querySelectorAll(
+          '[data-testid*="cover" i] img, [data-testid*="headerMedia" i] img'
+        )).filter(visible).map((image) => image.currentSrc || image.src || '').filter(Boolean);
+        const coverSources = ${Boolean(context.coverFingerprint)}
+          ? (coverDomSources.length === 1 ? ['reviewed-cover'] : coverDomSources)
+          : coverDomSources;
+        const buttons = Array.from(new Set(${JSON.stringify(PUBLISH_SELECTORS)}.flatMap((selector) =>
+          Array.from(root.querySelectorAll(selector))
+        ))).filter(visible);
+        const button = buttons.length === 1 ? buttons[0] : null;
+        const titleValue = title.value || title.innerText || title.textContent || '';
+        const bodyValue = body.innerText || body.textContent || '';
+        const guardMatched = window.location.href === expected.url
+          && titleValue === expected.title && bodyValue === expected.body
+          && same(mediaSources, expected.mediaSources)
+          && (!expected.bodyMediaDomSources
+            || same(bodyMediaDomSources, expected.bodyMediaDomSources))
+          && same(coverSources, expected.coverSources)
+          && (!expected.coverDomSources || same(coverDomSources, expected.coverDomSources))
+          && expected.editorVisible === true
+          && expected.publishButtonCount === 1 && expected.publishButtonEnabled === true
+          && buttons.length === 1 && button && !button.disabled
+          && button.getAttribute('aria-disabled') !== 'true';
+        if (!guardMatched) return { clicked: false, guardMatched: false, baselineCandidates };
+        button.click();
+        return { clicked: true, guardMatched: true, baselineCandidates };
         })()`);
-        if (candidates.length === 1) return candidates[0];
-        await sleep(500);
+      } catch (error) {
+        settleEvidence(undefined);
+        throw error;
       }
-      return undefined;
+      preClickPublicationCandidates = new Set(
+        result.baselineCandidates.filter((candidate) => strictRawXArticleUrl(candidate) === candidate),
+      );
+      if (!result.guardMatched) {
+        settleEvidence(undefined);
+        throw new Error('The X Article changed between final verification and the Publish click.');
+      }
+      evidencePhase = 'postclick';
+      for (const candidate of pendingNavigationCandidates) recordNavigationCandidate(candidate);
+      pendingNavigationCandidates.clear();
+      if (!result.clicked) {
+        settleEvidence(undefined);
+        return false;
+      }
+      startEvidenceTimeout();
+      return result.clicked;
+    },
+    waitForPublishedUrl: async () => {
+      if (!preClickPublicationCandidates || !evidencePromise) {
+        throw new Error('X Article publication evidence was requested before the Publish click.');
+      }
+      if (!evidencePollingStarted && !evidenceSettled) {
+        evidencePollingStarted = true;
+        void pollDomEvidence();
+      }
+      return evidencePromise;
     },
     close: async () => {
       if (closed) return;
       closed = true;
+      settleEvidence(undefined);
       await closeContext(context);
     },
   };
@@ -186,7 +456,7 @@ export function createLiveXArticleDriver(): XArticleDriver {
         ) {
           throw new Error('The X Article media snapshot does not match the reviewed bundle.');
         }
-        const draft = browserDraft(crypto.randomUUID(), context);
+        const draft = createManagedXArticleDraft(crypto.randomUUID(), context);
         const prepared: PreparedXArticle = {
           draft,
           ...mapReviewedXArticleExpectations(context, {

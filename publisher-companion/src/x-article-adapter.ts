@@ -18,20 +18,26 @@ export class XArticleEligibilityError extends Error {
 
 export type XArticleSnapshot = {
   url: string;
+  editorId: string;
   title: string;
   body: string;
   imageCount: number;
   mediaSources: string[];
+  bodyMediaDomSources?: string[];
   coverSource: string | null;
+  coverSources: string[];
+  coverDomSources?: string[];
   editorVisible: boolean;
   publishButtonCount: number;
   publishButtonEnabled: boolean;
 };
 
+export type XArticlePublishGuard = XArticleSnapshot;
+
 export type XArticleDraft = {
   id: string;
   snapshot(): Promise<XArticleSnapshot>;
-  clickPublish(): Promise<boolean>;
+  clickPublish(guard: XArticlePublishGuard): Promise<boolean>;
   waitForPublishedUrl(): Promise<string | undefined>;
   close(): Promise<void>;
 };
@@ -62,9 +68,18 @@ function assertReady(
     bodySnapshot?: string;
     mediaSources?: readonly string[];
     coverSource?: string | null;
+    coverSources?: readonly string[];
+    editorId?: string;
+    draftUrl?: string;
   },
 ): void {
   if (!snapshot.editorVisible) throw new Error('The prepared X Article editor is no longer open.');
+  if (expected.editorId !== undefined && snapshot.editorId !== expected.editorId) {
+    throw new Error('The prepared X Article editor was replaced after preparation.');
+  }
+  if (expected.draftUrl !== undefined && snapshot.url !== expected.draftUrl) {
+    throw new Error('The prepared X Article draft URL changed after preparation.');
+  }
   if (normalizeText(snapshot.title) !== normalizeText(expected.expectedTitle)) {
     throw new Error('The X Article title changed after preparation.');
   }
@@ -86,7 +101,16 @@ function assertReady(
   if (Boolean(snapshot.coverSource) !== expected.expectedCover) {
     throw new Error('The X Article cover changed after preparation.');
   }
+  if (snapshot.coverSources.length !== (expected.expectedCover ? 1 : 0)) {
+    throw new Error('The X Article cover changed after preparation.');
+  }
   if (expected.coverSource !== undefined && snapshot.coverSource !== expected.coverSource) {
+    throw new Error('The X Article cover changed after preparation.');
+  }
+  if (expected.coverSources && (
+    snapshot.coverSources.length !== expected.coverSources.length
+    || snapshot.coverSources.some((source, index) => source !== expected.coverSources?.[index])
+  )) {
     throw new Error('The X Article cover changed after preparation.');
   }
   if (snapshot.publishButtonCount !== 1 || !snapshot.publishButtonEnabled) {
@@ -101,6 +125,9 @@ export class BaoyuXArticleAdapter implements PublisherAdapter {
     bodySnapshot: string;
     mediaSources: string[];
     coverSource: string | null;
+    coverSources: string[];
+    editorId: string;
+    draftUrl: string;
   }>();
 
   constructor(driver: XArticleDriver = createLiveXArticleDriver()) {
@@ -127,6 +154,9 @@ export class BaoyuXArticleAdapter implements PublisherAdapter {
       bodySnapshot: normalizeText(snapshot.body),
       mediaSources: [...snapshot.mediaSources],
       coverSource: snapshot.coverSource,
+      coverSources: [...snapshot.coverSources],
+      editorId: snapshot.editorId,
+      draftUrl: snapshot.url,
     });
     return { draftId: prepared.draft.id };
   }
@@ -143,17 +173,26 @@ export class BaoyuXArticleAdapter implements PublisherAdapter {
         ...prepared,
         mediaSources: prepared.mediaSources,
         coverSource: prepared.coverSource,
+        coverSources: prepared.coverSources,
       });
       prepared.attempted = true;
       await options.beforeClick();
-      if (!await prepared.draft.clickPublish()) {
+      const finalSnapshot = await prepared.draft.snapshot();
+      assertReady(finalSnapshot, {
+        ...prepared,
+        mediaSources: prepared.mediaSources,
+        coverSource: prepared.coverSource,
+        coverSources: prepared.coverSources,
+      });
+      if (!await prepared.draft.clickPublish(finalSnapshot)) {
         throw new Error('The scoped X Article Publish button was not found.');
       }
       const candidate = await prepared.draft.waitForPublishedUrl();
       const publishedUrl = candidate ? canonicalXArticleUrl(candidate) : null;
-      return publishedUrl
-        ? { verified: true, reason: 'canonical X Article navigation', publishedUrl }
-        : { verified: true, reason: 'X did not expose a canonical Article URL.' };
+      if (!publishedUrl) {
+        throw new Error('X did not expose canonical Article publication evidence.');
+      }
+      return { verified: true, reason: 'canonical X Article navigation', publishedUrl };
     } finally {
       this.#drafts.delete(draftId);
       await prepared.draft.close().catch(() => undefined);

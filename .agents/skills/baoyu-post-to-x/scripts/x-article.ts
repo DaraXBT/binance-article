@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
@@ -6,6 +7,16 @@ import path from 'node:path';
 import process from 'node:process';
 
 import { parseMarkdown } from './md-to-html.js';
+import {
+  assertXArticleBodyMediaEvidence,
+  bindXArticleMediaAsset,
+  scopeXArticleBodySnapshot,
+  xArticleImageFingerprintsMatch,
+  type RenderedXArticleBodyToken,
+  type ReviewedXArticleBodyToken,
+  type XArticleImageFingerprint,
+  type XArticleMediaAssetBinding,
+} from './x-article-evidence.js';
 import {
   CHROME_CANDIDATES_BASIC,
   CdpConnection,
@@ -19,7 +30,70 @@ import {
   waitForChromeDebugPort,
 } from './x-utils.js';
 
+export {
+  assertXArticleBodyMediaEvidence,
+  bindXArticleMediaAsset,
+  scopeXArticleBodySnapshot,
+  xArticleImageFingerprintsMatch,
+} from './x-article-evidence.js';
+
 const X_ARTICLES_URL = 'https://x.com/compose/articles';
+
+export function assertXArticlePublishMode(options: Pick<ArticleOptions, 'submit' | 'onComposed'>): void {
+  if (options.submit && options.onComposed) {
+    throw new Error('X Article submit and onComposed handoff cannot be used together.');
+  }
+}
+
+function canonicalStandaloneXArticleUrl(value: string | undefined): string | null {
+  return value && /^https:\/\/x\.com\/i\/article\/[0-9]+$/.test(value) ? value : null;
+}
+
+export async function submitVerifiedXArticle<TGuard>({
+  assertCurrent,
+  readPublicationCandidates,
+  clickPublish,
+  waitForPublishedUrl,
+}: {
+  assertCurrent: () => TGuard | Promise<TGuard>;
+  readPublicationCandidates?: () => readonly string[] | Promise<readonly string[]>;
+  clickPublish: (guard: TGuard) => (
+    boolean
+    | { clicked: boolean; baselineCandidates: readonly string[] }
+    | Promise<boolean | { clicked: boolean; baselineCandidates: readonly string[] }>
+  );
+  waitForPublishedUrl: (
+    preClickCandidates: readonly string[],
+  ) => string | undefined | Promise<string | undefined>;
+}): Promise<string> {
+  const guard = await assertCurrent();
+  const preClickCandidates = new Set(
+    (await readPublicationCandidates?.() ?? [])
+      .map((candidate) => canonicalStandaloneXArticleUrl(candidate))
+      .filter((candidate): candidate is string => Boolean(candidate)),
+  );
+  const clickResult = await clickPublish(guard);
+  const clicked = typeof clickResult === 'boolean' ? clickResult : clickResult.clicked;
+  if (!clicked) {
+    throw new Error('The scoped X Article Publish button could not be clicked.');
+  }
+  if (typeof clickResult !== 'boolean') {
+    for (const candidate of clickResult.baselineCandidates) {
+      const canonical = canonicalStandaloneXArticleUrl(candidate);
+      if (canonical) preClickCandidates.add(canonical);
+    }
+  }
+  const publishedUrl = canonicalStandaloneXArticleUrl(
+    await waitForPublishedUrl([...preClickCandidates]),
+  );
+  if (!publishedUrl) {
+    throw new Error('X did not expose canonical Article publication evidence.');
+  }
+  if (preClickCandidates.has(publishedUrl)) {
+    throw new Error('X did not expose new canonical Article publication evidence after the click.');
+  }
+  return publishedUrl;
+}
 
 const I18N_SELECTORS = {
   titleInput: [
@@ -124,16 +198,20 @@ export async function insertXArticleBodyExactly({
 
 export async function waitForXArticleBodyCleared({
   read,
+  readMediaCount,
   wait,
   maxChecks,
 }: {
   read: () => Promise<string>;
+  readMediaCount?: () => Promise<number>;
   wait: () => Promise<void>;
   maxChecks: number;
 }): Promise<void> {
   let consecutiveEmptyChecks = 0;
   for (let check = 0; check < maxChecks; check++) {
-    if (normalizeArticleBodyText(await read()) === '') {
+    const textEmpty = normalizeArticleBodyText(await read()) === '';
+    const mediaEmpty = !readMediaCount || await readMediaCount() === 0;
+    if (textEmpty && mediaEmpty) {
       consecutiveEmptyChecks += 1;
       if (consecutiveEmptyChecks >= 2) return;
     } else {
@@ -142,6 +220,671 @@ export async function waitForXArticleBodyCleared({
     if (check + 1 < maxChecks) await wait();
   }
   throw new Error('The X Article body editor did not clear to a stable empty state.');
+}
+
+const X_ARTICLE_IMAGE_FINGERPRINT_BROWSER_SOURCE = String.raw`
+async function xArticleImageFingerprint(image) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const sourceBefore = image.currentSrc || image.src || '';
+    if (!sourceBefore) throw new Error('X Article media has no readable source.');
+    if (!image.complete || !image.naturalWidth || !image.naturalHeight) await image.decode();
+    let readableImage = image;
+    if (/^https?:/i.test(sourceBefore) && !image.crossOrigin) {
+      const corsImage = new Image();
+      corsImage.crossOrigin = 'anonymous';
+      corsImage.referrerPolicy = image.referrerPolicy || '';
+      corsImage.src = sourceBefore;
+      await corsImage.decode();
+      readableImage = corsImage;
+    }
+    const sourceAfter = image.currentSrc || image.src || '';
+    if (sourceAfter !== sourceBefore) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      continue;
+    }
+    if (!readableImage.naturalWidth || !readableImage.naturalHeight) {
+      throw new Error('X Article media did not decode to nonzero dimensions.');
+    }
+
+    const differenceCanvas = document.createElement('canvas');
+    differenceCanvas.width = 33;
+    differenceCanvas.height = 32;
+    const differenceContext = differenceCanvas.getContext('2d', { willReadFrequently: true });
+    if (!differenceContext) throw new Error('X Article media fingerprint canvas is unavailable.');
+    differenceContext.drawImage(readableImage, 0, 0, 33, 32);
+    const differencePixels = differenceContext.getImageData(0, 0, 33, 32).data;
+    const bits = [];
+    for (let y = 0; y < 32; y += 1) {
+      for (let x = 0; x < 32; x += 1) {
+        const left = (y * 33 + x) * 4;
+        const right = left + 4;
+        const leftLuma = differencePixels[left] * 299
+          + differencePixels[left + 1] * 587 + differencePixels[left + 2] * 114;
+        const rightLuma = differencePixels[right] * 299
+          + differencePixels[right + 1] * 587 + differencePixels[right + 2] * 114;
+        bits.push(leftLuma >= rightLuma ? 1 : 0);
+      }
+    }
+    let differenceHash = '';
+    for (let index = 0; index < bits.length; index += 4) {
+      differenceHash += ((bits[index] << 3) | (bits[index + 1] << 2)
+        | (bits[index + 2] << 1) | bits[index + 3]).toString(16);
+    }
+
+    const colorCanvas = document.createElement('canvas');
+    colorCanvas.width = 16;
+    colorCanvas.height = 16;
+    const colorContext = colorCanvas.getContext('2d', { willReadFrequently: true });
+    if (!colorContext) throw new Error('X Article media color fingerprint canvas is unavailable.');
+    colorContext.drawImage(readableImage, 0, 0, 16, 16);
+    const colorPixels = colorContext.getImageData(0, 0, 16, 16).data;
+    const colorSamples = [];
+    const alphaSamples = [];
+    for (let index = 0; index < colorPixels.length; index += 4) {
+      colorSamples.push(colorPixels[index], colorPixels[index + 1], colorPixels[index + 2]);
+      alphaSamples.push(colorPixels[index + 3]);
+    }
+    return {
+      aspectRatio: readableImage.naturalWidth / readableImage.naturalHeight,
+      differenceHash,
+      colorSamples,
+      alphaSamples,
+    };
+  }
+  throw new Error('X Article media source changed repeatedly while fingerprinting.');
+}`;
+
+const X_ARTICLE_IMAGE_FINGERPRINT_MATCH_BROWSER_SOURCE = String.raw`
+function xArticleImageFingerprintsMatch(expected, actual) {
+  const fingerprints = [expected, actual];
+  if (fingerprints.some((fingerprint) => (
+    !fingerprint || !Number.isFinite(fingerprint.aspectRatio)
+    || fingerprint.aspectRatio <= 0
+    || !/^[a-f0-9]+$/i.test(fingerprint.differenceHash)
+    || fingerprint.differenceHash.length < 16
+    || fingerprint.differenceHash.length !== expected.differenceHash.length
+    || fingerprint.colorSamples.length === 0
+    || fingerprint.colorSamples.length !== expected.colorSamples.length
+    || fingerprint.colorSamples.some(
+      (sample) => !Number.isInteger(sample) || sample < 0 || sample > 255
+    )
+    || (fingerprint.alphaSamples !== undefined && (
+      fingerprint.alphaSamples.length === 0
+      || fingerprint.alphaSamples.some(
+        (sample) => !Number.isInteger(sample) || sample < 0 || sample > 255
+      )
+    ))
+  ))) return false;
+  if ((expected.alphaSamples === undefined) !== (actual.alphaSamples === undefined)) return false;
+  if (
+    expected.alphaSamples
+    && actual.alphaSamples
+    && expected.alphaSamples.length !== actual.alphaSamples.length
+  ) return false;
+
+  const ratioDelta = Math.abs(expected.aspectRatio - actual.aspectRatio)
+    / Math.max(expected.aspectRatio, actual.aspectRatio);
+  if (ratioDelta > 0.01) return false;
+
+  let differingBits = 0;
+  for (let index = 0; index < expected.differenceHash.length; index++) {
+    const xor = Number.parseInt(expected.differenceHash[index], 16)
+      ^ Number.parseInt(actual.differenceHash[index], 16);
+    differingBits += xor.toString(2).replace(/0/g, '').length;
+  }
+  const bitCount = expected.differenceHash.length * 4;
+  if (differingBits > Math.max(2, Math.floor(bitCount * 0.02))) return false;
+
+  let absoluteColorDelta = 0;
+  let largeColorDeltas = 0;
+  for (let index = 0; index < expected.colorSamples.length; index++) {
+    const delta = Math.abs(expected.colorSamples[index] - actual.colorSamples[index]);
+    absoluteColorDelta += delta;
+    if (delta > 16) largeColorDeltas += 1;
+  }
+  if (
+    absoluteColorDelta / expected.colorSamples.length > 4
+    || largeColorDeltas / expected.colorSamples.length > 0.02
+  ) return false;
+
+  if (expected.alphaSamples && actual.alphaSamples) {
+    let absoluteAlphaDelta = 0;
+    let largeAlphaDeltas = 0;
+    for (let index = 0; index < expected.alphaSamples.length; index++) {
+      const delta = Math.abs(expected.alphaSamples[index] - actual.alphaSamples[index]);
+      absoluteAlphaDelta += delta;
+      if (delta > 16) largeAlphaDeltas += 1;
+    }
+    if (
+      absoluteAlphaDelta / expected.alphaSamples.length > 4
+      || largeAlphaDeltas / expected.alphaSamples.length > 0.02
+    ) return false;
+  }
+  return true;
+}`;
+
+const X_ARTICLE_PUBLICATION_CANDIDATES_BROWSER_SOURCE = String.raw`
+function xArticlePublicationCandidates() {
+  const canonicalPattern = new RegExp('^https://x[.]com/i/article/[0-9]+$');
+  const values = [window.location.href];
+  for (const root of document.querySelectorAll(
+    '[role="status"], [data-testid="toast"], [data-testid*="toast" i]'
+  )) {
+    for (const link of root.querySelectorAll('a[href]')) {
+      const rawHref = link.getAttribute('href');
+      if (rawHref) values.push(rawHref);
+    }
+  }
+  return Array.from(new Set(values.filter(
+    (value) => typeof value === 'string' && canonicalPattern.test(value)
+  )));
+}`;
+
+export interface XArticleEditorSnapshot {
+  url: string;
+  editorId: string;
+  title: string;
+  body: string;
+  bodySequence: RenderedXArticleBodyToken[];
+  mediaSources: string[];
+  coverSources: string[];
+  coverMedia: Array<{ source: string; fingerprint: XArticleImageFingerprint }>;
+  editorVisible: boolean;
+  publishButtonCount: number;
+  publishButtonEnabled: boolean;
+}
+
+export async function readXArticleEditorSnapshot(
+  cdp: Pick<CdpConnection, 'send'>,
+  sessionId: string,
+): Promise<XArticleEditorSnapshot> {
+  const result = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+    expression: `(async () => {
+      ${X_ARTICLE_IMAGE_FINGERPRINT_BROWSER_SOURCE}
+      const visible = (element) => {
+        if (!element || element.closest('[role="dialog"][aria-modal="true"]')) return false;
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return rect.width > 0 && rect.height > 0
+          && style.visibility !== 'hidden' && style.display !== 'none';
+      };
+      const unique = (values) => Array.from(new Set(values));
+      const titleElements = unique(${JSON.stringify(I18N_SELECTORS.titleInput)}
+        .flatMap((selector) => Array.from(document.querySelectorAll(selector))))
+        .filter(visible);
+      const bodyElements = Array.from(document.querySelectorAll(
+        '.DraftEditor-editorContainer [data-contents="true"]'
+      )).filter(visible);
+      if (titleElements.length !== 1 || bodyElements.length !== 1) {
+        return JSON.stringify({ error: 'The X Article editor root is missing or ambiguous.' });
+      }
+      const title = titleElements[0];
+      const body = bodyElements[0];
+      let editorRoot = title.closest('main, [role="main"], form');
+      if (!editorRoot || !editorRoot.contains(body)) {
+        editorRoot = title.parentElement;
+        while (editorRoot && !editorRoot.contains(body)) editorRoot = editorRoot.parentElement;
+      }
+      if (!editorRoot) return JSON.stringify({ error: 'The X Article editor root could not be scoped.' });
+
+      const allBlocks = Array.from(body.querySelectorAll('[data-block="true"]'))
+        .filter((block) => !block.parentElement?.closest('[data-block="true"]'));
+      const blockOwnerIds = allBlocks.map((block) => block.getAttribute('data-editor'));
+      if (blockOwnerIds.some((ownerEditorId) => !ownerEditorId)) {
+        return JSON.stringify({ error: 'The X Article body contains an ownerless or unaccounted editor block.' });
+      }
+      const editorIds = unique(blockOwnerIds);
+      if (editorIds.length !== 1) {
+        return JSON.stringify({ error: 'The X Article DraftJS editor identity is missing or ambiguous.' });
+      }
+      const editorId = editorIds[0];
+      const blocks = allBlocks.filter((block) => block.getAttribute('data-editor') === editorId);
+      const bodySequence = [];
+      const mediaSources = [];
+      const mediaBlockIds = new Set();
+      const accountedBodyImages = new Set();
+      for (const block of blocks) {
+        const images = Array.from(block.querySelectorAll('img')).filter(visible);
+        const text = block.innerText || block.textContent || '';
+        if (images.length > 0) {
+          if (images.length !== 1 || text.replace(/\\s+/g, ' ').trim()) {
+            return JSON.stringify({ error: 'The X Article contains an ambiguous mixed media block.' });
+          }
+          const offsetKey = block.getAttribute('data-offset-key')
+            || block.querySelector('[data-offset-key]')?.getAttribute('data-offset-key') || '';
+          const keyMatch = offsetKey.match(/^(.+)-\\d+-\\d+$/);
+          const blockId = keyMatch?.[1] || '';
+          if (!blockId || mediaBlockIds.has(blockId)) {
+            return JSON.stringify({ error: 'The X Article media block identity is missing or duplicated.' });
+          }
+          mediaBlockIds.add(blockId);
+          try {
+            const image = images[0];
+            accountedBodyImages.add(image);
+            const source = image.currentSrc || image.src || '';
+            const fingerprint = await xArticleImageFingerprint(image);
+            bodySequence.push({ kind: 'media', blockId, source, fingerprint });
+            mediaSources.push(source);
+          } catch (error) {
+            return JSON.stringify({
+              error: error instanceof Error ? error.message : 'X Article media fingerprinting failed.',
+            });
+          }
+        } else if (text.replace(/\\s+/g, ' ').trim()) {
+          bodySequence.push({ kind: 'text', text });
+        }
+      }
+      const visibleBodyImages = Array.from(body.querySelectorAll('img')).filter(visible);
+      if (
+        visibleBodyImages.length !== accountedBodyImages.size
+        || visibleBodyImages.some((image) => !accountedBodyImages.has(image))
+      ) {
+        return JSON.stringify({ error: 'The X Article body contains ownerless or unaccounted media.' });
+      }
+
+      const coverImages = Array.from(editorRoot.querySelectorAll(
+        '[data-testid*="cover" i] img, [data-testid*="headerMedia" i] img'
+      )).filter(visible);
+      const coverMedia = [];
+      for (const image of coverImages) {
+        const source = image.currentSrc || image.src || '';
+        if (!source) continue;
+        try {
+          coverMedia.push({ source, fingerprint: await xArticleImageFingerprint(image) });
+        } catch (error) {
+          return JSON.stringify({
+            error: error instanceof Error ? error.message : 'X Article cover fingerprinting failed.',
+          });
+        }
+      }
+      const coverSources = coverMedia.map((item) => item.source);
+      const publishButtons = unique(${JSON.stringify(I18N_SELECTORS.publishButton)}
+        .flatMap((selector) => Array.from(editorRoot.querySelectorAll(selector))))
+        .filter(visible);
+      const publishButton = publishButtons.length === 1 ? publishButtons[0] : null;
+      return JSON.stringify({ snapshot: {
+        url: window.location.href,
+        editorId,
+        title: title.value || title.innerText || title.textContent || '',
+        body: body.innerText || body.textContent || '',
+        bodySequence,
+        mediaSources,
+        coverSources,
+        coverMedia,
+        editorVisible: true,
+        publishButtonCount: publishButtons.length,
+        publishButtonEnabled: Boolean(publishButton && !publishButton.disabled
+          && publishButton.getAttribute('aria-disabled') !== 'true'),
+      } });
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  }, { sessionId });
+  const parsed = JSON.parse(result.result.value) as {
+    error?: string;
+    snapshot?: XArticleEditorSnapshot;
+  };
+  if (!parsed.snapshot) throw new Error(parsed.error ?? 'The X Article editor snapshot is unavailable.');
+  return parsed.snapshot;
+}
+
+export async function readXArticlePublicationCandidates(
+  cdp: Pick<CdpConnection, 'send'>,
+  sessionId: string,
+): Promise<string[]> {
+  const result = await cdp.send<{ result: { value: string[] } }>('Runtime.evaluate', {
+    expression: `(() => {
+      ${X_ARTICLE_PUBLICATION_CANDIDATES_BROWSER_SOURCE}
+      return xArticlePublicationCandidates();
+    })()`,
+    returnByValue: true,
+  }, { sessionId });
+  return result.result.value;
+}
+
+async function clickGuardedXArticlePublish({
+  cdp,
+  sessionId,
+  guard,
+}: {
+  cdp: Pick<CdpConnection, 'send'>;
+  sessionId: string;
+  guard: XArticleEditorSnapshot;
+}): Promise<boolean | { clicked: true; baselineCandidates: string[] }> {
+  const result = await cdp.send<{
+    result: { value: boolean | { clicked: true; baselineCandidates: string[] } };
+  }>('Runtime.evaluate', {
+    expression: `(async () => {
+      ${X_ARTICLE_IMAGE_FINGERPRINT_BROWSER_SOURCE}
+      ${X_ARTICLE_IMAGE_FINGERPRINT_MATCH_BROWSER_SOURCE}
+      ${X_ARTICLE_PUBLICATION_CANDIDATES_BROWSER_SOURCE}
+      const guard = ${JSON.stringify(guard)};
+      const visible = (element) => {
+        if (!element || element.closest('[role="dialog"][aria-modal="true"]')) return false;
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return rect.width > 0 && rect.height > 0
+          && style.visibility !== 'hidden' && style.display !== 'none';
+      };
+      const unique = (values) => Array.from(new Set(values));
+      if (window.location.href !== guard.url) return false;
+
+      const titles = unique(${JSON.stringify(I18N_SELECTORS.titleInput)}
+        .flatMap((selector) => Array.from(document.querySelectorAll(selector))))
+        .filter(visible);
+      const bodies = Array.from(document.querySelectorAll(
+        '.DraftEditor-editorContainer [data-contents="true"]'
+      )).filter(visible);
+      if (titles.length !== 1 || bodies.length !== 1) return false;
+      const title = titles[0];
+      const body = bodies[0];
+      let root = title.closest('main, [role="main"], form');
+      if (!root || !root.contains(body)) {
+        root = title.parentElement;
+        while (root && !root.contains(body)) root = root.parentElement;
+      }
+      if (!root) return false;
+
+      const allBlocks = Array.from(body.querySelectorAll('[data-block="true"]'))
+        .filter((block) => !block.parentElement?.closest('[data-block="true"]'));
+      if (
+        allBlocks.length === 0
+        || allBlocks.some((block) => block.getAttribute('data-editor') !== guard.editorId)
+      ) return false;
+
+      const actualSequence = [];
+      const accountedImages = new Set();
+      const observedMedia = [];
+      const mediaBlockIds = new Set();
+      for (const block of allBlocks) {
+        const images = Array.from(block.querySelectorAll('img')).filter(visible);
+        const text = block.innerText || block.textContent || '';
+        if (images.length > 0) {
+          if (images.length !== 1 || text.replace(/\\s+/g, ' ').trim()) return false;
+          const offsetKey = block.getAttribute('data-offset-key')
+            || block.querySelector('[data-offset-key]')?.getAttribute('data-offset-key') || '';
+          const keyMatch = offsetKey.match(/^(.+)-\\d+-\\d+$/);
+          const blockId = keyMatch?.[1] || '';
+          if (!blockId || mediaBlockIds.has(blockId)) return false;
+          mediaBlockIds.add(blockId);
+          const image = images[0];
+          const source = image.currentSrc || image.src || '';
+          if (!source) return false;
+          const fingerprint = await xArticleImageFingerprint(image);
+          accountedImages.add(image);
+          observedMedia.push({ block, image, source });
+          actualSequence.push({ kind: 'media', blockId, fingerprint });
+        } else if (text.replace(/\\s+/g, ' ').trim()) {
+          actualSequence.push({ kind: 'text', text });
+        }
+      }
+      const bodyImages = Array.from(body.querySelectorAll('img')).filter(visible);
+      if (
+        bodyImages.length !== accountedImages.size
+        || bodyImages.some((image) => !accountedImages.has(image))
+      ) return false;
+
+      if (actualSequence.length !== guard.bodySequence.length) return false;
+      for (let index = 0; index < actualSequence.length; index++) {
+        const actual = actualSequence[index];
+        const expected = guard.bodySequence[index];
+        if (!expected || actual.kind !== expected.kind) return false;
+        if (actual.kind === 'text') {
+          if (actual.text !== expected.text) return false;
+        } else if (
+          actual.blockId !== expected.blockId
+          || !xArticleImageFingerprintsMatch(expected.fingerprint, actual.fingerprint)
+        ) return false;
+      }
+
+      const coverImages = Array.from(root.querySelectorAll(
+        '[data-testid*="cover" i] img, [data-testid*="headerMedia" i] img'
+      )).filter(visible);
+      if (coverImages.length !== guard.coverMedia.length) return false;
+      const observedCovers = [];
+      for (let index = 0; index < coverImages.length; index++) {
+        const image = coverImages[index];
+        const source = image.currentSrc || image.src || '';
+        if (!source) return false;
+        const fingerprint = await xArticleImageFingerprint(image);
+        if (!xArticleImageFingerprintsMatch(guard.coverMedia[index].fingerprint, fingerprint)) {
+          return false;
+        }
+        observedCovers.push({ image, source });
+      }
+
+      const currentTitle = title.value || title.innerText || title.textContent || '';
+      const currentBody = body.innerText || body.textContent || '';
+      if (
+        window.location.href !== guard.url
+        || currentTitle !== guard.title
+        || currentBody !== guard.body
+        || observedMedia.some(({ block, image, source }) => (
+          !image.isConnected || !block.contains(image)
+          || (image.currentSrc || image.src || '') !== source
+        ))
+        || observedCovers.some(({ image, source }) => (
+          !image.isConnected || (image.currentSrc || image.src || '') !== source
+        ))
+      ) return false;
+
+      const finalBlocks = Array.from(body.querySelectorAll('[data-block="true"]'))
+        .filter((block) => !block.parentElement?.closest('[data-block="true"]'));
+      const finalBodyImages = Array.from(body.querySelectorAll('img')).filter(visible);
+      const finalCoverImages = Array.from(root.querySelectorAll(
+        '[data-testid*="cover" i] img, [data-testid*="headerMedia" i] img'
+      )).filter(visible);
+      if (
+        finalBlocks.length !== allBlocks.length
+        || finalBlocks.some((block, index) => (
+          block !== allBlocks[index] || block.getAttribute('data-editor') !== guard.editorId
+        ))
+        || finalBodyImages.length !== observedMedia.length
+        || finalBodyImages.some((image, index) => image !== observedMedia[index].image)
+        || finalCoverImages.length !== observedCovers.length
+        || finalCoverImages.some((image, index) => image !== observedCovers[index].image)
+      ) return false;
+
+      const buttons = unique(${JSON.stringify(I18N_SELECTORS.publishButton)}
+        .flatMap((selector) => Array.from(root.querySelectorAll(selector))))
+        .filter((button) => visible(button) && !button.disabled
+          && button.getAttribute('aria-disabled') !== 'true');
+      if (buttons.length !== 1) return false;
+      const baselineCandidates = xArticlePublicationCandidates();
+      buttons[0].click();
+      return { clicked: true, baselineCandidates };
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  }, { sessionId, timeoutMs: 60_000 });
+  return result.result.value;
+}
+
+async function readLocalXArticleImageFingerprint(
+  cdp: Pick<CdpConnection, 'send'>,
+  sessionId: string,
+  imagePath: string,
+): Promise<XArticleImageFingerprint> {
+  const extension = path.extname(imagePath).toLowerCase();
+  const mimeType = extension === '.png' ? 'image/png'
+    : extension === '.webp' ? 'image/webp' : 'image/jpeg';
+  const dataUrl = `data:${mimeType};base64,${fs.readFileSync(imagePath).toString('base64')}`;
+  const result = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
+    expression: `(async () => {
+      ${X_ARTICLE_IMAGE_FINGERPRINT_BROWSER_SOURCE}
+      const image = new Image();
+      image.src = ${JSON.stringify(dataUrl)};
+      try {
+        await image.decode();
+        return JSON.stringify({ fingerprint: await xArticleImageFingerprint(image) });
+      } catch (error) {
+        return JSON.stringify({
+          error: error instanceof Error ? error.message : 'The reviewed image could not be fingerprinted.',
+        });
+      }
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  }, { sessionId, timeoutMs: 60_000 });
+  const parsed = JSON.parse(result.result.value) as {
+    error?: string;
+    fingerprint?: XArticleImageFingerprint;
+  };
+  if (!parsed.fingerprint) {
+    throw new Error(parsed.error ?? 'The reviewed X Article image fingerprint is unavailable.');
+  }
+  return parsed.fingerprint;
+}
+
+export async function setXArticleCoverFileExactly({
+  cdp,
+  sessionId,
+  filePath,
+}: {
+  cdp: CdpConnection;
+  sessionId: string;
+  filePath: string;
+}): Promise<void> {
+  const markerKey = `__baoyuXArticleCoverInput_${randomUUID().replace(/-/g, '')}`;
+  let chooserTimer: ReturnType<typeof setTimeout> | undefined;
+  let stopListening: () => void = () => undefined;
+  try {
+    await cdp.send('Page.setInterceptFileChooserDialog', { enabled: true }, { sessionId });
+    const chooser = new Promise<{ backendNodeId: number; mode: string }>((resolve, reject) => {
+      chooserTimer = setTimeout(
+        () => reject(new Error('The scoped X Article cover file chooser did not open.')),
+        15_000,
+      );
+      stopListening = cdp.on('Page.fileChooserOpened', (params, metadata) => {
+        if (metadata.sessionId !== sessionId) return;
+        const event = params as { backendNodeId?: unknown; mode?: unknown };
+        if (event.mode !== 'selectSingle' || !Number.isInteger(event.backendNodeId)) {
+          reject(new Error('The X Article cover file chooser was not a single-file image input.'));
+          return;
+        }
+        resolve({ backendNodeId: event.backendNodeId as number, mode: event.mode });
+      });
+    });
+
+    const clicked = await cdp.send<{ result: { value: boolean } }>('Runtime.evaluate', {
+      expression: `(() => {
+        const visible = (element) => {
+          if (!element || element.closest('[role="dialog"][aria-modal="true"]')) return false;
+          const rect = element.getBoundingClientRect();
+          const style = getComputedStyle(element);
+          return rect.width > 0 && rect.height > 0
+            && style.visibility !== 'hidden' && style.display !== 'none';
+        };
+        const titles = Array.from(new Set(${JSON.stringify(I18N_SELECTORS.titleInput)}
+          .flatMap((selector) => Array.from(document.querySelectorAll(selector))))).filter(visible);
+        const bodies = Array.from(document.querySelectorAll(
+          '.DraftEditor-editorContainer [data-contents="true"]'
+        )).filter(visible);
+        if (titles.length !== 1 || bodies.length !== 1) return false;
+        let root = titles[0].closest('main, [role="main"], form');
+        if (!root || !root.contains(bodies[0])) {
+          root = titles[0].parentElement;
+          while (root && !root.contains(bodies[0])) root = root.parentElement;
+        }
+        if (!root) return false;
+        const buttons = Array.from(new Set(${JSON.stringify(I18N_SELECTORS.addPhotosButton)}
+          .flatMap((selector) => Array.from(root.querySelectorAll(selector))))).filter(visible);
+        if (buttons.length !== 1) return false;
+        const markerKey = ${JSON.stringify(markerKey)};
+        const state = { input: null, cleanup: null };
+        const captureActivatedFileInput = (event) => {
+          const path = typeof event.composedPath === 'function' ? event.composedPath() : [event.target];
+          const input = path.find((candidate) => (
+            candidate instanceof HTMLInputElement && candidate.type === 'file'
+          ));
+          if (!input) return;
+          state.input = input;
+          document.removeEventListener('click', captureActivatedFileInput, true);
+        };
+        state.cleanup = () => document.removeEventListener('click', captureActivatedFileInput, true);
+        window[markerKey] = state;
+        document.addEventListener('click', captureActivatedFileInput, true);
+        try {
+          buttons[0].click();
+          return true;
+        } catch (error) {
+          state.cleanup();
+          delete window[markerKey];
+          throw error;
+        }
+      })()`,
+      returnByValue: true,
+    }, { sessionId });
+    if (!clicked.result.value) {
+      throw new Error('The X Article cover upload control was missing or ambiguous.');
+    }
+    const opened = await chooser;
+    const described = await cdp.send<{
+      node: { backendNodeId?: number; nodeName?: string; attributes?: string[] };
+    }>('DOM.describeNode', {
+      backendNodeId: opened.backendNodeId,
+    }, { sessionId });
+    const attributes = new Map<string, string>();
+    const rawAttributes = described.node.attributes ?? [];
+    for (let index = 0; index < rawAttributes.length; index += 2) {
+      attributes.set(rawAttributes[index]!.toLowerCase(), rawAttributes[index + 1] ?? '');
+    }
+    if (
+      described.node.backendNodeId !== opened.backendNodeId
+      || described.node.nodeName?.toUpperCase() !== 'INPUT'
+      || attributes.get('type')?.toLowerCase() !== 'file'
+      || !attributes.get('accept')?.split(',').some((value) => /^\s*image\//i.test(value))
+    ) {
+      throw new Error('The X Article cover chooser did not resolve to a single image file input.');
+    }
+    const resolved = await cdp.send<{ object: { objectId?: string } }>('DOM.resolveNode', {
+      backendNodeId: opened.backendNodeId,
+    }, { sessionId });
+    if (!resolved.object.objectId) {
+      throw new Error('The scoped X Article cover file input could not be resolved.');
+    }
+    const belongsToScopedControl = await cdp.send<{ result: { value: boolean } }>(
+      'Runtime.callFunctionOn',
+      {
+        objectId: resolved.object.objectId,
+        functionDeclaration: `function(markerKey) {
+          const state = window[markerKey];
+          return Boolean(
+            state && state.input === this
+            && this instanceof HTMLInputElement
+            && this.type === 'file'
+            && this.accept.split(',').some((value) => /^\\s*image\\//i.test(value))
+          );
+        }`,
+        arguments: [{ value: markerKey }],
+        returnByValue: true,
+      },
+      { sessionId },
+    );
+    if (!belongsToScopedControl.result.value) {
+      throw new Error('The X Article cover chooser was not opened by the scoped cover input.');
+    }
+    await cdp.send('DOM.setFileInputFiles', {
+      backendNodeId: opened.backendNodeId,
+      files: [filePath],
+    }, { sessionId });
+  } finally {
+    if (chooserTimer) clearTimeout(chooserTimer);
+    stopListening();
+    try {
+      await cdp.send('Runtime.evaluate', {
+        expression: `(() => {
+          const markerKey = ${JSON.stringify(markerKey)};
+          const state = window[markerKey];
+          try { state?.cleanup?.(); } finally { delete window[markerKey]; }
+        })()`,
+        returnByValue: true,
+      }, { sessionId }).catch(() => undefined);
+    } finally {
+      await cdp.send('Page.setInterceptFileChooserDialog', { enabled: false }, { sessionId })
+        .catch(() => undefined);
+    }
+  }
 }
 
 export function findSingleAddedXArticleMediaSource(
@@ -161,6 +904,61 @@ export function findSingleAddedXArticleMediaSource(
   }
   if (added.length !== 1 || [...remaining.values()].some((count) => count !== 0)) {
     throw new Error('X Article media insertion did not add exactly one stable image source.');
+  }
+  return added[0]!;
+}
+
+function xArticleReviewedAssetId(imagePath: string, occurrence: number): string {
+  const digest = createHash('sha256').update(fs.readFileSync(imagePath)).digest('hex');
+  return `sha256:${digest}:occurrence:${occurrence}`;
+}
+
+function buildReviewedXArticleBodySequence(
+  reviewedBodyWithPlaceholders: string,
+  images: readonly { placeholder: string; assetId: string }[],
+): ReviewedXArticleBodyToken[] {
+  const positions = images.map((image) => {
+    const position = reviewedBodyWithPlaceholders.indexOf(image.placeholder);
+    if (
+      position < 0
+      || reviewedBodyWithPlaceholders.indexOf(image.placeholder, position + image.placeholder.length) >= 0
+    ) {
+      throw new Error(`The reviewed X Article image placeholder is missing or duplicated: ${image.placeholder}.`);
+    }
+    return { ...image, position };
+  }).sort((left, right) => left.position - right.position);
+
+  const sequence: ReviewedXArticleBodyToken[] = [];
+  let cursor = 0;
+  for (const image of positions) {
+    if (image.position < cursor) {
+      throw new Error('The reviewed X Article image placeholders overlap.');
+    }
+    const text = reviewedBodyWithPlaceholders.slice(cursor, image.position);
+    if (normalizeArticleBodyText(text)) sequence.push({ kind: 'text', text });
+    sequence.push({ kind: 'media', assetId: image.assetId });
+    cursor = image.position + image.placeholder.length;
+  }
+  const trailingText = reviewedBodyWithPlaceholders.slice(cursor);
+  if (normalizeArticleBodyText(trailingText)) sequence.push({ kind: 'text', text: trailingText });
+  return sequence;
+}
+
+function findSingleAddedXArticleMediaBlock(
+  before: readonly RenderedXArticleBodyToken[],
+  after: readonly RenderedXArticleBodyToken[],
+): Extract<RenderedXArticleBodyToken, { kind: 'media' }> {
+  const beforeIds = new Set(before.filter((token) => token.kind === 'media').map((token) => token.blockId));
+  const afterMedia = after.filter(
+    (token): token is Extract<RenderedXArticleBodyToken, { kind: 'media' }> => token.kind === 'media',
+  );
+  const added = afterMedia.filter((token) => !beforeIds.has(token.blockId));
+  if (
+    added.length !== 1
+    || afterMedia.length !== beforeIds.size + 1
+    || [...beforeIds].some((blockId) => !afterMedia.some((token) => token.blockId === blockId))
+  ) {
+    throw new Error('X Article media insertion did not add exactly one stable editor media block.');
   }
   return added[0]!;
 }
@@ -196,7 +994,7 @@ export function assertXArticleCompositionReady(report: XArticleCompositionReport
   if (report.remainingPlaceholders.length > 0) {
     failures.push(`remaining placeholders: ${report.remainingPlaceholders.join(', ')}`);
   }
-  const coverSources = [...new Set(report.actualCoverSources)];
+  const coverSources = report.actualCoverSources;
   if (report.coverRequested) {
     if (
       coverSources.length !== 1
@@ -218,11 +1016,15 @@ export interface XArticleCompositionContext {
   targetId: string;
   ownsBrowser: boolean;
   ownsTarget: boolean;
+  releaseOwnedBrowser?: () => void | Promise<void>;
   title: string;
   body: string;
   expectedBody: string;
   imageCount: number;
   coverPresent: boolean;
+  reviewedBodySequence: ReviewedXArticleBodyToken[];
+  mediaBindings: XArticleMediaAssetBinding[];
+  coverFingerprint?: XArticleImageFingerprint;
 }
 
 export type XArticleBrowserResource = {
@@ -230,6 +1032,7 @@ export type XArticleBrowserResource = {
   targetId?: string;
   ownsBrowser: boolean;
   ownsTarget: boolean;
+  releaseOwnedBrowser?: () => void | Promise<void>;
 };
 
 export async function acquireXArticleCdp<T>(
@@ -288,7 +1091,11 @@ export async function releaseXArticleBrowserResource(
   releasedBrowserConnections.add(connection);
   try {
     if (resource.ownsBrowser) {
-      await resource.cdp.send('Browser.close', {}, { timeoutMs: 5_000 });
+      try {
+        await resource.cdp.send('Browser.close', {}, { timeoutMs: 5_000 });
+      } catch {
+        await resource.releaseOwnedBrowser?.();
+      }
     } else if (resource.ownsTarget && resource.targetId) {
       await resource.cdp.send('Target.closeTarget', { targetId: resource.targetId });
     }
@@ -370,6 +1177,7 @@ async function findExistingDebugPort(profileDir: string): Promise<number | null>
 }
 
 export async function publishArticle(options: ArticleOptions): Promise<void> {
+  assertXArticlePublishMode(options);
   const { markdownPath, submit = false, profileDir = getDefaultProfileDir() } = options;
 
   console.log('[x-article] Parsing markdown...');
@@ -433,6 +1241,9 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
       cdp,
       ownsBrowser: !existingPort,
       ownsTarget: false,
+      ...(ownedChrome ? {
+        releaseOwnedBrowser: () => terminateOwnedXChrome(ownedChrome!),
+      } : {}),
     };
     const page = await openManagedXArticlePage(browserResource);
     const { sessionId } = page;
@@ -523,86 +1334,18 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
       );
     }
 
-    const readBodyMediaSources = async (): Promise<string[]> => {
-      const result = await cdp!.send<{ result: { value: string[] } }>('Runtime.evaluate', {
-        expression: `(() => {
-          const visible = (element) => {
-            const rect = element.getBoundingClientRect();
-            const style = getComputedStyle(element);
-            return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
-          };
-          return Array.from(document.querySelectorAll(
-            'section[data-block="true"][contenteditable="false"] img[src^="blob:"]'
-          )).filter(visible).map((image) => image.currentSrc || image.src || '');
-        })()`,
-        returnByValue: true,
-      }, { sessionId });
-      return result.result.value;
-    };
-
-    const readVisibleCoverSources = async (): Promise<string[]> => {
-      const result = await cdp!.send<{ result: { value: string[] } }>('Runtime.evaluate', {
-        expression: `(() => {
-          const visible = (element) => {
-            const rect = element.getBoundingClientRect();
-            const style = getComputedStyle(element);
-            return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
-          };
-          const titleSelectors = ${JSON.stringify(I18N_SELECTORS.titleInput)};
-          let title = null;
-          for (const selector of titleSelectors) {
-            title = document.querySelector(selector);
-            if (title) break;
-          }
-          const root = title?.closest('main, [role="main"]') || title?.closest('form') || document;
-          const sources = Array.from(root.querySelectorAll(
-            '[data-testid*="cover" i] img, [data-testid*="headerMedia" i] img'
-          )).filter((image) => visible(image) && !image.closest('[role="dialog"][aria-modal="true"]'))
-            .map((image) => image.currentSrc || image.src || '')
-            .filter(Boolean);
-          return Array.from(new Set(sources));
-        })()`,
-        returnByValue: true,
-      }, { sessionId });
-      return result.result.value;
-    };
-
-    const initialCoverSources = await readVisibleCoverSources();
+    const readEditorSnapshot = (): Promise<XArticleEditorSnapshot> => (
+      readXArticleEditorSnapshot(cdp!, sessionId)
+    );
+    const initialCoverSources = (await readEditorSnapshot()).coverSources;
+    const reviewedCoverFingerprint = parsed.coverImage
+      ? await readLocalXArticleImageFingerprint(cdp, sessionId, parsed.coverImage)
+      : undefined;
 
     // Upload cover image
     if (parsed.coverImage) {
       console.log('[x-article] Uploading cover image...');
-
-      // Click "Add photos or video" button
-      const addPhotosSelectors = JSON.stringify(I18N_SELECTORS.addPhotosButton);
-      const addPhotosClicked = await cdp.send<{ result: { value: boolean } }>('Runtime.evaluate', {
-        expression: `(() => {
-          const selectors = ${addPhotosSelectors};
-          for (const sel of selectors) {
-            const el = document.querySelector(sel);
-            if (el) { el.click(); return true; }
-          }
-          return false;
-        })()`,
-        returnByValue: true,
-      }, { sessionId });
-      if (!addPhotosClicked.result.value) {
-        throw new Error('The X Article cover upload control was not found.');
-      }
-      await sleep(500);
-
-      // Use file input directly
-      const { root } = await cdp.send<{ root: { nodeId: number } }>('DOM.getDocument', {}, { sessionId });
-      const { nodeId } = await cdp.send<{ nodeId: number }>('DOM.querySelector', {
-        nodeId: root.nodeId,
-        selector: '[data-testid="fileInput"], input[type="file"][accept*="image"]',
-      }, { sessionId });
-
-      if (!nodeId) throw new Error('The X Article cover file input was not found.');
-      await cdp.send('DOM.setFileInputFiles', {
-        nodeId,
-        files: [parsed.coverImage],
-      }, { sessionId });
+      await setXArticleCoverFileExactly({ cdp, sessionId, filePath: parsed.coverImage });
       console.log('[x-article] Cover image file set');
 
       console.log('[x-article] Waiting for the cover crop Apply button...');
@@ -660,8 +1403,16 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
       let coverApplied = false;
       const coverStarted = Date.now();
       while (Date.now() - coverStarted < 15_000) {
-        const sources = await readVisibleCoverSources();
-        if (sources.length === 1 && !initialCoverSources.includes(sources[0]!)) {
+        const snapshot = await readEditorSnapshot();
+        if (
+          snapshot.coverMedia.length === 1
+          && !initialCoverSources.includes(snapshot.coverMedia[0]!.source)
+          && reviewedCoverFingerprint
+          && xArticleImageFingerprintsMatch(
+            reviewedCoverFingerprint,
+            snapshot.coverMedia[0]!.fingerprint,
+          )
+        ) {
           coverApplied = true;
           break;
         }
@@ -740,6 +1491,7 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
       }, { sessionId });
       await waitForXArticleBodyCleared({
         read: readArticleBody,
+        readMediaCount: async () => (await readEditorSnapshot()).mediaSources.length,
         wait: () => sleep(150),
         maxChecks: 20,
       });
@@ -793,7 +1545,22 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
     });
     console.log('[x-article] Exact reviewed body insertion verified.');
 
-    const expectedBodyMediaSources: string[] = [];
+    const reviewedImages: Array<(typeof parsed.contentImages)[number] & {
+      assetId: string;
+      fingerprint: XArticleImageFingerprint;
+    }> = [];
+    for (const [index, image] of parsed.contentImages.entries()) {
+      reviewedImages.push({
+        ...image,
+        assetId: xArticleReviewedAssetId(image.localPath, index + 1),
+        fingerprint: await readLocalXArticleImageFingerprint(cdp, sessionId, image.localPath),
+      });
+    }
+    const reviewedBodySequence = buildReviewedXArticleBodySequence(
+      expectedBodyText,
+      reviewedImages,
+    );
+    const mediaBindings: XArticleMediaAssetBinding[] = [];
 
     // Insert content images at their reviewed placeholders.
     if (parsed.contentImages.length > 0) {
@@ -806,7 +1573,7 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
       }, { sessionId });
 
       console.log('[x-article] Checking for placeholders in content...');
-      for (const img of parsed.contentImages) {
+      for (const img of reviewedImages) {
         // Use an exact suffix boundary so IMG_1 cannot match IMG_10.
         const regex = new RegExp(img.placeholder + '(?!\\d)');
         if (regex.test(editorContent.result.value)) {
@@ -821,7 +1588,7 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
         const match = placeholder.match(/IMG_(\d+)$/);
         return match ? Number(match[1]) : Number.POSITIVE_INFINITY;
       };
-      const sortedImages = [...parsed.contentImages].sort(
+      const sortedImages = [...reviewedImages].sort(
         (a, b) => getPlaceholderIndex(a.placeholder) - getPlaceholderIndex(b.placeholder),
       );
 
@@ -968,7 +1735,7 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
           await sleep(500);
         }
 
-        const mediaSourcesBefore = await readBodyMediaSources();
+        const mediaSnapshotBefore = await readEditorSnapshot();
 
         // Focus editor to ensure cursor is in position
         await cdp.send('Runtime.evaluate', {
@@ -989,25 +1756,33 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
 
         // Verify image appeared in editor
         console.log(`[x-article] Verifying image upload...`);
-        const expectedImgCount = mediaSourcesBefore.length + 1;
-        let insertedSource: string | null = null;
+        const expectedImgCount = mediaSnapshotBefore.mediaSources.length + 1;
+        let insertedMedia: Extract<RenderedXArticleBodyToken, { kind: 'media' }> | null = null;
         const imgWaitStart = Date.now();
         while (Date.now() - imgWaitStart < 15_000) {
-          const mediaSourcesAfter = await readBodyMediaSources();
+          const mediaSnapshotAfter = await readEditorSnapshot();
           try {
-            insertedSource = findSingleAddedXArticleMediaSource(mediaSourcesBefore, mediaSourcesAfter);
+            insertedMedia = findSingleAddedXArticleMediaBlock(
+              mediaSnapshotBefore.bodySequence,
+              mediaSnapshotAfter.bodySequence,
+            );
             break;
           } catch {}
           await sleep(1000);
         }
 
-        if (insertedSource) {
-          expectedBodyMediaSources.push(insertedSource);
+        if (insertedMedia) {
+          mediaBindings.push(bindXArticleMediaAsset({
+            blockId: insertedMedia.blockId,
+            assetId: img.assetId,
+            reviewedFingerprint: img.fingerprint,
+            renderedFingerprint: insertedMedia.fingerprint,
+          }));
           console.log(`[x-article] Image upload verified (${expectedImgCount} image block(s))`);
           // Wait for DraftEditor DOM to stabilize after image insertion
           await sleep(3000);
         } else {
-          throw new Error(`The reviewed X Article image did not produce one new stable media source: ${path.basename(img.localPath)}.`);
+          throw new Error(`The reviewed X Article image did not produce one new stable media block: ${path.basename(img.localPath)}.`);
         }
       }
 
@@ -1019,9 +1794,84 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
       parsed.contentImages.map((image) => image.placeholder),
     );
 
-    // Blur first, then verify the saved editor state. Standalone --submit and
-    // managed review therefore share the same post-save evidence.
-    console.log('[x-article] Triggering content save...');
+    const verifyCurrentComposition = async (): Promise<{
+      snapshot: XArticleEditorSnapshot;
+      title: string;
+      body: string;
+      imageCount: number;
+      coverPresent: boolean;
+    }> => {
+      const snapshot = await readEditorSnapshot();
+      const actualMediaBlockIds = snapshot.bodySequence
+        .filter((token): token is Extract<RenderedXArticleBodyToken, { kind: 'media' }> => (
+          token.kind === 'media'
+        ))
+        .map((token) => token.blockId);
+      const remainingPlaceholders = parsed.contentImages
+        .map((image) => image.placeholder)
+        .filter((placeholder) => renderedPlaceholderPattern(placeholder).test(snapshot.body));
+      assertXArticleBodyMediaEvidence({
+        reviewedSequence: reviewedBodySequence,
+        renderedSequence: snapshot.bodySequence,
+        verifiedAssetBindings: mediaBindings,
+      });
+      if (
+        reviewedCoverFingerprint
+        && (
+          snapshot.coverMedia.length !== 1
+          || !xArticleImageFingerprintsMatch(
+            reviewedCoverFingerprint,
+            snapshot.coverMedia[0]!.fingerprint,
+          )
+        )
+      ) {
+        throw new Error('X Article composition failed: cover identity does not match the reviewed asset.');
+      }
+      assertXArticleCompositionReady({
+        titleMatches: snapshot.title.trim() === parsed.title.trim(),
+        bodyMatches: isXArticleBodyInserted(snapshot.body, expectedFinalBodyText),
+        expectedImages: parsed.contentImages.length,
+        actualImages: actualMediaBlockIds.length,
+        expectedMediaSources: mediaBindings.map((binding) => binding.blockId),
+        actualMediaSources: actualMediaBlockIds,
+        remainingPlaceholders,
+        coverRequested: Boolean(parsed.coverImage),
+        initialCoverSources,
+        actualCoverSources: snapshot.coverSources,
+      });
+      return {
+        snapshot,
+        title: snapshot.title,
+        body: snapshot.body,
+        imageCount: actualMediaBlockIds.length,
+        coverPresent: snapshot.coverSources.length === 1,
+      };
+    };
+
+    const waitForSettledComposition = async (): Promise<Awaited<ReturnType<typeof verifyCurrentComposition>>> => {
+      let previousSignature = '';
+      for (let check = 0; check < 12; check++) {
+        const current = await verifyCurrentComposition();
+        const signature = JSON.stringify({
+          url: current.snapshot.url,
+          editorId: current.snapshot.editorId,
+          title: current.title,
+          body: current.body,
+          mediaBlockIds: current.snapshot.bodySequence
+            .filter((token) => token.kind === 'media')
+            .map((token) => token.blockId),
+          coverSources: current.snapshot.coverSources,
+        });
+        if (signature === previousSignature) return current;
+        previousSignature = signature;
+        await sleep(300);
+      }
+      throw new Error('The X Article editor did not settle to two consecutive verified snapshots.');
+    };
+
+    // Blur and require a stable, exact client composition. This deliberately
+    // does not claim a server save acknowledgement that X does not expose.
+    console.log('[x-article] Settling the reviewed editor composition...');
     await cdp.send('Runtime.evaluate', {
       expression: `(() => {
         // Blur editor to trigger any pending saves
@@ -1033,59 +1883,38 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
         document.body.click();
       })()`,
     }, { sessionId });
-    await sleep(1500);
-
-    console.log('[x-article] Running post-save composition verification...');
-    const textSnapshotResult = await cdp.send<{ result: { value: string } }>('Runtime.evaluate', {
-      expression: `JSON.stringify({
-        title: (() => {
-          const selectors = ${JSON.stringify(I18N_SELECTORS.titleInput)};
-          for (const selector of selectors) {
-            const element = document.querySelector(selector);
-            if (element) return element.value || element.innerText || element.textContent || '';
-          }
-          return '';
-        })(),
-        body: document.querySelector('.DraftEditor-editorContainer [data-contents="true"]')?.innerText || '',
-      })`,
-      returnByValue: true,
-    }, { sessionId });
-    const textSnapshot = JSON.parse(textSnapshotResult.result.value) as { title: string; body: string };
-    const actualMediaSources = await readBodyMediaSources();
-    const actualCoverSources = await readVisibleCoverSources();
-    const verifiedComposition = {
-      ...textSnapshot,
-      imageCount: actualMediaSources.length,
-      coverPresent: actualCoverSources.length === 1,
-    };
-    const remainingPlaceholders = parsed.contentImages
-      .map((image) => image.placeholder)
-      .filter((placeholder) => renderedPlaceholderPattern(placeholder).test(verifiedComposition.body));
-    assertXArticleCompositionReady({
-      titleMatches: verifiedComposition.title.trim() === parsed.title.trim(),
-      bodyMatches: isXArticleBodyInserted(verifiedComposition.body, expectedFinalBodyText),
-      expectedImages: parsed.contentImages.length,
-      actualImages: verifiedComposition.imageCount,
-      expectedMediaSources: expectedBodyMediaSources,
-      actualMediaSources,
-      remainingPlaceholders,
-      coverRequested: Boolean(parsed.coverImage),
-      initialCoverSources,
-      actualCoverSources,
-    });
-    console.log(`[x-article] Verification passed: ${verifiedComposition.imageCount} ordered image(s), exact reviewed body, scoped cover evidence.`);
+    const verifiedComposition = await waitForSettledComposition();
+    console.log(`[x-article] Verification passed: ${verifiedComposition.imageCount} identity-bound image(s), exact reviewed body, scoped cover evidence.`);
 
     // Click Preview button
     console.log('[x-article] Opening preview...');
     const previewSelectors = JSON.stringify(I18N_SELECTORS.previewButton);
     const previewClicked = await cdp.send<{ result: { value: boolean } }>('Runtime.evaluate', {
       expression: `(() => {
-        const selectors = ${previewSelectors};
-        for (const sel of selectors) {
-          const el = document.querySelector(sel);
-          if (el) { el.click(); return true; }
+        const visible = (element) => {
+          if (!element || element.closest('[role="dialog"][aria-modal="true"]')) return false;
+          const rect = element.getBoundingClientRect();
+          const style = getComputedStyle(element);
+          return rect.width > 0 && rect.height > 0
+            && style.visibility !== 'hidden' && style.display !== 'none';
+        };
+        const titles = Array.from(new Set(${JSON.stringify(I18N_SELECTORS.titleInput)}
+          .flatMap((selector) => Array.from(document.querySelectorAll(selector))))).filter(visible);
+        const bodies = Array.from(document.querySelectorAll(
+          '.DraftEditor-editorContainer [data-contents="true"]'
+        )).filter(visible);
+        if (titles.length !== 1 || bodies.length !== 1) return false;
+        let root = titles[0].closest('main, [role="main"], form');
+        if (!root || !root.contains(bodies[0])) {
+          root = titles[0].parentElement;
+          while (root && !root.contains(bodies[0])) root = root.parentElement;
         }
-        return false;
+        if (!root) return false;
+        const buttons = Array.from(new Set(${previewSelectors}
+          .flatMap((selector) => Array.from(root.querySelectorAll(selector))))).filter(visible);
+        if (buttons.length !== 1) return false;
+        buttons[0].click();
+        return true;
       })()`,
       returnByValue: true,
     }, { sessionId });
@@ -1097,6 +1926,10 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
       console.log('[x-article] Preview button not found');
     }
 
+    // Preview can rerender or replace the editor. Revalidate its exact state
+    // before either handing ownership off or allowing standalone submission.
+    const postPreviewComposition = await waitForSettledComposition();
+
     if (options.onComposed) {
       await options.onComposed({
         cdp,
@@ -1104,28 +1937,52 @@ export async function publishArticle(options: ArticleOptions): Promise<void> {
         targetId: page.targetId,
         ownsBrowser: !existingPort,
         ownsTarget: browserResource.ownsTarget,
-        ...verifiedComposition,
+        ...(browserResource.releaseOwnedBrowser ? {
+          releaseOwnedBrowser: browserResource.releaseOwnedBrowser,
+        } : {}),
+        title: postPreviewComposition.title,
+        body: postPreviewComposition.body,
+        imageCount: postPreviewComposition.imageCount,
+        coverPresent: postPreviewComposition.coverPresent,
         expectedBody: expectedFinalBodyText,
+        reviewedBodySequence,
+        mediaBindings,
+        ...(reviewedCoverFingerprint ? { coverFingerprint: reviewedCoverFingerprint } : {}),
       });
       handedOff = true;
     }
 
-    // Check for publish button
     if (submit) {
       console.log('[x-article] Publishing...');
-      const publishSelectors = JSON.stringify(I18N_SELECTORS.publishButton);
-      await cdp.send('Runtime.evaluate', {
-        expression: `(() => {
-          const selectors = ${publishSelectors};
-          for (const sel of selectors) {
-            const el = document.querySelector(sel);
-            if (el && !el.disabled) { el.click(); return true; }
+      const publishedUrl = await submitVerifiedXArticle({
+        assertCurrent: async () => {
+          const current = await waitForSettledComposition();
+          if (
+            current.snapshot.url !== postPreviewComposition.snapshot.url
+            || current.snapshot.editorId !== postPreviewComposition.snapshot.editorId
+          ) {
+            throw new Error('The X Article editor or draft URL changed after preview.');
           }
-          return false;
-        })()`,
-      }, { sessionId });
-      await sleep(3000);
-      console.log('[x-article] Article published!');
+          return current.snapshot;
+        },
+        readPublicationCandidates: () => readXArticlePublicationCandidates(cdp!, sessionId),
+        clickPublish: (guard) => clickGuardedXArticlePublish({ cdp: cdp!, sessionId, guard }),
+        waitForPublishedUrl: async (preClickCandidates) => {
+          const baseline = new Set(preClickCandidates);
+          const started = Date.now();
+          while (Date.now() - started < 20_000) {
+            const candidates = await readXArticlePublicationCandidates(cdp!, sessionId);
+            const newlyObserved = candidates.filter((candidate) => !baseline.has(candidate));
+            if (newlyObserved.length === 1) return newlyObserved[0];
+            if (newlyObserved.length > 1) {
+              throw new Error('X exposed ambiguous Article publication evidence.');
+            }
+            await sleep(500);
+          }
+          return undefined;
+        },
+      });
+      console.log(`[x-article] Article published: ${publishedUrl}`);
     } else {
       console.log('[x-article] Article composed (draft mode).');
       console.log('[x-article] Browser remains open for manual review.');
