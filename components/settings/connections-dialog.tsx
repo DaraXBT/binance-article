@@ -43,26 +43,22 @@ type SettingsSectionId = 'ai' | 'publishing' | 'access';
 interface SettingsSection {
   id: SettingsSectionId;
   label: string;
-  icon: typeof Bot;
 }
 
 const BASE_SECTIONS: readonly SettingsSection[] = [
   {
     id: 'ai',
     label: 'AI & generation',
-    icon: KeyRound,
   },
   {
     id: 'publishing',
     label: 'Publishing',
-    icon: MonitorUp,
   },
 ] as const;
 
 const ACCESS_SECTION: SettingsSection = {
   id: 'access',
   label: 'People & access',
-  icon: ShieldCheck,
 };
 
 export interface ConnectionsDialogProps {
@@ -251,7 +247,11 @@ export function ConnectionsDialog({
               className="h-auto min-h-11 w-full justify-start gap-1 overflow-x-auto bg-transparent p-0 md:flex-1 md:flex-col md:items-stretch md:justify-start md:overflow-visible"
             >
               {sections.map((section) => {
-                const Icon = section.icon;
+                const Icon = section.id === 'ai'
+                  ? KeyRound
+                  : section.id === 'publishing'
+                    ? MonitorUp
+                    : ShieldCheck;
                 return (
                   <TabsTrigger
                     key={section.id}
