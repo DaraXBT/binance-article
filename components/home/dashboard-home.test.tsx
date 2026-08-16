@@ -293,10 +293,6 @@ const createWorkspaceMutate = vi.fn();
 let workspaceData:
   | {
       hasWorkspace: boolean;
-      workspaceId: string | null;
-      accessKeyPrefix: string | null;
-      recoveryKey: string | null;
-      workspaceOrigin?: 'legacy' | 'account' | null;
       workspaceRole?: 'owner' | 'member' | null;
       canReplaceWithLegacy?: boolean;
       generateAccessEnabled: boolean;
@@ -305,10 +301,6 @@ let workspaceData:
     }
   | undefined = {
   hasWorkspace: true,
-  workspaceId: 'workspace-1',
-  accessKeyPrefix: 'dwk_test',
-  recoveryKey: null,
-  workspaceOrigin: 'account',
   workspaceRole: 'owner',
   canReplaceWithLegacy: false,
   generateAccessEnabled: false,
@@ -370,10 +362,6 @@ describe('DashboardHome', () => {
     });
     workspaceData = {
       hasWorkspace: true,
-      workspaceId: 'workspace-1',
-      accessKeyPrefix: 'dwk_test',
-      recoveryKey: null,
-      workspaceOrigin: 'account',
       workspaceRole: 'owner',
       canReplaceWithLegacy: false,
       generateAccessEnabled: false,
@@ -437,9 +425,6 @@ describe('DashboardHome', () => {
   it('automatically provisions an account workspace once when none is attached', async () => {
     workspaceData = {
       hasWorkspace: false,
-      workspaceId: null,
-      accessKeyPrefix: null,
-      recoveryKey: null,
       generateAccessEnabled: false,
       hasGenerationAccess: false,
       generationAccessInvalidReason: null,
@@ -540,9 +525,6 @@ describe('DashboardHome', () => {
   it('keeps locked generation actions clickable and opens access on the first paid action', async () => {
     workspaceData = {
       hasWorkspace: true,
-      workspaceId: 'workspace-1',
-      accessKeyPrefix: 'dwk_test',
-      recoveryKey: null,
       generateAccessEnabled: true,
       hasGenerationAccess: false,
       generationAccessInvalidReason: 'missing',
@@ -564,9 +546,6 @@ describe('DashboardHome', () => {
   it('claims a submitted public draft and asks for access before calling a paid API', async () => {
     workspaceData = {
       hasWorkspace: true,
-      workspaceId: 'workspace-1',
-      accessKeyPrefix: 'dwk_test',
-      recoveryKey: null,
       generateAccessEnabled: true,
       hasGenerationAccess: false,
       generationAccessInvalidReason: 'missing',
@@ -605,9 +584,6 @@ describe('DashboardHome', () => {
   it('pauses once for legacy import when fallback provisioning handles a pending draft', async () => {
     workspaceData = {
       hasWorkspace: false,
-      workspaceId: null,
-      accessKeyPrefix: null,
-      recoveryKey: null,
       generateAccessEnabled: false,
       hasGenerationAccess: false,
       generationAccessInvalidReason: null,
@@ -627,16 +603,12 @@ describe('DashboardHome', () => {
     createWorkspaceMutate.mockImplementation((_value, options) => {
       workspaceData = {
         hasWorkspace: true,
-        workspaceId: 'workspace-account',
-        accessKeyPrefix: 'acct_12345678',
-        recoveryKey: null,
-        workspaceOrigin: 'account',
         canReplaceWithLegacy: true,
         generateAccessEnabled: false,
         hasGenerationAccess: false,
         generationAccessInvalidReason: null,
       } as typeof workspaceData;
-      options?.onSuccess?.({ success: true, workspaceId: 'workspace-account', created: true });
+      options?.onSuccess?.({ success: true, created: true });
     });
     const fetchMock = vi.fn();
     const originalFetch = global.fetch;
@@ -660,10 +632,6 @@ describe('DashboardHome', () => {
   it('pauses for eligible legacy import when enrollment already provisioned the account', async () => {
     workspaceData = {
       hasWorkspace: true,
-      workspaceId: 'workspace-account',
-      accessKeyPrefix: 'acct_12345678',
-      recoveryKey: null,
-      workspaceOrigin: 'account',
       workspaceRole: 'owner',
       canReplaceWithLegacy: true,
       generateAccessEnabled: false,
@@ -743,9 +711,6 @@ describe('DashboardHome', () => {
   it('lets a new account continue after a malformed resume marker', async () => {
     workspaceData = {
       hasWorkspace: false,
-      workspaceId: null,
-      accessKeyPrefix: null,
-      recoveryKey: null,
       generateAccessEnabled: false,
       hasGenerationAccess: false,
       generationAccessInvalidReason: null,
@@ -769,9 +734,6 @@ describe('DashboardHome', () => {
   it('lets a new account continue after a stale resume marker', async () => {
     workspaceData = {
       hasWorkspace: false,
-      workspaceId: null,
-      accessKeyPrefix: null,
-      recoveryKey: null,
       generateAccessEnabled: false,
       hasGenerationAccess: false,
       generationAccessInvalidReason: null,
@@ -799,9 +761,6 @@ describe('DashboardHome', () => {
   it('lets a new account continue when session storage is unavailable', async () => {
     workspaceData = {
       hasWorkspace: false,
-      workspaceId: null,
-      accessKeyPrefix: null,
-      recoveryKey: null,
       generateAccessEnabled: false,
       hasGenerationAccess: false,
       generationAccessInvalidReason: null,

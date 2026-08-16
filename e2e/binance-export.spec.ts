@@ -53,9 +53,8 @@ test('prepares, reviews, and explicitly approves one Binance publish click', asy
       contentType: 'application/json',
       body: JSON.stringify({
         hasWorkspace: true,
-        workspaceId: 'workspace-e2e',
-        accessKeyPrefix: 'dwk_e2e',
-        recoveryKey: null,
+        workspaceRole: 'owner',
+        canReplaceWithLegacy: false,
         generateAccessEnabled: false,
         hasGenerationAccess: true,
         generationAccessInvalidReason: null,

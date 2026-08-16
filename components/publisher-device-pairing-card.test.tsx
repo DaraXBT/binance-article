@@ -37,7 +37,7 @@ function mockPublisherApi({
     // Compatibility response for the current implementation. The new account-
     // scoped component must never request it; focused assertions below enforce that.
     if (url === '/api/workspace') {
-      return jsonResponse({ hasWorkspace: true, workspaceId: 'workspace_legacy' });
+      return jsonResponse({ hasWorkspace: true });
     }
     if (url === '/api/publisher/devices' && method === 'GET') {
       return jsonResponse({ devices }, devicesStatus);
