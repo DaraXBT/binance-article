@@ -8,10 +8,31 @@ export type CutoverMaintenanceDecision = Readonly<{
   blocked: boolean;
 }>;
 
+type CutoverMaintenanceEnvironment = Readonly<{
+  CUTOVER_MAINTENANCE_MODE?: string;
+  CUTOVER_MAINTENANCE_ALLOW_IPS?: string;
+}>;
+
+type CutoverMaintenanceResponseInput = {
+  request: Request;
+  environment: CutoverMaintenanceEnvironment;
+};
+
 const DISABLED_MODES = new Set([undefined, '', 'off']);
 const MAX_ALLOWLIST_LENGTH = 1_024;
 const MAX_ALLOWLIST_ENTRIES = 16;
 const IP_LITERAL_PATTERN = /^[0-9A-Fa-f:.]{2,45}$/;
+const MAINTENANCE_MESSAGE = 'Scheduled maintenance is in progress. Please try again shortly.';
+const MAINTENANCE_HEADERS = {
+  'Cache-Control': 'no-store',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Retry-After': '120',
+  'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'X-Robots-Tag': 'noindex, nofollow',
+};
 
 function parseAllowedIps(raw: string | undefined): Set<string> {
   if (!raw || raw.length > MAX_ALLOWLIST_LENGTH) return new Set();
@@ -40,4 +61,37 @@ export function evaluateCutoverMaintenance({
   if (!clientIp || !IP_LITERAL_PATTERN.test(clientIp)) return { blocked: true };
 
   return { blocked: !parseAllowedIps(allowedIps).has(clientIp) };
+}
+
+export function createCutoverMaintenanceResponse({
+  request,
+  environment,
+}: CutoverMaintenanceResponseInput): Response | null {
+  const decision = evaluateCutoverMaintenance({
+    mode: environment.CUTOVER_MAINTENANCE_MODE,
+    allowedIps: environment.CUTOVER_MAINTENANCE_ALLOW_IPS,
+    connectingIp: request.headers.get('cf-connecting-ip') ?? undefined,
+  });
+  if (!decision.blocked) return null;
+
+  const url = new URL(request.url);
+  const wantsJson = url.pathname.startsWith('/api/')
+    || request.headers.get('accept')?.includes('application/json');
+  if (wantsJson) {
+    return Response.json(
+      { error: MAINTENANCE_MESSAGE },
+      { status: 503, headers: MAINTENANCE_HEADERS },
+    );
+  }
+
+  return new Response(
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Scheduled maintenance</title></head><body><main><h1>We\u2019ll be right back</h1><p>${MAINTENANCE_MESSAGE}</p></main></body></html>`,
+    {
+      status: 503,
+      headers: {
+        ...MAINTENANCE_HEADERS,
+        'Content-Type': 'text/html; charset=utf-8',
+      },
+    },
+  );
 }

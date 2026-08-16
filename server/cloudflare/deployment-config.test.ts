@@ -23,7 +23,7 @@ describe('Cloudflare web Worker deployment configuration', () => {
       observability?: { enabled: boolean };
     };
 
-    expect(config.main).toBe('.open-next/worker.js');
+    expect(config.main).toBe('workers/web-entrypoint.mjs');
     expect(config.compatibility_date >= '2024-09-23').toBe(true);
     expect(config.compatibility_flags).toEqual(expect.arrayContaining([
       'nodejs_compat',
