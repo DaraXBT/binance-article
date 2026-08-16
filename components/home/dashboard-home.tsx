@@ -609,6 +609,7 @@ export function DashboardHome({
   const [resumeIntent, setResumeIntent] = useState<AnonymousGenerationIntent | null>(null);
   const [resumeReady, setResumeReady] = useState(!resumeRequested);
   const [resumeAllowed, setResumeAllowed] = useState(!resumeRequested);
+  const [resumeBypassed, setResumeBypassed] = useState(false);
   const [resumeNeedsAction, setResumeNeedsAction] = useState(false);
   const [workspaceCreatedForResume, setWorkspaceCreatedForResume] = useState(false);
   const [workspaceChoiceOpen, setWorkspaceChoiceOpen] = useState(false);
@@ -653,6 +654,16 @@ export function DashboardHome({
     router.push(`/workspace?${params.toString()}`, { scroll: false });
   };
 
+  const handleUnavailableResumeContinue = () => {
+    const params = new URLSearchParams(window.location.search);
+    params.delete('resume');
+    const queryString = params.toString();
+    setResumeBypassed(true);
+    setResumeAllowed(true);
+    setComposerError(null);
+    router.replace(queryString ? `/workspace?${queryString}` : '/workspace', { scroll: false });
+  };
+
   // A newly enrolled account has no workspace yet. Provision it silently so a
   // user can land on the composer without an extra onboarding click.
   useEffect(() => {
@@ -661,7 +672,7 @@ export function DashboardHome({
       workspaceError ||
       !workspace ||
       workspace.hasWorkspace ||
-      (resumeRequested && (!resumeReady || !resumeIntent)) ||
+      (resumeRequested && !resumeBypassed && (!resumeReady || !resumeIntent)) ||
       autoProvisionAttemptedRef.current
     ) {
       return;
@@ -679,12 +690,12 @@ export function DashboardHome({
         },
         onError: (error) => {
           setIsProvisioningWorkspace(false);
-          setProvisioningError(error instanceof Error ? error.message : 'Failed to create workspace.');
+          setProvisioningError(error instanceof Error ? error.message : 'Failed to open your account library.');
         },
       });
     } catch (error) {
       setIsProvisioningWorkspace(false);
-      setProvisioningError(error instanceof Error ? error.message : 'Failed to create workspace.');
+      setProvisioningError(error instanceof Error ? error.message : 'Failed to open your account library.');
     }
   }, [
     createWorkspace,
@@ -693,6 +704,7 @@ export function DashboardHome({
     workspaceError,
     resumeIntentId,
     resumeRequested,
+    resumeBypassed,
     resumeReady,
     resumeIntent,
     refetchWorkspace,
@@ -807,9 +819,10 @@ export function DashboardHome({
     }
   };
 
-  // Creating a workspace while an anonymous draft is pending is the one point
-  // where an old recovery-key workspace could be silently hidden. Pause once so
-  // the user can explicitly keep the new account workspace or import the old one.
+  // Pause a submitted anonymous draft whenever the server says this pristine
+  // account can still be replaced by a legacy import. Enrollment normally
+  // provisions the account before this page mounts, so client creation history
+  // must never be used as the authority for this decision.
   useEffect(() => {
     if (
       !resumeIntentId ||
@@ -819,23 +832,18 @@ export function DashboardHome({
     ) {
       return;
     }
-    // An existing account workspace needs no handoff choice; only a workspace
-    // created during this resume flow pauses for the explicit import decision.
-    if (!workspaceCreatedForResume) {
-      setResumeAllowed(true);
-      return;
-    }
     if (readResumeChoice()) {
       setResumeAllowed(true);
       return;
     }
-    if (workspace.workspaceOrigin === 'account' && workspace.canReplaceWithLegacy) {
+    if (workspace.canReplaceWithLegacy) {
       setResumeAllowed(false);
       setWorkspaceChoiceOpen(true);
     } else {
       setResumeAllowed(true);
     }
-    // `workspaceCreatedForResume` is the deliberate one-shot trigger.
+    // Fallback provisioning updates this state so a mocked or delayed
+    // workspace refetch still re-evaluates the authoritative server flag.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeIntentId, resumeReady, resumeIntent, workspace, workspaceCreatedForResume]);
 
@@ -1219,7 +1227,7 @@ export function DashboardHome({
     return (
       <SecureConsoleFrame
         variant="private"
-        eyebrow="WORKSPACE CHECK"
+        eyebrow="ACCOUNT CHECK"
         title={messages.workspace.bootstrapLoadingTitle}
         subtitle={messages.workspace.bootstrapLoadingDescription}
         panelClassName="mx-auto w-full max-w-lg"
@@ -1241,7 +1249,7 @@ export function DashboardHome({
     return (
       <SecureConsoleFrame
         variant="private"
-        eyebrow="WORKSPACE ERROR"
+        eyebrow="ACCOUNT ERROR"
         title={messages.workspace.bootstrapErrorTitle}
         subtitle={workspaceError.message || messages.workspace.bootstrapErrorDescription}
         panelClassName="mx-auto w-full max-w-lg border-destructive/45 bg-destructive/[0.025]"
@@ -1263,7 +1271,7 @@ export function DashboardHome({
     return (
       <SecureConsoleFrame
         variant="private"
-        eyebrow="WORKSPACE ERROR"
+        eyebrow="ACCOUNT ERROR"
         title={messages.workspace.bootstrapErrorTitle}
         subtitle={provisioningError}
         panelClassName="mx-auto w-full max-w-lg border-destructive/45 bg-destructive/[0.025]"
@@ -1287,6 +1295,33 @@ export function DashboardHome({
   }
 
   if (!workspace || !hasWorkspace) {
+    if (resumeRequested && !resumeBypassed && !resumeIntent) {
+      return (
+        <SecureConsoleFrame
+          variant="private"
+          eyebrow="ACCOUNT CHECK"
+          title={resumeReady
+            ? messages.publicHome.resumeUnavailable
+            : messages.workspace.bootstrapLoadingTitle}
+          subtitle={resumeReady
+            ? composerError ?? messages.publicHome.resumeUnavailable
+            : messages.workspace.bootstrapLoadingDescription}
+          panelClassName="mx-auto w-full max-w-lg"
+          contentClassName="flex items-center"
+        >
+          <div className="flex flex-col items-start gap-3">
+            <p className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground" role="status">
+              {resumeReady ? 'DRAFT UNAVAILABLE' : 'CHECKING'}
+            </p>
+            {resumeReady ? (
+              <Button type="button" onClick={handleUnavailableResumeContinue}>
+                {messages.workspace.resumeChoiceContinue}
+              </Button>
+            ) : null}
+          </div>
+        </SecureConsoleFrame>
+      );
+    }
     // This is only a defensive fallback if provisioning is unavailable. The
     // normal account path above creates the workspace automatically.
     return <WorkspaceOnboarding notice={composerError} />;
@@ -1318,8 +1353,7 @@ export function DashboardHome({
         )}
         sidebarFooter={(
           <WorkspaceSidebarFooter
-            accessKeyPrefix={workspace.accessKeyPrefix ?? '—'}
-            showRecovery={workspace.workspaceOrigin !== 'account'}
+            showRecovery={false}
             accountLabel={accountLabel}
             accountEmail={actor?.email}
             settingsLabel={messages.dashboard.settings}
