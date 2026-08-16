@@ -583,6 +583,7 @@ interface DashboardHomeProps {
   resumeIntentId?: string | null;
   resumeRequested?: boolean;
   settingsOpen?: boolean;
+  canManageAccess?: boolean;
   actor?: { name: string; email: string };
 }
 
@@ -590,6 +591,7 @@ export function DashboardHome({
   resumeIntentId = null,
   resumeRequested = Boolean(resumeIntentId),
   settingsOpen = false,
+  canManageAccess = false,
   actor,
 }: DashboardHomeProps) {
   const router = useRouter();
@@ -1427,7 +1429,8 @@ export function DashboardHome({
       <ConnectionsDialog
         open={settingsOpen}
         onOpenChange={handleConnectionsOpenChange}
-        workspaceRole={workspace.workspaceRole}
+        canManageAi={workspace.workspaceRole === 'owner'}
+        canManageAccess={canManageAccess}
       />
 
       {workspaceChoiceOpen ? (

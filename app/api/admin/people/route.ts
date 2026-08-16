@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     return errorResponse(error, {
       code: 'PEOPLE_LIST_FAILED',
       message: 'People could not be loaded.',
-      status: 400,
+      status: 500,
     });
   }
 }

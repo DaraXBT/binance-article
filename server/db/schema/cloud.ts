@@ -171,7 +171,8 @@ export const workspaceAiCredential = pgTable('WorkspaceAiCredential', {
     .on(table.workspaceId, table.updatedAt),
   check(
     'WorkspaceAiCredential_ciphertext_base64url_check',
-    sql`${table.ciphertext} ~ '^[A-Za-z0-9_-]{24,2048}$'`,
+    sql`${table.ciphertext} ~ '^[A-Za-z0-9_-]+$'
+      AND char_length(${table.ciphertext}) BETWEEN 24 AND 2048`,
   ),
   check(
     'WorkspaceAiCredential_ciphertext_base64url_length_check',

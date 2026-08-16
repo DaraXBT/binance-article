@@ -8,6 +8,10 @@ import type {
   DeckDetailResponse,
   SlideUpdateRequest,
 } from '@/lib/schemas';
+import {
+  SettingsApiError,
+  readSettingsResponse,
+} from '@/lib/settings-api';
 
 type DeckMutationInput = {
   deckId: string;
@@ -112,9 +116,9 @@ async function fetchWorkspaceAiCredential() {
     cache: 'no-store',
     credentials: 'same-origin',
   });
-  return readApiResponse<WorkspaceAiCredentialStatus>(
+  return readSettingsResponse<WorkspaceAiCredentialStatus>(
     res,
-    'Failed to fetch Gemini connection',
+    'Gemini connection could not be loaded.',
   );
 }
 
@@ -190,11 +194,14 @@ export function useGenerationLock() {
 }
 
 export function useWorkspaceAiCredential(enabled = true) {
-  return useQuery<WorkspaceAiCredentialStatus, ApiError>({
+  return useQuery<WorkspaceAiCredentialStatus, SettingsApiError>({
     queryKey: queryKeys.workspaceAiCredential(),
     queryFn: fetchWorkspaceAiCredential,
     staleTime: 30_000,
     enabled,
+    retry: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -206,7 +213,7 @@ export function useSaveWorkspaceAiCredential() {
       const apiKey = pendingWorkspaceAiCredentialKeys.get(secretHandle);
       pendingWorkspaceAiCredentialKeys.delete(secretHandle);
       if (!apiKey) {
-        throw new ApiError('The Gemini key is no longer available. Paste it again.', {
+        throw new SettingsApiError('The Gemini key is no longer available. Paste it again.', {
           code: 'AI_CREDENTIAL_INPUT_UNAVAILABLE',
           status: 400,
         });
@@ -217,9 +224,9 @@ export function useSaveWorkspaceAiCredential() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ apiKey }),
       });
-      return readApiResponse<WorkspaceAiCredentialStatus>(
+      return readSettingsResponse<WorkspaceAiCredentialStatus>(
         res,
-        'Failed to save Gemini connection',
+        'Gemini key could not be saved.',
       );
     },
     onSuccess: (data) => {
@@ -244,14 +251,15 @@ export function useSaveWorkspaceAiCredential() {
 export function useTestWorkspaceAiCredential() {
   const queryClient = useQueryClient();
   return useMutation({
+    retry: false,
     mutationFn: async () => {
       const res = await fetch('/api/workspace/ai-credential', {
         method: 'POST',
         credentials: 'same-origin',
       });
-      return readApiResponse<WorkspaceAiCredentialStatus>(
+      return readSettingsResponse<WorkspaceAiCredentialStatus>(
         res,
-        'Failed to test Gemini connection',
+        'Gemini connection could not be tested.',
       );
     },
     onSuccess: (data) => {
@@ -263,6 +271,7 @@ export function useTestWorkspaceAiCredential() {
 export function useSetWorkspaceAiCredentialSource() {
   const queryClient = useQueryClient();
   return useMutation({
+    retry: false,
     mutationFn: async (source: WorkspaceAiCredentialSource) => {
       const res = await fetch('/api/workspace/ai-credential', {
         method: 'PATCH',
@@ -270,9 +279,9 @@ export function useSetWorkspaceAiCredentialSource() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ source }),
       });
-      return readApiResponse<WorkspaceAiCredentialStatus>(
+      return readSettingsResponse<WorkspaceAiCredentialStatus>(
         res,
-        'Failed to change Gemini source',
+        'Generation source could not be changed.',
       );
     },
     onSuccess: (data) => {
@@ -284,14 +293,15 @@ export function useSetWorkspaceAiCredentialSource() {
 export function useDeleteWorkspaceAiCredential() {
   const queryClient = useQueryClient();
   return useMutation({
+    retry: false,
     mutationFn: async () => {
       const res = await fetch('/api/workspace/ai-credential', {
         method: 'DELETE',
         credentials: 'same-origin',
       });
-      return readApiResponse<WorkspaceAiCredentialStatus>(
+      return readSettingsResponse<WorkspaceAiCredentialStatus>(
         res,
-        'Failed to delete Gemini connection',
+        'Gemini key could not be deleted.',
       );
     },
     onSuccess: (data) => {

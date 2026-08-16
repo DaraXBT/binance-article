@@ -44,7 +44,7 @@ export async function PATCH(
     return errorResponse(error, {
       code: 'PEOPLE_UPDATE_FAILED',
       message: 'The user status could not be changed.',
-      status: 400,
+      status: 500,
     });
   }
 }

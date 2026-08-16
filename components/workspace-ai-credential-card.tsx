@@ -6,6 +6,15 @@ import { Check, KeyRound, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Card,
   CardContent,
   CardDescription,
@@ -25,6 +34,13 @@ import { cn } from '@/lib/utils';
 
 type WorkspaceRole = 'owner' | 'member' | null | undefined;
 
+type WorkspaceAiCredentialCardProps = {
+  canManageAi?: boolean;
+  /** @deprecated Account Settings should pass canManageAi. */
+  workspaceRole?: WorkspaceRole;
+  className?: string;
+};
+
 function formatDate(value: string | null | undefined): string {
   if (!value) return 'Not yet';
   const date = new Date(value);
@@ -40,14 +56,13 @@ function mutationMessage(error: unknown, fallback: string): string {
 }
 
 export function WorkspaceAiCredentialCard({
+  canManageAi,
   workspaceRole,
   className,
-}: {
-  workspaceRole: WorkspaceRole;
-  className?: string;
-}) {
-  const isOwner = workspaceRole === 'owner';
-  const statusQuery = useWorkspaceAiCredential(isOwner);
+}: WorkspaceAiCredentialCardProps) {
+  const permissionResolved = typeof canManageAi === 'boolean' || workspaceRole !== undefined;
+  const canManage = canManageAi ?? workspaceRole === 'owner';
+  const statusQuery = useWorkspaceAiCredential(canManage);
   const saveMutation = useSaveWorkspaceAiCredential();
   const testMutation = useTestWorkspaceAiCredential();
   const sourceMutation = useSetWorkspaceAiCredentialSource();
@@ -55,6 +70,9 @@ export function WorkspaceAiCredentialCard({
   const apiKeyInputRef = useRef<HTMLInputElement>(null);
   const [hasApiKey, setHasApiKey] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteConfirmPending, setDeleteConfirmPending] = useState(false);
+  const [deleteConfirmError, setDeleteConfirmError] = useState<string | null>(null);
 
   useEffect(() => {
     if (statusQuery.data?.activeSource === 'workspace' && !statusQuery.data.configured) {
@@ -62,7 +80,7 @@ export function WorkspaceAiCredentialCard({
     }
   }, [statusQuery.data]);
 
-  if (workspaceRole === undefined) {
+  if (!permissionResolved) {
     return (
       <Card className={className}>
         <CardHeader>
@@ -76,7 +94,7 @@ export function WorkspaceAiCredentialCard({
     );
   }
 
-  if (!isOwner) {
+  if (!canManage) {
     return (
       <Card className={cn('border-dashed', className)}>
         <CardHeader>
@@ -92,9 +110,71 @@ export function WorkspaceAiCredentialCard({
     );
   }
 
+  if (!statusQuery.data && statusQuery.isLoading) {
+    return (
+      <Card className={className} aria-busy="true">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <KeyRound className="size-4" aria-hidden="true" />
+            Gemini connection
+          </CardTitle>
+          <CardDescription>Checking the saved connection status…</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            Loading Gemini connection…
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!statusQuery.data && statusQuery.error) {
+    return (
+      <Card className={className}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <KeyRound className="size-4" aria-hidden="true" />
+            Gemini connection
+          </CardTitle>
+          <CardDescription>
+            Add a personal Gemini key to your account for article generation.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p role="alert" className="text-sm text-destructive">
+            {mutationMessage(statusQuery.error, 'Gemini connection could not be loaded.')}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void statusQuery.refetch()}
+            disabled={statusQuery.isFetching}
+          >
+            {statusQuery.isFetching ? (
+              <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <RefreshCw className="mr-2 size-4" aria-hidden="true" />
+            )}
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const status = statusQuery.data;
-  const busy = saveMutation.isPending || testMutation.isPending || sourceMutation.isPending || deleteMutation.isPending;
-  const error = statusQuery.error || saveMutation.error || testMutation.error || sourceMutation.error || deleteMutation.error;
+  const busy = saveMutation.isPending
+    || testMutation.isPending
+    || sourceMutation.isPending
+    || deleteMutation.isPending
+    || deleteConfirmPending;
+  const error = statusQuery.error
+    || saveMutation.error
+    || testMutation.error
+    || sourceMutation.error
+    || (!deleteConfirmOpen ? deleteMutation.error : null);
   const activeSource: WorkspaceAiCredentialSource = status?.activeSource ?? 'platform';
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -137,14 +217,26 @@ export function WorkspaceAiCredentialCard({
     }
   };
 
+  const requestDeleteConnection = () => {
+    if (busy) return;
+    deleteMutation.reset?.();
+    setDeleteConfirmError(null);
+    setDeleteConfirmOpen(true);
+  };
+
   const deleteConnection = async () => {
-    if (busy || !window.confirm('Delete the encrypted key saved to your account?')) return;
+    if (deleteConfirmPending) return;
     setNotice(null);
+    setDeleteConfirmError(null);
+    setDeleteConfirmPending(true);
     try {
       await deleteMutation.mutateAsync();
       setNotice('Your saved key was deleted. This does not revoke the key at Google.');
-    } catch {
-      // The mutation exposes a sanitized error below.
+      setDeleteConfirmOpen(false);
+    } catch (deleteError) {
+      setDeleteConfirmError(mutationMessage(deleteError, 'Gemini key could not be deleted.'));
+    } finally {
+      setDeleteConfirmPending(false);
     }
   };
 
@@ -166,13 +258,13 @@ export function WorkspaceAiCredentialCard({
       </CardHeader>
       <CardContent className="space-y-4">
         <form onSubmit={submit} className="space-y-2">
-          <label htmlFor="workspace-gemini-key" className="text-sm font-medium">
+          <label htmlFor="account-gemini-key" className="text-sm font-medium">
             {status?.configured ? 'Replace your Gemini key' : 'Your Gemini key'}
           </label>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
               ref={apiKeyInputRef}
-              id="workspace-gemini-key"
+              id="account-gemini-key"
               name="apiKey"
               type="password"
               autoComplete="new-password"
@@ -236,7 +328,7 @@ export function WorkspaceAiCredentialCard({
             {testMutation.isPending ? <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="mr-2 size-4" aria-hidden="true" />}
             Test connection
           </Button>
-          <Button type="button" variant="ghost" onClick={() => void deleteConnection()} disabled={busy || !status?.configured}>
+          <Button type="button" variant="ghost" onClick={requestDeleteConnection} disabled={busy || !status?.configured}>
             <Trash2 className="mr-2 size-4" aria-hidden="true" />
             Delete key
           </Button>
@@ -246,6 +338,43 @@ export function WorkspaceAiCredentialCard({
         {error ? <p role="alert" className="text-sm text-destructive">{mutationMessage(error, 'Gemini connection request failed.')}</p> : null}
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </CardContent>
+
+      <AlertDialog
+        open={deleteConfirmOpen}
+        onOpenChange={(open) => {
+          if (deleteConfirmPending) return;
+          setDeleteConfirmOpen(open);
+          if (!open) setDeleteConfirmError(null);
+        }}
+      >
+        <AlertDialogContent className="console-dialog border-dotted p-4 sm:max-w-md sm:p-5">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete your Gemini key?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the encrypted key from your account. It does not revoke the key at Google AI Studio.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteConfirmError ? (
+            <p role="alert" className="text-sm text-destructive">
+              {deleteConfirmError}
+            </p>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteConfirmPending}>Keep key</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteConfirmPending}
+              onClick={() => void deleteConnection()}
+            >
+              {deleteConfirmPending ? (
+                <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
+              ) : null}
+              Delete key
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

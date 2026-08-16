@@ -1,7 +1,19 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
-import { PlugZap, X } from 'lucide-react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
+import {
+  Bot,
+  KeyRound,
+  MonitorUp,
+  ShieldCheck,
+  X,
+} from 'lucide-react';
 
 import { AdminPeopleAccessCard } from '@/components/admin-people-access-card';
 import {
@@ -11,54 +23,75 @@ import {
 import { PublisherDevicePairingCard } from '@/components/publisher-device-pairing-card';
 import { Button } from '@/components/ui/button';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
 import { WorkspaceAiCredentialCard } from '@/components/workspace-ai-credential-card';
+import { cn } from '@/lib/utils';
 
-type WorkspaceRole = 'owner' | 'member' | null | undefined;
+type SettingsSectionId = 'ai' | 'publishing' | 'access';
+
+interface SettingsSection {
+  id: SettingsSectionId;
+  label: string;
+  icon: typeof Bot;
+}
+
+const BASE_SECTIONS: readonly SettingsSection[] = [
+  {
+    id: 'ai',
+    label: 'AI & generation',
+    icon: KeyRound,
+  },
+  {
+    id: 'publishing',
+    label: 'Publishing',
+    icon: MonitorUp,
+  },
+] as const;
+
+const ACCESS_SECTION: SettingsSection = {
+  id: 'access',
+  label: 'People & access',
+  icon: ShieldCheck,
+};
 
 export interface ConnectionsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  workspaceRole: WorkspaceRole;
+  canManageAi: boolean;
+  canManageAccess: boolean;
 }
 
-function ConnectionSection({
-  title,
-  titleId,
+function SettingsPanel({
+  labelledBy,
+  active,
   children,
 }: {
-  title: string;
-  titleId: string;
+  labelledBy: string;
+  active: boolean;
   children: ReactNode;
 }) {
   return (
     <ConsolePanel
       as="section"
       corners={false}
-      className="rounded-xl bg-card/70 p-3 sm:p-5"
+      aria-labelledby={labelledBy}
+      className={cn(
+        'mx-auto w-full max-w-4xl rounded-xl bg-card/70 p-3 sm:p-5',
+        !active && 'hidden',
+      )}
     >
       <FrameCornerHandles />
-      <h3
-        id={titleId}
-        className="mb-3 border-b border-dotted border-border/70 pb-2 font-mono text-[0.65rem] font-semibold uppercase tracking-[0.14em]"
-      >
-        {title}
-      </h3>
       {children}
     </ConsolePanel>
   );
@@ -67,19 +100,44 @@ function ConnectionSection({
 export function ConnectionsDialog({
   open,
   onOpenChange,
-  workspaceRole,
+  canManageAi,
+  canManageAccess,
 }: ConnectionsDialogProps) {
+  const sections = useMemo(
+    () => canManageAccess ? [...BASE_SECTIONS, ACCESS_SECTION] : [...BASE_SECTIONS],
+    [canManageAccess],
+  );
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>('ai');
+  const [visitedSections, setVisitedSections] = useState<Set<SettingsSectionId>>(
+    () => new Set(['ai']),
+  );
   const [hasUncopiedEnrollmentAccess, setHasUncopiedEnrollmentAccess] = useState(false);
   const [hasUncopiedPairing, setHasUncopiedPairing] = useState(false);
-  const [closeConfirmationOpen, setCloseConfirmationOpen] = useState(false);
+  const [closeWarningOpen, setCloseWarningOpen] = useState(false);
   const hasSensitiveValue = hasUncopiedEnrollmentAccess || hasUncopiedPairing;
+  const sensitiveSection: SettingsSectionId = hasUncopiedPairing ? 'publishing' : 'access';
   // If URL state closes underneath an uncopied value (for example Browser
-  // Back), retain the mounted dialog long enough to ask for confirmation.
+  // Back), retain the mounted shell so the one-time value is not destroyed.
   const effectiveOpen = open || hasSensitiveValue;
 
   useEffect(() => {
-    if (!open && hasSensitiveValue) setCloseConfirmationOpen(true);
+    if (!open && hasSensitiveValue) setCloseWarningOpen(true);
   }, [hasSensitiveValue, open]);
+
+  useEffect(() => {
+    if (hasSensitiveValue) return;
+    setCloseWarningOpen(false);
+    if (!open) {
+      setActiveSection('ai');
+      setVisitedSections(new Set(['ai']));
+    }
+  }, [hasSensitiveValue, open]);
+
+  useEffect(() => {
+    if (!canManageAccess && activeSection === 'access') {
+      setActiveSection('ai');
+    }
+  }, [activeSection, canManageAccess]);
 
   useEffect(() => {
     if (!hasSensitiveValue) return;
@@ -91,11 +149,58 @@ export function ConnectionsDialog({
     return () => window.removeEventListener('beforeunload', protectOneTimeValue);
   }, [hasSensitiveValue]);
 
-  const requestClose = () => {
-    if (hasSensitiveValue) {
-      setCloseConfirmationOpen(true);
+  const selectSection = (next: string) => {
+    const section = sections.find((candidate) => candidate.id === next);
+    if (!section) return;
+    setActiveSection(section.id);
+    setVisitedSections((current) => {
+      if (current.has(section.id)) return current;
+      return new Set([...current, section.id]);
+    });
+    setCloseWarningOpen(false);
+  };
+
+  const handleTabKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    currentSection: SettingsSectionId,
+  ) => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
       return;
     }
+    event.preventDefault();
+    const currentIndex = sections.findIndex((section) => section.id === currentSection);
+    const lastIndex = sections.length - 1;
+    const nextIndex = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? lastIndex
+        : event.key === 'ArrowRight' || event.key === 'ArrowDown'
+          ? (currentIndex + 1) % sections.length
+          : (currentIndex - 1 + sections.length) % sections.length;
+    const nextSection = sections[nextIndex];
+    if (!nextSection) return;
+    selectSection(nextSection.id);
+    const tabs = event.currentTarget.parentElement?.querySelectorAll<HTMLElement>('[role="tab"]');
+    tabs?.[nextIndex]?.focus();
+  };
+
+  const requestClose = () => {
+    if (hasSensitiveValue) {
+      setCloseWarningOpen(true);
+      return;
+    }
+    onOpenChange(false);
+  };
+
+  const reviewSensitiveValue = () => {
+    selectSection(sensitiveSection);
+    if (!open) onOpenChange(true);
+  };
+
+  const discardAndClose = () => {
+    setHasUncopiedEnrollmentAccess(false);
+    setHasUncopiedPairing(false);
+    setCloseWarningOpen(false);
     onOpenChange(false);
   };
 
@@ -117,76 +222,69 @@ export function ConnectionsDialog({
           event.preventDefault();
           accountTrigger.focus();
         }}
-        className="relative h-[calc(100dvh-0.5rem)] max-h-[calc(100dvh-0.5rem)] w-[calc(100%-0.5rem)] max-w-none grid-cols-1 grid-rows-[minmax(0,1fr)] gap-0 overflow-hidden rounded-lg border-dotted bg-card p-0 shadow-xl sm:h-[min(48rem,calc(100dvh-3rem))] sm:max-h-[calc(100dvh-3rem)] sm:w-[calc(100%-3rem)] sm:max-w-6xl sm:rounded-xl md:grid-cols-[13.5rem_minmax(0,1fr)]"
+        className="!fixed !inset-0 !left-0 !top-0 !h-auto !max-h-none !w-auto !max-w-none !translate-x-0 !translate-y-0 grid-cols-1 grid-rows-[minmax(0,1fr)] gap-0 overflow-hidden rounded-none border-dotted bg-card p-0 shadow-xl md:!inset-6 md:rounded-xl"
       >
-        <aside
-          data-connections-settings-rail
-          aria-label="Settings navigation"
-          className="hidden min-h-0 flex-col gap-4 overflow-hidden border-r border-dotted border-border/70 bg-muted/30 p-3 md:flex"
+        <Tabs
+          value={activeSection}
+          onValueChange={selectSection}
+          className="grid min-h-0 grid-cols-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-0 md:grid-cols-[14rem_minmax(0,1fr)] md:grid-rows-[auto_minmax(0,1fr)]"
         >
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="shrink-0"
-            aria-label="Close connections"
-            onClick={requestClose}
+          <aside
+            data-connections-settings-rail
+            aria-label="Settings navigation"
+            className="sticky top-0 z-20 row-start-2 min-w-0 border-b border-dotted border-border/70 bg-card/95 px-2 py-2 backdrop-blur md:col-start-1 md:row-span-2 md:row-start-1 md:flex md:min-h-0 md:flex-col md:border-b-0 md:border-r md:bg-muted/30 md:p-3"
           >
-            <X aria-hidden="true" className="size-4" />
-          </Button>
-
-          <div className="hidden min-h-0 flex-1 flex-col gap-5 md:flex">
-            <div className="px-1 pt-1">
-              <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-primary">
-                Settings
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                Account controls
-              </p>
-            </div>
-
-            <nav aria-label="Settings sections" className="px-1">
-              <div
-                data-connections-settings-nav-item
-                aria-current="page"
-                className="flex min-h-10 items-center gap-2.5 rounded-lg border border-primary/25 bg-primary/10 px-3 text-sm font-medium text-foreground"
-              >
-                <PlugZap aria-hidden="true" className="size-4 shrink-0 text-primary" />
-                <span>Connections</span>
-                <span aria-hidden="true" className="ml-auto size-1.5 rounded-full bg-primary" />
+            <div className="hidden px-2 pb-5 pt-2 md:block">
+              <div className="flex size-9 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary">
+                <Bot aria-hidden="true" className="size-4" />
               </div>
-            </nav>
-          </div>
-        </aside>
-
-        <div
-          data-connections-settings-content
-          id="connections-settings-content"
-          className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)]"
-        >
-          <DialogHeader className="relative shrink-0 gap-1.5 border-b border-dotted border-border/70 px-4 py-4 pr-14 text-left sm:px-6 sm:py-5 sm:pr-16">
-            <div className="flex items-center gap-2 md:hidden">
-              <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-primary">
+              <p className="mt-4 font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-primary">
                 Account settings
               </p>
-              <span aria-hidden="true" className="text-xs text-muted-foreground">/</span>
-              <span className="text-xs font-medium text-muted-foreground">Connections</span>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Personal connections and access
+              </p>
             </div>
-            <p className="hidden font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-primary md:block">
-              Account / Settings
+
+            <TabsList
+              aria-label="Settings sections"
+              className="h-auto min-h-11 w-full justify-start gap-1 overflow-x-auto bg-transparent p-0 md:flex-1 md:flex-col md:items-stretch md:justify-start md:overflow-visible"
+            >
+              {sections.map((section) => {
+                const Icon = section.icon;
+                return (
+                  <TabsTrigger
+                    key={section.id}
+                    value={section.id}
+                    onClick={() => selectSection(section.id)}
+                    onFocus={() => selectSection(section.id)}
+                    onKeyDown={(event) => handleTabKeyDown(event, section.id)}
+                    className="min-h-11 min-w-11 flex-none justify-start rounded-lg px-3 text-xs data-[state=active]:border-primary/25 data-[state=active]:bg-primary/10 data-[state=active]:text-foreground data-[state=active]:shadow-none md:w-full md:flex-none md:text-sm"
+                  >
+                    <Icon aria-hidden="true" className="size-4 shrink-0 text-primary" />
+                    <span>{section.label}</span>
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </aside>
+
+          <DialogHeader className="relative row-start-1 min-w-0 gap-1.5 border-b border-dotted border-border/70 px-4 py-4 pr-14 text-left sm:px-6 sm:py-5 sm:pr-16 md:col-start-2 md:row-start-1">
+            <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-primary md:hidden">
+              Account
             </p>
             <DialogTitle className="text-2xl leading-tight tracking-normal sm:text-3xl">
-              Connections
+              Account settings
             </DialogTitle>
             <DialogDescription className="max-w-2xl text-xs leading-relaxed sm:text-sm">
-              Manage the AI provider and browser publisher connections used by your account.
+              Manage AI generation, publishing computers, and account access in one place.
             </DialogDescription>
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="absolute right-2 top-2 size-10 rounded-lg md:hidden"
-              aria-label="Close connections"
+              className="absolute right-2 top-2 z-30 size-11 rounded-lg sm:right-3 sm:top-3"
+              aria-label="Close account settings"
               onClick={requestClose}
             >
               <X aria-hidden="true" className="size-4" />
@@ -194,66 +292,84 @@ export function ConnectionsDialog({
           </DialogHeader>
 
           <div
-            data-connections-dialog-scroll
-            className="min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-5 lg:p-6"
+            data-connections-settings-content
+            className="row-start-3 grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] md:col-start-2 md:row-start-2"
           >
-            <div className="mx-auto grid w-full max-w-4xl gap-4 sm:gap-5">
-              <ConnectionSection title="Gemini AI" titleId="connections-gemini-title">
-                <WorkspaceAiCredentialCard
-                  workspaceRole={workspaceRole}
-                  className="max-w-none rounded-none border-0 bg-transparent p-0 shadow-none"
-                />
-              </ConnectionSection>
+            {closeWarningOpen ? (
+              <div
+                role="alert"
+                className="m-3 flex flex-col gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm sm:mx-5 sm:mt-5 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="font-medium text-foreground">Copy your one-time value before closing.</p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    It will not be shown again after this Settings window closes.
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={reviewSensitiveValue}>
+                    Review code
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={discardAndClose}>
+                    Discard and close
+                  </Button>
+                </div>
+              </div>
+            ) : null}
 
-              <ConnectionSection title="Publisher device" titleId="connections-publisher-title">
-                <PublisherDevicePairingCard
-                  className="max-w-none rounded-none border-0 bg-transparent p-0 shadow-none"
-                  onUncopiedPairingChange={setHasUncopiedPairing}
-                />
-              </ConnectionSection>
+            <div
+              data-connections-dialog-scroll
+              className="min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-5 lg:p-6"
+            >
+              {visitedSections.has('ai') ? (
+                <TabsContent value="ai" forceMount className="m-0 data-[state=inactive]:hidden">
+                  <SettingsPanel labelledBy="settings-ai-title" active={activeSection === 'ai'}>
+                    <div className="mb-4 border-b border-dotted border-border/70 pb-3">
+                      <h2 id="settings-ai-title" className="text-base font-semibold">AI &amp; generation</h2>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                        Choose how article generation connects to Gemini.
+                      </p>
+                    </div>
+                    <WorkspaceAiCredentialCard
+                      canManageAi={canManageAi}
+                      className="max-w-none rounded-none border-0 bg-transparent p-0 shadow-none"
+                    />
+                  </SettingsPanel>
+                </TabsContent>
+              ) : null}
 
-              {/* This owner-only card removes itself when its API probe is rejected. */}
-              <AdminPeopleAccessCard
-                onUncopiedAccessChange={setHasUncopiedEnrollmentAccess}
-              />
+              {visitedSections.has('publishing') ? (
+                <TabsContent value="publishing" forceMount className="m-0 data-[state=inactive]:hidden">
+                  <SettingsPanel labelledBy="settings-publishing-title" active={activeSection === 'publishing'}>
+                    <div className="mb-4 border-b border-dotted border-border/70 pb-3">
+                      <h2 id="settings-publishing-title" className="text-base font-semibold">Publishing</h2>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                        Pair and manage the computers that publish through your signed-in browser sessions.
+                      </p>
+                    </div>
+                    <PublisherDevicePairingCard
+                      className="max-w-none rounded-none border-0 bg-transparent p-0 shadow-none"
+                      onUncopiedPairingChange={setHasUncopiedPairing}
+                    />
+                  </SettingsPanel>
+                </TabsContent>
+              ) : null}
+
+              {canManageAccess && visitedSections.has('access') ? (
+                <TabsContent value="access" forceMount className="m-0 data-[state=inactive]:hidden">
+                  <SettingsPanel labelledBy="settings-access-title" active={activeSection === 'access'}>
+                    <h2 id="settings-access-title" className="sr-only">People &amp; access</h2>
+                    <AdminPeopleAccessCard
+                      className="rounded-none border-0 bg-transparent p-0 shadow-none"
+                      onUncopiedAccessChange={setHasUncopiedEnrollmentAccess}
+                    />
+                  </SettingsPanel>
+                </TabsContent>
+              ) : null}
             </div>
           </div>
-        </div>
+        </Tabs>
       </DialogContent>
-
-      <AlertDialog open={closeConfirmationOpen} onOpenChange={setCloseConfirmationOpen}>
-        <AlertDialogContent
-          className="console-dialog border-dotted p-4 sm:max-w-md sm:p-5"
-          onEscapeKeyDown={(event) => event.preventDefault()}
-        >
-          <AlertDialogHeader>
-            <AlertDialogTitle>Close before copying?</AlertDialogTitle>
-            <AlertDialogDescription>
-              A one-time enrollment code, join link, or pairing code is still being created or has not been copied. If you close now, you may need to rotate or create it again.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              onClick={() => {
-                setCloseConfirmationOpen(false);
-                if (!open) onOpenChange(true);
-              }}
-            >
-              Keep connections open
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setHasUncopiedEnrollmentAccess(false);
-                setHasUncopiedPairing(false);
-                setCloseConfirmationOpen(false);
-                onOpenChange(false);
-              }}
-            >
-              Close anyway
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </Dialog>
   );
 }

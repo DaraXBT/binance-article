@@ -16,7 +16,6 @@ import {
 import { ConsolePanel, FrameCornerHandles } from '@/components/console/secure-console-frame';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -26,6 +25,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { readSettingsResponse, SettingsApiError } from '@/lib/settings-api';
 import { cn } from '@/lib/utils';
 
 type UserStatus = 'pending' | 'active' | 'suspended' | 'revoked';
@@ -65,17 +65,6 @@ interface OneTimeCode {
   version: number | null;
 }
 
-class AdminAccessApiError extends Error {
-  constructor(
-    message: string,
-    readonly code: string | null,
-    readonly status: number,
-  ) {
-    super(message);
-    this.name = 'AdminAccessApiError';
-  }
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
@@ -92,19 +81,6 @@ function stringValue(...values: unknown[]): string | null {
     if (typeof value === 'string' && value.trim()) return value;
   }
   return null;
-}
-
-async function readAdminJson(response: Response, fallback: string): Promise<Record<string, unknown>> {
-  const body = await response.json().catch(() => null);
-  const payload = isRecord(body) ? body : {};
-  if (!response.ok) {
-    throw new AdminAccessApiError(
-      typeof payload.error === 'string' ? payload.error : fallback,
-      typeof payload.code === 'string' ? payload.code : null,
-      response.status,
-    );
-  }
-  return payload;
 }
 
 function parseOverview(payload: Record<string, unknown>): EnrollmentOverview {
@@ -356,8 +332,12 @@ export function AdminPeopleAccessCard({
   const [overview, setOverview] = useState<EnrollmentOverview | null>(null);
   const [people, setPeople] = useState<PersonRow[] | null>(null);
   const [hidden, setHidden] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const [peopleLoading, setPeopleLoading] = useState(true);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [peopleError, setPeopleError] = useState<string | null>(null);
+  const [codeActionError, setCodeActionError] = useState<string | null>(null);
+  const [personActionError, setPersonActionError] = useState<string | null>(null);
   const [oneTimeCode, setOneTimeCode] = useState<OneTimeCode | null>(null);
   const [copiedValue, setCopiedValue] = useState<'code' | 'link' | null>(null);
   const [codeAction, setCodeAction] = useState<'create' | 'rotate' | 'disable' | null>(null);
@@ -365,34 +345,72 @@ export function AdminPeopleAccessCard({
   const [disableConfirmOpen, setDisableConfirmOpen] = useState(false);
   const [personAction, setPersonAction] = useState<{ person: PersonRow; action: PersonAction } | null>(null);
   const [personActionBusy, setPersonActionBusy] = useState(false);
-  const refreshSequenceRef = useRef(0);
+  const overviewSequenceRef = useRef(0);
+  const peopleSequenceRef = useRef(0);
 
-  const refresh = useCallback(async () => {
-    const sequence = ++refreshSequenceRef.current;
-    setLoadError(null);
+  const handleOwnerAccessError = useCallback((error: unknown): boolean => {
+    if (!(error instanceof SettingsApiError)) return false;
+    const code = error.code?.toUpperCase();
+    if (code !== 'OWNER_REQUIRED' && code !== 'AUTH_OWNER_REQUIRED') return false;
+    setHidden(true);
+    return true;
+  }, []);
+
+  const refreshOverview = useCallback(async () => {
+    const sequence = ++overviewSequenceRef.current;
+    setOverviewLoading(true);
+    setOverviewError(null);
     try {
-      const [overviewResponse, peopleResponse] = await Promise.all([
-        fetch('/api/admin/enrollment', { cache: 'no-store', credentials: 'same-origin' }),
-        fetch('/api/admin/people', { cache: 'no-store', credentials: 'same-origin' }),
-      ]);
-      const overviewBody = await readAdminJson(overviewResponse, 'Enrollment access could not be loaded.');
-      const peopleBody = await readAdminJson(peopleResponse, 'People could not be loaded.');
-      if (refreshSequenceRef.current !== sequence) return;
+      const response = await fetch('/api/admin/enrollment', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+      const overviewBody = await readSettingsResponse<Record<string, unknown>>(
+        response,
+        'Enrollment access could not be loaded.',
+      );
+      if (overviewSequenceRef.current !== sequence) return;
       setOverview(parseOverview(overviewBody));
+    } catch (error) {
+      if (overviewSequenceRef.current !== sequence) return;
+      if (!handleOwnerAccessError(error)) {
+        setOverviewError(error instanceof Error
+          ? error.message
+          : 'Enrollment access could not be loaded.');
+      }
+    } finally {
+      if (overviewSequenceRef.current === sequence) setOverviewLoading(false);
+    }
+  }, [handleOwnerAccessError]);
+
+  const refreshPeople = useCallback(async () => {
+    const sequence = ++peopleSequenceRef.current;
+    setPeopleLoading(true);
+    setPeopleError(null);
+    try {
+      const response = await fetch('/api/admin/people', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+      const peopleBody = await readSettingsResponse<Record<string, unknown>>(
+        response,
+        'People could not be loaded.',
+      );
+      if (peopleSequenceRef.current !== sequence) return;
       setPeople(parsePeople(peopleBody));
     } catch (error) {
-      if (refreshSequenceRef.current !== sequence) return;
-      if (error instanceof AdminAccessApiError && (
-        error.status === 403 ||
-        error.code === 'OWNER_REQUIRED' ||
-        error.code === 'AUTH_OWNER_REQUIRED'
-      )) {
-        setHidden(true);
-        return;
+      if (peopleSequenceRef.current !== sequence) return;
+      if (!handleOwnerAccessError(error)) {
+        setPeopleError(error instanceof Error ? error.message : 'People could not be loaded.');
       }
-      setLoadError(error instanceof Error ? error.message : 'People and access could not be loaded.');
+    } finally {
+      if (peopleSequenceRef.current === sequence) setPeopleLoading(false);
     }
-  }, []);
+  }, [handleOwnerAccessError]);
+
+  const refresh = useCallback(async () => {
+    await Promise.all([refreshOverview(), refreshPeople()]);
+  }, [refreshOverview, refreshPeople]);
 
   useEffect(() => {
     void refresh();
@@ -401,9 +419,7 @@ export function AdminPeopleAccessCard({
   const mutateCode = async (action: 'create' | 'rotate') => {
     if (codeAction) return;
     setCodeAction(action);
-    setActionError(null);
-    setCopiedValue(null);
-    onUncopiedAccessChange?.(true);
+    setCodeActionError(null);
     try {
       const response = await fetch(
         action === 'create' ? '/api/admin/enrollment/code' : '/api/admin/enrollment/code/rotate',
@@ -414,74 +430,103 @@ export function AdminPeopleAccessCard({
           body: action === 'rotate' ? JSON.stringify({ reason: 'owner_rotation' }) : JSON.stringify({}),
         },
       );
-      const body = await readAdminJson(response, action === 'create'
+      const body = await readSettingsResponse<Record<string, unknown>>(response, action === 'create'
         ? 'The enrollment code could not be created.'
         : 'The enrollment code could not be rotated.');
-      setOneTimeCode(parseOneTimeCode(body));
+      const createdCode = parseOneTimeCode(body);
+      setOneTimeCode(createdCode);
+      setCopiedValue(null);
+      onUncopiedAccessChange?.(true);
       await refresh();
+      if (action === 'rotate') setRotationConfirmOpen(false);
     } catch (error) {
-      onUncopiedAccessChange?.(false);
-      setActionError(error instanceof Error ? error.message : 'The enrollment code could not be updated.');
+      setCodeActionError(error instanceof Error
+        ? error.message
+        : 'The enrollment code could not be updated.');
     } finally {
       setCodeAction(null);
-      setRotationConfirmOpen(false);
     }
   };
 
   const disableCode = async () => {
     if (codeAction) return;
     setCodeAction('disable');
-    setActionError(null);
+    setCodeActionError(null);
     try {
       const response = await fetch('/api/admin/enrollment/code', {
         method: 'DELETE',
         credentials: 'same-origin',
       });
-      await readAdminJson(response, 'The enrollment code could not be disabled.');
+      await readSettingsResponse<Record<string, unknown>>(
+        response,
+        'The enrollment code could not be disabled.',
+      );
       setOneTimeCode(null);
       setCopiedValue(null);
       onUncopiedAccessChange?.(false);
       setOverview((current) => current ? { ...current, code: null } : current);
       await refresh();
+      setDisableConfirmOpen(false);
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'The enrollment code could not be disabled.');
+      setCodeActionError(error instanceof Error
+        ? error.message
+        : 'The enrollment code could not be disabled.');
     } finally {
       setCodeAction(null);
-      setDisableConfirmOpen(false);
     }
   };
 
   const copySecret = async (kind: 'code' | 'link') => {
     if (!oneTimeCode || !navigator.clipboard?.writeText) {
-      setActionError('Clipboard access is unavailable. Select and copy the value manually.');
+      setCodeActionError('Clipboard access is unavailable. Select and copy the value manually.');
       return;
     }
+    setCodeActionError(null);
     try {
       await navigator.clipboard.writeText(kind === 'code' ? oneTimeCode.code : oneTimeCode.joinUrl);
       setCopiedValue(kind);
       onUncopiedAccessChange?.(false);
       window.setTimeout(() => setCopiedValue(null), 2000);
     } catch {
-      setActionError('The browser could not copy that value. Select and copy it manually.');
+      setCodeActionError('The browser could not copy that value. Select and copy it manually.');
     }
   };
 
   const mutatePerson = async () => {
     if (!personAction || personActionBusy) return;
+    const requestedAction = personAction;
     setPersonActionBusy(true);
-    setActionError(null);
+    setPersonActionError(null);
     try {
-      const response = await fetch(`/api/admin/people/${encodeURIComponent(personAction.person.id)}`, {
+      const response = await fetch(`/api/admin/people/${encodeURIComponent(requestedAction.person.id)}`, {
         method: 'PATCH',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: personAction.action }),
+        body: JSON.stringify({ action: requestedAction.action }),
       });
-      await readAdminJson(response, `The user could not be ${personAction.action}d.`);
-      setPersonAction(null);
+      const pastTense = requestedAction.action === 'suspend'
+        ? 'suspended'
+        : requestedAction.action === 'restore'
+          ? 'restored'
+          : 'revoked';
+      await readSettingsResponse<Record<string, unknown>>(
+        response,
+        `The account could not be ${pastTense}.`,
+      );
+      const nextStatus: UserStatus = requestedAction.action === 'restore'
+        ? 'active'
+        : requestedAction.action === 'suspend'
+          ? 'suspended'
+          : 'revoked';
+      setPeople((current) => current?.map((person) => person.id === requestedAction.person.id
+        ? { ...person, status: nextStatus }
+        : person) ?? current);
       await refresh();
+      setPersonAction(null);
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'The user status could not be changed.');
+      setPersonActionError(error instanceof Error
+        ? error.message
+        : 'The account status could not be changed.');
     } finally {
       setPersonActionBusy(false);
     }
@@ -489,17 +534,7 @@ export function AdminPeopleAccessCard({
 
   if (hidden) return null;
 
-  const isLoading = overview === null || people === null;
   const activeCode = overview?.code?.status === 'active' ? overview.code : null;
-  const loadErrorNotice = loadError ? (
-    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border border-dotted border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-      <p role="alert">{loadError}</p>
-      <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 rounded-lg text-xs" onClick={() => void refresh()}>
-        <RefreshCcw aria-hidden="true" className="size-3.5" />
-        Retry
-      </Button>
-    </div>
-  ) : null;
 
   return (
     <ConsolePanel corners={false} className={className ?? 'rounded-xl bg-card/70 p-3 sm:p-5'}>
@@ -517,115 +552,165 @@ export function AdminPeopleAccessCard({
         <ShieldCheck aria-hidden="true" className="size-4 text-primary" />
       </div>
 
-      {loadError && isLoading ? (
-        loadErrorNotice
-      ) : isLoading ? (
-        <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground" role="status">
-          <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-          Loading people and access…
-        </p>
-      ) : (
-        <>
-          {loadErrorNotice}
-          <section aria-labelledby="enrollment-code-title" className="mt-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h4 id="enrollment-code-title" className="text-sm font-semibold">Enrollment code</h4>
-                {activeCode ? (
-                  <p className="mt-1 font-mono text-[0.68rem] uppercase tracking-[0.1em] text-muted-foreground">
-                    Version {activeCode.version} · {activeCode.codePrefix}… · created {formatDate(activeCode.createdAt)}
-                  </p>
-                ) : (
-                  <p className="mt-1 text-xs text-muted-foreground">No active code. Create one before sharing access.</p>
-                )}
-              </div>
-              {activeCode ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button type="button" size="sm" variant="outline" className="h-9 gap-1.5 rounded-lg" disabled={codeAction !== null} onClick={() => setRotationConfirmOpen(true)}>
-                    {codeAction === 'rotate' ? <Loader2 aria-hidden="true" className="size-3.5 animate-spin" /> : <RotateCw aria-hidden="true" className="size-3.5" />}
-                    Rotate code
-                  </Button>
-                  <Button type="button" size="sm" variant="destructive" className="h-9 gap-1.5 rounded-lg" disabled={codeAction !== null} onClick={() => setDisableConfirmOpen(true)}>
-                    {codeAction === 'disable' ? <Loader2 aria-hidden="true" className="size-3.5 animate-spin" /> : <ShieldOff aria-hidden="true" className="size-3.5" />}
-                    Disable code
-                  </Button>
-                </div>
-              ) : (
-                <Button type="button" size="sm" className="h-9 gap-1.5 rounded-lg" disabled={codeAction !== null} onClick={() => void mutateCode('create')}>
-                  {codeAction === 'create' ? <Loader2 aria-hidden="true" className="size-3.5 animate-spin" /> : <ShieldCheck aria-hidden="true" className="size-3.5" />}
-                  Create code
-                </Button>
-              )}
-            </div>
-            {overview ? <CapacitySummary overview={overview} /> : null}
-            {oneTimeCode ? (
-              <OneTimeCodePanel
-                value={oneTimeCode}
-                copiedValue={copiedValue}
-                onCopy={(kind) => void copySecret(kind)}
-                onDismiss={() => {
-                  setOneTimeCode(null);
-                  setCopiedValue(null);
-                  onUncopiedAccessChange?.(false);
+      <section aria-labelledby="enrollment-code-title" className="mt-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h4 id="enrollment-code-title" className="text-sm font-semibold">Enrollment code</h4>
+            {activeCode ? (
+              <p className="mt-1 font-mono text-[0.68rem] uppercase tracking-[0.1em] text-muted-foreground">
+                Version {activeCode.version} · {activeCode.codePrefix}… · created {formatDate(activeCode.createdAt)}
+              </p>
+            ) : overview ? (
+              <p className="mt-1 text-xs text-muted-foreground">No active code. Create one before sharing access.</p>
+            ) : (
+              <p className="mt-1 text-xs text-muted-foreground">Manage the shared code used to request an account.</p>
+            )}
+          </div>
+          {overview && activeCode ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-9 gap-1.5 rounded-lg"
+                disabled={codeAction !== null}
+                onClick={() => {
+                  setCodeActionError(null);
+                  setRotationConfirmOpen(true);
                 }}
-              />
-            ) : null}
-          </section>
-
-          <section aria-labelledby="people-list-title" className="mt-5 border-t border-dotted border-border/70 pt-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h4 id="people-list-title" className="text-sm font-semibold">People</h4>
-                <p className="mt-1 text-xs text-muted-foreground">Suspension and revocation block access while preserving account data.</p>
-              </div>
-              <Button type="button" size="icon-sm" variant="ghost" className="rounded-lg" aria-label="Refresh people" onClick={() => void refresh()}>
-                <RefreshCcw aria-hidden="true" className="size-3.5" />
+              >
+                <RotateCw aria-hidden="true" className="size-3.5" />
+                Rotate code
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                className="h-9 gap-1.5 rounded-lg"
+                disabled={codeAction !== null}
+                onClick={() => {
+                  setCodeActionError(null);
+                  setDisableConfirmOpen(true);
+                }}
+              >
+                <ShieldOff aria-hidden="true" className="size-3.5" />
+                Disable code
               </Button>
             </div>
+          ) : overview ? (
+            <Button type="button" size="sm" className="h-9 gap-1.5 rounded-lg" disabled={codeAction !== null} onClick={() => void mutateCode('create')}>
+              {codeAction === 'create' ? <Loader2 aria-hidden="true" className="size-3.5 animate-spin" /> : <ShieldCheck aria-hidden="true" className="size-3.5" />}
+              Create code
+            </Button>
+          ) : null}
+        </div>
 
-            {people && people.length > 0 ? (
-              <ul className="mt-3 space-y-2">
-                {people.map((person) => (
-                  <li key={person.id} className="flex min-w-0 flex-wrap items-center gap-3 border border-dotted border-border/75 bg-background/25 px-3 py-2.5">
-                    <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
-                      {(person.name || person.email).slice(0, 1).toUpperCase()}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                        <span className="truncate text-sm font-medium">{person.name}</span>
-                        {person.role === 'owner' ? <Badge variant="outline" className="rounded-full text-[0.6rem]">Administrator</Badge> : null}
-                        <Badge variant="outline" className={cn('rounded-full text-[0.6rem] capitalize', STATUS_STYLES[person.status])}>
-                          {person.status}
-                        </Badge>
-                      </div>
-                      <p className="truncate text-xs text-muted-foreground">{person.email}</p>
-                      <p className="mt-0.5 truncate font-mono text-[0.58rem] uppercase tracking-[0.08em] text-muted-foreground/75">
-                        Joined {formatDate(person.createdAt)}
-                        {person.enrollmentSource ? ` · ${person.enrollmentSource.replace(/_/g, ' ')}` : ''}
-                      </p>
-                    </div>
-                    <PersonActions
-                      person={person}
-                      busy={personActionBusy}
-                      onAction={(action) => setPersonAction({ person, action })}
-                    />
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-3 text-sm text-muted-foreground">No enrolled people yet.</p>
-            )}
-          </section>
-        </>
-      )}
+        {overviewLoading ? (
+          <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground" role="status">
+            <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+            {overview ? 'Refreshing enrollment access…' : 'Loading enrollment access…'}
+          </p>
+        ) : null}
+        {overviewError ? (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border border-dotted border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+            <p role="alert">{overviewError}</p>
+            <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 rounded-lg text-xs" disabled={overviewLoading} onClick={() => void refreshOverview()}>
+              <RefreshCcw aria-hidden="true" className="size-3.5" />
+              Retry
+            </Button>
+          </div>
+        ) : null}
+        {overview ? <CapacitySummary overview={overview} /> : null}
+        {oneTimeCode ? (
+          <OneTimeCodePanel
+            value={oneTimeCode}
+            copiedValue={copiedValue}
+            onCopy={(kind) => void copySecret(kind)}
+            onDismiss={() => {
+              setOneTimeCode(null);
+              setCopiedValue(null);
+              onUncopiedAccessChange?.(false);
+            }}
+          />
+        ) : null}
+        {codeActionError && !rotationConfirmOpen && !disableConfirmOpen ? (
+          <p role="alert" className="mt-3 border border-dotted border-destructive/40 bg-destructive/5 p-2.5 text-sm text-destructive">
+            {codeActionError}
+          </p>
+        ) : null}
+      </section>
 
-      {actionError ? (
-        <p role="alert" className="mt-3 border border-dotted border-destructive/40 bg-destructive/5 p-2.5 text-sm text-destructive">
-          {actionError}
-        </p>
-      ) : null}
+      <section aria-labelledby="people-list-title" className="mt-5 border-t border-dotted border-border/70 pt-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h4 id="people-list-title" className="text-sm font-semibold">People</h4>
+            <p className="mt-1 text-xs text-muted-foreground">Suspension and revocation block access while preserving account data.</p>
+          </div>
+          <Button type="button" size="icon-sm" variant="ghost" className="rounded-lg" aria-label="Refresh people" disabled={peopleLoading} onClick={() => void refreshPeople()}>
+            <RefreshCcw aria-hidden="true" className={cn('size-3.5', peopleLoading && 'animate-spin')} />
+          </Button>
+        </div>
 
-      <AlertDialog open={rotationConfirmOpen} onOpenChange={setRotationConfirmOpen}>
+        {peopleLoading ? (
+          <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground" role="status">
+            <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+            {people ? 'Refreshing people…' : 'Loading people…'}
+          </p>
+        ) : null}
+        {peopleError ? (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border border-dotted border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+            <p role="alert">{peopleError}</p>
+            <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 rounded-lg text-xs" disabled={peopleLoading} onClick={() => void refreshPeople()}>
+              <RefreshCcw aria-hidden="true" className="size-3.5" />
+              Retry
+            </Button>
+          </div>
+        ) : null}
+        {people && people.length > 0 ? (
+          <ul className="mt-3 space-y-2">
+            {people.map((person) => (
+              <li key={person.id} className="flex min-w-0 flex-wrap items-center gap-3 border border-dotted border-border/75 bg-background/25 px-3 py-2.5">
+                <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+                  {(person.name || person.email).slice(0, 1).toUpperCase()}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    <span className="truncate text-sm font-medium">{person.name}</span>
+                    {person.role === 'owner' ? <Badge variant="outline" className="rounded-full text-[0.6rem]">Administrator</Badge> : null}
+                    <Badge variant="outline" className={cn('rounded-full text-[0.6rem] capitalize', STATUS_STYLES[person.status])}>
+                      {person.status}
+                    </Badge>
+                  </div>
+                  <p className="truncate text-xs text-muted-foreground">{person.email}</p>
+                  <p className="mt-0.5 truncate font-mono text-[0.58rem] uppercase tracking-[0.08em] text-muted-foreground/75">
+                    Joined {formatDate(person.createdAt)}
+                    {person.enrollmentSource ? ` · ${person.enrollmentSource.replace(/_/g, ' ')}` : ''}
+                  </p>
+                </div>
+                <PersonActions
+                  person={person}
+                  busy={personActionBusy}
+                  onAction={(action) => {
+                    setPersonActionError(null);
+                    setPersonAction({ person, action });
+                  }}
+                />
+              </li>
+            ))}
+          </ul>
+        ) : people && !peopleLoading ? (
+          <p className="mt-3 text-sm text-muted-foreground">No enrolled people yet.</p>
+        ) : null}
+      </section>
+
+      <AlertDialog
+        open={rotationConfirmOpen}
+        onOpenChange={(open) => {
+          if (!open && codeAction === 'rotate') return;
+          setRotationConfirmOpen(open);
+          if (!open) setCodeActionError(null);
+        }}
+      >
         <AlertDialogContent className="console-dialog border-dotted p-4 sm:max-w-md sm:p-5">
           <AlertDialogHeader>
             <AlertDialogTitle>Rotate the enrollment code?</AlertDialogTitle>
@@ -633,14 +718,29 @@ export function AdminPeopleAccessCard({
               The current code and every unfinished enrollment using it will stop working immediately. Existing users keep access.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {codeActionError ? (
+            <p role="alert" className="border border-dotted border-destructive/40 bg-destructive/5 p-2.5 text-sm text-destructive">
+              {codeActionError}
+            </p>
+          ) : null}
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep current code</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void mutateCode('rotate')}>Rotate code</AlertDialogAction>
+            <AlertDialogCancel disabled={codeAction === 'rotate'}>Keep current code</AlertDialogCancel>
+            <Button type="button" disabled={codeAction === 'rotate'} onClick={() => void mutateCode('rotate')}>
+              {codeAction === 'rotate' ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : <RotateCw aria-hidden="true" className="size-4" />}
+              Rotate code
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={disableConfirmOpen} onOpenChange={setDisableConfirmOpen}>
+      <AlertDialog
+        open={disableConfirmOpen}
+        onOpenChange={(open) => {
+          if (!open && codeAction === 'disable') return;
+          setDisableConfirmOpen(open);
+          if (!open) setCodeActionError(null);
+        }}
+      >
         <AlertDialogContent className="console-dialog border-dotted p-4 sm:max-w-md sm:p-5">
           <AlertDialogHeader>
             <AlertDialogTitle>Disable the enrollment code?</AlertDialogTitle>
@@ -648,17 +748,30 @@ export function AdminPeopleAccessCard({
               This code and every unfinished enrollment using it will stop immediately. No replacement is created. Existing users keep access, and legacy invitation links are unaffected.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {codeActionError ? (
+            <p role="alert" className="border border-dotted border-destructive/40 bg-destructive/5 p-2.5 text-sm text-destructive">
+              {codeActionError}
+            </p>
+          ) : null}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={codeAction === 'disable'}>Keep enrollment open</AlertDialogCancel>
-            <AlertDialogAction disabled={codeAction === 'disable'} onClick={() => void disableCode()}>
+            <Button type="button" variant="destructive" disabled={codeAction === 'disable'} onClick={() => void disableCode()}>
               {codeAction === 'disable' ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : <ShieldOff aria-hidden="true" className="size-4" />}
               Disable code
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={personAction !== null} onOpenChange={(open) => { if (!open && !personActionBusy) setPersonAction(null); }}>
+      <AlertDialog
+        open={personAction !== null}
+        onOpenChange={(open) => {
+          if (!open && !personActionBusy) {
+            setPersonAction(null);
+            setPersonActionError(null);
+          }
+        }}
+      >
         <AlertDialogContent className="console-dialog border-dotted p-4 sm:max-w-md sm:p-5">
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -674,12 +787,17 @@ export function AdminPeopleAccessCard({
                 : 'Current sessions and publisher devices will be invalidated. Account content is retained.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {personActionError ? (
+            <p role="alert" className="border border-dotted border-destructive/40 bg-destructive/5 p-2.5 text-sm text-destructive">
+              {personActionError}
+            </p>
+          ) : null}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={personActionBusy}>Cancel</AlertDialogCancel>
-            <AlertDialogAction disabled={personActionBusy} onClick={() => void mutatePerson()}>
+            <Button type="button" disabled={personActionBusy} onClick={() => void mutatePerson()}>
               {personActionBusy ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : personAction?.action === 'restore' ? <UserRoundCheck aria-hidden="true" className="size-4" /> : <UserRoundX aria-hidden="true" className="size-4" />}
               {personAction?.action === 'restore' ? 'Restore' : personAction?.action === 'suspend' ? 'Suspend' : 'Revoke'}
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -27,6 +27,7 @@ export default async function WorkspacePage({
       resumeIntentId={resumeIntentId}
       resumeRequested={resumeRequested}
       settingsOpen={settingsOpen}
+      canManageAccess={actor.role === 'owner'}
       actor={{ name: actor.name, email: actor.email }}
     />
   );
