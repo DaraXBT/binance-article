@@ -71,6 +71,44 @@ describe('AdminPeopleAccessCard', () => {
     expect(screen.getByText('6/10')).toBeTruthy();
   });
 
+  it('keeps enrollment controls usable when only the people request fails', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(overview))
+      .mockResolvedValueOnce(jsonResponse({ error: 'People directory unavailable.' }, 503));
+
+    render(<AdminPeopleAccessCard />);
+
+    const enrollmentHeading = await screen.findByRole('heading', { name: 'Enrollment code' });
+    const enrollmentSection = enrollmentHeading.closest('section');
+    const peopleSection = screen.getByRole('heading', { name: 'People' }).closest('section');
+    expect(enrollmentSection).not.toBeNull();
+    expect(peopleSection).not.toBeNull();
+    expect(within(enrollmentSection!).getByRole('button', { name: 'Create code' })).toBeTruthy();
+    expect(within(peopleSection!).getByRole('alert').textContent).toContain(
+      'People directory unavailable.',
+    );
+    expect(within(peopleSection!).getByRole('button', { name: /retry/i })).toBeTruthy();
+  });
+
+  it('keeps the people list usable when only enrollment access fails', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ error: 'Enrollment access unavailable.' }, 503))
+      .mockResolvedValueOnce(jsonResponse(people));
+
+    render(<AdminPeopleAccessCard />);
+
+    expect(await screen.findByText('new@example.com')).toBeTruthy();
+    const enrollmentSection = screen.getByRole('heading', { name: 'Enrollment code' }).closest('section');
+    const peopleSection = screen.getByRole('heading', { name: 'People' }).closest('section');
+    expect(enrollmentSection).not.toBeNull();
+    expect(peopleSection).not.toBeNull();
+    expect(within(enrollmentSection!).getByRole('alert').textContent).toContain(
+      'Enrollment access unavailable.',
+    );
+    expect(within(enrollmentSection!).getByRole('button', { name: /retry/i })).toBeTruthy();
+    expect(within(peopleSection!).getByRole('button', { name: 'Suspend' })).toBeTruthy();
+  });
+
   it('creates a one-time shared code and fragment link, then marks it copied', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse(overview))
@@ -236,6 +274,29 @@ describe('AdminPeopleAccessCard', () => {
     await screen.findByRole('button', { name: 'Restore' });
   });
 
+  it('keeps a failed account mutation open and shows its error inside the confirmation', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(overview))
+      .mockResolvedValueOnce(jsonResponse(people))
+      .mockResolvedValueOnce(jsonResponse({
+        error: 'The account could not be suspended. Try again.',
+        code: 'PERSON_UPDATE_FAILED',
+      }, 503));
+    render(<AdminPeopleAccessCard />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Suspend' }));
+    const confirmation = screen.getByRole('alertdialog', { name: 'Suspend this account?' });
+    fireEvent.click(within(confirmation).getByRole('button', { name: 'Suspend' }));
+
+    const openConfirmation = await screen.findByRole('alertdialog', {
+      name: 'Suspend this account?',
+    });
+    await waitFor(() => expect(within(openConfirmation).getByRole('alert').textContent).toContain(
+      'The account could not be suspended. Try again.',
+    ));
+    expect(screen.getByText('new@example.com').closest('li')?.textContent).toContain('active');
+  });
+
   it('protects the current owner while allowing another owner and a revoked user to be managed', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse(overview))
@@ -287,5 +348,22 @@ describe('AdminPeopleAccessCard', () => {
     const { container } = render(<AdminPeopleAccessCard />);
 
     await waitFor(() => expect(container.querySelector('[data-console-panel]')).toBeNull());
+  });
+
+  it('does not silently hide an account-disabled response as an owner permission failure', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({
+        error: 'This account is disabled.',
+        code: 'ACCOUNT_DISABLED',
+      }, 403))
+      .mockResolvedValueOnce(jsonResponse({
+        error: 'This account is disabled.',
+        code: 'ACCOUNT_DISABLED',
+      }, 403));
+    const { container } = render(<AdminPeopleAccessCard />);
+
+    const alerts = await screen.findAllByRole('alert');
+    expect(container.querySelector('[data-console-panel]')).not.toBeNull();
+    expect(alerts.some((alert) => /account is disabled/i.test(alert.textContent ?? ''))).toBe(true);
   });
 });

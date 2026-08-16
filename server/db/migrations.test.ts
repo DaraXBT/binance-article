@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -43,6 +43,13 @@ const workspaceAiCredentialMigrationPath = `${root}drizzle/0015_workspace_ai_cre
 const workspaceAiCredentialSql = existsSync(workspaceAiCredentialMigrationPath)
   ? readFileSync(workspaceAiCredentialMigrationPath, 'utf8')
   : '';
+const workspaceAiCredentialConstraintFixFiles = readdirSync(`${root}drizzle`)
+  .filter((file) => /^0018_.+\.sql$/.test(file));
+const workspaceAiCredentialConstraintFixFile = workspaceAiCredentialConstraintFixFiles[0];
+const workspaceAiCredentialConstraintFixSql = workspaceAiCredentialConstraintFixFile
+  ? readFileSync(`${root}drizzle/${workspaceAiCredentialConstraintFixFile}`, 'utf8')
+  : '';
+const canonicalCloudSchema = readFileSync(`${root}server/db/schema/cloud.ts`, 'utf8');
 const migrationJournal = JSON.parse(
   readFileSync(`${root}drizzle/meta/_journal.json`, 'utf8'),
 ) as { entries?: Array<{ idx?: number; tag?: string }> };
@@ -323,6 +330,51 @@ describe('Neon migration history', () => {
       idx: 15,
       tag: '0015_workspace_ai_credential',
     }));
+  });
+
+  it('repairs the deployed ciphertext constraint in a forward-only 0018 migration', () => {
+    expect(
+      workspaceAiCredentialConstraintFixFiles,
+      'exactly one immutable drizzle/0018_*.sql corrective migration must exist',
+    ).toHaveLength(1);
+    expect(workspaceAiCredentialConstraintFixSql).toContain(
+      'DROP CONSTRAINT "WorkspaceAiCredential_ciphertext_base64url_check"',
+    );
+    expect(workspaceAiCredentialConstraintFixSql).toContain(
+      'ADD CONSTRAINT "WorkspaceAiCredential_ciphertext_base64url_check"',
+    );
+    expect(workspaceAiCredentialConstraintFixSql).toContain(
+      `"ciphertext" ~ '^[A-Za-z0-9_-]+$'`,
+    );
+    expect(workspaceAiCredentialConstraintFixSql).toContain(
+      'char_length("WorkspaceAiCredential"."ciphertext") BETWEEN 24 AND 2048',
+    );
+    expect(workspaceAiCredentialConstraintFixSql).not.toContain('{24,2048}');
+    expect(workspaceAiCredentialConstraintFixSql).not.toContain(
+      'DROP CONSTRAINT "WorkspaceAiCredential_ciphertext_base64url_length_check"',
+    );
+    expect(workspaceAiCredentialConstraintFixSql).not.toMatch(
+      /DROP TABLE|DROP COLUMN|ALTER TYPE|\b(?:INSERT|UPDATE|DELETE)\b/i,
+    );
+    expect(migrationJournal.entries).toContainEqual(expect.objectContaining({
+      idx: 18,
+      tag: workspaceAiCredentialConstraintFixFile?.replace(/\.sql$/, ''),
+    }));
+  });
+
+  it('keeps the canonical schema aligned with the corrected ciphertext checks', () => {
+    expect(canonicalCloudSchema).toMatch(
+      /\$\{table\.ciphertext\} ~ '\^\[A-Za-z0-9_-\]\+\$'/,
+    );
+    expect(canonicalCloudSchema).toMatch(
+      /char_length\(\$\{table\.ciphertext\}\) BETWEEN 24 AND 2048/,
+    );
+    expect(canonicalCloudSchema).toContain(
+      'sql`char_length(${table.ciphertext}) % 4 <> 1`',
+    );
+    expect(canonicalCloudSchema).not.toContain(
+      "sql`${table.ciphertext} ~ '^[A-Za-z0-9_-]{24,2048}$'`",
+    );
   });
 
   it('verifies baseline structure beyond column-name sets before stamping history', () => {

@@ -83,6 +83,45 @@ describe('PublisherDevicePairingCard', () => {
     expect(screen.getByText(/pair this account with the companion/i)).toBeTruthy();
   });
 
+  it('keeps the last device list visible while a manual refresh is pending', async () => {
+    let resolveRefresh!: (response: Response) => void;
+    const refreshResponse = new Promise<Response>((resolve) => {
+      resolveRefresh = resolve;
+    });
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({
+        devices: [{
+          id: 'device_active',
+          name: 'Studio Mac',
+          status: 'active',
+          protocolVersion: 1,
+          lastSeenAt: null,
+        }],
+      }))
+      .mockImplementationOnce(() => refreshResponse);
+
+    render(<PublisherDevicePairingCard />);
+
+    await screen.findByRole('listitem', { name: 'Publishing device Studio Mac' });
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+
+    expect(screen.getByRole('listitem', {
+      name: 'Publishing device Studio Mac',
+    })).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    resolveRefresh(jsonResponse({
+      devices: [{
+        id: 'device_active',
+        name: 'Studio Mac',
+        status: 'active',
+        protocolVersion: 2,
+        lastSeenAt: null,
+      }],
+    }));
+    await screen.findByText('Protocol v2');
+  });
+
   it('sends only the computer name when creating an account-scoped pairing code', async () => {
     mockPublisherApi({
       pairingBody: {
@@ -151,6 +190,36 @@ describe('PublisherDevicePairingCard', () => {
     const commands = String(writeText.mock.calls.at(-1)?.[0]);
     expect(commands).not.toContain('pairing_code_value_12345678901234567890');
     expect(commands).toContain('bun run src/main.ts run');
+  });
+
+  it('confirms before replacing a pairing code that has not been copied', async () => {
+    mockPublisherApi({
+      pairingBody: {
+        deviceId: 'device_1',
+        pairingCode: 'pairing_code_value_12345678901234567890',
+        tokenPrefix: 'pairing_',
+        expiresAt: '2026-07-22T03:10:00.000Z',
+      },
+    });
+
+    render(<PublisherDevicePairingCard />);
+    await screen.findByLabelText('Computer name');
+    fireEvent.click(screen.getByRole('button', { name: 'Create pairing code' }));
+    await screen.findByText('pairing_code_value_12345678901234567890');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create new code' }));
+
+    const pairingRequests = () => fetchMock.mock.calls.filter(([url]) => (
+      url === '/api/publisher/devices/pairing'
+    ));
+    expect(pairingRequests()).toHaveLength(1);
+    const confirmation = screen.getByRole('alertdialog');
+    expect(confirmation.textContent).toMatch(/replace|create a new/i);
+    expect(confirmation.textContent).toMatch(/not (?:been )?copied|copy/i);
+    expect(screen.getByText('pairing_code_value_12345678901234567890')).toBeTruthy();
+
+    fireEvent.click(within(confirmation).getByRole('button', { name: /replace|create new/i }));
+    await waitFor(() => expect(pairingRequests()).toHaveLength(2));
   });
 
   it('keeps a failed pairing request retryable without exposing server details', async () => {
@@ -228,6 +297,15 @@ describe('PublisherDevicePairingCard', () => {
 
     fireEvent.click(within(activeDevice).getByRole('button', { name: 'Revoke Studio Mac' }));
 
+    expect(fetchMock.mock.calls.some(([url, init]) => (
+      url === '/api/publisher/devices/device_active'
+      && (init as RequestInit | undefined)?.method === 'DELETE'
+    ))).toBe(false);
+    const confirmation = screen.getByRole('alertdialog');
+    expect(confirmation.textContent).toMatch(/revoke/i);
+    expect(confirmation.textContent).toContain('Studio Mac');
+    fireEvent.click(within(confirmation).getByRole('button', { name: /revoke/i }));
+
     await waitFor(() => expect(fetchMock).toHaveBeenLastCalledWith(
       '/api/publisher/devices/device_active',
       expect.objectContaining({ method: 'DELETE', credentials: 'same-origin' }),
@@ -255,9 +333,12 @@ describe('PublisherDevicePairingCard', () => {
     });
     fireEvent.click(within(activeDevice).getByRole('button', { name: 'Revoke Studio Mac' }));
 
-    expect((await screen.findByRole('alert')).textContent).toBe(
+    const confirmation = screen.getByRole('alertdialog');
+    fireEvent.click(within(confirmation).getByRole('button', { name: /revoke/i }));
+
+    await waitFor(() => expect(within(screen.getByRole('alertdialog')).getByRole('alert').textContent).toBe(
       'Studio Mac could not be revoked. Check the connection and try again.',
-    );
+    ));
     expect(screen.queryByText(/sensitive database detail/i)).toBeNull();
     expect(within(activeDevice).getByText('Active')).toBeTruthy();
     expect(within(activeDevice).getByRole('button', { name: 'Revoke Studio Mac' })

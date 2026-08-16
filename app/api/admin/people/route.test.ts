@@ -41,4 +41,31 @@ describe('GET /api/admin/people', () => {
       lastActiveAt: '2026-08-09T00:00:00.000Z', isCurrentUser: true,
     }] });
   });
+
+  it('returns a generic 500 when listing people fails unexpectedly', async () => {
+    mocks.listEnrollmentPeople.mockRejectedValueOnce(
+      new Error('PEOPLE_LIST_INTERNAL_SENTINEL'),
+    );
+    const logSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { GET } = await import('./route');
+    const response = await GET(new Request(
+      'https://articles.example.com/api/admin/people',
+    ) as never);
+    const body = await response.json();
+    const logged = logSpy.mock.calls[0]?.[0] as string | undefined;
+    logSpy.mockRestore();
+
+    expect(response.status).toBe(500);
+    expect(body).toEqual({
+      error: 'People could not be loaded.',
+      code: 'PEOPLE_LIST_FAILED',
+    });
+    expect(JSON.stringify(body)).not.toContain('PEOPLE_LIST_INTERNAL_SENTINEL');
+    expect(logged).toBeDefined();
+    expect(JSON.parse(logged ?? '{}')).toMatchObject({
+      event: 'api.error',
+      code: 'PEOPLE_LIST_FAILED',
+    });
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
 });

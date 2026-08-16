@@ -67,6 +67,38 @@ describe('PATCH /api/admin/people/:userId', () => {
     expect(mocks.updateEnrollmentPerson).not.toHaveBeenCalled();
   });
 
+  it('returns a generic 500 when changing a person fails unexpectedly', async () => {
+    mocks.updateEnrollmentPerson.mockRejectedValueOnce(
+      new Error('PEOPLE_UPDATE_INTERNAL_SENTINEL'),
+    );
+    const logSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { PATCH } = await import('./route');
+    const response = await PATCH(new Request(
+      'https://articles.example.com/api/admin/people/user_1',
+      {
+        method: 'PATCH',
+        headers: { origin: 'https://articles.example.com', 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'suspend' }),
+      },
+    ) as never, { params: Promise.resolve({ userId: 'user_1' }) });
+    const body = await response.json();
+    const logged = logSpy.mock.calls[0]?.[0] as string | undefined;
+    logSpy.mockRestore();
+
+    expect(response.status).toBe(500);
+    expect(body).toEqual({
+      error: 'The user status could not be changed.',
+      code: 'PEOPLE_UPDATE_FAILED',
+    });
+    expect(JSON.stringify(body)).not.toContain('PEOPLE_UPDATE_INTERNAL_SENTINEL');
+    expect(logged).toBeDefined();
+    expect(JSON.parse(logged ?? '{}')).toMatchObject({
+      event: 'api.error',
+      code: 'PEOPLE_UPDATE_FAILED',
+    });
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
   it('returns 429 and leaves the person unchanged when the owner mutation limit is exhausted', async () => {
     mocks.consumeAtomicRateLimit.mockResolvedValueOnce({
       allowed: false,

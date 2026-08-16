@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -44,7 +44,47 @@ describe('WorkspaceAiCredentialCard', () => {
     mocks.useDeleteWorkspaceAiCredential.mockReturnValue(mutation());
   });
 
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it('does not expose assumed credential controls while the connection is loading', () => {
+    mocks.useWorkspaceAiCredential.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<WorkspaceAiCredentialCard workspaceRole="owner" />);
+
+    expect(screen.getByText(/loading gemini connection/i)).toBeTruthy();
+    const keyInput = screen.queryByLabelText(/your gemini key/i) as HTMLInputElement | null;
+    const testButton = screen.queryByRole('button', { name: 'Test connection' });
+    const deleteButton = screen.queryByRole('button', { name: 'Delete key' });
+    expect(keyInput === null || keyInput.disabled).toBe(true);
+    expect(testButton === null || (testButton as HTMLButtonElement).disabled).toBe(true);
+    expect(deleteButton === null || (deleteButton as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('offers an explicit retry when the initial credential request fails', async () => {
+    const refetch = vi.fn();
+    mocks.useWorkspaceAiCredential.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error('Gemini connection could not be loaded.'),
+      refetch,
+    });
+
+    render(<WorkspaceAiCredentialCard workspaceRole="owner" />);
+
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Gemini connection could not be loaded.',
+    );
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
 
   it('shows only a fixed mask and clears the password field after save', async () => {
     render(<WorkspaceAiCredentialCard workspaceRole="owner" />);
@@ -66,5 +106,24 @@ describe('WorkspaceAiCredentialCard', () => {
     expect(visibleCopy).toMatch(/your account/i);
     expect(visibleCopy).not.toMatch(/workspace|workspace owner|workspace member/i);
     expect(mocks.useWorkspaceAiCredential).toHaveBeenCalledWith(true);
+  });
+
+  it('uses an in-app confirmation before deleting a saved key', async () => {
+    const deleteMutation = mutation();
+    mocks.useDeleteWorkspaceAiCredential.mockReturnValue(deleteMutation);
+    const nativeConfirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(<WorkspaceAiCredentialCard workspaceRole="owner" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete key' }));
+
+    expect(nativeConfirm).not.toHaveBeenCalled();
+    expect(deleteMutation.mutateAsync).not.toHaveBeenCalled();
+    const confirmation = screen.getByRole('alertdialog');
+    expect(confirmation.textContent).toMatch(/delete/i);
+    expect(confirmation.textContent).toMatch(/google/i);
+
+    fireEvent.click(within(confirmation).getByRole('button', { name: /delete key/i }));
+    await waitFor(() => expect(deleteMutation.mutateAsync).toHaveBeenCalledTimes(1));
   });
 });
