@@ -73,8 +73,8 @@ describe('EnrollmentCompletion', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: authCopy.continueEnrollment }));
 
-    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
-    expect(mocks.replace).toHaveBeenCalledWith('/workspace');
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith('/workspace'));
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it('does not call completion after an OAuth provider error', () => {

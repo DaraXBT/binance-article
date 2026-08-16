@@ -125,7 +125,6 @@ export function EnrollmentCompletion({
             size="sm"
             className="h-10 rounded-lg"
             onClick={() => {
-              startedAttemptRef.current = null;
               setAttempt((value) => value + 1);
             }}
           >
