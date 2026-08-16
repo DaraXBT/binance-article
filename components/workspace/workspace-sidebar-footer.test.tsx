@@ -80,39 +80,22 @@ describe('WorkspaceSidebarFooter', () => {
 
   afterEach(() => cleanup());
 
-  it('renders the key prefix', async () => {
+  it('keeps the normal account footer free of workspace keys and recovery controls', async () => {
     const { WorkspaceSidebarFooter } = await import('./workspace-sidebar-footer');
     const html = renderToStaticMarkup(
       React.createElement(WorkspaceSidebarFooter, {
         accessKeyPrefix: 'dwk_f525',
+        accountLabel: 'Niccolo',
+        showRecovery: false,
       })
     );
 
-    expect(html).toContain('dwk_f525...');
-    expect(html).toContain(workspaceMessages.sidebarKeyLabel);
-  });
-
-  it('always labels the copy button with the key prefix (full keys are never exposed)', async () => {
-    const { WorkspaceSidebarFooter } = await import('./workspace-sidebar-footer');
-    const html = renderToStaticMarkup(
-      React.createElement(WorkspaceSidebarFooter, {
-        accessKeyPrefix: 'dwk_f525',
-      })
-    );
-
-    expect(html).toContain(`aria-label="${workspaceMessages.copyPrefix}"`);
-    expect(html).not.toContain(`aria-label="${workspaceMessages.copyFullKey}"`);
-  });
-
-  it('renders recover button with correct aria-label', async () => {
-    const { WorkspaceSidebarFooter } = await import('./workspace-sidebar-footer');
-    const html = renderToStaticMarkup(
-      React.createElement(WorkspaceSidebarFooter, {
-        accessKeyPrefix: 'dwk_f525',
-      })
-    );
-
-    expect(html).toContain(`aria-label="${workspaceMessages.recoverDialogTitle}"`);
+    expect(html).toContain('Account: Niccolo');
+    expect(html).not.toContain('dwk_f525');
+    expect(html).not.toContain(workspaceMessages.sidebarKeyLabel);
+    expect(html).not.toContain(workspaceMessages.copyPrefix);
+    expect(html).not.toContain(workspaceMessages.copyFullKey);
+    expect(html).not.toContain(workspaceMessages.recoverDialogTitle);
   });
 
   it('renders account identity, settings, import, and sign-out actions in the profile popover', async () => {
@@ -207,6 +190,8 @@ describe('WorkspaceSidebarFooter', () => {
 
     expect(html).not.toContain(workspaceMessages.recoverDialogTitle);
     expect(html).not.toContain('Import old workspace');
+    expect(html).not.toContain('dwk_f525');
+    expect(html).not.toContain(workspaceMessages.sidebarKeyLabel);
   });
 
   it('runs sidebar import and sign-out actions from the profile popover', async () => {

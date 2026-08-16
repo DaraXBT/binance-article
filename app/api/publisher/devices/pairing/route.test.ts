@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   actor: { id: 'user_1' },
@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   assertAllowedOrigin: vi.fn(),
   database: { db: true },
   getRuntimeDatabase: vi.fn(),
+  workspace: { id: 'workspace_1' },
+  requireActorWorkspace: vi.fn(),
   repository: { repository: true },
   createRepository: vi.fn(),
   createPairing: vi.fn(async () => ({
@@ -15,11 +17,15 @@ const mocks = vi.hoisted(() => ({
 }));
 mocks.requireActiveUser.mockResolvedValue(mocks.actor);
 mocks.getRuntimeDatabase.mockReturnValue(mocks.database);
+mocks.requireActorWorkspace.mockResolvedValue(mocks.workspace);
 mocks.createRepository.mockReturnValue(mocks.repository);
 
 vi.mock('@/server/auth/authorization', () => ({ requireActiveUser: mocks.requireActiveUser }));
 vi.mock('@/server/auth/origin', () => ({ assertAllowedOrigin: mocks.assertAllowedOrigin }));
 vi.mock('@/server/db/runtime', () => ({ getRuntimeDatabase: mocks.getRuntimeDatabase }));
+vi.mock('@/server/modules/workspace/membership', () => ({
+  requireActorWorkspace: mocks.requireActorWorkspace,
+}));
 vi.mock('@/server/modules/publisher/devices/repository', () => ({
   createPublisherDeviceRepository: mocks.createRepository,
 }));
@@ -28,16 +34,30 @@ vi.mock('@/server/modules/publisher/devices/service', () => ({
 }));
 
 describe('POST /api/publisher/devices/pairing', () => {
-  it('returns a one-time code only to an authenticated user', async () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.requireActiveUser.mockResolvedValue(mocks.actor);
+    mocks.getRuntimeDatabase.mockReturnValue(mocks.database);
+    mocks.requireActorWorkspace.mockResolvedValue(mocks.workspace);
+    mocks.createRepository.mockReturnValue(mocks.repository);
+    mocks.createPairing.mockResolvedValue({
+      deviceId: 'device_1', pairingCode: 'pairing_secret', tokenPrefix: 'pairing_',
+      expiresAt: new Date('2026-07-19T00:10:00.000Z'),
+    });
+  });
+
+  it('derives the publisher scope from the authenticated account when only a name is sent', async () => {
     const { POST } = await import('./route');
     const request = new Request('https://articles.example.com/api/publisher/devices/pairing', {
       method: 'POST',
       headers: { origin: 'https://articles.example.com', 'content-type': 'application/json' },
-      body: JSON.stringify({ workspaceId: 'workspace_1', name: 'My Mac' }),
+      body: JSON.stringify({ name: 'My Mac' }),
     });
     const response = await POST(request as never);
 
     expect(response.status).toBe(201);
+    expect(mocks.requireActorWorkspace).toHaveBeenCalledWith(mocks.database, 'user_1');
+    expect(mocks.createRepository).toHaveBeenCalledWith(mocks.database);
     expect(mocks.createPairing).toHaveBeenCalledWith({
       repository: mocks.repository,
       actorUserId: 'user_1',
@@ -49,5 +69,26 @@ describe('POST /api/publisher/devices/pairing', () => {
       expiresAt: '2026-07-19T00:10:00.000Z',
     });
     expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('ignores a client-supplied workspace identifier instead of trusting it', async () => {
+    const { POST } = await import('./route');
+    const request = new Request('https://articles.example.com/api/publisher/devices/pairing', {
+      method: 'POST',
+      headers: { origin: 'https://articles.example.com', 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'My Mac', workspaceId: 'workspace_attacker' }),
+    });
+
+    const response = await POST(request as never);
+
+    expect(response.status).toBe(201);
+    expect(mocks.createPairing).toHaveBeenCalledWith(expect.objectContaining({
+      actorUserId: 'user_1',
+      workspaceId: 'workspace_1',
+      name: 'My Mac',
+    }));
+    expect(mocks.createPairing).not.toHaveBeenCalledWith(expect.objectContaining({
+      workspaceId: 'workspace_attacker',
+    }));
   });
 });

@@ -50,9 +50,10 @@ describe('EnrollmentCompletion', () => {
   });
 
   it('idempotently completes the claim and opens the personal workspace', async () => {
-    render(<EnrollmentCompletion />);
+    const returnTo = '/workspace?resume=7c67d7cf-47bd-4c5d-8dca-0980a9c27575';
+    render(<EnrollmentCompletion returnTo={returnTo} />);
 
-    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith('/workspace'));
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith(returnTo));
     expect(fetch).toHaveBeenCalledWith('/api/enrollment/complete', expect.objectContaining({
       method: 'POST',
       credentials: 'same-origin',
@@ -87,5 +88,11 @@ describe('EnrollmentCompletion', () => {
     expect(internalDestination('/workspace?welcome=1')).toBe('/workspace?welcome=1');
     expect(internalDestination('//evil.example')).toBe('/workspace');
     expect(internalDestination('https://evil.example')).toBe('/workspace');
+  });
+
+  it('falls back to the personal dashboard when the requested completion target is unsafe', async () => {
+    render(<EnrollmentCompletion returnTo="https://evil.example/steal" />);
+
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith('/workspace'));
   });
 });

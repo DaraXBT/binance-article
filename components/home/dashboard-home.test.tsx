@@ -111,29 +111,29 @@ const messages = {
     invalidCode: 'Invalid generation code. Please try again.',
   },
   workspace: {
-    onboardingTitle: 'Set up your workspace',
-    onboardingDescription: 'Create a new recovery key or reconnect an existing workspace before entering the dashboard.',
-    createWorkspaceTitle: 'Create a new workspace key',
-    createWorkspaceDescription: 'Generate a new recovery key for this browser session.',
-    createWorkspaceAction: 'Create new key',
-    createWorkspaceLoading: 'Creating key...',
-    recoverWorkspaceTitle: 'Recover an existing workspace',
-    recoverWorkspaceDescription: 'Use a previously saved recovery key to reconnect this browser.',
-    openRecoverDialogAction: 'Use existing key',
-    bootstrapLoadingTitle: 'Loading workspace',
-    bootstrapLoadingDescription: 'We are checking your workspace before opening the dashboard.',
-    bootstrapErrorTitle: 'Workspace unavailable',
-    bootstrapErrorDescription: 'We could not load your workspace right now. Try again to reconnect this browser.',
+    onboardingTitle: 'Finish opening your account',
+    onboardingDescription: 'Your personal article library is created automatically.',
+    createWorkspaceTitle: 'Create workspace',
+    createWorkspaceDescription: 'Create a separate workspace for this account.',
+    createWorkspaceAction: 'Create workspace',
+    createWorkspaceLoading: 'Creating workspace...',
+    recoverWorkspaceTitle: 'Import legacy articles',
+    recoverWorkspaceDescription: 'Use a legacy recovery key to import older articles into this account.',
+    openRecoverDialogAction: 'Import legacy articles',
+    bootstrapLoadingTitle: 'Loading account',
+    bootstrapLoadingDescription: 'We are opening your personal article library.',
+    bootstrapErrorTitle: 'Account library unavailable',
+    bootstrapErrorDescription: 'We could not load your articles right now. Try again.',
     sidebarKeyLabel: 'Workspace key',
     copyFullKey: 'Copy full key',
     copyPrefix: 'Copy key prefix',
     keyCopied: 'Copied!',
-    recoverDialogTitle: 'Recover workspace',
-    resumeChoiceTitle: 'Choose a workspace for this draft',
+    recoverDialogTitle: 'Import legacy articles',
+    resumeChoiceTitle: 'Import legacy articles before continuing?',
     resumeChoiceDescription:
-      'A new workspace is ready. Continue here, or import an older workspace with its recovery key.',
-    resumeChoiceContinue: 'Continue with new workspace',
-    resumeChoiceImport: 'Import old workspace',
+      'Your account is ready. Continue here, or import older articles with a legacy recovery key.',
+    resumeChoiceContinue: 'Continue with this account',
+    resumeChoiceImport: 'Import legacy articles',
     resumeContinue: 'Continue this draft',
     resumeContinueDescription: 'Your draft is ready to continue. Generation will start only when you choose Continue.',
   },
@@ -146,6 +146,7 @@ vi.mock('next/link', () => ({
 
 const routerPush = vi.fn();
 const routerReplace = vi.fn();
+const sidebarFooterMock = vi.hoisted(() => ({ props: null as Record<string, unknown> | null }));
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: routerPush, replace: routerReplace }),
@@ -237,14 +238,15 @@ vi.mock('@/components/workspace/recovery-key-dialog', () => ({
 }));
 
 vi.mock('@/components/workspace/workspace-sidebar-footer', () => ({
-  WorkspaceSidebarFooter: ({ accessKeyPrefix, onOpenSettings, settingsLabel, signOutLabel }: any) =>
-    React.createElement(
+  WorkspaceSidebarFooter: (props: any) => {
+    sidebarFooterMock.props = props;
+    return React.createElement(
       'div',
       { 'data-testid': 'workspace-sidebar-footer' },
-      accessKeyPrefix,
-      React.createElement('button', { type: 'button', onClick: onOpenSettings }, settingsLabel),
-      React.createElement('span', null, signOutLabel),
-    ),
+      React.createElement('button', { type: 'button', onClick: props.onOpenSettings }, props.settingsLabel),
+      React.createElement('span', null, props.signOutLabel),
+    );
+  },
 }));
 
 vi.mock('@/components/settings/connections-dialog', () => ({
@@ -294,6 +296,9 @@ let workspaceData:
       workspaceId: string | null;
       accessKeyPrefix: string | null;
       recoveryKey: string | null;
+      workspaceOrigin?: 'legacy' | 'account' | null;
+      workspaceRole?: 'owner' | 'member' | null;
+      canReplaceWithLegacy?: boolean;
       generateAccessEnabled: boolean;
       hasGenerationAccess: boolean;
       generationAccessInvalidReason: string | null;
@@ -303,6 +308,9 @@ let workspaceData:
   workspaceId: 'workspace-1',
   accessKeyPrefix: 'dwk_test',
   recoveryKey: null,
+  workspaceOrigin: 'account',
+  workspaceRole: 'owner',
+  canReplaceWithLegacy: false,
   generateAccessEnabled: false,
   hasGenerationAccess: true,
   generationAccessInvalidReason: null,
@@ -365,6 +373,9 @@ describe('DashboardHome', () => {
       workspaceId: 'workspace-1',
       accessKeyPrefix: 'dwk_test',
       recoveryKey: null,
+      workspaceOrigin: 'account',
+      workspaceRole: 'owner',
+      canReplaceWithLegacy: false,
       generateAccessEnabled: false,
       hasGenerationAccess: true,
       generationAccessInvalidReason: null,
@@ -372,6 +383,7 @@ describe('DashboardHome', () => {
     workspaceIsLoading = false;
     workspaceError = null;
     createWorkspaceMutate.mockReset();
+    sidebarFooterMock.props = null;
   });
 
   afterEach(() => {
@@ -467,12 +479,14 @@ describe('DashboardHome', () => {
     expect(html).toContain(messages.dashboard.searchDecks);
   });
 
-  it('renders workspace sidebar footer with key prefix only after workspace attachment', async () => {
+  it('renders the account footer without passing a workspace key prefix into normal UI', async () => {
     const { DashboardHome } = await import('@/components/home/dashboard-home');
     const html = renderToStaticMarkup(React.createElement(DashboardHome));
 
     expect(html).toContain('data-testid="workspace-sidebar-footer"');
-    expect(html).toContain('dwk_test');
+    expect(html).not.toContain('dwk_test');
+    expect(sidebarFooterMock.props?.accessKeyPrefix).toBeUndefined();
+    expect(sidebarFooterMock.props?.showRecovery).toBe(false);
   });
 
   it('opens Connections from URL state and closes it without dropping other query parameters', async () => {
@@ -588,7 +602,7 @@ describe('DashboardHome', () => {
     }
   });
 
-  it('pauses once for workspace choice when provisioning a workspace for a pending draft', async () => {
+  it('pauses once for legacy import when fallback provisioning handles a pending draft', async () => {
     workspaceData = {
       hasWorkspace: false,
       workspaceId: null,
@@ -632,11 +646,60 @@ describe('DashboardHome', () => {
       const { DashboardHome } = await import('@/components/home/dashboard-home');
       render(React.createElement(DashboardHome, { resumeIntentId: intentId, resumeRequested: true }));
 
-      expect(await screen.findByRole('button', { name: 'Continue with new workspace' })).toBeTruthy();
-      expect(screen.getAllByRole('button', { name: 'Import old workspace' }).length).toBeGreaterThan(0);
-      expect(screen.getByTestId('alert-dialog-cancel').textContent).toBe('Import old workspace');
+      expect(await screen.findByRole('button', { name: messages.workspace.resumeChoiceContinue })).toBeTruthy();
+      expect(screen.getAllByRole('button', { name: messages.workspace.resumeChoiceImport }).length).toBeGreaterThan(0);
+      expect(screen.getByTestId('alert-dialog-cancel').textContent).toBe(messages.workspace.resumeChoiceImport);
       fireEvent.click(screen.getByRole('button', { name: 'Dismiss mandatory choice' }));
-      expect(screen.getByRole('button', { name: 'Continue with new workspace' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: messages.workspace.resumeChoiceContinue })).toBeTruthy();
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('pauses for eligible legacy import when enrollment already provisioned the account', async () => {
+    workspaceData = {
+      hasWorkspace: true,
+      workspaceId: 'workspace-account',
+      accessKeyPrefix: 'acct_12345678',
+      recoveryKey: null,
+      workspaceOrigin: 'account',
+      workspaceRole: 'owner',
+      canReplaceWithLegacy: true,
+      generateAccessEnabled: false,
+      hasGenerationAccess: true,
+      generationAccessInvalidReason: null,
+    };
+    const intentId = '55555555-5555-4555-8555-555555555555';
+    const draftModule = await import('@/lib/client/anonymous-draft');
+    draftModule.saveAnonymousGenerationIntent(
+      sessionStorage,
+      draftModule.createAnonymousGenerationIntent({
+        intentId,
+        prompt: 'Explain legacy stablecoin settlement records for treasury teams.',
+        slideCount: 3,
+        illustrationStyle: 'pixel-art',
+        stage: 'submitted',
+      }),
+    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: intentId }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ jobId: intentId }), { status: 202 }));
+    const originalFetch = global.fetch;
+
+    try {
+      global.fetch = fetchMock as typeof fetch;
+      const { DashboardHome } = await import('@/components/home/dashboard-home');
+      render(React.createElement(DashboardHome, { resumeIntentId: intentId, resumeRequested: true }));
+
+      expect(await screen.findByRole('button', {
+        name: messages.workspace.resumeChoiceContinue,
+      })).toBeTruthy();
+      expect(screen.getAllByRole('button', {
+        name: messages.workspace.resumeChoiceImport,
+      }).length).toBeGreaterThan(0);
+      expect(createWorkspaceMutate).not.toHaveBeenCalled();
       expect(fetchMock).not.toHaveBeenCalled();
     } finally {
       global.fetch = originalFetch;
@@ -677,7 +740,7 @@ describe('DashboardHome', () => {
     }
   });
 
-  it('does not provision a workspace for a malformed resume marker', async () => {
+  it('does not expose manual workspace creation for a malformed resume marker', async () => {
     workspaceData = {
       hasWorkspace: false,
       workspaceId: null,
@@ -690,7 +753,8 @@ describe('DashboardHome', () => {
     const { DashboardHome } = await import('@/components/home/dashboard-home');
     render(React.createElement(DashboardHome, { resumeIntentId: null, resumeRequested: true }));
 
-    await waitFor(() => expect(screen.getByTestId('workspace-onboarding')).toBeTruthy());
+    await waitFor(() => expect(createWorkspaceMutate).not.toHaveBeenCalled());
+    expect(screen.queryByTestId('workspace-onboarding')).toBeNull();
     expect(createWorkspaceMutate).not.toHaveBeenCalled();
   });
 

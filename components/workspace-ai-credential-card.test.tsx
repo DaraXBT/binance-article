@@ -48,8 +48,8 @@ describe('WorkspaceAiCredentialCard', () => {
 
   it('shows only a fixed mask and clears the password field after save', async () => {
     render(<WorkspaceAiCredentialCard workspaceRole="owner" />);
-    const input = screen.getByLabelText('Replace workspace key') as HTMLInputElement;
-    fireEvent.change(input, { target: { value: 'workspace-secret-key-with-enough-length' } });
+    const input = screen.getByLabelText('Replace your Gemini key') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: 'personal-secret-key-with-enough-length' } });
     fireEvent.submit(input.closest('form') as HTMLFormElement);
 
     await waitFor(() => expect(input.value).toBe(''));
@@ -58,10 +58,13 @@ describe('WorkspaceAiCredentialCard', () => {
     expect(screen.getByDisplayValue('').getAttribute('type')).toBe('password');
   });
 
-  it('does not expose credential status or controls to members', () => {
-    render(<WorkspaceAiCredentialCard workspaceRole="member" />);
-    expect(screen.getByText(/managed by the workspace owner/i)).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /save|replace|test|delete/i })).toBeNull();
-    expect(mocks.useWorkspaceAiCredential).toHaveBeenCalledWith(false);
+  it('presents Gemini as a personal account connection without member-owner language', () => {
+    render(<WorkspaceAiCredentialCard workspaceRole="owner" />);
+
+    const visibleCopy = document.body.textContent ?? '';
+    expect(visibleCopy).toContain('Your Gemini key');
+    expect(visibleCopy).toMatch(/your account/i);
+    expect(visibleCopy).not.toMatch(/workspace|workspace owner|workspace member/i);
+    expect(mocks.useWorkspaceAiCredential).toHaveBeenCalledWith(true);
   });
 });

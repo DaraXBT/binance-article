@@ -15,6 +15,43 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+function mockPublisherApi({
+  devices = [],
+  devicesStatus = 200,
+  pairingBody,
+  pairingStatus = 201,
+  revokeBody,
+  revokeStatus = 200,
+}: {
+  devices?: unknown[];
+  devicesStatus?: number;
+  pairingBody?: unknown;
+  pairingStatus?: number;
+  revokeBody?: unknown;
+  revokeStatus?: number;
+} = {}) {
+  fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input.toString();
+    const method = init?.method?.toUpperCase() ?? 'GET';
+
+    // Compatibility response for the current implementation. The new account-
+    // scoped component must never request it; focused assertions below enforce that.
+    if (url === '/api/workspace') {
+      return jsonResponse({ hasWorkspace: true, workspaceId: 'workspace_legacy' });
+    }
+    if (url === '/api/publisher/devices' && method === 'GET') {
+      return jsonResponse({ devices }, devicesStatus);
+    }
+    if (url === '/api/publisher/devices/pairing' && method === 'POST') {
+      return jsonResponse(pairingBody, pairingStatus);
+    }
+    if (url.startsWith('/api/publisher/devices/') && method === 'DELETE') {
+      return jsonResponse(revokeBody, revokeStatus);
+    }
+    return jsonResponse({ error: 'Unexpected publisher API request.' }, 500);
+  });
+}
+
 describe('PublisherDevicePairingCard', () => {
   beforeEach(() => {
     fetchMock.mockReset();
@@ -31,59 +68,64 @@ describe('PublisherDevicePairingCard', () => {
     vi.unstubAllGlobals();
   });
 
-  it('loads the active workspace and creates a named one-time pairing code', async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse({
-        hasWorkspace: true,
-        workspaceId: 'workspace_1',
-      }))
-      .mockResolvedValueOnce(jsonResponse({ devices: [] }))
-      .mockResolvedValueOnce(jsonResponse({
-        deviceId: 'device_1',
-        pairingCode: 'pairing_code_value_12345678901234567890',
-        tokenPrefix: 'pairing_',
-        expiresAt: '2026-07-22T03:10:00.000Z',
-      }, 201));
+  it('loads account publishing devices directly without fetching a client-visible workspace', async () => {
+    mockPublisherApi();
 
     render(<PublisherDevicePairingCard />);
 
-    const nameInput = await screen.findByLabelText('Computer name');
-    expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/workspace', expect.objectContaining({
+    await screen.findByLabelText('Computer name');
+    expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/publisher/devices', expect.objectContaining({
       cache: 'no-store',
       credentials: 'same-origin',
       signal: expect.any(AbortSignal),
     }));
+    expect(fetchMock.mock.calls.some(([url]) => url === '/api/workspace')).toBe(false);
+    expect(screen.getByText(/pair this account with the companion/i)).toBeTruthy();
+  });
 
+  it('sends only the computer name when creating an account-scoped pairing code', async () => {
+    mockPublisherApi({
+      pairingBody: {
+        deviceId: 'device_1',
+        pairingCode: 'pairing_code_value_12345678901234567890',
+        tokenPrefix: 'pairing_',
+        expiresAt: '2026-07-22T03:10:00.000Z',
+      },
+    });
+
+    const { container } = render(<PublisherDevicePairingCard />);
+
+    const nameInput = await screen.findByLabelText('Computer name');
     fireEvent.change(nameInput, { target: { value: 'Studio Mac' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create pairing code' }));
 
     expect(await screen.findByText('pairing_code_value_12345678901234567890')).toBeTruthy();
-    const request = fetchMock.mock.calls[2]?.[1] as RequestInit | undefined;
-    expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/publisher/devices/pairing');
+    const pairingCall = fetchMock.mock.calls.find(([url]) => (
+      url === '/api/publisher/devices/pairing'
+    ));
+    const request = pairingCall?.[1] as RequestInit | undefined;
+    expect(pairingCall?.[0]).toBe('/api/publisher/devices/pairing');
     expect(request).toMatchObject({
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'content-type': 'application/json' },
     });
-    expect(JSON.parse(String(request?.body))).toEqual({
-      workspaceId: 'workspace_1',
-      name: 'Studio Mac',
-    });
+    expect(JSON.parse(String(request?.body))).toEqual({ name: 'Studio Mac' });
     expect(screen.getByText(/bun run src\/main\.ts pair --api/).textContent)
       .toContain(window.location.origin);
     expect(screen.getByText(/paste the code into its hidden prompt/i)).toBeTruthy();
+    expect(container.textContent).not.toMatch(/workspace/i);
   });
 
   it('copies the code separately from commands so it never enters shell history', async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse({ hasWorkspace: true, workspaceId: 'workspace_1' }))
-      .mockResolvedValueOnce(jsonResponse({ devices: [] }))
-      .mockResolvedValueOnce(jsonResponse({
+    mockPublisherApi({
+      pairingBody: {
         deviceId: 'device_1',
         pairingCode: 'pairing_code_value_12345678901234567890',
         tokenPrefix: 'pairing_',
         expiresAt: '2026-07-22T03:10:00.000Z',
-      }, 201));
+      },
+    });
 
     const onUncopiedPairingChange = vi.fn();
     render(
@@ -111,36 +153,21 @@ describe('PublisherDevicePairingCard', () => {
     expect(commands).toContain('bun run src/main.ts run');
   });
 
-  it('does not offer pairing until the account has a workspace', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse({
-      hasWorkspace: false,
-      workspaceId: null,
-    }));
-
-    render(<PublisherDevicePairingCard />);
-
-    expect(await screen.findByText(/create or recover a workspace before pairing/i)).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Go to workspace' }).getAttribute('href'))
-      .toBe('/workspace');
-    expect(screen.queryByRole('button', { name: 'Create pairing code' })).toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
   it('keeps a failed pairing request retryable without exposing server details', async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse({ hasWorkspace: true, workspaceId: 'workspace_1' }))
-      .mockResolvedValueOnce(jsonResponse({ devices: [] }))
-      .mockResolvedValueOnce(jsonResponse({
+    mockPublisherApi({
+      pairingBody: {
         error: 'sensitive database detail',
         code: 'DEVICE_PAIRING_CREATE_FAILED',
-      }, 500));
+      },
+      pairingStatus: 500,
+    });
 
     render(<PublisherDevicePairingCard />);
     await screen.findByLabelText('Computer name');
     fireEvent.click(screen.getByRole('button', { name: 'Create pairing code' }));
 
     expect((await screen.findByRole('alert')).textContent).toBe(
-      'A pairing code could not be created. Confirm the workspace and try again.',
+      'A pairing code could not be created. Confirm your account connection and try again.',
     );
     expect(screen.queryByText(/sensitive database detail/i)).toBeNull();
     expect(screen.getByRole('button', { name: 'Create pairing code' }).hasAttribute('disabled'))
@@ -148,10 +175,8 @@ describe('PublisherDevicePairingCard', () => {
   });
 
   it('shows device status, last seen, name, and protocol and revokes active or pending devices', async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse({ hasWorkspace: true, workspaceId: 'workspace_1' }))
-      .mockResolvedValueOnce(jsonResponse({
-        devices: [
+    mockPublisherApi({
+      devices: [
           {
             id: 'device_active',
             name: 'Studio Mac',
@@ -173,9 +198,9 @@ describe('PublisherDevicePairingCard', () => {
             protocolVersion: 1,
             lastSeenAt: '2026-07-20T03:00:00.000Z',
           },
-        ],
-      }))
-      .mockResolvedValueOnce(jsonResponse({ revoked: true }));
+      ],
+      revokeBody: { revoked: true },
+    });
 
     render(<PublisherDevicePairingCard />);
 
@@ -212,18 +237,17 @@ describe('PublisherDevicePairingCard', () => {
   });
 
   it('keeps a failed device revocation retryable without exposing server details', async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse({ hasWorkspace: true, workspaceId: 'workspace_1' }))
-      .mockResolvedValueOnce(jsonResponse({
-        devices: [{
+    mockPublisherApi({
+      devices: [{
           id: 'device_active',
           name: 'Studio Mac',
           status: 'active',
           protocolVersion: 1,
           lastSeenAt: null,
-        }],
-      }))
-      .mockResolvedValueOnce(jsonResponse({ error: 'sensitive database detail' }, 500));
+      }],
+      revokeBody: { error: 'sensitive database detail' },
+      revokeStatus: 500,
+    });
 
     render(<PublisherDevicePairingCard />);
     const activeDevice = await screen.findByRole('listitem', {

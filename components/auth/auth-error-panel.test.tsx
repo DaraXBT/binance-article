@@ -32,11 +32,22 @@ describe('AuthErrorPanel', () => {
   afterEach(() => cleanup());
 
   it('maps signup_disabled to enrollment guidance without echoing provider details', () => {
-    render(<AuthErrorPanel error="signup_disabled" />);
+    const returnTo = '/workspace?resume=7c67d7cf-47bd-4c5d-8dca-0980a9c27575';
+    render(<AuthErrorPanel error="signup_disabled" returnTo={returnTo} />);
 
     expect(screen.getByRole('alert').textContent).toContain(authCopy.authErrorSignupDisabled);
-    expect(screen.getByRole('link', { name: authCopy.returnToJoin }).getAttribute('href')).toBe('/join');
+    expect(screen.getByRole('link', { name: authCopy.returnToJoin }).getAttribute('href')).toBe(
+      '/join?returnTo=%2Fworkspace%3Fresume%3D7c67d7cf-47bd-4c5d-8dca-0980a9c27575',
+    );
     expect(screen.queryByText('signup_disabled')).toBeNull();
+  });
+
+  it('falls back to the personal dashboard when a signup error carries an unsafe return target', () => {
+    render(<AuthErrorPanel error="signup_disabled" returnTo="https://evil.example/steal" />);
+
+    expect(screen.getByRole('link', { name: authCopy.returnToJoin }).getAttribute('href')).toBe(
+      '/join?returnTo=%2Fworkspace',
+    );
   });
 
   it('handles a provider code copied with a trailing query delimiter', () => {

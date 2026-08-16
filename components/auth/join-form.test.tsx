@@ -146,8 +146,9 @@ describe('JoinForm', () => {
 
   it('exchanges a fragment code for a claim, scrubs the URL, and completes through the join callback', async () => {
     const rawCode = 'join-abcde-fghjk-mnpqr-stuvw';
+    const returnTo = '/workspace?resume=7c67d7cf-47bd-4c5d-8dca-0980a9c27575';
     window.history.replaceState({}, '', `/join#code=${rawCode}`);
-    const { container } = render(<JoinForm />);
+    const { container } = render(<JoinForm returnTo={returnTo} />);
 
     await screen.findByText(/access confirmed/i);
 
@@ -167,10 +168,13 @@ describe('JoinForm', () => {
     fireEvent.click(screen.getByRole('button', { name: /continue with google/i }));
     expect(signInSocial).toHaveBeenCalledWith({
       provider: 'google',
-      callbackURL: '/join/complete',
-      newUserCallbackURL: '/join/complete',
+      callbackURL:
+        '/join/complete?returnTo=%2Fworkspace%3Fresume%3D7c67d7cf-47bd-4c5d-8dca-0980a9c27575',
+      newUserCallbackURL:
+        '/join/complete?returnTo=%2Fworkspace%3Fresume%3D7c67d7cf-47bd-4c5d-8dca-0980a9c27575',
       requestSignUp: true,
-      errorCallbackURL: '/auth/error?flow=enrollment',
+      errorCallbackURL:
+        '/auth/error?flow=enrollment&returnTo=%2Fworkspace%3Fresume%3D7c67d7cf-47bd-4c5d-8dca-0980a9c27575',
     });
   });
 

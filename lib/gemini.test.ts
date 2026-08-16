@@ -88,7 +88,7 @@ describe('gemini helpers', () => {
     expect(JSON.stringify(normalized)).not.toContain(apiKey);
   });
 
-  it('gives workspace owners actionable guidance for text-key permission failures', async () => {
+  it('gives account-scoped guidance for personal-key permission failures', async () => {
     const { normalizeGeminiError } = await import('@/lib/gemini');
     const normalized = normalizeGeminiError(
       new Error(JSON.stringify({ error: {
@@ -99,8 +99,9 @@ describe('gemini helpers', () => {
       'Gemini generation failed.',
       { source: 'workspace', model: 'gemini-2.5-flash' },
     );
-    expect(normalized.message).toMatch(/workspace Gemini connection needs attention/i);
+    expect(normalized.message).toMatch(/your Gemini connection needs attention/i);
     expect(normalized.message).toMatch(/switch to platform credits/i);
+    expect(normalized.message).not.toMatch(/workspace owner|workspace member/i);
   });
 
   it('frames fetched URL content as untrusted data rather than provider instructions', async () => {

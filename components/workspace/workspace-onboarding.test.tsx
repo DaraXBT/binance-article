@@ -3,17 +3,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const workspaceMessages = {
-  onboardingTitle: 'Set up your workspace',
+  onboardingTitle: 'Finish opening your account',
   onboardingDescription:
-    'Create a new recovery key or reconnect an existing workspace before entering the dashboard.',
-  createWorkspaceTitle: 'Create a new workspace key',
-  createWorkspaceDescription: 'Generate a new recovery key for this browser session.',
-  createWorkspaceAction: 'Create new key',
-  createWorkspaceLoading: 'Creating key...',
-  recoverWorkspaceTitle: 'Recover an existing workspace',
-  recoverWorkspaceDescription: 'Use a previously saved recovery key to reconnect this browser.',
-  openRecoverDialogAction: 'Use existing key',
-  recoverDialogTitle: 'Recover workspace',
+    'Your account is created automatically. Import legacy articles only if you have an old recovery key.',
+  createWorkspaceTitle: 'Create workspace',
+  createWorkspaceDescription: 'Create a separate workspace for this account.',
+  createWorkspaceAction: 'Create workspace',
+  createWorkspaceLoading: 'Creating workspace...',
+  recoverWorkspaceTitle: 'Import legacy articles',
+  recoverWorkspaceDescription: 'Use a legacy recovery key to import older articles into this account.',
+  openRecoverDialogAction: 'Import legacy articles',
+  recoverDialogTitle: 'Import legacy articles',
 };
 
 vi.mock('@/components/language-provider', () => ({
@@ -58,12 +58,15 @@ describe('WorkspaceOnboarding', () => {
     vi.resetModules();
   });
 
-  it('renders explicit create and recover actions', async () => {
+  it('explains automatic account setup without exposing workspace or import choices', async () => {
     const { WorkspaceOnboarding } = await import('./workspace-onboarding');
     const html = renderToStaticMarkup(React.createElement(WorkspaceOnboarding));
 
     expect(html).toContain(workspaceMessages.onboardingTitle);
-    expect(html).toContain(workspaceMessages.createWorkspaceAction);
-    expect(html).toContain(workspaceMessages.openRecoverDialogAction);
+    expect(html).not.toContain(workspaceMessages.createWorkspaceTitle);
+    expect(html).not.toContain(workspaceMessages.createWorkspaceAction);
+    expect(html).not.toContain(workspaceMessages.openRecoverDialogAction);
+    expect(html).not.toContain(workspaceMessages.recoverDialogTitle);
+    expect(html).not.toContain('new workspace');
   });
 });

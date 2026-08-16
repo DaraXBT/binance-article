@@ -7,8 +7,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConnectionsDialog } from './connections-dialog';
 
 vi.mock('@/components/workspace-ai-credential-card', () => ({
-  WorkspaceAiCredentialCard: ({ workspaceRole }: { workspaceRole?: string }) => (
-    <div data-testid="gemini-card">Gemini role: {workspaceRole}</div>
+  WorkspaceAiCredentialCard: () => (
+    <div data-testid="gemini-card">Your Gemini key</div>
   ),
 }));
 
@@ -71,12 +71,13 @@ describe('ConnectionsDialog', () => {
     expect(connectionsEntry?.getAttribute('aria-current')).toBe('page');
     expect(screen.getAllByRole('button', { name: 'Close connections' })).toHaveLength(2);
     expect(screen.getByText(
-      'Manage the AI provider and browser publisher connections used by this workspace.',
+      'Manage the AI provider and browser publisher connections used by your account.',
     )).toBeTruthy();
-    expect(screen.getByTestId('gemini-card').textContent).toContain('owner');
+    expect(screen.getByTestId('gemini-card').textContent).toContain('Your Gemini key');
     expect(screen.getByTestId('publisher-card')).toBeTruthy();
     expect(screen.getByTestId('people-access-card')).toBeTruthy();
     expect(document.querySelector('[data-connections-dialog-scroll]')).toBeTruthy();
+    expect(screen.getByRole('dialog').textContent).not.toMatch(/workspace owner|workspace member/i);
   });
 
   it('requests a close from the explicit close action', () => {

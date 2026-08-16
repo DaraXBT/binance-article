@@ -15,6 +15,7 @@ const authCopy = {
   openingGoogle: 'Opening Google…',
   signInError: 'Sign-in could not be started. Please try again.',
   secureRedirect: 'Secure redirect · callback preserved',
+  returnToJoin: 'Join with an access code',
 };
 vi.mock('@/lib/auth-client', () => ({
   authClient: { signIn: { social: mocks.social } },
@@ -52,13 +53,20 @@ describe('LoginForm', () => {
   });
 
   it('signs returning users in with Google without requesting signup', () => {
-    const { container } = render(<LoginForm callbackURL="/articles/article_1" />);
+    const returnTo = '/workspace?resume=7c67d7cf-47bd-4c5d-8dca-0980a9c27575';
+    const { container } = render(<LoginForm callbackURL={returnTo} />);
     fireEvent.click(screen.getByRole('button', { name: /continue with google/i }));
     expect(mocks.social).toHaveBeenCalledWith({
-      provider: 'google', callbackURL: '/articles/article_1',
+      provider: 'google',
+      callbackURL: returnTo,
+      errorCallbackURL:
+        '/auth/error?flow=sign-in&returnTo=%2Fworkspace%3Fresume%3D7c67d7cf-47bd-4c5d-8dca-0980a9c27575',
     });
     expect(container.querySelector('[data-provider-icon="google"]')).toBeTruthy();
     expect(container.querySelectorAll('[data-provider-icon]').length).toBe(1);
+    expect(screen.getByRole('link', { name: authCopy.returnToJoin }).getAttribute('href')).toBe(
+      '/join?returnTo=%2Fworkspace%3Fresume%3D7c67d7cf-47bd-4c5d-8dca-0980a9c27575',
+    );
   });
 
   it('keeps the checkpoint retryable when a provider fails to open', async () => {

@@ -272,6 +272,12 @@ describe('AdminPeopleAccessCard', () => {
     expect(within(secondOwnerRow!).getByRole('button', { name: 'Suspend' })).toBeTruthy();
     expect(within(secondOwnerRow!).getByRole('button', { name: 'Revoke' })).toBeTruthy();
     expect(within(revokedUserRow!).getByRole('button', { name: 'Restore' })).toBeTruthy();
+    expect(within(currentOwnerRow!).getByText('Administrator')).toBeTruthy();
+    expect(within(secondOwnerRow!).getByText('Administrator')).toBeTruthy();
+    expect(document.body.textContent).toContain(
+      'Each person receives a separate personal account and private article library.',
+    );
+    expect(document.body.textContent).not.toMatch(/workspace owner|workspace member/i);
   });
 
   it('removes itself when the owner-only API rejects the current user', async () => {
