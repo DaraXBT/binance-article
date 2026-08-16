@@ -242,9 +242,9 @@ export function normalizeImageGenerationError(
     const modelText = model ? ` for ${model}` : '';
 
     const sourceGuidance = context.source === 'workspace'
-      ? 'Ask the workspace owner to test or replace the Gemini key, or switch to platform credits.'
+      ? 'Test or replace your Gemini key, or switch to platform credits.'
       : context.source === 'platform'
-        ? 'The workspace owner can save and activate a workspace Gemini key in Connections.'
+        ? 'You can save and activate your Gemini key in Connections.'
         : 'Check Gemini quota, billing, or configuration if the issue persists.';
 
     return {
@@ -269,7 +269,7 @@ export function normalizeImageGenerationError(
       providerStatus,
       retryAfterSeconds,
       model,
-      message: 'The workspace Gemini connection needs attention. Ask the workspace owner to test or replace the key, or switch to platform credits.',
+      message: 'Your Gemini connection needs attention. Test or replace your key, or switch to platform credits.',
     };
   }
 
