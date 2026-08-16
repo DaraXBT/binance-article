@@ -92,7 +92,7 @@ export async function createPublisherDevicePairing(input: {
     now,
   });
   if (!created) {
-    throw deviceError('WORKSPACE_NOT_FOUND', 'Workspace not found.', 404);
+    throw deviceError('WORKSPACE_NOT_FOUND', 'Account library not found.', 404);
   }
   return {
     deviceId: created.id,

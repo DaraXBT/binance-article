@@ -141,7 +141,7 @@ export function ConnectionsDialog({
                 Settings
               </p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                Workspace controls
+                Account controls
               </p>
             </div>
 
@@ -167,19 +167,19 @@ export function ConnectionsDialog({
           <DialogHeader className="relative shrink-0 gap-1.5 border-b border-dotted border-border/70 px-4 py-4 pr-14 text-left sm:px-6 sm:py-5 sm:pr-16">
             <div className="flex items-center gap-2 md:hidden">
               <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-primary">
-                Workspace settings
+                Account settings
               </p>
               <span aria-hidden="true" className="text-xs text-muted-foreground">/</span>
               <span className="text-xs font-medium text-muted-foreground">Connections</span>
             </div>
             <p className="hidden font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-primary md:block">
-              Workspace / Settings
+              Account / Settings
             </p>
             <DialogTitle className="text-2xl leading-tight tracking-normal sm:text-3xl">
               Connections
             </DialogTitle>
             <DialogDescription className="max-w-2xl text-xs leading-relaxed sm:text-sm">
-              Manage the AI provider and browser publisher connections used by this workspace.
+              Manage the AI provider and browser publisher connections used by your account.
             </DialogDescription>
             <Button
               type="button"

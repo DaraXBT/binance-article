@@ -4,16 +4,19 @@ import {
   SecureConsoleFrame,
 } from '@/components/console/secure-console-frame';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { normalizeLoginCallback } from '@/server/auth/page-authorization';
 
 export default async function JoinPage({
   searchParams,
 }: {
   searchParams: Promise<{
     token?: string | string[];
+    returnTo?: string | string[];
   }>;
 }) {
   const params = await searchParams;
   const token = typeof params.token === 'string' ? params.token : null;
+  const returnTo = normalizeLoginCallback(params.returnTo);
 
   return (
     <SecureConsoleFrame
@@ -39,6 +42,8 @@ export default async function JoinPage({
       <div className="mx-auto w-full max-w-md">
         <JoinForm
           token={token}
+          returnTo={returnTo}
+          checkExistingClaim
         />
       </div>
     </SecureConsoleFrame>

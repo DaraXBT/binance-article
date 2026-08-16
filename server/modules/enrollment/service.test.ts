@@ -10,6 +10,7 @@ import {
   claimLegacyInvitation,
   completeEnrollmentClaim,
   createInitialEnrollmentCode,
+  isEnrollmentClaimReady,
   revokeEnrollmentCode,
   reserveEnrollmentClaim,
   rotateEnrollmentCode,
@@ -42,6 +43,7 @@ function repository(overrides: Record<string, unknown> = {}) {
       email: 'invited@example.com', userId: null,
       expiresAt: input.expiresAt, reservationExpiresAt: null,
     })),
+    hasReadyClaim: vi.fn(async () => true),
     reserveClaim: vi.fn(async () => ({ outcome: 'reserved' as const, claimId: 'claim_1' })),
     completeClaim: vi.fn(async () => ({ outcome: 'completed' as const, claimId: 'claim_1' })),
     releaseClaim: vi.fn(async () => true),
@@ -55,6 +57,33 @@ function repository(overrides: Record<string, unknown> = {}) {
 }
 
 describe('enrollment service', () => {
+  it('checks retry readiness with only a hash of the opaque HttpOnly claim', async () => {
+    const repo = repository();
+
+    await expect(isEnrollmentClaimReady({
+      repository: repo,
+      claimToken,
+      now,
+    })).resolves.toBe(true);
+
+    expect(repo.hasReadyClaim).toHaveBeenCalledWith({
+      claimTokenHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      now,
+    });
+    expect(JSON.stringify(repo.hasReadyClaim.mock.calls)).not.toContain(claimToken);
+  });
+
+  it('fails closed without querying persistence for a malformed claim token', async () => {
+    const repo = repository();
+
+    await expect(isEnrollmentClaimReady({
+      repository: repo,
+      claimToken: 'not-a-valid-claim',
+      now,
+    })).resolves.toBe(false);
+    expect(repo.hasReadyClaim).not.toHaveBeenCalled();
+  });
+
   it('creates a reusable claim without persisting the raw shared code', async () => {
     const repo = repository();
     const result = await claimEnrollmentCode({

@@ -268,7 +268,8 @@ never wait behind it during migration.
 8. **Smoke under restriction.** Require health `200`; `/join`, `/join/complete`,
    the exact friendly `/auth/error?error=signup_disabled&flow=enrollment` page,
    and new APIs must no longer have the old-release `404`. Use two disposable
-   verified Google identities with one code and verify separate workspaces. Make
+   verified Google identities with one code and verify separate personal
+   accounts and distinct internal tenant IDs. Make
    a pending claim, rotate, and prove the old code/claim fails. Make another
    pending claim against the replacement, use the standalone **Disable code**
    action, prove that code and its issued claim fail, and verify the admin API

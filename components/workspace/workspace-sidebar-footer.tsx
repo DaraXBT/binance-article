@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils';
 import { RecoverWorkspaceDialog } from './recover-workspace-dialog';
 
 export interface WorkspaceSidebarFooterProps {
-  accessKeyPrefix: string;
+  accessKeyPrefix?: string | null;
   showRecovery?: boolean;
   accountLabel?: string;
   accountEmail?: string | null;
@@ -53,7 +53,7 @@ function firstAccountCharacter(accountLabel: string) {
 export function WorkspaceSidebarFooter({
   accessKeyPrefix,
   showRecovery = true,
-  accountLabel = 'Workspace',
+  accountLabel = 'Account',
   accountEmail,
   accountInitial,
   profileLabel,
@@ -84,7 +84,7 @@ export function WorkspaceSidebarFooter({
   const resolvedInitial = accountInitial || firstAccountCharacter(accountLabel);
   const resolvedImportLabel = importOldWorkspaceLabel
     ?? messages.dashboard?.importOldWorkspace
-    ?? 'Import old workspace';
+    ?? 'Import old data';
   const resolvedSignOutLabel = signOutLabel
     ?? messages.dashboard?.signOut
     ?? 'Sign out';
@@ -93,7 +93,7 @@ export function WorkspaceSidebarFooter({
     ?? 'Signing out…';
 
   const handleCopy = async () => {
-    // Account workspaces never expose a full key; only the prefix is shown.
+    if (!accessKeyPrefix) return;
     const textToCopy = accessKeyPrefix;
     try {
       if (!navigator.clipboard?.writeText) return;
@@ -220,35 +220,35 @@ export function WorkspaceSidebarFooter({
             />
           </div>
 
-          <div
-            data-workspace-key-controls
-            className="border-t border-border/70 px-2.5 py-2"
-          >
-            <div className="flex min-w-0 items-center gap-2">
-              <KeyRound aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-mono text-[0.68rem] font-semibold tracking-wide text-foreground">
-                  {accessKeyPrefix}...
-                </p>
-                <p className="truncate font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">
-                  {messages.workspace.sidebarKeyLabel}
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => void handleCopy()}
-                className="size-8 rounded-lg"
-                aria-label={copyLabel}
-              >
-                {copied ? (
-                  <Check aria-hidden="true" className="size-3.5" />
-                ) : (
-                  <Copy aria-hidden="true" className="size-3.5" />
-                )}
-              </Button>
-              {showRecovery ? (
+          {showRecovery && accessKeyPrefix ? (
+            <div
+              data-workspace-key-controls
+              className="border-t border-border/70 px-2.5 py-2"
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <KeyRound aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-mono text-[0.68rem] font-semibold tracking-wide text-foreground">
+                    {accessKeyPrefix}...
+                  </p>
+                  <p className="truncate font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">
+                    {messages.workspace.sidebarKeyLabel}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => void handleCopy()}
+                  className="size-8 rounded-lg"
+                  aria-label={copyLabel}
+                >
+                  {copied ? (
+                    <Check aria-hidden="true" className="size-3.5" />
+                  ) : (
+                    <Copy aria-hidden="true" className="size-3.5" />
+                  )}
+                </Button>
                 <Button
                   type="button"
                   variant="ghost"
@@ -259,12 +259,12 @@ export function WorkspaceSidebarFooter({
                 >
                   <RotateCcw aria-hidden="true" className="size-3.5" />
                 </Button>
-              ) : null}
+              </div>
+              <span className="sr-only" role="status" aria-live="polite">
+                {copied ? messages.workspace.keyCopied : ''}
+              </span>
             </div>
-            <span className="sr-only" role="status" aria-live="polite">
-              {copied ? messages.workspace.keyCopied : ''}
-            </span>
-          </div>
+          ) : null}
 
           {onImportOldWorkspace ? (
             <div className="border-t border-border/70 py-1">

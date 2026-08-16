@@ -58,7 +58,7 @@ export function WorkspaceAiCredentialCard({
 
   useEffect(() => {
     if (statusQuery.data?.activeSource === 'workspace' && !statusQuery.data.configured) {
-      setNotice('The workspace key is no longer available. Platform credits remain active.');
+      setNotice('Your saved Gemini key is no longer available. Platform credits remain active.');
     }
   }, [statusQuery.data]);
 
@@ -70,7 +70,7 @@ export function WorkspaceAiCredentialCard({
             <KeyRound className="size-4" aria-hidden="true" />
             Gemini connection
           </CardTitle>
-          <CardDescription>Loading workspace connection permissions…</CardDescription>
+          <CardDescription>Loading your account connection…</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -85,7 +85,7 @@ export function WorkspaceAiCredentialCard({
             Gemini connection
           </CardTitle>
           <CardDescription>
-            Managed by the workspace owner. Generation uses the owner’s selected connection.
+            A personal Gemini key is not available for this account.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -107,7 +107,7 @@ export function WorkspaceAiCredentialCard({
     try {
       const savedStatus = await saveMutation.mutateAsync(value);
       setNotice(savedStatus.activeSource === 'workspace'
-        ? 'Gemini key validated and replaced. Workspace Gemini key remains active.'
+        ? 'Gemini key validated and replaced. Your Gemini key remains active.'
         : 'Gemini key validated and saved. Platform credits remain active until you switch sources.');
     } catch {
       // The mutation exposes a sanitized error below; the key is already cleared.
@@ -120,7 +120,7 @@ export function WorkspaceAiCredentialCard({
     try {
       await sourceMutation.mutateAsync(source);
       setNotice(source === 'workspace'
-        ? 'Workspace Gemini key is now active.'
+        ? 'Your Gemini key is now active.'
         : 'Platform credits are now active.');
     } catch {
       // The mutation exposes a sanitized error below.
@@ -138,11 +138,11 @@ export function WorkspaceAiCredentialCard({
   };
 
   const deleteConnection = async () => {
-    if (busy || !window.confirm('Delete the encrypted workspace copy of this key?')) return;
+    if (busy || !window.confirm('Delete the encrypted key saved to your account?')) return;
     setNotice(null);
     try {
       await deleteMutation.mutateAsync();
-      setNotice('Workspace key deleted. This does not revoke the key at Google.');
+      setNotice('Your saved key was deleted. This does not revoke the key at Google.');
     } catch {
       // The mutation exposes a sanitized error below.
     }
@@ -161,13 +161,13 @@ export function WorkspaceAiCredentialCard({
           ) : null}
         </CardTitle>
         <CardDescription>
-          Add your own Gemini API key for this workspace. The key is encrypted before it is stored and is never shown again.
+          Add your own Gemini API key to your account. The key is encrypted before it is stored and is never shown again.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <form onSubmit={submit} className="space-y-2">
           <label htmlFor="workspace-gemini-key" className="text-sm font-medium">
-            {status?.configured ? 'Replace workspace key' : 'Workspace Gemini key'}
+            {status?.configured ? 'Replace your Gemini key' : 'Your Gemini key'}
           </label>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
@@ -197,7 +197,7 @@ export function WorkspaceAiCredentialCard({
           <div className="grid gap-2 sm:grid-cols-2">
             {([
               ['platform', 'Platform credits', 'Use the operator-managed Gemini project.'],
-              ['workspace', 'Workspace Gemini key', 'Use the encrypted key saved above.'],
+              ['workspace', 'Your Gemini key', 'Use the encrypted key saved to your account.'],
             ] as const).map(([source, label, description]) => (
               <button
                 key={source}
@@ -219,7 +219,7 @@ export function WorkspaceAiCredentialCard({
             ))}
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
-            Active: <span className="font-medium text-foreground">{activeSource === 'workspace' ? 'Workspace Gemini key' : 'Platform credits'}</span>
+            Active: <span className="font-medium text-foreground">{activeSource === 'workspace' ? 'Your Gemini key' : 'Platform credits'}</span>
           </p>
         </div>
 

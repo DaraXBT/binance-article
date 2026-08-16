@@ -441,12 +441,12 @@ describe('article Workflow explicit credential plumbing', () => {
       'workspace_1',
       'article_1',
       'slide_1',
-      expect.stringMatching(/workspace Gemini connection needs attention/i),
+      expect.stringMatching(/your Gemini connection needs attention/i),
     );
     expect(jobs.fail).toHaveBeenCalledWith(
       'job_1',
       'WORKSPACE_GEMINI_CONNECTION_INVALID',
-      expect.stringMatching(/workspace Gemini connection needs attention/i),
+      expect.stringMatching(/your Gemini connection needs attention/i),
     );
     expect(generation.generateImage).not.toHaveBeenCalled();
   });
@@ -472,12 +472,12 @@ describe('article Workflow explicit credential plumbing', () => {
       workspaceId: 'workspace_1',
       articleId: 'article_1',
       generationRevision: 3,
-      error: expect.stringMatching(/workspace Gemini connection needs attention/i),
+      error: expect.stringMatching(/your Gemini connection needs attention/i),
     }));
     expect(jobs.fail).toHaveBeenCalledWith(
       'job_1',
       'WORKSPACE_GEMINI_CONNECTION_INVALID',
-      expect.stringMatching(/workspace Gemini connection needs attention/i),
+      expect.stringMatching(/your Gemini connection needs attention/i),
     );
   });
 });

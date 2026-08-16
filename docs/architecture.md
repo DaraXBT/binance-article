@@ -1,6 +1,6 @@
 # xArticle current architecture
 
-Status: Cloudflare web workspace + local publishing companion · UI language:
+Status: Cloudflare personal account app + local publishing companion · UI language:
 English · default visual style: `binance-master`
 
 This is the current operating contract for the repository. Historical design
@@ -9,9 +9,11 @@ describes what is active today.
 
 ## Product flow
 
-1. A user joins through an invitation and Google sign-in.
-2. The user creates or claims one workspace, then enters source text, a topic
-   prompt, or a URL.
+1. A new user joins with an app-global access code and Google sign-in; a
+   returning user signs in normally. Enrollment creates a separate personal
+   tenant for each account.
+2. The user enters source text, a topic prompt, or a URL. Eligible legacy data
+   can be imported once before a resumed draft writes to a pristine account.
 3. The web app creates an article revision. The article Workflow Worker
    generates slide copy, captions, slide images, and the dedicated cover from
    the supplied content. After slides/captions persist, the job records a
@@ -29,12 +31,11 @@ describes what is active today.
 7. The user reviews the live editor and approves the exact revision in the web
    app. Only then does the companion perform one scoped final click.
 
-For Gemini generation, a workspace owner may explicitly select an encrypted
-workspace key from **Settings → Connections**. Members consume the selected
-source but cannot manage it; platform credits remain the default after a first
-save. See [workspace Gemini connections](./workspace-ai-credentials.md).
+For Gemini generation, a user may explicitly select an encrypted personal key
+from **Settings → Connections**. Platform credits remain the default after a
+first save. See [account Gemini connections](./workspace-ai-credentials.md).
 
-The signed-in account control is pinned to the workspace rail footer. It opens
+The signed-in account control is pinned to the article rail footer. It opens
 the Connections settings panel above the expanded profile row or beside the
 collapsed desktop rail, so settings access remains available without restoring
 the article list. The panel is a responsive shell for the currently supported
@@ -56,13 +57,13 @@ they lack the Workflow and private R2 bindings required by the application.
 
 | Boundary | Responsibility | Sensitive data retained |
 |---|---|---|
-| OpenNext web Worker | Stateless auth, workspace UI, article APIs, review, approvals, and command transitions | Platform provider key and credential keyring in bindings; workspace plaintext only transiently during prompt and connection requests; no durable local data |
+| OpenNext web Worker | Stateless auth, account UI, article APIs, review, approvals, and command transitions | Platform provider key and credential keyring in bindings; personal Gemini-key plaintext only transiently during prompt and connection requests; no durable local data |
 | Article Workflow Worker | Idempotent text/image generation and job progress | Platform provider key and credential keyring in bindings; workspace key plaintext only transiently in one invocation; no browser credentials |
 | Neon PostgreSQL | Auth, tenancy, article revisions, quotas, recipes, commands, and audit | Users/sessions, memberships, article and publication content, encrypted workspace Gemini credential records, recipes, command/audit records, and hashes rather than raw one-time secrets |
 | Private Cloudflare R2 | Generated covers and slide assets | Private objects addressed by opaque keys |
 | Local publisher companion | Asset verification, Chrome preparation, final approved click | OS-keyring token; local Chrome session and files |
 
-Workspace Gemini keys are AES-256-GCM ciphertext in Neon. The web and Workflow
+Personal Gemini keys are AES-256-GCM ciphertext in Neon. The web and Workflow
 Workers share a versioned keyring binding; plaintext exists only transiently in
 the request/job Worker memory and is never included in a job payload, audit
 metadata, result, or log.
@@ -83,9 +84,24 @@ begins, uncertain evidence becomes terminal `outcome_unknown`; the system never
 retries that click automatically. Revision numbers and recipe hashes are
 rechecked at every transition.
 
-Publisher devices are workspace-scoped and can be `pending`, `active`, or
-`revoked`. Revocation disables the bearer token without deleting the audit row;
-pair again from **Settings → Connections** when a device must be replaced.
+Publisher devices are account-owned and can be `pending`, `active`, or
+`revoked`. The pairing API derives the internal tenant from the authenticated
+user and never trusts a browser-supplied workspace ID. Revocation disables the
+bearer token without deleting the audit row; pair again from **Settings →
+Connections** when a device must be replaced.
+
+## Personal accounts and the internal workspace namespace
+
+The user-facing product is personal-only: access codes create separate
+accounts, there is no content sharing, and users do not create or choose a
+workspace. `/workspace` remains the canonical signed-in route for compatibility.
+
+The `Workspace` and `WorkspaceMember` records remain internal tenant-isolation
+primitives. Article rows, publication records, audit history, R2 object keys,
+generation grants, and AES-GCM associated data still depend on that stable ID.
+Authorization resolves `user.id` to the user's sole internal workspace on the
+server. Removing or renaming that boundary requires a separate migration after
+legacy recovery data is resolved; it is not part of the account-UX change.
 
 ## Visual generation
 

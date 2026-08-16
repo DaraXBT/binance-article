@@ -5,6 +5,7 @@ import { CircleAlert } from 'lucide-react';
 
 import { useLanguage } from '@/components/language-provider';
 import { Button } from '@/components/ui/button';
+import { normalizeLoginCallback } from '@/lib/auth-return-to';
 import { cn } from '@/lib/utils';
 
 export type AuthErrorKind =
@@ -64,6 +65,7 @@ export function classifyAuthError(value: unknown): AuthErrorKind | null {
 export interface AuthErrorPanelProps {
   error: string | null | undefined;
   context?: 'join' | 'sign-in';
+  returnTo?: string | null;
   className?: string;
   showAction?: boolean;
 }
@@ -71,6 +73,7 @@ export interface AuthErrorPanelProps {
 export function AuthErrorPanel({
   error,
   context = 'sign-in',
+  returnTo,
   className,
   showAction = true,
 }: AuthErrorPanelProps) {
@@ -90,12 +93,18 @@ export function AuthErrorPanel({
           : kind === 'account-disabled'
             ? copy.authErrorAccountDisabled
             : copy.authErrorGeneric;
-  const actionHref = kind === 'account-disabled' || (
+  const actionPath = kind === 'account-disabled' || (
     context === 'sign-in' && (kind === 'cancelled' || kind === 'generic')
   )
     ? '/login'
     : '/join';
-  const actionLabel = actionHref === '/join' ? copy.returnToJoin : copy.returnToSignIn;
+  const safeReturnTo = returnTo == null ? null : normalizeLoginCallback(returnTo);
+  const actionHref = safeReturnTo == null
+    ? actionPath
+    : actionPath === '/join'
+      ? `/join?returnTo=${encodeURIComponent(safeReturnTo)}`
+      : `/login?callbackURL=${encodeURIComponent(safeReturnTo)}`;
+  const actionLabel = actionPath === '/join' ? copy.returnToJoin : copy.returnToSignIn;
 
   return (
     <section

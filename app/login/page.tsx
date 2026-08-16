@@ -18,6 +18,7 @@ export default async function LoginPage({
         <AuthErrorPanel
           error={error}
           context="sign-in"
+          returnTo={callbackURL}
           className="mb-5"
           showAction={error !== 'account_disabled'}
         />

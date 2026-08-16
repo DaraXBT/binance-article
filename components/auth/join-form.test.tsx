@@ -144,11 +144,51 @@ describe('JoinForm', () => {
     await waitFor(() => expect(signInSocial).toHaveBeenCalledTimes(2));
   });
 
+  it('resumes a server-validated claim after an OAuth error without asking for the code again', async () => {
+    const returnTo = '/workspace?resume=7c67d7cf-47bd-4c5d-8dca-0980a9c27575';
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ready: true }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    render(<JoinForm checkExistingClaim returnTo={returnTo} />);
+
+    expect(screen.getByText(/checking invitation/i)).toBeTruthy();
+    await screen.findByText(/access confirmed/i);
+    expect(fetch).toHaveBeenCalledWith('/api/enrollment/claim/status', expect.objectContaining({
+      method: 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+    }));
+    expect(screen.queryByRole('textbox', { name: /enrollment code/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /continue with google/i }));
+    expect(signInSocial).toHaveBeenCalledWith(expect.objectContaining({
+      callbackURL:
+        '/join/complete?returnTo=%2Fworkspace%3Fresume%3D7c67d7cf-47bd-4c5d-8dca-0980a9c27575',
+      errorCallbackURL:
+        '/auth/error?flow=enrollment&returnTo=%2Fworkspace%3Fresume%3D7c67d7cf-47bd-4c5d-8dca-0980a9c27575',
+    }));
+  });
+
+  it('shows code entry when the server finds no retryable claim', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ ready: false }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    render(<JoinForm checkExistingClaim />);
+
+    expect(await screen.findByRole('textbox', { name: /enrollment code/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /continue with google/i }).hasAttribute('disabled'))
+      .toBe(true);
+  });
+
   it('exchanges a fragment code for a claim, scrubs the URL, and completes through the join callback', async () => {
     const rawCode = 'join-abcde-fghjk-mnpqr-stuvw';
     const returnTo = '/workspace?resume=7c67d7cf-47bd-4c5d-8dca-0980a9c27575';
     window.history.replaceState({}, '', `/join#code=${rawCode}`);
-    const { container } = render(<JoinForm returnTo={returnTo} />);
+    const { container } = render(<JoinForm checkExistingClaim returnTo={returnTo} />);
 
     await screen.findByText(/access confirmed/i);
 
@@ -157,6 +197,7 @@ describe('JoinForm', () => {
       credentials: 'same-origin',
       cache: 'no-store',
     }));
+    expect(fetch).not.toHaveBeenCalledWith('/api/enrollment/claim/status', expect.anything());
     const claimRequest = vi.mocked(fetch).mock.calls[0]?.[1];
     expect(JSON.parse(String(claimRequest?.body))).toMatchObject({
       code: 'JOIN-ABCDE-FGHJK-MNPQR-STUVW',

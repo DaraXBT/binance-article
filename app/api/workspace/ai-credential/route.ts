@@ -126,7 +126,7 @@ async function keyringFromEnvironment() {
   if (!environment.AI_CREDENTIAL_KEYRING || !environment.AI_CREDENTIAL_ACTIVE_KEY_ID) {
     throw new AppError({
       code: 'AI_CREDENTIAL_STORAGE_UNAVAILABLE',
-      message: 'Workspace Gemini connections are not available yet.',
+      message: 'Gemini connections are not available yet.',
       status: 503,
     });
   }
@@ -138,7 +138,7 @@ async function keyringFromEnvironment() {
   } catch (error) {
     throw new AppError({
       code: 'AI_CREDENTIAL_STORAGE_UNAVAILABLE',
-      message: 'Workspace Gemini connections are not available yet.',
+      message: 'Gemini connections are not available yet.',
       status: 503,
       cause: error,
     });
@@ -232,7 +232,7 @@ export async function PUT(request: NextRequest) {
     if (!saved) {
       throw new AppError({
         code: 'WORKSPACE_OWNER_REQUIRED',
-        message: 'Workspace owner access is required.',
+        message: 'Gemini settings are unavailable for this account.',
         status: 403,
       });
     }
@@ -260,7 +260,7 @@ export async function POST(request: NextRequest) {
     if (!record) {
       throw new AppError({
         code: 'AI_CREDENTIAL_NOT_CONFIGURED',
-        message: 'Save a workspace Gemini key before testing it.',
+        message: 'Save your Gemini key before testing it.',
         status: 409,
       });
     }
@@ -279,7 +279,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       throw new AppError({
         code: 'WORKSPACE_GEMINI_CONNECTION_INVALID',
-        message: 'The workspace Gemini connection needs attention. Replace the key or switch to platform credits.',
+        message: 'Your Gemini connection needs attention. Replace the key or switch to platform credits.',
         status: 503,
         cause: error,
       });
@@ -328,7 +328,7 @@ export async function PATCH(request: NextRequest) {
       if (!current) {
         throw new AppError({
           code: 'AI_CREDENTIAL_NOT_CONFIGURED',
-          message: 'Save and test a workspace Gemini key before activating it.',
+          message: 'Save and test your Gemini key before activating it.',
           status: 409,
         });
       }
@@ -347,7 +347,7 @@ export async function PATCH(request: NextRequest) {
       } catch (error) {
         throw new AppError({
           code: 'WORKSPACE_GEMINI_CONNECTION_INVALID',
-          message: 'The workspace Gemini connection needs attention. Replace the key or switch to platform credits.',
+          message: 'Your Gemini connection needs attention. Replace the key or switch to platform credits.',
           status: 503,
           cause: error,
         });

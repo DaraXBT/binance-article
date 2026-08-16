@@ -5,25 +5,33 @@ labels can remain in the language supplied by the user.
 
 ## Join and sign in
 
-1. Open the private invitation link from the owner. (Owners create and revoke
-   invitations under **Settings → Connections**; each join link is shown once
-   at creation.)
-2. Enroll with the invited Google account.
+1. Open the private join link from an xArticle administrator, or open `/join`
+   and enter its access code. The shared code grants application access; it
+   does not grant access to the administrator's articles.
+2. Continue with Google. Enrollment creates a separate personal account and
+   article library automatically.
 3. Sign in with Google on later visits.
 
 Private pages redirect logged-out visitors to `/login`. Suspended and revoked accounts remain disabled even if an old browser session or publisher-device token still exists.
 
-## Create or claim a workspace
+## Open your personal library
 
-New users choose **Create workspace**. The workspace is attached to the account immediately; there is no new recovery key to save.
+After enrollment, xArticle opens `/workspace` directly. Despite the route name,
+there is no workspace to create or select and no account key prefix to manage.
+The internal personal data scope is derived from the signed-in account.
 
-Users migrating an older browser-based workspace may choose **Recover existing workspace** and enter its original `dwk_...` key. This is a one-time claim available only during the 30-day migration window. Unknown, expired, and already-used keys all return the same response.
+When the server confirms that a pristine account can still receive legacy data,
+the account menu shows **Import old data**. Enter the original `dwk_...` key to
+perform the one-time import. Unknown, expired, and already-used keys all return
+the same response. The import choice appears before a resumed public draft can
+write its first article.
 
-## Open workspace settings
+## Open account settings
 
-Use the account control pinned at the bottom of the workspace rail, then select
-**Settings**. This opens the responsive **Connections** panel, where workspace
-owners manage Gemini credentials, publisher devices, and invitations. When the
+Use the account control pinned at the bottom of the article rail, then select
+**Settings**. This opens the responsive **Connections** panel, where users
+manage their Gemini key and publisher devices; xArticle administrators also
+manage enrollment and account access. When the
 desktop rail is icon-only, the account menu opens beside its avatar; it remains
 inside the full profile row when the rail is expanded or on mobile.
 
@@ -51,19 +59,16 @@ Binance 5:2 safe frame and output, not the first slide. If slide images fail,
 separately. When an existing image is available, it stays visible behind the
 generation loader during regeneration.
 
-Generation grants bind to the verified account session and workspace. They do not replace account authentication.
+Generation grants bind to the verified account session and its internal personal tenant. They do not replace account authentication.
 
-## Use your own Gemini key (workspace owner)
+## Use your own Gemini key
 
 Open **Settings → Connections** and use the **Gemini connection** card. Paste a
 key from Google AI Studio, save it, and use **Test connection** if you want to
 verify it again. Saving does not switch generation automatically: choose
-**Workspace Gemini key** under **Generation source** to activate it. Choose
+**Your Gemini key** under **Generation source** to activate it. Choose
 **Platform credits** to switch back. Replacing preserves the current selection;
 deleting removes xArticle’s encrypted copy but does not revoke the key at Google.
-
-Workspace members see that the connection is managed by the owner and can use
-the active source without seeing any key material.
 
 The Gemini connection affects prompt, article, slide-image, and cover
 generation only. Binance/X posting still uses the separately paired local
@@ -118,11 +123,12 @@ a lost or replaced device there; a revoked companion must be paired again.
 
 ## Common issues
 
-- **Login is rejected:** use the invited Google account.
-- **Account disabled:** contact the owner; old sessions and paired devices cannot bypass suspension.
+- **New-user sign-in is rejected:** choose **Join with an access code**; normal
+  sign-in intentionally accepts existing accounts only.
+- **Account disabled:** contact an xArticle administrator; old sessions and paired devices cannot bypass suspension.
 - **Generation locked:** request a fresh one-time generation grant.
-- **Legacy key unavailable:** the key is malformed, expired, already consumed, or belongs to a workspace that was already claimed.
-- **Publisher asks to pair again:** the device token was revoked or its account/membership is no longer active.
+- **Legacy key unavailable:** the key is malformed, expired, already consumed, or belongs to data that was already imported.
+- **Publisher asks to pair again:** the device token was revoked or its account is no longer active.
 - **Publisher appears offline:** start the companion and confirm `bun run doctor`
   has no blocking errors.
 - **Publisher upgrade required:** install the latest companion and pair the

@@ -54,6 +54,27 @@ function expectExactCapacityInvariant(sql: string): void {
 const now = new Date('2026-08-09T00:00:00.000Z');
 
 describe('enrollment repository', () => {
+  it('reports retry readiness only for a live unfinished claim with a valid source', async () => {
+    const harness = queryHarness([{ ready: true }]);
+    const repository = createEnrollmentRepository({ $client: harness.client } as never);
+
+    await expect(repository.hasReadyClaim({
+      claimTokenHash: 'a'.repeat(64),
+      now,
+    })).resolves.toBe(true);
+
+    const sql = compactSql(harness.queries[0]?.text ?? '');
+    expect(sql).toContain('claim."tokenHash" = ?');
+    expect(sql).toMatch(/claim\."status" IN \('pending', 'reserved'\)/);
+    expect(sql).toContain('claim."expiresAt" > ?');
+    expect(sql).toMatch(/claim\."source" = 'shared_code'[\s\S]*code\."status" = 'active'/);
+    expect(sql).toMatch(
+      /claim\."source" IN \('legacy_invitation', 'bootstrap'\)[\s\S]*invitation\."acceptedByUserId" IS NULL/,
+    );
+    expect(sql).not.toContain('claim."tokenPrefix"');
+    expect(harness.queries[0]?.values).toContain('a'.repeat(64));
+  });
+
   it('looks up an active code by HMAC without returning its stored hash', async () => {
     const harness = queryHarness([{ id: 'code_1', version: 1, codePrefix: '01234567', status: 'active' }]);
     const repository = createEnrollmentRepository({ $client: harness.client } as never);

@@ -2,6 +2,7 @@ export type ApiRoutePolicy =
   | 'public'
   | 'invitation-token'
   | 'enrollment-code'
+  | 'enrollment-claim'
   | 'enrollment-session'
   | 'pairing-token'
   | 'owner'
@@ -34,6 +35,7 @@ export const API_ROUTE_POLICIES = {
   'app/api/articles/route.ts': 'active-user',
   'app/api/auth/[...all]/route.ts': 'public',
   'app/api/enrollment/claim/route.ts': 'enrollment-code',
+  'app/api/enrollment/claim/status/route.ts': 'enrollment-claim',
   'app/api/enrollment/complete/route.ts': 'enrollment-session',
   'app/api/generate-access/route.ts': 'active-user',
   'app/api/health/route.ts': 'public',

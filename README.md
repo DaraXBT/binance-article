@@ -1,10 +1,10 @@
 # xArticle
 
-xArticle is an invite-only article workspace with reviewed Binance Square and X publishing workflows. The web app manages articles, assets, approvals, and device commands. The paired local publisher companion is the primary path for both targets; validated ZIP downloads remain an optional local fallback.
+xArticle is an invite-only personal article studio with reviewed Binance Square and X publishing workflows. Each login has a private article library, AI connection, and publishing devices. The paired local publisher companion is the primary path for both targets; validated ZIP downloads remain an optional local fallback.
 
 ## Documentation
 
-- [Getting started](./GETTING_STARTED.md) — invitation, workspace, generation,
+- [Getting started](./GETTING_STARTED.md) — enrollment, personal library, generation,
   and reviewed publishing flows.
 - [Setup instructions](./SETUP_INSTRUCTIONS.md) — local environment, database,
   Cloudflare deployment, companion setup, and verification.
@@ -16,7 +16,7 @@ xArticle is an invite-only article workspace with reviewed Binance Square and X 
   bindings, production origin, and observability.
 - [Generation access](./docs/generation-access.md) — one-time grants, rotation,
   and protected endpoints.
-- [Workspace Gemini connections](./docs/workspace-ai-credentials.md) — BYOK
+- [Account Gemini connections](./docs/workspace-ai-credentials.md) — BYOK
   selection, encryption-key rotation, and deployment order.
 - [Dot-grid image loading](./docs/dot-grid-image-loading.md) — canvas API,
   loading-state examples, and integration pitfalls.
@@ -54,9 +54,9 @@ Users can cancel any pre-click command from the web UI. Expired pre-click comman
   `DEEPSEEK_API_KEY` is retained only for a dormant internal compatibility path
   and belongs only on the article Workflow Worker; the public generation flow
   currently exposes no DeepSeek selector.
-- Workspace BYOK uses the same versioned `AI_CREDENTIAL_KEYRING` and
+- Account BYOK uses the same versioned `AI_CREDENTIAL_KEYRING` and
   `AI_CREDENTIAL_ACTIVE_KEY_ID` bindings on both Workers. A saved key is
-  inactive until its workspace owner explicitly selects it in **Settings →
+  inactive until the user explicitly selects **Your Gemini key** in **Settings →
   Connections**.
 - Keep the `GEMINI_TEXT_MODEL` and `GEMINI_IMAGE_MODEL` variables identical on
   both Workers so connection validation matches generation.
@@ -89,38 +89,50 @@ Binance cover preparation records the focal point and the companion validates
 and crops a selected cover to the 5:2 / 1000×400 contract before composition.
 
 Generation access can be locked for cost control. In that case an operator
-issues a one-time `gac_...` grant; the grant is bound to the user's workspace
-and authenticated browser session. The raw grant is shown once and only its
-hash and bounded metadata are stored.
+issues a one-time `gac_...` grant; the grant is bound to the user's internal
+personal tenant and authenticated browser session. The raw grant is shown once
+and only its hash and bounded metadata are stored.
 
-## Account and workspace model
+## Account and internal tenancy model
 
 - The product interface is English-only. Imported source text and generated
   article content may remain in their original language; stale UI-language
   cookies or browser storage are normalized back to English.
-- App-global owners manage enrollment in **Settings → Connections**. After the
-  one-time bootstrap invitation on an empty database, owners create one
+- xArticle administrators manage enrollment in **Settings → Connections**.
+  After the one-time bootstrap invitation on an empty database, administrators create one
   reusable shared `JOIN-...` code and privately distribute its `#code=` URL.
   Only an HMAC hash is stored. A code claim is short-lived and becomes an active
   account only after verified Google sign-in; rotating a code invalidates every
   unfinished claim made with the previous version. Existing legacy invitation
   links remain usable until expiry or revocation.
-- Returning users sign in with Google.
+- Every successful code enrollment creates a separate personal account and
+  private article library. A code grants application access; it never joins the
+  user to another person's content.
+- Returning users sign in with Google. Unknown users are directed to **Join
+  with an access code**, and draft return paths survive the enrollment flow.
 - Suspended or revoked users are rejected on every request.
-- The account control stays pinned to the bottom of the workspace rail. Select
+- The account control stays pinned to the bottom of the article rail. Select
   **Settings** there to open the responsive **Connections** panel for Gemini
-  credentials, publisher devices, and owner invitations. In the collapsed
+  credentials, publisher devices, and administrator controls. In the collapsed
   desktop rail, the same menu opens beside the account icon rather than moving
   into the article list.
-- The private beta enforces one workspace membership per account and one owner per workspace.
+- `/workspace` remains the canonical signed-in route. Internally, the database
+  retains one workspace namespace per account for tenant isolation, encrypted
+  credential binding, legacy recovery, audit history, and stable R2 keys; users
+  never create, select, or share that namespace.
+- The private beta enforces one internal workspace membership per account and
+  one owner per internal workspace.
   Its capacity counts active users, live legacy invitations, and live reserved
   enrollment claims; unreserved pending claims do not consume a seat.
-- New workspaces are account-owned and do not issue recovery secrets.
-- Pre-account workspaces can be claimed once with their old `dwk_...` key during the database-stamped 30-day migration window. A successful claim consumes the window and deletes legacy browser sessions.
+- New personal tenants are provisioned automatically and do not issue recovery
+  secrets.
+- Eligible pre-account data can be imported once with its old `dwk_...` key
+  during the database-stamped recovery window. The UI labels this **Import old
+  data** and offers it only when the server confirms eligibility.
 
 ## Binance publishing flow
 
-1. An authenticated member chooses **Post** or **Article**, reviews the exact
+1. A signed-in user chooses **Post** or **Article**, reviews the exact
    text/title/body and optional media, and prepares an immutable,
    revision-bound recipe in the web app.
 2. A paired local companion claims the command and verifies every private asset by MIME type, length, magic bytes, and SHA-256.
@@ -137,7 +149,7 @@ manual local bundle workflow available through
 
 ## X publishing flow
 
-1. An authenticated member chooses **Post** or **Article**, reviews the exact
+1. A signed-in user chooses **Post** or **Article**, reviews the exact
    content and optional media, and selects **Prepare on X**. Articles require
    the publishing account to have X Articles entitlement.
 2. The paired companion claims the immutable command, verifies every downloaded
@@ -152,7 +164,7 @@ manual local bundle workflow available through
 
 If the companion is unavailable, **Download fallback ZIP** creates only
 `post.txt`, selected local images, and a strict SHA-256 manifest. It contains no
-cookies, access codes, workspace keys, or remote asset URLs. Run the fallback on
+cookies, access codes, legacy recovery keys, or remote asset URLs. Run the fallback on
 the same computer:
 
 ```bash

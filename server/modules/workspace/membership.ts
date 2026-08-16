@@ -61,7 +61,7 @@ export async function resolveActorWorkspace(
   if (rows.length > 1) {
     throw new AppError({
       code: 'WORKSPACE_MEMBERSHIP_CONFLICT',
-      message: 'The account workspace configuration is invalid.',
+      message: 'The account data configuration is invalid.',
       status: 409,
     });
   }
@@ -81,7 +81,7 @@ export async function requireActorWorkspace(
   actorUserId: string,
 ): Promise<ActorWorkspace> {
   const resolved = await resolveActorWorkspace(database, actorUserId);
-  if (!resolved) throw notFound('WORKSPACE_NOT_FOUND', 'Workspace not found.');
+  if (!resolved) throw notFound('WORKSPACE_NOT_FOUND', 'Account library not found.');
   return resolved;
 }
 
@@ -93,7 +93,7 @@ export async function requireActorWorkspaceOwner(
   if (resolved.workspaceRole !== 'owner') {
     throw new AppError({
       code: 'WORKSPACE_OWNER_REQUIRED',
-      message: 'Workspace owner access is required.',
+      message: 'This account cannot manage these settings.',
       status: 403,
     });
   }

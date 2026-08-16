@@ -510,7 +510,8 @@ export function AdminPeopleAccessCard({
             PEOPLE &amp; ACCESS
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Share one enrollment code, then suspend or revoke individual accounts after they join.
+            Each person receives a separate personal account and private article library.
+            Share one enrollment code, then suspend or revoke accounts individually.
           </p>
         </div>
         <ShieldCheck aria-hidden="true" className="size-4 text-primary" />
@@ -529,7 +530,7 @@ export function AdminPeopleAccessCard({
           <section aria-labelledby="enrollment-code-title" className="mt-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h4 id="enrollment-code-title" className="text-sm font-semibold">Shared enrollment code</h4>
+                <h4 id="enrollment-code-title" className="text-sm font-semibold">Enrollment code</h4>
                 {activeCode ? (
                   <p className="mt-1 font-mono text-[0.68rem] uppercase tracking-[0.1em] text-muted-foreground">
                     Version {activeCode.version} · {activeCode.codePrefix}… · created {formatDate(activeCode.createdAt)}
@@ -575,7 +576,7 @@ export function AdminPeopleAccessCard({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h4 id="people-list-title" className="text-sm font-semibold">People</h4>
-                <p className="mt-1 text-xs text-muted-foreground">Suspension and revocation block access while preserving workspace data.</p>
+                <p className="mt-1 text-xs text-muted-foreground">Suspension and revocation block access while preserving account data.</p>
               </div>
               <Button type="button" size="icon-sm" variant="ghost" className="rounded-lg" aria-label="Refresh people" onClick={() => void refresh()}>
                 <RefreshCcw aria-hidden="true" className="size-3.5" />
@@ -592,7 +593,7 @@ export function AdminPeopleAccessCard({
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                         <span className="truncate text-sm font-medium">{person.name}</span>
-                        {person.role === 'owner' ? <Badge variant="outline" className="rounded-full text-[0.6rem]">Owner</Badge> : null}
+                        {person.role === 'owner' ? <Badge variant="outline" className="rounded-full text-[0.6rem]">Administrator</Badge> : null}
                         <Badge variant="outline" className={cn('rounded-full text-[0.6rem] capitalize', STATUS_STYLES[person.status])}>
                           {person.status}
                         </Badge>
@@ -644,7 +645,7 @@ export function AdminPeopleAccessCard({
           <AlertDialogHeader>
             <AlertDialogTitle>Disable the enrollment code?</AlertDialogTitle>
             <AlertDialogDescription>
-              The shared code and every unfinished enrollment using it will stop immediately. No replacement is created. Existing users keep access, and legacy invitation links are unaffected.
+              This code and every unfinished enrollment using it will stop immediately. No replacement is created. Existing users keep access, and legacy invitation links are unaffected.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -670,7 +671,7 @@ export function AdminPeopleAccessCard({
             <AlertDialogDescription>
               {personAction?.action === 'restore'
                 ? 'The user can sign in again if beta capacity is available.'
-                : 'Current sessions and publisher devices will be invalidated. Workspace content is retained.'}
+                : 'Current sessions and publisher devices will be invalidated. Account content is retained.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

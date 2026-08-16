@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 
 import { GoogleIcon } from '@/components/icons/google-icon';
 import { useLanguage } from '@/components/language-provider';
 import { Button } from '@/components/ui/button';
 import { authClient } from '@/lib/auth-client';
+import { normalizeLoginCallback } from '@/lib/auth-return-to';
 import { cn } from '@/lib/utils';
 
 type LoginState = 'idle' | 'google' | 'error';
@@ -23,11 +25,17 @@ export function LoginForm({
   const { messages } = useLanguage();
   const copy = messages.auth;
   const [state, setState] = useState<LoginState>('idle');
+  const returnTo = normalizeLoginCallback(callbackURL);
+  const encodedReturnTo = encodeURIComponent(returnTo);
 
   const startGoogle = async () => {
     setState('google');
     try {
-      const result = await authClient.signIn.social({ provider: 'google', callbackURL });
+      const result = await authClient.signIn.social({
+        provider: 'google',
+        callbackURL: returnTo,
+        errorCallbackURL: `/auth/error?flow=sign-in&returnTo=${encodedReturnTo}`,
+      });
       if (result.error) setState('error');
     } catch {
       setState('error');
@@ -76,6 +84,15 @@ export function LoginForm({
             {copy.signInError}
           </p>
         ) : null}
+      </div>
+
+      <div className="mt-4 border-t border-border/60 pt-4 text-center text-sm text-muted-foreground">
+        <Link
+          className="underline underline-offset-4 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/35 focus-visible:ring-offset-2"
+          href={`/join?returnTo=${encodedReturnTo}`}
+        >
+          {copy.joinCodeTitle ?? copy.returnToJoin}
+        </Link>
       </div>
     </section>
   );

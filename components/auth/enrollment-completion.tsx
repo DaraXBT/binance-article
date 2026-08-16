@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { AuthErrorPanel } from '@/components/auth/auth-error-panel';
 import { useLanguage } from '@/components/language-provider';
 import { Button } from '@/components/ui/button';
+import { normalizeLoginCallback } from '@/lib/auth-return-to';
 
 type CompletionState =
   | { status: 'completing' }
@@ -15,20 +16,16 @@ type CompletionState =
   | { status: 'error'; message: string; code: string | null };
 
 function internalDestination(value: unknown): string {
-  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) {
-    return '/workspace';
-  }
-  try {
-    const parsed = new URL(value, 'https://app.invalid');
-    return parsed.origin === 'https://app.invalid'
-      ? `${parsed.pathname}${parsed.search}${parsed.hash}`
-      : '/workspace';
-  } catch {
-    return '/workspace';
-  }
+  return normalizeLoginCallback(value);
 }
 
-export function EnrollmentCompletion({ providerError }: { providerError?: string | null }) {
+export function EnrollmentCompletion({
+  providerError,
+  returnTo,
+}: {
+  providerError?: string | null;
+  returnTo?: string | null;
+}) {
   const router = useRouter();
   const { messages } = useLanguage();
   const copy = messages.auth;
@@ -57,7 +54,7 @@ export function EnrollmentCompletion({ providerError }: { providerError?: string
       }
 
       setState({ status: 'complete' });
-      router.replace(internalDestination(body?.redirectTo));
+      router.replace(internalDestination(returnTo === undefined ? body?.redirectTo : returnTo));
     } catch {
       setState({
         status: 'error',
@@ -65,7 +62,7 @@ export function EnrollmentCompletion({ providerError }: { providerError?: string
         code: null,
       });
     }
-  }, [copy.enrollmentCompleteFailed, router]);
+  }, [copy.enrollmentCompleteFailed, returnTo, router]);
 
   useEffect(() => {
     if (providerError || startedAttemptRef.current === attempt) return;
@@ -76,8 +73,12 @@ export function EnrollmentCompletion({ providerError }: { providerError?: string
   }, [attempt, complete, providerError]);
 
   if (providerError) {
-    return <AuthErrorPanel error={providerError} context="join" />;
+    return <AuthErrorPanel error={providerError} context="join" returnTo={returnTo} />;
   }
+
+  const joinHref = returnTo == null
+    ? '/join'
+    : `/join?returnTo=${encodeURIComponent(normalizeLoginCallback(returnTo))}`;
 
   return (
     <section
@@ -112,7 +113,7 @@ export function EnrollmentCompletion({ providerError }: { providerError?: string
               ? copy.enrollmentComplete
               : state.status === 'error'
                 ? state.message
-                : 'Confirming your account and personal workspace…'}
+                : 'Confirming your account and opening your article library…'}
           </p>
         </div>
       </div>
@@ -131,7 +132,7 @@ export function EnrollmentCompletion({ providerError }: { providerError?: string
             {copy.continueEnrollment}
           </Button>
           <Button asChild type="button" size="sm" variant="outline" className="h-10 rounded-lg">
-            <Link href="/join">{copy.returnToJoin}</Link>
+            <Link href={joinHref}>{copy.returnToJoin}</Link>
           </Button>
         </div>
       ) : null}

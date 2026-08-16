@@ -62,6 +62,13 @@ export interface EnrollmentClaimRepository {
   }): Promise<EnrollmentClaimRecord | null>;
 }
 
+export interface EnrollmentClaimReadinessRepository {
+  hasReadyClaim(input: {
+    claimTokenHash: string;
+    now: Date;
+  }): Promise<boolean>;
+}
+
 export interface LegacyEnrollmentClaimRepository {
   createLegacyClaim(input: {
     id: string;
@@ -152,6 +159,7 @@ export interface EnrollmentCodeRevocationRepository {
 
 export interface EnrollmentRepository extends
   EnrollmentClaimRepository,
+  EnrollmentClaimReadinessRepository,
   LegacyEnrollmentClaimRepository,
   EnrollmentReservationRepository,
   EnrollmentCompletionRepository,
@@ -220,6 +228,22 @@ export function getEnrollmentCodePepper(
     throw new Error('ENROLLMENT_CODE_PEPPER must contain at least 32 characters.');
   }
   return pepper;
+}
+
+/** Check whether an opaque claim can safely restart the enrollment provider flow. */
+export async function isEnrollmentClaimReady(input: {
+  repository: EnrollmentClaimReadinessRepository;
+  claimToken: string;
+  now?: Date;
+}): Promise<boolean> {
+  const now = validNow(input.now);
+  let claimTokenHash: string;
+  try {
+    claimTokenHash = await hashEnrollmentClaimToken(input.claimToken);
+  } catch {
+    return false;
+  }
+  return input.repository.hasReadyClaim({ claimTokenHash, now });
 }
 
 /** Exchange a reusable shared code for a single short-lived opaque claim. */

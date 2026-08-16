@@ -7,7 +7,6 @@ import {
   useMemo,
   useState,
 } from 'react';
-import Link from 'next/link';
 import {
   Check,
   Copy,
@@ -31,11 +30,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
-interface WorkspaceResponse {
-  hasWorkspace: boolean;
-  workspaceId: string | null;
-}
-
 interface PublisherDevicePairing {
   deviceId: string;
   pairingCode: string;
@@ -53,12 +47,6 @@ interface PublisherDevice {
   lastSeenAt: string | null;
 }
 
-type WorkspaceState =
-  | { status: 'loading' }
-  | { status: 'ready'; workspaceId: string }
-  | { status: 'missing' }
-  | { status: 'error' };
-
 type PairingState =
   | { status: 'idle' }
   | { status: 'creating' }
@@ -75,19 +63,6 @@ type CopyState = 'idle' | 'code' | 'commands' | 'error';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function readWorkspaceResponse(value: unknown): WorkspaceResponse {
-  if (!isRecord(value) || typeof value.hasWorkspace !== 'boolean') {
-    throw new TypeError('Workspace response is invalid.');
-  }
-  if (value.workspaceId !== null && typeof value.workspaceId !== 'string') {
-    throw new TypeError('Workspace response is invalid.');
-  }
-  return {
-    hasWorkspace: value.hasWorkspace,
-    workspaceId: value.workspaceId,
-  };
 }
 
 function readPairingResponse(value: unknown): PublisherDevicePairing {
@@ -158,7 +133,6 @@ export function PublisherDevicePairingCard({
   className?: string;
   onUncopiedPairingChange?: (hasUncopiedPairing: boolean) => void;
 }) {
-  const [workspace, setWorkspace] = useState<WorkspaceState>({ status: 'loading' });
   const [pairing, setPairing] = useState<PairingState>({ status: 'idle' });
   const [devices, setDevices] = useState<DevicesState>({ status: 'idle' });
   const [revokingDeviceId, setRevokingDeviceId] = useState<string | null>(null);
@@ -185,36 +159,12 @@ export function PublisherDevicePairingCard({
     }
   }, []);
 
-  const loadWorkspace = useCallback(async (signal?: AbortSignal) => {
-    setWorkspace({ status: 'loading' });
-    setDevices({ status: 'idle' });
-    try {
-      const response = await fetch('/api/workspace', {
-        cache: 'no-store',
-        credentials: 'same-origin',
-        signal,
-      });
-      const body = await readResponseBody(response);
-      if (!response.ok) throw new Error('Workspace request failed.');
-      const result = readWorkspaceResponse(body);
-      if (!result.hasWorkspace || !result.workspaceId) {
-        setWorkspace({ status: 'missing' });
-        return;
-      }
-      setWorkspace({ status: 'ready', workspaceId: result.workspaceId });
-      void loadDevices(signal);
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      setWorkspace({ status: 'error' });
-    }
-  }, [loadDevices]);
-
   useEffect(() => {
     setAppOrigin(window.location.origin);
     const controller = new AbortController();
-    void loadWorkspace(controller.signal);
+    void loadDevices(controller.signal);
     return () => controller.abort();
-  }, [loadWorkspace]);
+  }, [loadDevices]);
 
   const companionCommands = useMemo(() => [
     'cd publisher-companion',
@@ -226,7 +176,7 @@ export function PublisherDevicePairingCard({
 
   const createPairing = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (workspace.status !== 'ready' || !deviceName.trim()) return;
+    if (!deviceName.trim()) return;
 
     setPairing({ status: 'creating' });
     setCopyState('idle');
@@ -238,10 +188,7 @@ export function PublisherDevicePairingCard({
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          workspaceId: workspace.workspaceId,
-          name: deviceName.trim(),
-        }),
+        body: JSON.stringify({ name: deviceName.trim() }),
       });
       const body = await readResponseBody(response);
       if (!response.ok) throw new Error('Pairing request failed.');
@@ -322,44 +269,14 @@ export function PublisherDevicePairingCard({
           <div className="space-y-1.5">
             <CardTitle>Browser publisher</CardTitle>
             <CardDescription className="max-w-xl leading-relaxed">
-              Pair the web workspace with the companion on the computer where Chrome is already signed in to Binance Square or X.
+              Pair this account with the companion on the computer where Chrome is already signed in to Binance Square or X.
             </CardDescription>
           </div>
         </div>
       </CardHeader>
 
       <CardContent className="space-y-5">
-        {workspace.status === 'loading' ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
-            <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-            Checking your workspace…
-          </div>
-        ) : null}
-
-        {workspace.status === 'error' ? (
-          <div className="space-y-3" role="alert">
-            <p className="text-sm text-destructive">
-              Your workspace could not be loaded. Check the connection and try again.
-            </p>
-            <Button type="button" size="sm" variant="outline" onClick={() => void loadWorkspace()}>
-              Retry workspace check
-            </Button>
-          </div>
-        ) : null}
-
-        {workspace.status === 'missing' ? (
-          <div className="space-y-3" role="status">
-            <p className="text-sm text-muted-foreground">
-              Create or recover a workspace before pairing a publishing computer.
-            </p>
-            <Button asChild size="sm" variant="outline">
-              <Link href="/workspace">Go to workspace</Link>
-            </Button>
-          </div>
-        ) : null}
-
-        {workspace.status === 'ready' ? (
-          <form className="space-y-3" onSubmit={createPairing}>
+        <form className="space-y-3" onSubmit={createPairing}>
             <label className="block space-y-1.5" htmlFor="publisher-device-name">
               <span className="text-sm font-medium">Computer name</span>
               <Input
@@ -393,11 +310,9 @@ export function PublisherDevicePairingCard({
                 Codes expire after 10 minutes and are shown only in this browser session.
               </p>
             </div>
-          </form>
-        ) : null}
+        </form>
 
-        {workspace.status === 'ready' ? (
-          <section
+        <section
             className="space-y-3 border-t border-dotted border-border/80 pt-5"
             aria-labelledby="publisher-devices-title"
           >
@@ -512,12 +427,11 @@ export function PublisherDevicePairingCard({
             {deviceError ? (
               <p className="text-sm text-destructive" role="alert">{deviceError}</p>
             ) : null}
-          </section>
-        ) : null}
+        </section>
 
         {pairing.status === 'error' ? (
           <p className="text-sm text-destructive" role="alert">
-            A pairing code could not be created. Confirm the workspace and try again.
+            A pairing code could not be created. Confirm your account connection and try again.
           </p>
         ) : null}
 

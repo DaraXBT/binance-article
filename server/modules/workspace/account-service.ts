@@ -52,7 +52,7 @@ export async function createAccountWorkspace(input: {
   if (!workspace) {
     throw new AppError({
       code: 'WORKSPACE_CREATE_CONFLICT',
-      message: 'The account workspace could not be created.',
+      message: 'The account library could not be prepared.',
       status: 409,
     });
   }

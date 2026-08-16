@@ -7,7 +7,14 @@ const mocks = vi.hoisted(() => ({
   repository: { repository: true },
   createRepository: vi.fn(),
   activate: vi.fn(async () => ({
-    device: { id: 'device_1', name: 'My Mac', protocolVersion: 2 },
+    device: {
+      id: 'device_1',
+      userId: 'user_1',
+      workspaceId: 'workspace_1',
+      name: 'My Mac',
+      status: 'active',
+      protocolVersion: 2,
+    },
     deviceToken: 'device_secret_returned_once',
   })),
 }));
@@ -22,7 +29,7 @@ vi.mock('@/server/modules/publisher/devices/repository', () => ({
 vi.mock('@/server/modules/publisher/devices/service', () => ({ activatePublisherDevice: mocks.activate }));
 
 describe('POST /api/publisher/devices/pair', () => {
-  it('exchanges the one-time pairing code for a separate device token', async () => {
+  it('exchanges the pairing code without exposing internal account scope', async () => {
     const { POST } = await import('./route');
     const request = new Request('https://articles.example.com/api/publisher/devices/pair', {
       method: 'POST',

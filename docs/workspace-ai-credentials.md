@@ -1,40 +1,41 @@
-# Workspace Gemini connections
+# Account Gemini connections
 
-xArticle supports Gemini “bring your own key” (BYOK) for a workspace. The
+xArticle supports Gemini “bring your own key” (BYOK) for each personal account. The
 feature is deliberately narrow: Gemini is the only user-managed provider in v1;
 the DeepSeek path is dormant internal compatibility, and model names remain
 operator-controlled.
 
 ## What a user does
 
-1. From the dashboard, open the account control at the bottom of the workspace
+1. From the dashboard, open the account control at the bottom of the article
    rail and select **Settings** to open **Connections**.
-2. A workspace owner pastes a Gemini API key into the **Gemini connection** card.
+2. The user pastes a Gemini API key into the **Gemini connection** card.
    The field is a password input and is cleared immediately after submission.
 3. xArticle checks the key against the configured Gemini text and image models.
    A key that cannot access either model is not saved.
-4. After a successful save, **Platform credits** remains selected. The owner
-   explicitly chooses **Workspace Gemini key** when ready to use it.
+4. After a successful save, **Platform credits** remains selected. The user
+   explicitly chooses **Your Gemini key** when ready to use it.
 5. **Test connection** rechecks the encrypted key. **Replace** validates and
    rotates it while preserving the current source selection. **Delete key**
    removes xArticle’s encrypted copy and returns generation to platform credits;
    it does not revoke the key at Google.
 
-Workspace members can use the active source but cannot view, test, replace,
-select, or delete the key. They see only “Managed by the workspace owner.” A
-global site-admin role does not bypass this workspace-owner boundary.
+The product has no shared-workspace member role. Credential management belongs
+to the signed-in personal account; server authorization still requires the
+account's owner membership in its internal tenant namespace.
 
 ## How generation chooses a key
 
 At the beginning of each prompt request or Workflow job, the server resolves
-the authoritative workspace ID from the authenticated actor or `JobRun`. The
+the authoritative internal workspace ID from the authenticated actor or
+`JobRun`. The
 resolver uses this order:
 
-| Workspace state | Key used |
+| Internal credential state | Key used |
 |---|---|
 | No saved row | Platform `GEMINI_API_KEY`; `GOOGLE_API_KEY` is runtime compatibility only and does not satisfy deployment preflight |
 | Saved row, source is Platform | Platform key |
-| Saved row, source is Workspace | Decrypted workspace key |
+| Saved row, source is Workspace | Decrypted personal key |
 | Credential lookup cannot establish workspace state | Fail closed; never assume the row is absent or fall back |
 | Enabled row cannot be decrypted or validated | Fail closed; never fall back |
 
@@ -47,8 +48,8 @@ keeps its in-memory configuration. Workflow events remain strictly
 `{ jobId, kind }`, and keys never enter job payloads, logs, results, or errors.
 
 Generation access checks, rate limits, slide limits, storage safeguards, and
-provider timeouts still apply to workspace keys. A platform quota error suggests
-switching to a workspace key; a workspace-key error suggests **Test/Replace** or
+provider timeouts still apply to personal keys. A platform quota error suggests
+switching to **Your Gemini key**; a personal-key error suggests **Test/Replace** or
 switching back to platform credits.
 
 ## Operator configuration
@@ -102,5 +103,6 @@ use the new keyring.
 3. Deploy the Workflow Worker.
 4. Deploy the web Worker and Connections UI.
 
-No saved key is active until an owner explicitly selects **Workspace Gemini
-key**, so deploying the feature does not change existing generation behavior.
+No saved key is active until its user explicitly selects **Your Gemini key**, so
+deploying the feature does not change existing generation behavior. The
+database/source enum remains `workspace` for compatibility.

@@ -56,6 +56,7 @@ describe('API authorization inventory', () => {
       public: ['toNextJsHandler', 'databaseStatus'],
       'invitation-token': ['claimLegacyInvitation'],
       'enrollment-code': ['claimEnrollmentCode'],
+      'enrollment-claim': ['readEnrollmentClaimCookie', 'isEnrollmentClaimReady'],
       'enrollment-session': ['requireEnrollmentUser'],
       'pairing-token': ['activatePublisherDevice'],
       owner: ['requireOwner: true'],

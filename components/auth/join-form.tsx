@@ -8,6 +8,7 @@ import { useLanguage } from '@/components/language-provider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { authClient } from '@/lib/auth-client';
+import { normalizeLoginCallback } from '@/lib/auth-return-to';
 import { cn } from '@/lib/utils';
 
 type EnrollmentSource = 'shared' | 'legacy';
@@ -158,6 +159,10 @@ export interface JoinFormProps {
   token?: string | null;
   /** Optional prefilled code. Production share links carry this value in a fragment. */
   code?: string | null;
+  /** Internal destination to open after enrollment finishes. */
+  returnTo?: string | null;
+  /** Check the server for a retryable HttpOnly claim before requesting the code again. */
+  checkExistingClaim?: boolean;
   className?: string;
   /** Use a secondary heading when the page frame owns the primary title. */
   headingLevel?: 1 | 2;
@@ -166,6 +171,8 @@ export interface JoinFormProps {
 export function JoinForm({
   token = null,
   code: initialCode = null,
+  returnTo,
+  checkExistingClaim = false,
   className,
   headingLevel = 1,
 }: JoinFormProps) {
@@ -176,7 +183,9 @@ export function JoinForm({
     ? { status: 'checking', source: 'legacy' }
     : initialCode
       ? { status: 'checking', source: 'shared' }
-      : { status: 'code-entry' });
+      : checkExistingClaim
+        ? { status: 'checking', source: 'shared' }
+        : { status: 'code-entry' });
   const autoCredentialRef = useRef<string | null>(null);
   const idempotencyRef = useRef<{ code: string; key: string } | null>(null);
 
@@ -193,13 +202,20 @@ export function JoinForm({
     ) ? state.email : undefined;
     setState({ status: 'signing-in', source, ...(email ? { email } : {}) });
     try {
-      const callbackURL = '/join/complete';
+      const encodedReturnTo = returnTo == null
+        ? null
+        : encodeURIComponent(normalizeLoginCallback(returnTo));
+      const callbackURL = encodedReturnTo == null
+        ? '/join/complete'
+        : `/join/complete?returnTo=${encodedReturnTo}`;
       const result = await authClient.signIn.social({
         provider: 'google',
         callbackURL,
         newUserCallbackURL: callbackURL,
         requestSignUp: true,
-        errorCallbackURL: '/auth/error?flow=enrollment',
+        errorCallbackURL: encodedReturnTo == null
+          ? '/auth/error?flow=enrollment'
+          : `/auth/error?flow=enrollment&returnTo=${encodedReturnTo}`,
       });
       if (result.error) {
         setState({
@@ -219,7 +235,7 @@ export function JoinForm({
         ...(email ? { email } : {}),
       });
     }
-  }, [copy.enrollmentError, state]);
+  }, [copy.enrollmentError, returnTo, state]);
 
   const validateLegacyInvitation = useCallback(async (legacyToken: string, signal?: AbortSignal) => {
     setState({ status: 'checking', source: 'legacy' });
@@ -284,6 +300,29 @@ export function JoinForm({
     }
   }, [copy]);
 
+  const validateExistingClaim = useCallback(async (signal?: AbortSignal) => {
+    setState({ status: 'checking', source: 'shared' });
+    try {
+      const response = await fetch('/api/enrollment/claim/status', {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        signal,
+      });
+      const body = await readJson(response);
+      if (!response.ok || body.ready !== true) {
+        setState({ status: 'code-entry' });
+        return;
+      }
+      setState({ status: 'ready', source: 'shared' });
+    } catch {
+      if (signal?.aborted) return;
+      // Readiness is an optimization for provider retries. Fail closed to the
+      // normal code-entry flow without exposing server or claim details.
+      setState({ status: 'code-entry' });
+    }
+  }, []);
+
   useEffect(() => {
     const fragmentCode = readHashCode();
     scrubHash();
@@ -308,9 +347,23 @@ export function JoinForm({
       void validateSharedCode(candidate);
       return undefined;
     }
+    if (checkExistingClaim) {
+      const credentialKey = 'existing-claim';
+      if (autoCredentialRef.current === credentialKey) return;
+      autoCredentialRef.current = credentialKey;
+      void validateExistingClaim();
+      return undefined;
+    }
     autoCredentialRef.current = 'empty';
     return undefined;
-  }, [initialCode, token, validateLegacyInvitation, validateSharedCode]);
+  }, [
+    checkExistingClaim,
+    initialCode,
+    token,
+    validateExistingClaim,
+    validateLegacyInvitation,
+    validateSharedCode,
+  ]);
 
   const email = state.status === 'ready' || state.status === 'signing-in' || (
     state.status === 'error' && state.retry === 'provider'
@@ -332,6 +385,9 @@ export function JoinForm({
         : state.message;
   const messageRole = isChecking ? 'status' : state.status === 'invalid' || state.status === 'error' ? 'alert' : undefined;
   const Heading = headingLevel === 2 ? 'h2' : 'h1';
+  const signInHref = returnTo == null
+    ? '/login'
+    : `/login?callbackURL=${encodeURIComponent(normalizeLoginCallback(returnTo))}`;
 
   return (
     <section
@@ -428,7 +484,7 @@ export function JoinForm({
         {copy.alreadyEnrolled}{' '}
         <Link
           className="ml-1 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/35 focus-visible:ring-offset-2"
-          href="/login"
+          href={signInHref}
         >
           {copy.signInTitle}
         </Link>

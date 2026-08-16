@@ -16,7 +16,14 @@ export async function POST(request: NextRequest) {
       pairingCode: typeof body?.pairingCode === 'string' ? body.pairingCode : '',
       protocolVersion: body?.protocolVersion,
     });
-    return NextResponse.json(activated, { headers: withNoStoreHeaders() });
+    return NextResponse.json({
+      device: {
+        id: activated.device.id,
+        name: activated.device.name,
+        protocolVersion: activated.device.protocolVersion,
+      },
+      deviceToken: activated.deviceToken,
+    }, { headers: withNoStoreHeaders() });
   } catch (error) {
     return errorResponse(error, {
       code: 'DEVICE_PAIRING_FAILED',

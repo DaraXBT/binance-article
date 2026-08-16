@@ -37,8 +37,8 @@ export class WorkspaceGeminiCredentialError extends AppError {
         ? 'WORKSPACE_GEMINI_CONNECTION_INVALID'
         : 'PLATFORM_GEMINI_UNAVAILABLE',
       message: source === 'workspace'
-        ? 'The workspace Gemini connection needs attention. Ask the workspace owner to test or replace the key, or switch to platform credits.'
-        : 'The platform Gemini connection is unavailable. The workspace owner can save and activate a workspace Gemini key in Connections.',
+        ? 'Your Gemini connection needs attention. Test or replace your Gemini key in Connections, or switch to platform credits.'
+        : 'The platform Gemini connection is unavailable. You can save and activate your Gemini key in Connections.',
       status: 503,
       cause,
     });

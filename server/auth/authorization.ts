@@ -65,7 +65,7 @@ export async function authorizeRequest(
   if (requireOwner && role !== 'owner') {
     throw new AppError({
       code: 'OWNER_REQUIRED',
-      message: 'Owner access is required.',
+      message: 'Administrator access is required.',
       status: 403,
     });
   }

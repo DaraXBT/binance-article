@@ -68,6 +68,7 @@ describe('auth returnTo page boundaries', () => {
       resumeTarget,
       resumeTarget,
     ]);
+    expect(findElement(join, JoinForm).props.checkExistingClaim).toBe(true);
   });
 
   it.each([

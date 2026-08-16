@@ -123,9 +123,9 @@ export async function updateEnrollmentPerson(input: {
     case 'self':
       throw appError('SELF_STATUS_CHANGE_BLOCKED', 'You cannot change your own account status.', 409);
     case 'owner':
-      throw appError('OWNER_STATUS_CHANGE_BLOCKED', 'The owner account cannot be changed here.', 409);
+      throw appError('OWNER_STATUS_CHANGE_BLOCKED', 'The administrator account cannot be changed here.', 409);
     case 'last_owner':
-      throw appError('LAST_OWNER_PROTECTED', 'The last owner account cannot be changed.', 409);
+      throw appError('LAST_OWNER_PROTECTED', 'The last administrator account cannot be changed.', 409);
     case 'capacity_full':
       throw appError('BETA_USER_CAP_REACHED', 'The private beta user limit has been reached.', 409);
     case 'invalid_transition':

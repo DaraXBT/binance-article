@@ -84,6 +84,13 @@ function readCode(value: unknown): EnrollmentCodeRecord | null {
   return { id: row.id, version, codePrefix: row.codePrefix, status: row.status };
 }
 
+function readReady(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || typeof (value as Record<string, unknown>).ready !== 'boolean') {
+    throw new Error('Enrollment claim readiness query returned invalid data.');
+  }
+  return (value as { ready: boolean }).ready;
+}
+
 function readReservation(value: unknown): ReserveEnrollmentClaimResult {
   if (!value || typeof value !== 'object') throw new Error('Enrollment reservation returned invalid data.');
   const row = value as Record<string, unknown>;
@@ -128,6 +135,35 @@ function readCompletion(value: unknown): CompleteEnrollmentClaimResult {
 
 export function createEnrollmentRepository(database: AppDatabase): EnrollmentRepository {
   return {
+    async hasReadyClaim(input) {
+      const result = await database.$client`
+        SELECT EXISTS (
+          SELECT 1
+          FROM "EnrollmentClaim" AS claim
+          LEFT JOIN "EnrollmentCode" AS code
+            ON code."id" = claim."codeId"
+           AND code."version" = claim."codeVersion"
+          LEFT JOIN "Invitation" AS invitation
+            ON invitation."id" = claim."sourceReferenceId"
+          WHERE claim."tokenHash" = ${input.claimTokenHash}
+            AND claim."status" IN ('pending', 'reserved')
+            AND claim."expiresAt" > ${input.now}
+            AND (
+              (
+                claim."source" = 'shared_code'
+                AND code."status" = 'active'
+              ) OR (
+                claim."source" IN ('legacy_invitation', 'bootstrap')
+                AND invitation."status" = 'accepted'
+                AND invitation."acceptedByUserId" IS NULL
+                AND invitation."expiresAt" > ${input.now}
+              )
+            )
+        ) AS ready
+      `;
+      return readReady(rows(result, 'Enrollment claim readiness query returned invalid data.')[0]);
+    },
+
     async findActiveCodeByHash(input) {
       const result = await database.$client`
         SELECT "id", "version", "codePrefix", "status"
