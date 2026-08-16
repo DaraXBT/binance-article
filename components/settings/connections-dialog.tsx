@@ -244,7 +244,7 @@ export function ConnectionsDialog({
 
             <TabsList
               aria-label="Settings sections"
-              className="h-auto min-h-11 w-full justify-start gap-1 overflow-x-auto bg-transparent p-0 md:flex-1 md:flex-col md:items-stretch md:justify-start md:overflow-visible"
+              className="h-auto min-h-11 w-full justify-start gap-1 overflow-x-auto bg-transparent p-0 md:flex-none md:flex-col md:items-stretch md:justify-start md:overflow-visible"
             >
               {sections.map((section) => {
                 const Icon = section.id === 'ai'
@@ -259,7 +259,7 @@ export function ConnectionsDialog({
                     onClick={() => selectSection(section.id)}
                     onFocus={() => selectSection(section.id)}
                     onKeyDown={(event) => handleTabKeyDown(event, section.id)}
-                    className="min-h-11 min-w-11 flex-none justify-start rounded-lg px-3 text-xs data-[state=active]:border-primary/25 data-[state=active]:bg-primary/10 data-[state=active]:text-foreground data-[state=active]:shadow-none md:w-full md:flex-none md:text-sm"
+                    className="min-h-11 min-w-11 flex-none justify-start rounded-lg px-3 text-xs data-[state=active]:border-primary/25 data-[state=active]:bg-primary/10 data-[state=active]:text-foreground data-[state=active]:shadow-none md:h-11 md:w-full md:flex-none md:text-sm"
                   >
                     <Icon aria-hidden="true" className="size-4 shrink-0 text-primary" />
                     <span>{section.label}</span>

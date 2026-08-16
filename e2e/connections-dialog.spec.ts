@@ -60,6 +60,16 @@ for (const viewport of viewports) {
         expect(target.height).toBeGreaterThanOrEqual(44);
         expect(target.width).toBeGreaterThanOrEqual(44);
       }
+    } else {
+      const desktopTabHeights = await Promise.all(
+        [aiTab, publishingTab].map((tab) => tab.evaluate((element) => (
+          element.getBoundingClientRect().height
+        ))),
+      );
+      for (const height of desktopTabHeights) {
+        expect(height).toBeGreaterThanOrEqual(44);
+        expect(height).toBeLessThanOrEqual(56);
+      }
     }
 
     await publishingTab.click();
