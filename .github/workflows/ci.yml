@@ -77,15 +77,12 @@ jobs:
           AI_CREDENTIAL_KEYRING: '{"v1":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}'
           AI_CREDENTIAL_ACTIVE_KEY_ID: v1
 
-      - name: Test
-        run: npm run test
-
       - name: Install publisher companion dependencies
         run: bun install --frozen-lockfile
         working-directory: publisher-companion
 
-      # Skill dependencies must exist before the companion tests: the
-      # companion imports the X skill's bundle.ts (fflate) directly.
+      # The root artifact tests load the extracted companion and link these
+      # installed dependency trees, so all three installs must precede them.
       - name: Install Binance skill dependencies
         run: bun install --frozen-lockfile
         working-directory: .agents/skills/baoyu-post-to-binance-square/scripts
@@ -93,6 +90,9 @@ jobs:
       - name: Install X skill dependencies
         run: bun install --frozen-lockfile
         working-directory: .agents/skills/baoyu-post-to-x/scripts
+
+      - name: Test
+        run: npm run test
 
       - name: Test and typecheck publisher companion
         run: bun test && bun run typecheck
