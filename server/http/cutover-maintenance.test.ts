@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { NextRequest } from 'next/server';
 
-import { proxy } from '@/proxy';
-import { evaluateCutoverMaintenance } from './cutover-maintenance';
+import {
+  createCutoverMaintenanceResponse,
+  evaluateCutoverMaintenance,
+} from './cutover-maintenance';
 
 describe('cutover maintenance policy', () => {
   it.each([undefined, '', 'off'])('stays disabled for mode %s', (mode) => {
@@ -66,7 +67,7 @@ describe('cutover maintenance policy', () => {
   });
 });
 
-describe('cutover maintenance proxy', () => {
+describe('cutover maintenance Worker response', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
@@ -74,7 +75,7 @@ describe('cutover maintenance proxy', () => {
   it('returns a no-store 503 JSON response for blocked API traffic', async () => {
     vi.stubEnv('CUTOVER_MAINTENANCE_MODE', 'full');
     vi.stubEnv('CUTOVER_MAINTENANCE_ALLOW_IPS', '203.0.113.8');
-    const request = new NextRequest('https://binance.v27.tech/api/workspace/ai-credential', {
+    const request = new Request('https://binance.v27.tech/api/workspace/ai-credential', {
       method: 'PUT',
       headers: {
         accept: 'application/json',
@@ -82,8 +83,13 @@ describe('cutover maintenance proxy', () => {
       },
     });
 
-    const response = await proxy(request);
+    const response = createCutoverMaintenanceResponse({
+      request,
+      environment: process.env,
+    });
 
+    expect(response).not.toBeNull();
+    if (!response) throw new Error('Expected a maintenance response.');
     expect(response.status).toBe(503);
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(response.headers.get('retry-after')).toBe('120');
@@ -95,26 +101,34 @@ describe('cutover maintenance proxy', () => {
   it('lets an exact allowlisted operator continue to the application', async () => {
     vi.stubEnv('CUTOVER_MAINTENANCE_MODE', 'full');
     vi.stubEnv('CUTOVER_MAINTENANCE_ALLOW_IPS', '203.0.113.8');
-    const request = new NextRequest('https://binance.v27.tech/settings/connections', {
+    const request = new Request('https://binance.v27.tech/settings/connections', {
       headers: { 'cf-connecting-ip': '203.0.113.8' },
     });
 
-    const response = await proxy(request);
+    const response = createCutoverMaintenanceResponse({
+      request,
+      environment: process.env,
+    });
 
-    expect(response.headers.get('x-middleware-next')).toBe('1');
+    expect(response).toBeNull();
   });
 
   it('returns a responsive no-store maintenance page for blocked browser traffic', async () => {
     vi.stubEnv('CUTOVER_MAINTENANCE_MODE', 'full');
-    const request = new NextRequest('https://binance.v27.tech/settings/connections', {
+    const request = new Request('https://binance.v27.tech/settings/connections', {
       headers: {
         accept: 'text/html',
         'cf-connecting-ip': '198.51.100.4',
       },
     });
 
-    const response = await proxy(request);
+    const response = createCutoverMaintenanceResponse({
+      request,
+      environment: process.env,
+    });
 
+    expect(response).not.toBeNull();
+    if (!response) throw new Error('Expected a maintenance response.');
     expect(response.status).toBe(503);
     expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
     expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow');
