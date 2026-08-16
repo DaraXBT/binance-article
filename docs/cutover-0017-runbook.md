@@ -8,7 +8,9 @@ must not perform publication writes after 0017 commits.
 
 ## Before the window
 
-- Use a clean checkout of the exact CI-green release SHA. Require
+- Use a clean checkout of the exact CI-green release SHA whose migration
+  journal ends at `0017`. A checkout containing `0018` must not be used for
+  this step because Drizzle would apply both pending migrations together. Require
   `npm run release:tree-check`, `npm run db:check`, and the full test/typecheck
   gates to pass.
 - Take and verify a restorable production backup or branch. Rehearse 0017 on a
@@ -47,10 +49,12 @@ blocking a harmless publication mutation before continuing.
    columns are non-null with no null rows; `PublicationDraft.version` defaults
    to 3 and accepts 2 or 3; the old target-only unique index is absent; and the
    new target-and-kind unique index is valid.
-4. Deploy the new web Worker at 100%. Do not canary or allow an old Worker to
-   share the migrated database. Keep publication writes blocked throughout the
-   deployment.
-5. Start only a protocol-v2/V3-capable companion, then perform the smoke checks
+4. If the approved release includes migration `0018`, keep publication writes
+   blocked and immediately follow the dedicated `0018` runbook from its exact
+   CI-green checkout. Otherwise, proceed directly to the deployment step below.
+5. After every required forward migration is verified, deploy the final web
+   Worker at 100%. Do not canary or allow an old Worker to share the migrated
+   database. Start only a protocol-v2/V3-capable companion, then perform the smoke checks
    below under the maintenance allowlist.
 6. Lift publication-write maintenance only after all smoke checks pass. Monitor
    web and companion errors, command latency, and failed/outcome-unknown commands.

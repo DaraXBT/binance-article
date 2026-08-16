@@ -23,6 +23,7 @@ describe('release tree guard', () => {
       'drizzle/0018_soft_unicorn.sql',
       'drizzle/meta/0018_snapshot.json',
       'docs/cutover-0017-runbook.md',
+      'docs/cutover-0018-runbook.md',
     ]));
   });
 

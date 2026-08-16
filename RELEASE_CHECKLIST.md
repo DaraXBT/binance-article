@@ -86,10 +86,12 @@ Determine the production migration ledger before selecting any procedure:
   `0017` in a separate maintenance window afterward.
 - If it ends at `0016`, follow the dedicated
   [0017 publication-kind cutover runbook](./docs/cutover-0017-runbook.md).
-  Freeze and drain publication writes, migrate, deploy the new web Worker at
-  100%, start only a protocol-v2 companion, smoke all four modes, and then
-  resume publishing.
-- If it already includes `0017`, do not rerun either cutover migration.
+  Freeze and drain publication writes, apply and verify `0017` from an exact
+  CI-green checkout whose journal ends at `0017`, then continue directly to
+  the [0018 credential-constraint repair](./docs/cutover-0018-runbook.md)
+  before deploying the final web Worker.
+- If it ends at `0017`, follow the `0018` repair runbook. Do not rerun `0017`.
+- If it already includes `0018`, do not rerun any cutover migration.
 - Abort on every other ledger state or any schema drift.
 
 Never run the 0016 procedure from a checkout whose journal contains `0017`:
