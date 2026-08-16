@@ -81,6 +81,23 @@ describe('image generation provider boundary', () => {
     expect(JSON.stringify(normalized)).not.toContain(apiKey);
   });
 
+  it('gives account-scoped guidance for personal image-key permission failures', async () => {
+    const { normalizeImageGenerationError } = await import('@/lib/image-gen');
+    const normalized = normalizeImageGenerationError(
+      new Error(JSON.stringify({ error: {
+        code: 403,
+        status: 'PERMISSION_DENIED',
+        message: 'permission denied',
+      } })),
+      'Image generation failed safely.',
+      { source: 'workspace', model: 'gemini-image' },
+    );
+
+    expect(normalized.message).toMatch(/your Gemini connection needs attention/i);
+    expect(normalized.message).toMatch(/switch to platform credits/i);
+    expect(normalized.message).not.toMatch(/workspace owner|workspace member/i);
+  });
+
   it('resolves every Binance style to distinct image guidance and policy-aware prompts', async () => {
     const { buildImagePrompt, getStyleDescription } = await import('@/lib/image-gen');
     const styles = [
