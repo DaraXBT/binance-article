@@ -94,6 +94,11 @@ jobs:
       - name: Test
         run: npm run test
 
+      # Two companion suites launch Chromium directly, and the same browser
+      # installation is reused by the later Playwright E2E suite.
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
       - name: Test and typecheck publisher companion
         run: bun test && bun run typecheck
         working-directory: publisher-companion
@@ -111,9 +116,6 @@ jobs:
 
       - name: Dry-run Cloudflare workflow
         run: npm run workflow:dry-run
-
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
 
       - name: Apply migrations to dedicated E2E PostgreSQL
         if: env.E2E_SEED_AUTH == '1'
