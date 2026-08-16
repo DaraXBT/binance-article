@@ -66,7 +66,11 @@ Never run the 0016 procedure from a checkout whose journal already contains
 `0017`, because `db:migrate:deploy` applies every pending migration. Before an
 0016 cutover, stage a stable web-only `ENROLLMENT_CODE_PEPPER`; for every
 production cutover, preserve the reviewed Worker secrets and back up the
-database exactly as its runbook requires.
+database exactly as its runbook requires. When the ledger ends at `0016`, apply
+only `0017` from an exact CI-green checkout whose journal ends there, verify it,
+then apply only `0018` from the exact final checkout by following the
+[credential-repair runbook](./docs/cutover-0018-runbook.md). Never apply both
+pending migrations in one Drizzle invocation.
 
 Schema changes are generated offline with `npm run db:generate` (no database
 URL needed). Other development commands: `npm run workflow:dev` runs the
@@ -86,9 +90,10 @@ Migration `0017_publication-kind` is also a maintenance cutover: it replaces the
 target-only draft key with a target-and-kind key, so the old web writer cannot
 share the migrated database. Follow the complete
 [0017 cutover runbook](./docs/cutover-0017-runbook.md): drain publishing, apply
-the migration, deploy the new web Worker at 100% with no canary, pair a
-protocol-v2 companion, smoke all four publication modes, and then resume writes.
-After `0017` commits, rollback is forward-only; never restore the old writer.
+the migration, continue through `0018` when required, deploy the Workflow Worker
+and then the new web Worker at 100% with no canary, pair a protocol-v2 companion,
+smoke all four publication modes, and then resume writes. After `0017` commits,
+rollback is forward-only; never restore the old writer.
 
 The legacy workspace migration stamps only then-unowned workspaces with a 30-day claim deadline. New workspaces receive no claim deadline. Do not edit that deadline per request or extend it with an environment variable.
 
@@ -114,8 +119,8 @@ invitation-token hash, and prints the join URL once. The invited Google identity
 becomes the sole application owner when it enrolls.
 
 After `0016_shared_enrollment`, owners issue one reusable `JOIN-...` shared
-code from **Settings → Connections**. Give its `#code=` URL privately to
-approved users; only the HMAC hash is stored. A visitor claims the code before
+code from **Account settings → People & access**. Give its `#code=` URL
+privately to approved users; only the HMAC hash is stored. A visitor claims the code before
 Google sign-in, receives a short-lived pending claim, and becomes active only
 when their verified Google identity completes the claim. Code rotation revokes
 all pending or reserved claims on the old code. Legacy invitation links remain
@@ -187,8 +192,8 @@ everyday browser profile.
 
 The API stores only a hash of the opaque device token. The raw token is read
 from the OS keyring and sent only in an HTTPS `Authorization` header. Revoke a
-device from **Settings → Connections** before retiring a computer; pair again
-to replace it.
+device from **Account settings → Publishing** before retiring a computer; pair
+again to replace it.
 
 If the companion is unavailable, use **Download fallback ZIP** in the Binance or
 X dialog. Those bounded bundles contain only reviewed post content, local assets,

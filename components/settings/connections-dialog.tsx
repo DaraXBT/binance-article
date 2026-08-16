@@ -1,8 +1,11 @@
 'use client';
 
 import {
+  useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type KeyboardEvent,
   type ReactNode,
@@ -110,11 +113,36 @@ export function ConnectionsDialog({
   const [hasUncopiedEnrollmentAccess, setHasUncopiedEnrollmentAccess] = useState(false);
   const [hasUncopiedPairing, setHasUncopiedPairing] = useState(false);
   const [closeWarningOpen, setCloseWarningOpen] = useState(false);
+  const [settingsSessionEpoch, setSettingsSessionEpoch] = useState(0);
+  const settingsSessionEpochRef = useRef(0);
+  const previousOpenRef = useRef(open);
   const hasSensitiveValue = hasUncopiedEnrollmentAccess || hasUncopiedPairing;
   const sensitiveSection: SettingsSectionId = hasUncopiedPairing ? 'publishing' : 'access';
   // If URL state closes underneath an uncopied value (for example Browser
   // Back), retain the mounted shell so the one-time value is not destroyed.
   const effectiveOpen = open || hasSensitiveValue;
+
+  const invalidateSettingsSession = useCallback(() => {
+    const nextEpoch = settingsSessionEpochRef.current + 1;
+    settingsSessionEpochRef.current = nextEpoch;
+    setSettingsSessionEpoch(nextEpoch);
+  }, []);
+
+  const handleUncopiedEnrollmentAccessChange = useCallback((hasUncopiedAccess: boolean) => {
+    if (settingsSessionEpochRef.current !== settingsSessionEpoch) return;
+    setHasUncopiedEnrollmentAccess(hasUncopiedAccess);
+  }, [settingsSessionEpoch]);
+
+  const handleUncopiedPairingChange = useCallback((nextHasUncopiedPairing: boolean) => {
+    if (settingsSessionEpochRef.current !== settingsSessionEpoch) return;
+    setHasUncopiedPairing(nextHasUncopiedPairing);
+  }, [settingsSessionEpoch]);
+
+  useLayoutEffect(() => {
+    const wasOpen = previousOpenRef.current;
+    previousOpenRef.current = open;
+    if (wasOpen && !open && !hasSensitiveValue) invalidateSettingsSession();
+  }, [hasSensitiveValue, invalidateSettingsSession, open]);
 
   useEffect(() => {
     if (!open && hasSensitiveValue) setCloseWarningOpen(true);
@@ -185,6 +213,7 @@ export function ConnectionsDialog({
       setCloseWarningOpen(true);
       return;
     }
+    invalidateSettingsSession();
     onOpenChange(false);
   };
 
@@ -194,6 +223,7 @@ export function ConnectionsDialog({
   };
 
   const discardAndClose = () => {
+    invalidateSettingsSession();
     setHasUncopiedEnrollmentAccess(false);
     setHasUncopiedPairing(false);
     setCloseWarningOpen(false);
@@ -303,7 +333,7 @@ export function ConnectionsDialog({
                 <div>
                   <p className="font-medium text-foreground">Copy your one-time value before closing.</p>
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    It will not be shown again after this Settings window closes.
+                    It will not be shown again after Account settings closes.
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
@@ -349,7 +379,7 @@ export function ConnectionsDialog({
                     </div>
                     <PublisherDevicePairingCard
                       className="max-w-none rounded-none border-0 bg-transparent p-0 shadow-none"
-                      onUncopiedPairingChange={setHasUncopiedPairing}
+                      onUncopiedPairingChange={handleUncopiedPairingChange}
                     />
                   </SettingsPanel>
                 </TabsContent>
@@ -361,7 +391,7 @@ export function ConnectionsDialog({
                     <h2 id="settings-access-title" className="sr-only">People &amp; access</h2>
                     <AdminPeopleAccessCard
                       className="rounded-none border-0 bg-transparent p-0 shadow-none"
-                      onUncopiedAccessChange={setHasUncopiedEnrollmentAccess}
+                      onUncopiedAccessChange={handleUncopiedEnrollmentAccessChange}
                     />
                   </SettingsPanel>
                 </TabsContent>

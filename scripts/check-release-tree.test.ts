@@ -1,3 +1,6 @@
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -12,6 +15,19 @@ const requiredPaths = [
 ];
 
 describe('release tree guard', () => {
+  it('bounds the credential repair migration lock and statement waits', () => {
+    const sql = readFileSync(new URL('../drizzle/0018_soft_unicorn.sql', import.meta.url), 'utf8');
+    const runbook = readFileSync(
+      new URL('../docs/cutover-0018-runbook.md', import.meta.url),
+      'utf8',
+    );
+    const migrationHash = createHash('sha256').update(sql).digest('hex');
+
+    expect(sql).toMatch(/SET LOCAL lock_timeout = '5s'/i);
+    expect(sql).toMatch(/SET LOCAL statement_timeout = '2min'/i);
+    expect(runbook).toContain(migrationHash);
+  });
+
   it('requires every current contract migration, snapshot, and cutover runbook', () => {
     expect(REQUIRED_RELEASE_PATHS).toEqual(expect.arrayContaining([
       'drizzle/0015_workspace_ai_credential.sql',

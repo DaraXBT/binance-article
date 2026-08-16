@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import {
@@ -45,6 +46,11 @@ interface PublisherDevicePairing {
   pairingCode: string;
   tokenPrefix: string;
   expiresAt: string;
+}
+
+interface PairingCodeIdentity {
+  generation: number;
+  value: string;
 }
 
 type PublisherDeviceStatus = 'pending' | 'active' | 'revoked';
@@ -139,13 +145,29 @@ export function PublisherDevicePairingCard({
   const [devices, setDevices] = useState<DevicesState>({ status: 'idle' });
   const [revokingDeviceId, setRevokingDeviceId] = useState<string | null>(null);
   const [deviceError, setDeviceError] = useState<string | null>(null);
+  const [deviceNotice, setDeviceNotice] = useState<string | null>(null);
   const [copyState, setCopyState] = useState<CopyState>('idle');
+  const [pairingCodeCopied, setPairingCodeCopied] = useState(false);
   const [deviceName, setDeviceName] = useState('My publishing computer');
   const [appOrigin, setAppOrigin] = useState('https://your-app.example');
   const [replaceConfirmationOpen, setReplaceConfirmationOpen] = useState(false);
+  const [replacementPending, setReplacementPending] = useState(false);
+  const [replacementError, setReplacementError] = useState<string | null>(null);
   const [deviceToRevoke, setDeviceToRevoke] = useState<PublisherDevice | null>(null);
+  const pairingCodeCopiedRef = useRef(false);
+  const pairingGenerationRef = useRef(0);
+  const currentPairingIdentityRef = useRef<PairingCodeIdentity | null>(null);
+  const pairingRequestPendingRef = useRef(false);
+  const devicesRequestGenerationRef = useRef(0);
+  const mountedRef = useRef(true);
+  const revokeTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const revokeRowRef = useRef<HTMLLIElement | null>(null);
+  const revokeSucceededRef = useRef(false);
+  const devicesHeadingRef = useRef<HTMLHeadingElement | null>(null);
 
   const loadDevices = useCallback(async (signal?: AbortSignal) => {
+    const requestGeneration = devicesRequestGenerationRef.current + 1;
+    devicesRequestGenerationRef.current = requestGeneration;
     setDevices((current) => ({
       status: 'loading',
       devices: 'devices' in current ? current.devices : null,
@@ -161,9 +183,17 @@ export function PublisherDevicePairingCard({
         response,
         'Publishing computers could not be loaded.',
       );
+      if (
+        !mountedRef.current
+        || devicesRequestGenerationRef.current !== requestGeneration
+      ) return;
       setDevices({ status: 'ready', devices: readDevicesResponse(body) });
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
+      if (
+        !mountedRef.current
+        || devicesRequestGenerationRef.current !== requestGeneration
+      ) return;
       setDevices((current) => ({
         status: 'error',
         devices: 'devices' in current ? current.devices : null,
@@ -172,10 +202,15 @@ export function PublisherDevicePairingCard({
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     setAppOrigin(window.location.origin);
     const controller = new AbortController();
     void loadDevices(controller.signal);
-    return () => controller.abort();
+    return () => {
+      mountedRef.current = false;
+      devicesRequestGenerationRef.current += 1;
+      controller.abort();
+    };
   }, [loadDevices]);
 
   const companionCommands = useMemo(() => [
@@ -187,10 +222,25 @@ export function PublisherDevicePairingCard({
   ].join('\n'), [appOrigin]);
 
   const performCreatePairing = async () => {
-    if (!deviceName.trim()) return;
+    if (
+      !deviceName.trim()
+      || pairing.status === 'creating'
+      || replacementPending
+      || pairingRequestPendingRef.current
+    ) return;
 
-    setPairing({ status: 'creating' });
-    setCopyState('idle');
+    const existingPairing = pairing.status === 'ready' ? pairing.pairing : null;
+    const replacingExistingPairing = existingPairing !== null;
+    const existingPairingWasUncopied = replacingExistingPairing
+      && !pairingCodeCopiedRef.current;
+    pairingRequestPendingRef.current = true;
+    if (replacingExistingPairing) {
+      setReplacementPending(true);
+      setReplacementError(null);
+    } else {
+      setPairing({ status: 'creating' });
+      setCopyState('idle');
+    }
     // The server may create the one-time code before the response reaches the
     // browser, so protect the dialog from dismissal for the entire request.
     onUncopiedPairingChange?.(true);
@@ -205,33 +255,58 @@ export function PublisherDevicePairingCard({
         response,
         'A pairing code could not be created.',
       );
+      if (!mountedRef.current) return;
       const created = readPairingResponse(body);
+      const generation = pairingGenerationRef.current + 1;
+      pairingGenerationRef.current = generation;
+      currentPairingIdentityRef.current = {
+        generation,
+        value: created.pairingCode,
+      };
+      pairingCodeCopiedRef.current = false;
       setPairing({ status: 'ready', pairing: created });
-      setDevices((current) => 'devices' in current && current.devices
-        ? {
-            status: 'ready',
-            devices: [
-              {
-                id: created.deviceId,
-                name: deviceName.trim(),
-                status: 'pending',
-                protocolVersion: 1,
-                lastSeenAt: null,
-              },
-              ...current.devices.filter((device) => device.id !== created.deviceId),
-            ],
-          }
-        : current);
+      setCopyState('idle');
+      setPairingCodeCopied(false);
+      onUncopiedPairingChange?.(true);
+      devicesRequestGenerationRef.current += 1;
+      setDevices((current) => ({
+        status: 'ready',
+        devices: [
+          {
+            id: created.deviceId,
+            name: deviceName.trim(),
+            status: 'pending',
+            protocolVersion: 1,
+            lastSeenAt: null,
+          },
+          ...('devices' in current && current.devices
+            ? current.devices.filter((device) => device.id !== created.deviceId)
+            : []),
+        ],
+      }));
+      setReplacementError(null);
       setReplaceConfirmationOpen(false);
     } catch {
-      setPairing({ status: 'error' });
-      onUncopiedPairingChange?.(false);
+      if (!mountedRef.current) return;
+      if (replacingExistingPairing) {
+        setReplacementError(
+          'A replacement code could not be created. Your current code is still available. Try again.',
+        );
+        setReplaceConfirmationOpen(true);
+        onUncopiedPairingChange?.(existingPairingWasUncopied);
+      } else {
+        setPairing({ status: 'error' });
+        onUncopiedPairingChange?.(false);
+      }
+    } finally {
+      pairingRequestPendingRef.current = false;
+      if (replacingExistingPairing && mountedRef.current) setReplacementPending(false);
     }
   };
 
   const createPairing = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (pairing.status === 'ready' && copyState !== 'code') {
+    if (pairing.status === 'ready' && !pairingCodeCopiedRef.current) {
       setReplaceConfirmationOpen(true);
       return;
     }
@@ -239,12 +314,32 @@ export function PublisherDevicePairingCard({
   };
 
   const copyText = async (kind: 'code' | 'commands', value: string) => {
+    const pairingIdentity = kind === 'code' ? currentPairingIdentityRef.current : null;
+    const copyStillTargetsCurrentPairing = () => {
+      const currentIdentity = currentPairingIdentityRef.current;
+      return mountedRef.current
+        && pairingIdentity !== null
+        && currentIdentity !== null
+        && pairingIdentity.generation === currentIdentity.generation
+        && pairingIdentity.value === value
+        && currentIdentity.value === value
+        && !pairingRequestPendingRef.current;
+    };
+
     try {
       if (!navigator.clipboard?.writeText) throw new Error('Clipboard is unavailable.');
       await navigator.clipboard.writeText(value);
-      setCopyState(kind);
-      if (kind === 'code') onUncopiedPairingChange?.(false);
+      if (kind === 'code') {
+        if (!copyStillTargetsCurrentPairing()) return;
+        pairingCodeCopiedRef.current = true;
+        setPairingCodeCopied(true);
+        setCopyState('code');
+        onUncopiedPairingChange?.(false);
+        return;
+      }
+      setCopyState('commands');
     } catch {
+      if (kind === 'code' && !copyStillTargetsCurrentPairing()) return;
       setCopyState('error');
     }
   };
@@ -253,6 +348,7 @@ export function PublisherDevicePairingCard({
     if (device.status === 'revoked' || revokingDeviceId) return;
     setRevokingDeviceId(device.id);
     setDeviceError(null);
+    setDeviceNotice(null);
     try {
       const response = await fetch(`/api/publisher/devices/${encodeURIComponent(device.id)}`, {
         method: 'DELETE',
@@ -265,9 +361,12 @@ export function PublisherDevicePairingCard({
       if (!isRecord(body) || body.revoked !== true) {
         throw new Error('Publisher device revocation failed.');
       }
+      revokeSucceededRef.current = true;
+      setDeviceNotice(`${device.name} was revoked.`);
+      devicesRequestGenerationRef.current += 1;
       setDevices((current) => 'devices' in current && current.devices
         ? {
-            ...current,
+            status: 'ready',
             devices: current.devices.map((candidate) => candidate.id === device.id
               ? { ...candidate, status: 'revoked' }
               : candidate),
@@ -282,6 +381,7 @@ export function PublisherDevicePairingCard({
   };
 
   const pairingValue = pairing.status === 'ready' ? pairing.pairing : null;
+  const pairingRequestPending = pairing.status === 'creating' || replacementPending;
   const displayedDevices = 'devices' in devices ? devices.devices : null;
 
   return (
@@ -315,20 +415,20 @@ export function PublisherDevicePairingCard({
                 autoComplete="off"
                 onChange={(event) => setDeviceName(event.currentTarget.value)}
                 placeholder="My MacBook"
-                disabled={pairing.status === 'creating'}
+                disabled={pairingRequestPending}
               />
             </label>
             <div className="flex flex-wrap items-center gap-3">
               <Button
                 type="submit"
-                disabled={pairing.status === 'creating' || deviceName.trim().length === 0}
+                disabled={pairingRequestPending || deviceName.trim().length === 0}
               >
-                {pairing.status === 'creating' ? (
+                {pairingRequestPending ? (
                   <Loader2 aria-hidden="true" className="size-4 animate-spin" />
                 ) : (
                   <KeyRound aria-hidden="true" className="size-4" />
                 )}
-                {pairing.status === 'creating'
+                {pairingRequestPending
                   ? 'Creating code…'
                   : pairingValue
                     ? 'Create new code'
@@ -346,7 +446,12 @@ export function PublisherDevicePairingCard({
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h4 id="publisher-devices-title" className="text-sm font-semibold">
+                <h4
+                  ref={devicesHeadingRef}
+                  id="publisher-devices-title"
+                  tabIndex={-1}
+                  className="text-sm font-semibold outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                >
                   Publishing computers
                 </h4>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
@@ -382,6 +487,10 @@ export function PublisherDevicePairingCard({
               </p>
             ) : null}
 
+            {deviceNotice ? (
+              <p className="sr-only" role="status">{deviceNotice}</p>
+            ) : null}
+
             {devices.status === 'ready' && devices.devices.length === 0 ? (
               <p className="text-sm text-muted-foreground">No publishing computers yet.</p>
             ) : null}
@@ -394,7 +503,8 @@ export function PublisherDevicePairingCard({
                     <li
                       key={device.id}
                       aria-label={`Publishing device ${device.name}`}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/75 bg-muted/20 p-3"
+                      tabIndex={-1}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/75 bg-muted/20 p-3 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                     >
                       <div className="min-w-0 space-y-1.5">
                         <p className="truncate text-sm font-medium">{device.name}</p>
@@ -436,7 +546,10 @@ export function PublisherDevicePairingCard({
                           variant="outline"
                           aria-label={`Revoke ${device.name}`}
                           disabled={revokingDeviceId !== null}
-                          onClick={() => {
+                          onClick={(event) => {
+                            revokeTriggerRef.current = event.currentTarget;
+                            revokeRowRef.current = event.currentTarget.closest('li');
+                            revokeSucceededRef.current = false;
                             setDeviceError(null);
                             setDeviceToRevoke(device);
                           }}
@@ -448,49 +561,6 @@ export function PublisherDevicePairingCard({
                           )}
                           {isRevoking ? 'Revoking…' : 'Revoke'}
                         </Button>
-                      ) : null}
-                      {deviceToRevoke?.id === device.id ? (
-                        <div
-                          role="alertdialog"
-                          aria-labelledby={`publisher-revoke-title-${device.id}`}
-                          aria-describedby={`publisher-revoke-description-${device.id}`}
-                          className="basis-full space-y-3 rounded-lg border border-destructive/35 bg-destructive/5 p-3"
-                        >
-                          <div>
-                            <h3 id={`publisher-revoke-title-${device.id}`} className="font-semibold">
-                              Revoke publishing computer?
-                            </h3>
-                            <p
-                              id={`publisher-revoke-description-${device.id}`}
-                              className="mt-1 text-sm text-muted-foreground"
-                            >
-                              {device.name} will no longer be able to receive publishing requests.
-                            </p>
-                          </div>
-                          {deviceError ? <p role="alert" className="text-sm text-destructive">{deviceError}</p> : null}
-                          <div className="flex flex-wrap justify-end gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              disabled={revokingDeviceId !== null}
-                              onClick={() => {
-                                setDeviceToRevoke(null);
-                                setDeviceError(null);
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              disabled={revokingDeviceId !== null}
-                              onClick={() => void revokeDevice(device)}
-                            >
-                              {isRevoking ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : <ShieldOff aria-hidden="true" className="size-4" />}
-                              {isRevoking ? 'Revoking…' : 'Revoke'}
-                            </Button>
-                          </div>
-                        </div>
                       ) : null}
                     </li>
                   );
@@ -528,6 +598,7 @@ export function PublisherDevicePairingCard({
                   type="button"
                   size="sm"
                   variant="outline"
+                  disabled={pairingRequestPending}
                   onClick={() => void copyText('code', pairingValue.pairingCode)}
                 >
                   {copyState === 'code' ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
@@ -584,25 +655,98 @@ export function PublisherDevicePairingCard({
       <AlertDialog
         open={replaceConfirmationOpen}
         onOpenChange={(nextOpen) => {
-          if (pairing.status !== 'creating') setReplaceConfirmationOpen(nextOpen);
+          if (replacementPending) return;
+          setReplaceConfirmationOpen(nextOpen);
+          if (!nextOpen) setReplacementError(null);
         }}
       >
         <AlertDialogContent className="console-dialog border-dotted p-4 sm:max-w-md sm:p-5">
           <AlertDialogHeader>
             <AlertDialogTitle>Create a new pairing code?</AlertDialogTitle>
             <AlertDialogDescription>
-              The current one-time code has not been copied. Creating a new code will replace it in this Settings window.
+              {pairingCodeCopied
+                ? 'Your current code was copied. It remains available until a replacement is created successfully.'
+                : 'The current one-time code has not been copied. Creating a new code will replace it in Account settings.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {replacementError ? (
+            <p
+              role="alert"
+              className="border border-dotted border-destructive/40 bg-destructive/5 p-2.5 text-sm text-destructive"
+            >
+              {replacementError}
+            </p>
+          ) : null}
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={pairing.status === 'creating'}>Review current code</AlertDialogCancel>
+            <AlertDialogCancel disabled={replacementPending}>Review current code</AlertDialogCancel>
             <Button
               type="button"
-              disabled={pairing.status === 'creating'}
+              disabled={replacementPending}
               onClick={() => void performCreatePairing()}
             >
-              {pairing.status === 'creating' ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : null}
-              {pairing.status === 'creating' ? 'Creating…' : 'Replace code'}
+              {replacementPending ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : null}
+              {replacementPending
+                ? 'Creating…'
+                : replacementError
+                  ? 'Try again'
+                  : 'Replace code'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={deviceToRevoke !== null}
+        onOpenChange={(nextOpen) => {
+          if (nextOpen || revokingDeviceId !== null) return;
+          setDeviceToRevoke(null);
+          setDeviceError(null);
+        }}
+      >
+        <AlertDialogContent
+          className="console-dialog border-dotted p-4 sm:max-w-md sm:p-5"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            const preferredTarget = revokeSucceededRef.current
+              ? revokeRowRef.current
+              : revokeTriggerRef.current;
+            const focusTarget = preferredTarget?.isConnected
+              ? preferredTarget
+              : devicesHeadingRef.current;
+            revokeSucceededRef.current = false;
+            focusTarget?.focus();
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke publishing computer?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deviceToRevoke?.name ?? 'This computer'} will no longer be able to receive publishing requests.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deviceError ? (
+            <p
+              role="alert"
+              className="border border-dotted border-destructive/40 bg-destructive/5 p-2.5 text-sm text-destructive"
+            >
+              {deviceError}
+            </p>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={revokingDeviceId !== null}>Cancel</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={revokingDeviceId !== null || deviceToRevoke === null}
+              onClick={() => {
+                if (deviceToRevoke) void revokeDevice(deviceToRevoke);
+              }}
+            >
+              {revokingDeviceId ? (
+                <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+              ) : (
+                <ShieldOff aria-hidden="true" className="size-4" />
+              )}
+              {revokingDeviceId ? 'Revoking…' : 'Revoke'}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

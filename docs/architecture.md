@@ -32,14 +32,16 @@ describes what is active today.
    app. Only then does the companion perform one scoped final click.
 
 For Gemini generation, a user may explicitly select an encrypted personal key
-from **Settings → Connections**. Platform credits remain the default after a
-first save. See [account Gemini connections](./workspace-ai-credentials.md).
+from **Account settings → AI & generation**. Platform credits remain the
+default after a first save. See
+[account Gemini connections](./workspace-ai-credentials.md).
 
 The signed-in account control is pinned to the article rail footer. It opens
-the Connections settings panel above the expanded profile row or beside the
-collapsed desktop rail, so settings access remains available without restoring
-the article list. The panel is a responsive shell for the currently supported
-Connections category; it does not expose placeholder account or billing pages.
+Account settings above the expanded profile row or beside the collapsed desktop
+rail, so settings access remains available without restoring the article list.
+The responsive shell contains **AI & generation**, **Publishing**, and an
+administrator-only **People & access** section; it does not expose placeholder
+account or billing pages.
 
 The web app never receives Binance/X passwords, cookies, OAuth tokens, or a
 Chrome profile. It also never launches local Chrome or Bun code. X uses the
@@ -87,8 +89,8 @@ rechecked at every transition.
 Publisher devices are account-owned and can be `pending`, `active`, or
 `revoked`. The pairing API derives the internal tenant from the authenticated
 user and never trusts a browser-supplied workspace ID. Revocation disables the
-bearer token without deleting the audit row; pair again from **Settings →
-Connections** when a device must be replaced.
+bearer token without deleting the audit row; pair again from **Account settings
+→ Publishing** when a device must be replaced.
 
 ## Personal accounts and the internal workspace namespace
 

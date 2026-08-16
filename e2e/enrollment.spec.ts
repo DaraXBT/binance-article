@@ -53,7 +53,8 @@ test('owner can create, rotate, and disable a reusable enrollment code', async (
     sql: neon(databaseUrl),
   });
   await page.goto('/workspace?settings=connections&source=e2e-enrollment');
-  await expect(page.getByRole('dialog', { name: 'Connections' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Account settings' })).toBeVisible();
+  await page.getByRole('tab', { name: 'People & access' }).click();
   const codePanel = page.locator('section[aria-labelledby="enrollment-code-title"]');
   await expect(codePanel.getByText('No active code. Create one before sharing access.')).toBeVisible();
 

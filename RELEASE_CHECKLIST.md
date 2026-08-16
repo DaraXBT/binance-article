@@ -188,19 +188,26 @@ migration, 100% web deployment, and no-rollback boundary have completed.
    found.` and a successful `finalize failed article job` step — proving the
    worker boots, reaches the database, and fails closed.
 12. Confirm stale non-English browser preferences still render the English UI.
-13. As a workspace owner, save and test a disposable Gemini key, confirm the
-   default remains Platform credits, then explicitly switch to Workspace Gemini
-   key. Generate a disposable article and confirm prompt generation, slide
-   images, the dedicated cover, and retries complete with the selected source.
-   Switch back to Platform credits, delete the copy, and confirm generation
-   remains on Platform; revoke the disposable key at Google separately.
-14. Verify workspace settings navigation at the target responsive breakpoints:
+13. While the temporary credential-mutation restriction remains active, use a
+   pre-approved operator/tester source to save and test a disposable Gemini key.
+   Confirm the default remains Platform credits, then explicitly switch to
+   **Your Gemini key**. Generate a disposable article and confirm prompt
+   generation, slide images, the dedicated cover, and retries complete with the
+   selected source. Switch back to Platform credits, delete the copy, and
+   confirm generation remains on Platform. Confirm a harmless credential
+   mutation from a non-allowlisted source is still denied, then revoke the
+   disposable key at Google separately.
+14. Verify account settings navigation at the target responsive breakpoints:
    collapse the desktop rail and confirm the signed-in account control stays
    pinned at its bottom and opens its menu beside the rail; then open
-   **Settings** and confirm the Connections panel has no horizontal overflow on
-   mobile and shows its settings rail on desktop.
+   **Account settings** and confirm **AI & generation**, **Publishing**, and the
+   administrator-only **People & access** sections load independently. Require
+   no horizontal overflow on mobile and the settings rail on desktop. Start an
+   enrollment-code request and a pairing-code request, then prove close and
+   Browser Back cannot discard an unresolved or newly returned one-time value;
+   confirm **Review code** and **Discard and close** work after it is shown.
 15. Pair one disposable protocol-v2 browser device and verify it appears as
-   active under **Settings → Connections** with protocol version 2.
+   active under **Account settings → Publishing** with protocol version 2.
 16. With explicit operator authorization, smoke all four independent modes:
    text-only Binance Post, text-only X Post, coverless/media-free Binance
    Article, and coverless/media-free X Article. Then add optional media within

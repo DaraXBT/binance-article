@@ -56,8 +56,8 @@ Users can cancel any pre-click command from the web UI. Expired pre-click comman
   currently exposes no DeepSeek selector.
 - Account BYOK uses the same versioned `AI_CREDENTIAL_KEYRING` and
   `AI_CREDENTIAL_ACTIVE_KEY_ID` bindings on both Workers. A saved key is
-  inactive until the user explicitly selects **Your Gemini key** in **Settings →
-  Connections**.
+  inactive until the user explicitly selects **Your Gemini key** in **Account
+  settings → AI & generation**.
 - Keep the `GEMINI_TEXT_MODEL` and `GEMINI_IMAGE_MODEL` variables identical on
   both Workers so connection validation matches generation.
 - Primary Binance and X publishing, for both Posts and Articles, runs only in
@@ -98,7 +98,8 @@ and only its hash and bounded metadata are stored.
 - The product interface is English-only. Imported source text and generated
   article content may remain in their original language; stale UI-language
   cookies or browser storage are normalized back to English.
-- xArticle administrators manage enrollment in **Settings → Connections**.
+- xArticle administrators manage enrollment in **Account settings → People &
+  access**.
   After the one-time bootstrap invitation on an empty database, administrators create one
   reusable shared `JOIN-...` code and privately distribute its `#code=` URL.
   Only an HMAC hash is stored. A code claim is short-lived and becomes an active
@@ -112,10 +113,10 @@ and only its hash and bounded metadata are stored.
   with an access code**, and draft return paths survive the enrollment flow.
 - Suspended or revoked users are rejected on every request.
 - The account control stays pinned to the bottom of the article rail. Select
-  **Settings** there to open the responsive **Connections** panel for Gemini
-  credentials, publisher devices, and administrator controls. In the collapsed
-  desktop rail, the same menu opens beside the account icon rather than moving
-  into the article list.
+  **Settings** there to open responsive **Account settings**, organized into
+  **AI & generation**, **Publishing**, and administrator-only **People &
+  access** sections. In the collapsed desktop rail, the same menu opens beside
+  the account icon rather than moving into the article list.
 - `/workspace` remains the canonical signed-in route. Internally, the database
   retains one workspace namespace per account for tenant isolation, encrypted
   credential binding, legacy recovery, audit history, and stable R2 keys; users

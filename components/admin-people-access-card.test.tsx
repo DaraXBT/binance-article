@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AdminPeopleAccessCard } from './admin-people-access-card';
@@ -14,6 +14,16 @@ function jsonResponse(body: unknown, status = 200) {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, reject, resolve };
 }
 
 const overview = {
@@ -43,7 +53,8 @@ const people = {
 describe('AdminPeopleAccessCard', () => {
   beforeEach(() => {
     fetchMock.mockReset();
-    writeText.mockClear();
+    writeText.mockReset();
+    writeText.mockResolvedValue(undefined);
     vi.stubGlobal('fetch', fetchMock);
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -110,14 +121,11 @@ describe('AdminPeopleAccessCard', () => {
   });
 
   it('creates a one-time shared code and fragment link, then marks it copied', async () => {
+    const createRequest = deferred<Response>();
     fetchMock
       .mockResolvedValueOnce(jsonResponse(overview))
       .mockResolvedValueOnce(jsonResponse(people))
-      .mockResolvedValueOnce(jsonResponse({
-        code: 'JOIN-ABCDE-FGHJK-MNPQR-STUVW',
-        codePrefix: 'ABCDEFGH',
-        version: 1,
-      }, 201))
+      .mockImplementationOnce(() => createRequest.promise)
       .mockResolvedValueOnce(jsonResponse({
         activeCode: {
           version: 1,
@@ -134,8 +142,17 @@ describe('AdminPeopleAccessCard', () => {
     await screen.findByRole('button', { name: 'Create code' });
     fireEvent.click(screen.getByRole('button', { name: 'Create code' }));
 
+    expect(onUncopiedAccessChange).toHaveBeenLastCalledWith(true);
+    await act(async () => {
+      createRequest.resolve(jsonResponse({
+        code: 'JOIN-ABCDE-FGHJK-MNPQR-STUVW',
+        codePrefix: 'ABCDEFGH',
+        version: 1,
+      }, 201));
+    });
+
     await screen.findByText('JOIN-ABCDE-FGHJK-MNPQR-STUVW');
-    expect(onUncopiedAccessChange).toHaveBeenCalledWith(true);
+    expect(onUncopiedAccessChange.mock.calls).toEqual([[true]]);
     expect(screen.getByText(/\/join#code=JOIN-ABCDE/).textContent).toContain('#code=');
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy link' }));
@@ -143,6 +160,7 @@ describe('AdminPeopleAccessCard', () => {
       expect.stringMatching(/\/join#code=JOIN-ABCDE-FGHJK-MNPQR-STUVW$/),
     ));
     expect(onUncopiedAccessChange).toHaveBeenLastCalledWith(false);
+    expect(await screen.findByRole('button', { name: 'Copied' })).toBeTruthy();
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
       '/api/admin/enrollment/code',
@@ -150,7 +168,30 @@ describe('AdminPeopleAccessCard', () => {
     );
   });
 
+  it('releases request-time protection when code creation is canceled', async () => {
+    const createRequest = deferred<Response>();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(overview))
+      .mockResolvedValueOnce(jsonResponse(people))
+      .mockImplementationOnce(() => createRequest.promise);
+    const onUncopiedAccessChange = vi.fn();
+    render(<AdminPeopleAccessCard onUncopiedAccessChange={onUncopiedAccessChange} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Create code' }));
+    expect(onUncopiedAccessChange).toHaveBeenLastCalledWith(true);
+
+    await act(async () => {
+      createRequest.reject(new DOMException('The request was canceled.', 'AbortError'));
+    });
+
+    await waitFor(() => expect(onUncopiedAccessChange).toHaveBeenLastCalledWith(false));
+    expect(screen.getByRole('alert').textContent).toContain(
+      'The enrollment code could not be updated.',
+    );
+  });
+
   it('warns before rotation and sends the owner action to the rotation endpoint', async () => {
+    const rotateRequest = deferred<Response>();
     const activeOverview = {
       activeCode: { version: 1, codePrefix: 'ABCDEFGH', status: 'active' },
       capacity: overview.capacity,
@@ -158,24 +199,31 @@ describe('AdminPeopleAccessCard', () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse(activeOverview))
       .mockResolvedValueOnce(jsonResponse(people))
-      .mockResolvedValueOnce(jsonResponse({
-        code: 'JOIN-12345-6789A-BCDEF-GHJKM',
-        codePrefix: '12345678',
-        version: 2,
-      }))
+      .mockImplementationOnce(() => rotateRequest.promise)
       .mockResolvedValueOnce(jsonResponse({
         activeCode: { version: 2, codePrefix: '12345678', status: 'active' },
         capacity: overview.capacity,
       }))
       .mockResolvedValueOnce(jsonResponse(people));
-    render(<AdminPeopleAccessCard />);
+    const onUncopiedAccessChange = vi.fn();
+    render(<AdminPeopleAccessCard onUncopiedAccessChange={onUncopiedAccessChange} />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Rotate code' }));
     const confirmation = screen.getByRole('alertdialog', { name: 'Rotate the enrollment code?' });
     expect(confirmation.textContent).toMatch(/unfinished enrollment/i);
     fireEvent.click(within(confirmation).getByRole('button', { name: 'Rotate code' }));
 
+    expect(onUncopiedAccessChange).toHaveBeenLastCalledWith(true);
+    await act(async () => {
+      rotateRequest.resolve(jsonResponse({
+        code: 'JOIN-12345-6789A-BCDEF-GHJKM',
+        codePrefix: '12345678',
+        version: 2,
+      }));
+    });
+
     await screen.findByText('JOIN-12345-6789A-BCDEF-GHJKM');
+    expect(onUncopiedAccessChange.mock.calls).toEqual([[true]]);
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
       '/api/admin/enrollment/code/rotate',
@@ -184,6 +232,160 @@ describe('AdminPeopleAccessCard', () => {
         body: JSON.stringify({ reason: 'owner_rotation' }),
       }),
     );
+  });
+
+  it('reveals a validated replacement before surrounding refresh requests finish', async () => {
+    const rotateRequest = deferred<Response>();
+    const refreshOverviewRequest = deferred<Response>();
+    const refreshPeopleRequest = deferred<Response>();
+    const activeOverview = {
+      activeCode: { version: 1, codePrefix: 'ABCDEFGH', status: 'active' },
+      capacity: overview.capacity,
+    };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(activeOverview))
+      .mockResolvedValueOnce(jsonResponse(people))
+      .mockImplementationOnce(() => rotateRequest.promise)
+      .mockImplementationOnce(() => refreshOverviewRequest.promise)
+      .mockImplementationOnce(() => refreshPeopleRequest.promise);
+    render(<AdminPeopleAccessCard />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Rotate code' }));
+    fireEvent.click(within(
+      screen.getByRole('alertdialog', { name: 'Rotate the enrollment code?' }),
+    ).getByRole('button', { name: 'Rotate code' }));
+
+    await act(async () => {
+      rotateRequest.resolve(jsonResponse({
+        code: 'JOIN-NEW12-34567-89ABC-DEFGH',
+        codePrefix: 'NEW12345',
+        version: 2,
+      }));
+    });
+
+    await waitFor(() => expect(
+      screen.queryByRole('alertdialog', { name: 'Rotate the enrollment code?' }),
+    ).toBeNull());
+    expect(screen.getByText('JOIN-NEW12-34567-89ABC-DEFGH')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Copy code' })).toBeTruthy();
+
+    await act(async () => {
+      refreshOverviewRequest.resolve(jsonResponse({
+        activeCode: { version: 2, codePrefix: 'NEW12345', status: 'active' },
+        capacity: overview.capacity,
+      }));
+      refreshPeopleRequest.resolve(jsonResponse(people));
+    });
+  });
+
+  it('does not clear request protection when an old code copy resolves during rotation', async () => {
+    const clipboardWrite = deferred<undefined>();
+    const rotateRequest = deferred<Response>();
+    writeText.mockImplementationOnce(() => clipboardWrite.promise);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(overview))
+      .mockResolvedValueOnce(jsonResponse(people))
+      .mockResolvedValueOnce(jsonResponse({
+        code: 'JOIN-OLD12-34567-89ABC-DEFGH',
+        codePrefix: 'OLD12345',
+        version: 1,
+      }, 201))
+      .mockResolvedValueOnce(jsonResponse({
+        activeCode: { version: 1, codePrefix: 'OLD12345', status: 'active' },
+        capacity: overview.capacity,
+      }))
+      .mockResolvedValueOnce(jsonResponse(people))
+      .mockImplementationOnce(() => rotateRequest.promise)
+      .mockResolvedValueOnce(jsonResponse({
+        activeCode: { version: 2, codePrefix: 'NEW12345', status: 'active' },
+        capacity: overview.capacity,
+      }))
+      .mockResolvedValueOnce(jsonResponse(people));
+    const onUncopiedAccessChange = vi.fn();
+    render(<AdminPeopleAccessCard onUncopiedAccessChange={onUncopiedAccessChange} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Create code' }));
+    await screen.findByText('JOIN-OLD12-34567-89ABC-DEFGH');
+    fireEvent.click(screen.getByRole('button', { name: 'Copy code' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('JOIN-OLD12-34567-89ABC-DEFGH'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rotate code' }));
+    fireEvent.click(within(
+      screen.getByRole('alertdialog', { name: 'Rotate the enrollment code?' }),
+    ).getByRole('button', { name: 'Rotate code' }));
+    expect(onUncopiedAccessChange).toHaveBeenLastCalledWith(true);
+
+    await act(async () => {
+      clipboardWrite.resolve(undefined);
+      await clipboardWrite.promise;
+    });
+
+    expect(onUncopiedAccessChange).toHaveBeenLastCalledWith(true);
+    expect(screen.getByText('Copy code')).toBeTruthy();
+    expect(screen.queryByText('Copied')).toBeNull();
+
+    await act(async () => {
+      rotateRequest.resolve(jsonResponse({
+        code: 'JOIN-NEW12-34567-89ABC-DEFGH',
+        codePrefix: 'NEW12345',
+        version: 2,
+      }));
+    });
+    expect(await screen.findByText('JOIN-NEW12-34567-89ABC-DEFGH')).toBeTruthy();
+  });
+
+  it('does not mark a replacement copied when an old code copy resolves after rotation', async () => {
+    const clipboardWrite = deferred<undefined>();
+    const rotateRequest = deferred<Response>();
+    writeText.mockImplementationOnce(() => clipboardWrite.promise);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(overview))
+      .mockResolvedValueOnce(jsonResponse(people))
+      .mockResolvedValueOnce(jsonResponse({
+        code: 'JOIN-OLD98-76543-21ZYX-WVUTS',
+        codePrefix: 'OLD98765',
+        version: 1,
+      }, 201))
+      .mockResolvedValueOnce(jsonResponse({
+        activeCode: { version: 1, codePrefix: 'OLD98765', status: 'active' },
+        capacity: overview.capacity,
+      }))
+      .mockResolvedValueOnce(jsonResponse(people))
+      .mockImplementationOnce(() => rotateRequest.promise)
+      .mockResolvedValueOnce(jsonResponse({
+        activeCode: { version: 2, codePrefix: 'NEW98765', status: 'active' },
+        capacity: overview.capacity,
+      }))
+      .mockResolvedValueOnce(jsonResponse(people));
+    const onUncopiedAccessChange = vi.fn();
+    render(<AdminPeopleAccessCard onUncopiedAccessChange={onUncopiedAccessChange} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Create code' }));
+    await screen.findByText('JOIN-OLD98-76543-21ZYX-WVUTS');
+    fireEvent.click(screen.getByRole('button', { name: 'Copy code' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('JOIN-OLD98-76543-21ZYX-WVUTS'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rotate code' }));
+    fireEvent.click(within(
+      screen.getByRole('alertdialog', { name: 'Rotate the enrollment code?' }),
+    ).getByRole('button', { name: 'Rotate code' }));
+    await act(async () => {
+      rotateRequest.resolve(jsonResponse({
+        code: 'JOIN-NEW98-76543-21ZYX-WVUTS',
+        codePrefix: 'NEW98765',
+        version: 2,
+      }));
+    });
+    expect(await screen.findByText('JOIN-NEW98-76543-21ZYX-WVUTS')).toBeTruthy();
+
+    await act(async () => {
+      clipboardWrite.resolve(undefined);
+      await clipboardWrite.promise;
+    });
+
+    expect(onUncopiedAccessChange).toHaveBeenLastCalledWith(true);
+    expect(screen.getByRole('button', { name: 'Copy code' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Copied' })).toBeNull();
   });
 
   it('disables the shared code without creating a replacement', async () => {
@@ -213,6 +415,65 @@ describe('AdminPeopleAccessCard', () => {
       expect.objectContaining({ method: 'DELETE' }),
     ));
     await screen.findByRole('button', { name: 'Create code' });
+  });
+
+  it('ignores a delayed disable completion from an unmounted card session', async () => {
+    const activeOverview = {
+      activeCode: { version: 1, codePrefix: 'ABCDEFGH', status: 'active' },
+      capacity: overview.capacity,
+    };
+    const disableRequest = deferred<Response>();
+    const createRequest = deferred<Response>();
+    let enrollmentGetCount = 0;
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      const method = init?.method?.toUpperCase() ?? 'GET';
+
+      if (url === '/api/admin/enrollment' && method === 'GET') {
+        enrollmentGetCount += 1;
+        return Promise.resolve(jsonResponse(enrollmentGetCount === 1 ? activeOverview : overview));
+      }
+      if (url === '/api/admin/people' && method === 'GET') {
+        return Promise.resolve(jsonResponse(people));
+      }
+      if (url === '/api/admin/enrollment/code' && method === 'DELETE') {
+        return disableRequest.promise;
+      }
+      if (url === '/api/admin/enrollment/code' && method === 'POST') {
+        return createRequest.promise;
+      }
+      return Promise.resolve(jsonResponse({ error: 'Unexpected admin request.' }, 500));
+    });
+    const onUncopiedAccessChange = vi.fn();
+    const oldSession = render(
+      <AdminPeopleAccessCard onUncopiedAccessChange={onUncopiedAccessChange} />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Disable code' }));
+    fireEvent.click(within(
+      screen.getByRole('alertdialog', { name: 'Disable the enrollment code?' }),
+    ).getByRole('button', { name: 'Disable code' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      '/api/admin/enrollment/code',
+      expect.objectContaining({ method: 'DELETE' }),
+    ));
+
+    oldSession.unmount();
+    render(<AdminPeopleAccessCard onUncopiedAccessChange={onUncopiedAccessChange} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Create code' }));
+    expect(onUncopiedAccessChange).toHaveBeenLastCalledWith(true);
+
+    await act(async () => {
+      disableRequest.resolve(jsonResponse({
+        disabled: true,
+        changed: true,
+        revokedClaims: 0,
+      }));
+      await disableRequest.promise;
+      await Promise.resolve();
+    });
+
+    expect(onUncopiedAccessChange.mock.calls).toEqual([[true]]);
   });
 
   it('keeps a successfully disabled code closed when the follow-up refresh fails', async () => {

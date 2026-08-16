@@ -52,9 +52,10 @@ blocking a harmless publication mutation before continuing.
 4. If the approved release includes migration `0018`, keep publication writes
    blocked and immediately follow the dedicated `0018` runbook from its exact
    CI-green checkout. Otherwise, proceed directly to the deployment step below.
-5. After every required forward migration is verified, deploy the final web
-   Worker at 100%. Do not canary or allow an old Worker to share the migrated
-   database. Start only a protocol-v2/V3-capable companion, then perform the smoke checks
+5. After every required forward migration is verified, deploy the final
+   Workflow Worker and then the final web Worker at 100% from the same exact
+   SHA. Do not canary or allow an old Worker to share the migrated database.
+   Start only a protocol-v2/V3-capable companion, then perform the smoke checks
    below under the maintenance allowlist.
 6. Lift publication-write maintenance only after all smoke checks pass. Monitor
    web and companion errors, command latency, and failed/outcome-unknown commands.

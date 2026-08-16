@@ -347,6 +347,22 @@ export function AdminPeopleAccessCard({
   const [personActionBusy, setPersonActionBusy] = useState(false);
   const overviewSequenceRef = useRef(0);
   const peopleSequenceRef = useRef(0);
+  const hasUncopiedAccessRef = useRef(false);
+  const oneTimeCodeRef = useRef<OneTimeCode | null>(null);
+  const oneTimeCodeGenerationRef = useRef(0);
+  const codeRequestPendingRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  const setUncopiedAccess = useCallback((hasUncopiedAccess: boolean) => {
+    hasUncopiedAccessRef.current = hasUncopiedAccess;
+    onUncopiedAccessChange?.(hasUncopiedAccess);
+  }, [onUncopiedAccessChange]);
+
+  const replaceOneTimeCode = useCallback((nextCode: OneTimeCode | null) => {
+    oneTimeCodeGenerationRef.current += 1;
+    oneTimeCodeRef.current = nextCode;
+    setOneTimeCode(nextCode);
+  }, []);
 
   const handleOwnerAccessError = useCallback((error: unknown): boolean => {
     if (!(error instanceof SettingsApiError)) return false;
@@ -413,13 +429,23 @@ export function AdminPeopleAccessCard({
   }, [refreshOverview, refreshPeople]);
 
   useEffect(() => {
+    mountedRef.current = true;
     void refresh();
+    return () => {
+      mountedRef.current = false;
+    };
   }, [refresh]);
 
   const mutateCode = async (action: 'create' | 'rotate') => {
-    if (codeAction) return;
+    if (codeAction || codeRequestPendingRef.current) return;
+    const hadUncopiedAccess = hasUncopiedAccessRef.current;
+    let responseValidated = false;
+    codeRequestPendingRef.current = true;
     setCodeAction(action);
     setCodeActionError(null);
+    // The server may commit the one-time code before its response reaches the
+    // browser, so guard Settings against close/back for the whole request.
+    setUncopiedAccess(true);
     try {
       const response = await fetch(
         action === 'create' ? '/api/admin/enrollment/code' : '/api/admin/enrollment/code/rotate',
@@ -433,18 +459,26 @@ export function AdminPeopleAccessCard({
       const body = await readSettingsResponse<Record<string, unknown>>(response, action === 'create'
         ? 'The enrollment code could not be created.'
         : 'The enrollment code could not be rotated.');
+      if (!mountedRef.current) return;
       const createdCode = parseOneTimeCode(body);
-      setOneTimeCode(createdCode);
+      replaceOneTimeCode(createdCode);
       setCopiedValue(null);
-      onUncopiedAccessChange?.(true);
-      await refresh();
+      responseValidated = true;
+      codeRequestPendingRef.current = false;
       if (action === 'rotate') setRotationConfirmOpen(false);
+      // Reveal the replacement immediately. Refreshing surrounding metadata
+      // must never keep the only copy trapped behind the rotation modal.
+      await refresh();
     } catch (error) {
+      codeRequestPendingRef.current = false;
+      if (!mountedRef.current) return;
+      if (!responseValidated) setUncopiedAccess(hadUncopiedAccess);
       setCodeActionError(error instanceof Error
         ? error.message
         : 'The enrollment code could not be updated.');
     } finally {
-      setCodeAction(null);
+      codeRequestPendingRef.current = false;
+      if (mountedRef.current) setCodeAction(null);
     }
   };
 
@@ -461,33 +495,48 @@ export function AdminPeopleAccessCard({
         response,
         'The enrollment code could not be disabled.',
       );
-      setOneTimeCode(null);
+      if (!mountedRef.current) return;
+      replaceOneTimeCode(null);
       setCopiedValue(null);
-      onUncopiedAccessChange?.(false);
+      setUncopiedAccess(false);
       setOverview((current) => current ? { ...current, code: null } : current);
       await refresh();
-      setDisableConfirmOpen(false);
+      if (mountedRef.current) setDisableConfirmOpen(false);
     } catch (error) {
+      if (!mountedRef.current) return;
       setCodeActionError(error instanceof Error
         ? error.message
         : 'The enrollment code could not be disabled.');
     } finally {
-      setCodeAction(null);
+      if (mountedRef.current) setCodeAction(null);
     }
   };
 
   const copySecret = async (kind: 'code' | 'link') => {
-    if (!oneTimeCode || !navigator.clipboard?.writeText) {
+    const codeToCopy = oneTimeCode;
+    if (!codeToCopy || !navigator.clipboard?.writeText) {
       setCodeActionError('Clipboard access is unavailable. Select and copy the value manually.');
       return;
     }
+    const codeGeneration = oneTimeCodeGenerationRef.current;
+    const copyStillTargetsCurrentCode = () => (
+      mountedRef.current
+      && !codeRequestPendingRef.current
+      && oneTimeCodeGenerationRef.current === codeGeneration
+      && oneTimeCodeRef.current === codeToCopy
+    );
     setCodeActionError(null);
     try {
-      await navigator.clipboard.writeText(kind === 'code' ? oneTimeCode.code : oneTimeCode.joinUrl);
+      await navigator.clipboard.writeText(kind === 'code' ? codeToCopy.code : codeToCopy.joinUrl);
+      if (!copyStillTargetsCurrentCode()) return;
       setCopiedValue(kind);
-      onUncopiedAccessChange?.(false);
-      window.setTimeout(() => setCopiedValue(null), 2000);
+      setUncopiedAccess(false);
+      window.setTimeout(() => {
+        if (!copyStillTargetsCurrentCode()) return;
+        setCopiedValue((current) => current === kind ? null : current);
+      }, 2000);
     } catch {
+      if (!copyStillTargetsCurrentCode()) return;
       setCodeActionError('The browser could not copy that value. Select and copy it manually.');
     }
   };
@@ -627,9 +676,9 @@ export function AdminPeopleAccessCard({
             copiedValue={copiedValue}
             onCopy={(kind) => void copySecret(kind)}
             onDismiss={() => {
-              setOneTimeCode(null);
+              replaceOneTimeCode(null);
               setCopiedValue(null);
-              onUncopiedAccessChange?.(false);
+              setUncopiedAccess(false);
             }}
           />
         ) : null}

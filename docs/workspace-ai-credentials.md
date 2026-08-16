@@ -8,7 +8,8 @@ operator-controlled.
 ## What a user does
 
 1. From the dashboard, open the account control at the bottom of the article
-   rail and select **Settings** to open **Connections**.
+   rail and select **Settings**, then open **AI & generation** in **Account
+   settings**.
 2. The user pastes a Gemini API key into the **Gemini connection** card.
    The field is a password input and is cleared immediately after submission.
 3. xArticle checks the key against the configured Gemini text and image models.
@@ -95,13 +96,22 @@ ciphertext, nonces, or key values. It fails if any old-key row remains. Retire
 an old key ID only after the command succeeds and both Workers are confirmed to
 use the new keyring.
 
-## Deployment order
+## Initial feature deployment order
 
 1. Provision `AI_CREDENTIAL_KEYRING` and `AI_CREDENTIAL_ACTIVE_KEY_ID` to both
    Workers; keep the platform Gemini key present.
 2. Apply additive migration `0015_workspace_ai_credential`.
 3. Deploy the Workflow Worker.
-4. Deploy the web Worker and Connections UI.
+4. Deploy the web Worker and Account settings UI.
+
+That sequence describes the original additive `0015` launch. For an existing
+production database, select the procedure from its migration ledger. In
+particular, a database ending at `0016` must apply and verify only `0017` from
+an exact CI-green 0017-only checkout, then apply and verify only `0018` from the
+exact final checkout before deploying the Workflow Worker and web Worker. Follow
+the dedicated [0017 cutover](./cutover-0017-runbook.md) and
+[0018 repair](./cutover-0018-runbook.md) runbooks; never let one migration
+command apply both pending migrations.
 
 No saved key is active until its user explicitly selects **Your Gemini key**, so
 deploying the feature does not change existing generation behavior. The
