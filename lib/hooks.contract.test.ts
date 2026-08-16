@@ -18,13 +18,9 @@ type GenerationAccessInvalidReason =
   | 'revoked'
   | null;
 
-it('publishes the workspace origin and replacement result contract to clients', () => {
+it('publishes only account-facing bootstrap and mutation results to clients', () => {
   expectTypeOf<WorkspaceBootstrap>().toEqualTypeOf<{
     hasWorkspace: boolean;
-    workspaceId: string | null;
-    accessKeyPrefix: string | null;
-    recoveryKey: string | null;
-    workspaceOrigin: 'legacy' | 'account' | null;
     workspaceRole: 'owner' | 'member' | null;
     canReplaceWithLegacy: boolean;
     generateAccessEnabled: boolean;
@@ -33,12 +29,10 @@ it('publishes the workspace origin and replacement result contract to clients', 
   }>();
   expectTypeOf<WorkspaceCreateResult>().toEqualTypeOf<{
     success: true;
-    workspaceId: string;
     created: boolean;
   }>();
   expectTypeOf<WorkspaceRecoveryResult>().toEqualTypeOf<{
     success: true;
-    workspaceId: string;
     replacedWorkspace: boolean;
   }>();
 });

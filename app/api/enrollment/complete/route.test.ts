@@ -77,7 +77,7 @@ describe('POST /api/enrollment/complete', () => {
       userId: 'user_1',
     });
     expect(await response.json()).toEqual({
-      enrollment: { completed: true, replayed: false, workspaceId: 'workspace_1' },
+      enrollment: { completed: true, replayed: false },
     });
     expect(response.headers.get('set-cookie')).toMatch(
       /xarticle_enrollment_claim=; Max-Age=0; Path=\/api; HttpOnly; SameSite=Lax; Secure/i,

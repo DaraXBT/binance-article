@@ -96,10 +96,6 @@ describe('/api/workspace routes', () => {
     expect(mocks.resolveActorWorkspace).toHaveBeenCalledWith({ db: true }, 'user_1');
     expect(body).toEqual({
       hasWorkspace: false,
-      workspaceId: null,
-      accessKeyPrefix: null,
-      recoveryKey: null,
-      workspaceOrigin: null,
       workspaceRole: null,
       canReplaceWithLegacy: false,
       generateAccessEnabled: false,
@@ -123,16 +119,13 @@ describe('/api/workspace routes', () => {
     expect(mocks.getCurrentGenerateAccessState).toHaveBeenCalledWith({
       workspaceId: 'workspace-1', sessionId: 'session_1',
     });
-    expect(body).toMatchObject({
+    expect(body).toEqual({
       hasWorkspace: true,
-      workspaceId: 'workspace-1',
-      accessKeyPrefix: 'acct_12345678',
-      recoveryKey: null,
-      workspaceOrigin: 'account',
       workspaceRole: 'owner',
       canReplaceWithLegacy: true,
       generateAccessEnabled: true,
       hasGenerationAccess: true,
+      generationAccessInvalidReason: null,
     });
   });
 
@@ -148,11 +141,13 @@ describe('/api/workspace routes', () => {
     const { GET } = await import('@/app/api/workspace/route');
     const response = await GET(new Request('https://articles.example.com/api/workspace') as never);
 
-    await expect(response.json()).resolves.toMatchObject({
+    await expect(response.json()).resolves.toEqual({
       hasWorkspace: true,
-      workspaceId: 'workspace-legacy',
-      workspaceOrigin: 'legacy',
+      workspaceRole: 'owner',
       canReplaceWithLegacy: false,
+      generateAccessEnabled: false,
+      hasGenerationAccess: false,
+      generationAccessInvalidReason: null,
     });
   });
 
@@ -172,7 +167,6 @@ describe('/api/workspace routes', () => {
     }));
     expect(body).toEqual({
       success: true,
-      workspaceId: 'workspace-1',
       created: true,
     });
     expect(JSON.stringify(body)).not.toMatch(/recovery|accessKey/i);
@@ -205,7 +199,6 @@ describe('/api/workspace routes', () => {
     }));
     expect(body).toEqual({
       success: true,
-      workspaceId: 'workspace-2',
       replacedWorkspace: false,
     });
     expect(response.headers.get('cache-control')).toBe('no-store');
@@ -225,7 +218,6 @@ describe('/api/workspace routes', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       success: true,
-      workspaceId: 'workspace-legacy',
       replacedWorkspace: true,
     });
   });
