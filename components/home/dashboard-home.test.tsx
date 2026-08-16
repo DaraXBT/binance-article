@@ -740,7 +740,7 @@ describe('DashboardHome', () => {
     }
   });
 
-  it('does not expose manual workspace creation for a malformed resume marker', async () => {
+  it('lets a new account continue after a malformed resume marker', async () => {
     workspaceData = {
       hasWorkspace: false,
       workspaceId: null,
@@ -750,12 +750,85 @@ describe('DashboardHome', () => {
       hasGenerationAccess: false,
       generationAccessInvalidReason: null,
     };
+    window.history.replaceState({}, '', '/workspace?resume=malformed&source=account');
     const { DashboardHome } = await import('@/components/home/dashboard-home');
     render(React.createElement(DashboardHome, { resumeIntentId: null, resumeRequested: true }));
 
-    await waitFor(() => expect(createWorkspaceMutate).not.toHaveBeenCalled());
+    const continueButton = await screen.findByRole('button', {
+      name: messages.workspace.resumeChoiceContinue,
+    });
     expect(screen.queryByTestId('workspace-onboarding')).toBeNull();
     expect(createWorkspaceMutate).not.toHaveBeenCalled();
+
+    fireEvent.click(continueButton);
+
+    expect(routerReplace).toHaveBeenCalledWith('/workspace?source=account', { scroll: false });
+    await waitFor(() => expect(createWorkspaceMutate).toHaveBeenCalledTimes(1));
+  });
+
+  it('lets a new account continue after a stale resume marker', async () => {
+    workspaceData = {
+      hasWorkspace: false,
+      workspaceId: null,
+      accessKeyPrefix: null,
+      recoveryKey: null,
+      generateAccessEnabled: false,
+      hasGenerationAccess: false,
+      generationAccessInvalidReason: null,
+    };
+    const staleIntentId = '99999999-9999-4999-8999-999999999999';
+    window.history.replaceState({}, '', `/workspace?resume=${staleIntentId}`);
+    const { DashboardHome } = await import('@/components/home/dashboard-home');
+    render(React.createElement(DashboardHome, {
+      resumeIntentId: staleIntentId,
+      resumeRequested: true,
+    }));
+
+    const continueButton = await screen.findByRole('button', {
+      name: messages.workspace.resumeChoiceContinue,
+    });
+    expect(screen.getByText('DRAFT UNAVAILABLE')).toBeTruthy();
+    expect(createWorkspaceMutate).not.toHaveBeenCalled();
+
+    fireEvent.click(continueButton);
+
+    expect(routerReplace).toHaveBeenCalledWith('/workspace', { scroll: false });
+    await waitFor(() => expect(createWorkspaceMutate).toHaveBeenCalledTimes(1));
+  });
+
+  it('lets a new account continue when session storage is unavailable', async () => {
+    workspaceData = {
+      hasWorkspace: false,
+      workspaceId: null,
+      accessKeyPrefix: null,
+      recoveryKey: null,
+      generateAccessEnabled: false,
+      hasGenerationAccess: false,
+      generationAccessInvalidReason: null,
+    };
+    const intentId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    window.history.replaceState({}, '', `/workspace?resume=${intentId}`);
+    const storageSpy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('Storage is disabled.', 'SecurityError');
+    });
+
+    try {
+      const { DashboardHome } = await import('@/components/home/dashboard-home');
+      render(React.createElement(DashboardHome, { resumeIntentId: intentId, resumeRequested: true }));
+
+      const continueButton = await screen.findByRole('button', {
+        name: messages.workspace.resumeChoiceContinue,
+      });
+      expect(screen.getByText(messages.publicHome.storageError)).toBeTruthy();
+      expect(createWorkspaceMutate).not.toHaveBeenCalled();
+
+      fireEvent.click(continueButton);
+
+      expect(routerReplace).toHaveBeenCalledWith('/workspace', { scroll: false });
+      await waitFor(() => expect(createWorkspaceMutate).toHaveBeenCalledTimes(1));
+    } finally {
+      storageSpy.mockRestore();
+    }
   });
 
   it('exports a quiet AI suggest frame helper for idle and non-idle states', async () => {
