@@ -14,6 +14,8 @@ describe('Cloudflare web Worker deployment configuration', () => {
       main: string;
       compatibility_date: string;
       compatibility_flags: string[];
+      minify: boolean;
+      keep_names: boolean;
       assets: { binding: string; directory: string };
       routes: Array<{ pattern: string; custom_domain: boolean }>;
       secrets: { required: string[] };
@@ -27,6 +29,11 @@ describe('Cloudflare web Worker deployment configuration', () => {
       'nodejs_compat',
       'global_fetch_strictly_public',
     ]));
+    expect(config.minify).toBe(true);
+    // Wrangler keeps function names by default. Its generated name helper can
+    // leak into Function#toString() output, breaking self-contained browser
+    // bootstrap scripts such as next-themes' initial theme script.
+    expect(config.keep_names).toBe(false);
     expect(config.assets).toEqual({
       binding: 'ASSETS',
       directory: '.open-next/assets',

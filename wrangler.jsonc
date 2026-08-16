@@ -8,6 +8,7 @@
     "global_fetch_strictly_public"
   ],
   "minify": true,
+  "keep_names": false,
   "observability": {
     "enabled": true
   },
