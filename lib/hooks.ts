@@ -55,7 +55,6 @@ export type WorkspaceCreateResult = {
 
 export type WorkspaceRecoveryResult = {
   success: true;
-  replacedWorkspace: boolean;
 };
 
 export class ApiError extends Error {

@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
         }
       );
     }
-    const workspace = await claimLegacyWorkspace({
+    await claimLegacyWorkspace({
       repository: createLegacyWorkspaceClaimRepository(database),
       actorUserId: actor.id,
       recoveryKey,
@@ -52,7 +52,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      replacedWorkspace: workspace.replacedWorkspace,
     }, {
       headers: withNoStoreHeaders(),
     });
