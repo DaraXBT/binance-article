@@ -20,6 +20,8 @@ describe('release tree guard', () => {
       'drizzle/meta/0016_snapshot.json',
       'drizzle/0017_publication-kind.sql',
       'drizzle/meta/0017_snapshot.json',
+      'drizzle/0018_soft_unicorn.sql',
+      'drizzle/meta/0018_snapshot.json',
       'docs/cutover-0017-runbook.md',
     ]));
   });
