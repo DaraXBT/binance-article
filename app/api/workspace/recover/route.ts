@@ -52,7 +52,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      workspaceId: workspace.id,
       replacedWorkspace: workspace.replacedWorkspace,
     }, {
       headers: withNoStoreHeaders(),
@@ -60,7 +59,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return errorResponse(error, {
       code: 'LEGACY_WORKSPACE_CLAIM_FAILED',
-      message: 'Failed to claim workspace.',
+      message: 'Failed to import old data.',
       status: 500,
     });
   }

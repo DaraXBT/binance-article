@@ -19,10 +19,6 @@ type DeckMutationInput = {
 
 export type WorkspaceBootstrap = {
   hasWorkspace: boolean;
-  workspaceId: string | null;
-  accessKeyPrefix: string | null;
-  recoveryKey: string | null;
-  workspaceOrigin: 'legacy' | 'account' | null;
   workspaceRole: 'owner' | 'member' | null;
   canReplaceWithLegacy: boolean;
   generateAccessEnabled: boolean;
@@ -54,13 +50,11 @@ const pendingWorkspaceAiCredentialKeys = new WeakMap<object, string>();
 
 export type WorkspaceCreateResult = {
   success: true;
-  workspaceId: string;
   created: boolean;
 };
 
 export type WorkspaceRecoveryResult = {
   success: true;
-  workspaceId: string;
   replacedWorkspace: boolean;
 };
 
@@ -111,7 +105,7 @@ async function fetchDeck(id: string): Promise<DeckDetailResponse> {
 
 async function fetchWorkspace() {
   const res = await fetch('/api/workspace');
-  return readApiResponse<WorkspaceBootstrap>(res, 'Failed to fetch workspace');
+  return readApiResponse<WorkspaceBootstrap>(res, 'Failed to load your account library');
 }
 
 async function fetchWorkspaceAiCredential() {
@@ -355,7 +349,7 @@ export function useCreateWorkspace() {
         method: 'POST',
       });
 
-      return readApiResponse<WorkspaceCreateResult>(res, 'Failed to create workspace');
+      return readApiResponse<WorkspaceCreateResult>(res, 'Failed to open your account library');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.workspace() });
@@ -375,7 +369,7 @@ export function useRecoverWorkspace() {
         body: JSON.stringify({ accessKey }),
       });
 
-      return readApiResponse<WorkspaceRecoveryResult>(res, 'Failed to recover workspace');
+      return readApiResponse<WorkspaceRecoveryResult>(res, 'Failed to import old data');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.workspace() });

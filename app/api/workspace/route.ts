@@ -23,23 +23,20 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       hasWorkspace: Boolean(workspace),
-      workspaceId: workspace?.id ?? null,
-      accessKeyPrefix: workspace?.accessKeyPrefix ?? null,
-      recoveryKey: null,
-      workspaceOrigin: workspace?.origin ?? null,
       workspaceRole: workspace?.workspaceRole ?? null,
       canReplaceWithLegacy: workspace?.canReplaceWithLegacy ?? false,
       generateAccessEnabled,
       hasGenerationAccess: generationAccess?.hasAccess ?? false,
-      generationAccessInvalidReason: generationAccess?.invalidReason ??
-        (generateAccessEnabled ? 'missing' : null),
+      generationAccessInvalidReason: generationAccess
+        ? generationAccess.invalidReason
+        : generateAccessEnabled ? 'missing' : null,
     }, {
       headers: withNoStoreHeaders(),
     });
   } catch (error) {
     return errorResponse(error, {
       code: 'WORKSPACE_BOOTSTRAP_FAILED',
-      message: 'Failed to fetch workspace.',
+      message: 'Failed to load your account library.',
       status: 500,
     });
   }
@@ -57,7 +54,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      workspaceId: created.id,
       created: created.created,
     }, {
       headers: withNoStoreHeaders(),
@@ -65,7 +61,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return errorResponse(error, {
       code: 'WORKSPACE_CREATE_FAILED',
-      message: 'Failed to create workspace.',
+      message: 'Failed to prepare the account library.',
       status: 500,
     });
   }

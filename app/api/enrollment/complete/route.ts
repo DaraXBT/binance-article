@@ -70,7 +70,6 @@ export async function POST(request: NextRequest) {
       enrollment: {
         completed: true,
         replayed: completed.replayed,
-        ...(completed.workspaceId ? { workspaceId: completed.workspaceId } : {}),
       },
     }, { headers: responseHeaders() });
     response.headers.append('Set-Cookie', serializeExpiredEnrollmentClaimCookie({
