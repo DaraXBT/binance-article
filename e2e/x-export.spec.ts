@@ -55,18 +55,22 @@ test('prepares, reviews, and explicitly approves one regular X post click', asyn
   await page.route('**/api/articles/e2e-x-export/assets/slide-asset**', async (route) => {
     await route.fulfill({ status: 200, contentType: 'image/png', body: ONE_PIXEL_PNG });
   });
-  await page.route(/\/api\/articles\/e2e-x-export\/publications\/x$/, async (route) => {
-    if (route.request().method() === 'GET') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ draft: null }) });
-      return;
-    }
-    const payload = route.request().postDataJSON();
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ draft: { ...payload, id: 'draft-x', revision: 1, target: 'x' } }),
-    });
-  });
+  await page.route(
+    (url) => url.pathname === '/api/articles/e2e-x-export/publications/x',
+    async (route) => {
+      if (route.request().method() === 'GET') {
+        expect(new URL(route.request().url()).searchParams.get('kind')).toBe('post');
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ draft: null }) });
+        return;
+      }
+      const payload = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ draft: { ...payload, id: 'draft-x', revision: 1, target: 'x' } }),
+      });
+    },
+  );
   await page.route(/\/api\/articles\/e2e-x-export\/publications\/x\/prepare$/, async (route) => {
     await route.fulfill({
       status: 201,
@@ -74,7 +78,7 @@ test('prepares, reviews, and explicitly approves one regular X post click', asyn
       body: JSON.stringify({
         recipeHash: 'b'.repeat(64),
         command: {
-          id: 'command-x', draftId: 'draft-x', target: 'x', state: 'queued', revision: 1,
+          id: 'command-x', draftId: 'draft-x', target: 'x', kind: 'post', state: 'queued', revision: 1,
           recipeHash: 'b'.repeat(64), expiresAt: commandExpiresAt,
         },
       }),
@@ -86,7 +90,7 @@ test('prepares, reviews, and explicitly approves one regular X post click', asyn
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ command: {
-        id: 'command-x', draftId: 'draft-x', target: 'x', state: commandState, revision: 1,
+        id: 'command-x', draftId: 'draft-x', target: 'x', kind: 'post', state: commandState, revision: 1,
         recipeHash: 'b'.repeat(64), expiresAt: commandExpiresAt,
         ...(commandState === 'succeeded'
           ? { publishedUrl: 'https://x.com/xarticle/status/1234567890' }
@@ -100,7 +104,7 @@ test('prepares, reviews, and explicitly approves one regular X post click', asyn
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ command: {
-        id: 'command-x', draftId: 'draft-x', target: 'x', state: 'approved', revision: 1,
+        id: 'command-x', draftId: 'draft-x', target: 'x', kind: 'post', state: 'approved', revision: 1,
         recipeHash: 'b'.repeat(64), expiresAt: commandExpiresAt,
       } }),
     });

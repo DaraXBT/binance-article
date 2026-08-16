@@ -71,18 +71,22 @@ test('prepares, reviews, and explicitly approves one Binance publish click', asy
   await page.route('**/api/articles/e2e-binance-export/assets/cover-asset**', async (route) => {
     await route.fulfill({ status: 200, contentType: 'image/png', body: ONE_PIXEL_PNG });
   });
-  await page.route(/\/api\/articles\/e2e-binance-export\/publications\/binance$/, async (route) => {
-    if (route.request().method() === 'GET') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ draft: null }) });
-      return;
-    }
-    const payload = route.request().postDataJSON();
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ draft: { ...payload, id: 'draft-1', revision: 1, target: 'binance-square' } }),
-    });
-  });
+  await page.route(
+    (url) => url.pathname === '/api/articles/e2e-binance-export/publications/binance',
+    async (route) => {
+      if (route.request().method() === 'GET') {
+        expect(new URL(route.request().url()).searchParams.get('kind')).toBe('article');
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ draft: null }) });
+        return;
+      }
+      const payload = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ draft: { ...payload, id: 'draft-1', revision: 1, target: 'binance-square' } }),
+      });
+    },
+  );
   await page.route(/\/api\/articles\/e2e-binance-export\/publications\/binance\/prepare$/, async (route) => {
     await route.fulfill({
       status: 201,
@@ -90,7 +94,7 @@ test('prepares, reviews, and explicitly approves one Binance publish click', asy
       body: JSON.stringify({
         recipeHash: 'a'.repeat(64),
         command: {
-          id: 'command-1', draftId: 'draft-1', target: 'binance-square', state: 'queued',
+          id: 'command-1', draftId: 'draft-1', target: 'binance-square', kind: 'article', state: 'queued',
           revision: 1, recipeHash: 'a'.repeat(64), expiresAt: commandExpiresAt,
         },
       }),
@@ -102,7 +106,7 @@ test('prepares, reviews, and explicitly approves one Binance publish click', asy
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ command: {
-        id: 'command-1', draftId: 'draft-1', target: 'binance-square', state: commandState,
+        id: 'command-1', draftId: 'draft-1', target: 'binance-square', kind: 'article', state: commandState,
         revision: 1, recipeHash: 'a'.repeat(64), expiresAt: commandExpiresAt,
         ...(commandState === 'succeeded'
           ? { publishedUrl: 'https://www.binance.com/en/square/post/123' }
@@ -116,7 +120,7 @@ test('prepares, reviews, and explicitly approves one Binance publish click', asy
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ command: {
-        id: 'command-1', draftId: 'draft-1', target: 'binance-square', state: 'approved',
+        id: 'command-1', draftId: 'draft-1', target: 'binance-square', kind: 'article', state: 'approved',
         revision: 1, recipeHash: 'a'.repeat(64), expiresAt: commandExpiresAt,
       } }),
     });
