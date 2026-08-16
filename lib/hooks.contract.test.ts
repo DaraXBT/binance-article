@@ -33,7 +33,6 @@ it('publishes only account-facing bootstrap and mutation results to clients', ()
   }>();
   expectTypeOf<WorkspaceRecoveryResult>().toEqualTypeOf<{
     success: true;
-    replacedWorkspace: boolean;
   }>();
 });
 

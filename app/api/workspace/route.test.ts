@@ -199,12 +199,11 @@ describe('/api/workspace routes', () => {
     }));
     expect(body).toEqual({
       success: true,
-      replacedWorkspace: false,
     });
     expect(response.headers.get('cache-control')).toBe('no-store');
   });
 
-  it('reports when legacy recovery replaced a pristine account workspace', async () => {
+  it('keeps replacement details inside the server when legacy import replaces a pristine account', async () => {
     mocks.claimLegacyWorkspace.mockResolvedValueOnce({
       id: 'workspace-legacy', replacedWorkspace: true,
     });
@@ -218,7 +217,6 @@ describe('/api/workspace routes', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       success: true,
-      replacedWorkspace: true,
     });
   });
 
