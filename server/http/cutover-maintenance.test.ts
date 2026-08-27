@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import {
   createCutoverMaintenanceResponse,
@@ -40,6 +40,10 @@ describe('cutover maintenance policy', () => {
   it.each([
     undefined,
     'not-an-ip',
+    '192.0.2.1,not-an-ip',
+    '192.0.2.1,',
+    '192.0.2.1,999.999.999.999',
+    '192.0.2.1,2001:::7',
     `${'1'.repeat(1_025)}`,
     Array.from({ length: 17 }, (_, index) => `192.0.2.${index + 1}`).join(','),
   ])('blocks missing or malformed allowlist input %#', (allowedIps) => {
@@ -50,7 +54,13 @@ describe('cutover maintenance policy', () => {
     })).toEqual({ blocked: true });
   });
 
-  it.each([undefined, '', 'unknown-client'])('blocks an untrusted client IP %s', (connectingIp) => {
+  it.each([
+    undefined,
+    '',
+    'unknown-client',
+    '999.999.999.999',
+    '2001:::7',
+  ])('blocks an untrusted client IP %s', (connectingIp) => {
     expect(evaluateCutoverMaintenance({
       mode: 'full',
       allowedIps: '203.0.113.8',
@@ -68,13 +78,7 @@ describe('cutover maintenance policy', () => {
 });
 
 describe('cutover maintenance Worker response', () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
   it('returns a no-store 503 JSON response for blocked API traffic', async () => {
-    vi.stubEnv('CUTOVER_MAINTENANCE_MODE', 'full');
-    vi.stubEnv('CUTOVER_MAINTENANCE_ALLOW_IPS', '203.0.113.8');
     const request = new Request('https://binance.v27.tech/api/workspace/ai-credential', {
       method: 'PUT',
       headers: {
@@ -85,36 +89,48 @@ describe('cutover maintenance Worker response', () => {
 
     const response = createCutoverMaintenanceResponse({
       request,
-      environment: process.env,
+      environment: {
+        CUTOVER_MAINTENANCE_MODE: 'full',
+        CUTOVER_MAINTENANCE_ALLOW_IPS: '203.0.113.8',
+      },
     });
 
     expect(response).not.toBeNull();
     if (!response) throw new Error('Expected a maintenance response.');
     expect(response.status).toBe(503);
+    expect(response.headers.get('content-type')).toBe('application/json');
     expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('permissions-policy')).toBe('camera=(), microphone=(), geolocation=()');
+    expect(response.headers.get('referrer-policy')).toBe('strict-origin-when-cross-origin');
     expect(response.headers.get('retry-after')).toBe('120');
+    expect(response.headers.get('strict-transport-security')).toBe(
+      'max-age=63072000; includeSubDomains; preload',
+    );
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('x-frame-options')).toBe('DENY');
+    expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow');
     await expect(response.json()).resolves.toEqual({
       error: 'Scheduled maintenance is in progress. Please try again shortly.',
     });
   });
 
-  it('lets an exact allowlisted operator continue to the application', async () => {
-    vi.stubEnv('CUTOVER_MAINTENANCE_MODE', 'full');
-    vi.stubEnv('CUTOVER_MAINTENANCE_ALLOW_IPS', '203.0.113.8');
+  it('lets an exact allowlisted operator continue to the application', () => {
     const request = new Request('https://binance.v27.tech/settings/connections', {
       headers: { 'cf-connecting-ip': '203.0.113.8' },
     });
 
     const response = createCutoverMaintenanceResponse({
       request,
-      environment: process.env,
+      environment: {
+        CUTOVER_MAINTENANCE_MODE: 'full',
+        CUTOVER_MAINTENANCE_ALLOW_IPS: '203.0.113.8',
+      },
     });
 
     expect(response).toBeNull();
   });
 
   it('returns a responsive no-store maintenance page for blocked browser traffic', async () => {
-    vi.stubEnv('CUTOVER_MAINTENANCE_MODE', 'full');
     const request = new Request('https://binance.v27.tech/settings/connections', {
       headers: {
         accept: 'text/html',
@@ -124,13 +140,17 @@ describe('cutover maintenance Worker response', () => {
 
     const response = createCutoverMaintenanceResponse({
       request,
-      environment: process.env,
+      environment: { CUTOVER_MAINTENANCE_MODE: 'full' },
     });
 
     expect(response).not.toBeNull();
     if (!response) throw new Error('Expected a maintenance response.');
     expect(response.status).toBe(503);
+    expect(response.headers.get('cache-control')).toBe('no-store');
     expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
+    expect(response.headers.get('retry-after')).toBe('120');
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('x-frame-options')).toBe('DENY');
     expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow');
     await expect(response.text()).resolves.toContain('We\u2019ll be right back');
   });

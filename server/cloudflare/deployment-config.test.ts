@@ -58,6 +58,14 @@ describe('Cloudflare web Worker deployment configuration', () => {
       GEMINI_TEXT_MODEL: 'gemini-2.5-flash',
       GEMINI_IMAGE_MODEL: 'gemini-3.1-flash-image-preview',
     });
+
+    const entrypoint = readProjectFile('workers/web-entrypoint.mjs');
+    expect(entrypoint).toContain("from '../.open-next/worker.js'");
+    expect(entrypoint).toContain('createCutoverMaintenanceResponse');
+    expect(entrypoint).toMatch(/BucketCachePurge[\s\S]*DOQueueHandler[\s\S]*DOShardedTagCache/);
+    expect(entrypoint.indexOf('createCutoverMaintenanceResponse')).toBeLessThan(
+      entrypoint.lastIndexOf('openNextWorker.fetch'),
+    );
   });
 
   it('binds article assets to private R2 without embedding credentials or a public URL', () => {

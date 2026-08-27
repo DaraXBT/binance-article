@@ -34,15 +34,36 @@ const MAINTENANCE_HEADERS = {
   'X-Robots-Tag': 'noindex, nofollow',
 };
 
+function isIpLiteral(value: string): boolean {
+  if (!IP_LITERAL_PATTERN.test(value)) return false;
+
+  if (value.includes(':')) {
+    try {
+      // URL's bracketed-host parser validates IPv6 syntax without accepting a
+      // hostname, port, CIDR, or zone identifier as an operator allowlist entry.
+      return new URL(`http://[${value}]/`).hostname.length > 2;
+    } catch {
+      return false;
+    }
+  }
+
+  const octets = value.split('.');
+  return octets.length === 4 && octets.every((octet) => (
+    /^(?:0|[1-9][0-9]{0,2})$/.test(octet) && Number(octet) <= 255
+  ));
+}
+
 function parseAllowedIps(raw: string | undefined): Set<string> {
   if (!raw || raw.length > MAX_ALLOWLIST_LENGTH) return new Set();
 
   const entries = raw
     .split(',')
-    .map((entry) => entry.trim())
-    .filter((entry) => IP_LITERAL_PATTERN.test(entry));
+    .map((entry) => entry.trim());
 
-  if (entries.length > MAX_ALLOWLIST_ENTRIES) return new Set();
+  if (
+    entries.length > MAX_ALLOWLIST_ENTRIES
+    || entries.some((entry) => !isIpLiteral(entry))
+  ) return new Set();
   return new Set(entries);
 }
 
@@ -58,7 +79,7 @@ export function evaluateCutoverMaintenance({
   if (mode !== 'full') return { blocked: true };
 
   const clientIp = connectingIp?.trim();
-  if (!clientIp || !IP_LITERAL_PATTERN.test(clientIp)) return { blocked: true };
+  if (!clientIp || !isIpLiteral(clientIp)) return { blocked: true };
 
   return { blocked: !parseAllowedIps(allowedIps).has(clientIp) };
 }
