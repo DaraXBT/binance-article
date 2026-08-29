@@ -75,9 +75,10 @@ import {
 } from '@/lib/client/anonymous-draft';
 import {
   MINIMUM_PROMPT_LENGTH,
-  PromptComposer,
   type ComposerSlideCount,
 } from './prompt-composer';
+import { WorkspaceSourceComposer } from './workspace-source-composer';
+import { normalizeImportUrl, type ArticleSource } from '@/lib/article-source';
 import {
   ArticleStudioShell,
 } from './article-studio-shell';
@@ -108,6 +109,7 @@ interface SubmitPromptArticleOptions {
   articleId?: string;
   onStage?: (stage: 'article_created' | 'generation_started', value: { articleId: string; jobId?: string }) => void;
   fetchImpl?: HomeFetch;
+  source?: ArticleSource;
 }
 
 // Match the anonymous composer's default so the experience is identical
@@ -233,14 +235,17 @@ export async function submitPromptArticle({
   articleId: existingArticleId,
   onStage,
   fetchImpl = fetch,
+  source = 'prompt',
 }: SubmitPromptArticleOptions) {
-  const trimmedPrompt = prompt.trim();
-  const trimmedTitle = title?.trim() || extractTitleFromContent(trimmedPrompt);
+  const content = source === 'url' ? normalizeImportUrl(prompt) : prompt.trim();
+  const trimmedTitle = source === 'url'
+    ? 'Import from URL'
+    : title?.trim() || extractTitleFromContent(content ?? '');
 
-  if (!trimmedPrompt) {
-    throw new Error('A prompt is required.');
+  if (!content) {
+    throw new Error(source === 'url' ? 'Enter a valid HTTPS URL.' : 'A prompt is required.');
   }
-  if (trimmedPrompt.length < MINIMUM_PROMPT_LENGTH) {
+  if (source !== 'url' && content.length < MINIMUM_PROMPT_LENGTH) {
     throw new Error(`A prompt of at least ${MINIMUM_PROMPT_LENGTH} characters is required.`);
   }
 
@@ -254,8 +259,8 @@ export async function submitPromptArticle({
       headers: createHeaders,
       body: JSON.stringify({
         title: trimmedTitle,
-        description: trimmedPrompt.slice(0, 200),
-        content: trimmedPrompt,
+        description: content.slice(0, 200),
+        content,
         illustrationStyle,
       }),
     });
@@ -279,10 +284,10 @@ export async function submitPromptArticle({
     method: 'POST',
     headers: generationHeaders,
     body: JSON.stringify({
-      articleContent: trimmedPrompt,
+      articleContent: content,
       slideCount,
       illustrationStyle,
-      mode: 'prompt',
+      mode: source,
     }),
   });
 
@@ -520,6 +525,7 @@ function DeckSidebarList({
   query,
   onQueryChange,
   language,
+  onNewArticle,
 }: {
   decks: DeckListItem[];
   isLoading: boolean;
@@ -527,6 +533,7 @@ function DeckSidebarList({
   query: string;
   onQueryChange: (value: string) => void;
   language: Language;
+  onNewArticle: () => void;
 }) {
   const { messages } = useLanguage();
 
@@ -541,19 +548,14 @@ function DeckSidebarList({
         />
 
         <Button
-          asChild
+          type="button"
           className="h-9 justify-start rounded-lg group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
+          onClick={onNewArticle}
         >
-          <Link
-            href="/new"
-            aria-label={messages.common.newDeck}
-            title={messages.common.newDeck}
-          >
-            <MessageSquarePlus className="h-4 w-4" />
-            <span className="group-data-[collapsible=icon]:hidden">
-              {messages.common.newDeck}
-            </span>
-          </Link>
+          <MessageSquarePlus className="h-4 w-4" />
+          <span className="group-data-[collapsible=icon]:hidden">
+            {messages.common.newDeck}
+          </span>
         </Button>
 
         <label className="relative block group-data-[collapsible=icon]:hidden">
@@ -599,6 +601,7 @@ function DeckSidebarList({
 }
 
 type HomeSubmissionSnapshot = {
+  source: ArticleSource;
   prompt: string;
   slideCount: ComposerSlideCount;
   illustrationStyle: IllustrationStyleId;
@@ -631,6 +634,7 @@ interface DashboardHomeProps {
   settingsOpen?: boolean;
   canManageAccess?: boolean;
   actor?: { name: string; email: string };
+  initialSource?: ArticleSource;
 }
 
 export function DashboardHome({
@@ -639,11 +643,13 @@ export function DashboardHome({
   settingsOpen = false,
   canManageAccess = false,
   actor,
+  initialSource = 'prompt',
 }: DashboardHomeProps) {
   const router = useRouter();
   const { language, messages } = useLanguage();
   const [query, setQuery] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [source, setSource] = useState<ArticleSource>(initialSource);
   const [slideCount, setSlideCount] = useState<ComposerSlideCount>(DEFAULT_HOME_SLIDE_COUNT);
   const [illustrationStyle, setIllustrationStyle] =
     useState<IllustrationStyleId>(DEFAULT_HOME_ILLUSTRATION_STYLE);
@@ -764,9 +770,11 @@ export function DashboardHome({
     setResumeIntent(intent);
     if (!intent) return;
     setPrompt(intent.prompt);
+    setSource('prompt');
     setSlideCount(intent.slideCount);
     setIllustrationStyle(intent.illustrationStyle);
     submissionRef.current = {
+      source: 'prompt',
       prompt: intent.prompt,
       slideCount: intent.slideCount,
       illustrationStyle: intent.illustrationStyle,
@@ -960,6 +968,7 @@ export function DashboardHome({
   };
 
   const snapshotForCurrentPrompt = (): HomeSubmissionSnapshot => ({
+    source,
     prompt: prompt.trim(),
     slideCount,
     illustrationStyle,
@@ -969,6 +978,7 @@ export function DashboardHome({
     const existing = submissionRef.current;
     if (
       existing &&
+      existing.source === snapshot.source &&
       existing.prompt === snapshot.prompt &&
       existing.slideCount === snapshot.slideCount &&
       existing.illustrationStyle === snapshot.illustrationStyle
@@ -978,6 +988,7 @@ export function DashboardHome({
     const intent = resumeIntentRef.current;
     const intentMatchesSnapshot = Boolean(
       intent &&
+      snapshot.source === 'prompt' &&
       intent.prompt === snapshot.prompt &&
       intent.slideCount === snapshot.slideCount &&
       intent.illustrationStyle === snapshot.illustrationStyle,
@@ -1086,6 +1097,7 @@ export function DashboardHome({
     try {
       const { deckId } = await submitPromptArticle({
         prompt: checkpoint.prompt,
+        source: checkpoint.source,
         slideCount: checkpoint.slideCount,
         illustrationStyle: checkpoint.illustrationStyle,
         idempotencyKey: checkpoint.idempotencyKey,
@@ -1142,10 +1154,14 @@ export function DashboardHome({
   const handleSubmit = async () => {
     const snapshot = snapshotForCurrentPrompt();
     if (!snapshot.prompt) {
-      setComposerError(messages.dashboard.promptRequired);
+      setComposerError(snapshot.source === 'url' ? messages.dashboard.urlInvalid : messages.dashboard.promptRequired);
       return;
     }
-    if (snapshot.prompt.length < MINIMUM_PROMPT_LENGTH) {
+    if (snapshot.source === 'url' && !normalizeImportUrl(snapshot.prompt)) {
+      setComposerError(messages.dashboard.urlInvalid);
+      return;
+    }
+    if (snapshot.source !== 'url' && snapshot.prompt.length < MINIMUM_PROMPT_LENGTH) {
       setComposerError(messages.publicHome.promptTooShort);
       return;
     }
@@ -1156,6 +1172,27 @@ export function DashboardHome({
       return;
     }
     await runSubmit(snapshot);
+  };
+
+  const handleSourceChange = (nextSource: ArticleSource) => {
+    if (nextSource === source || resumeIntent) return;
+    setSource(nextSource);
+    setPrompt('');
+    setComposerError(null);
+    submissionRef.current = null;
+    const params = new URLSearchParams(window.location.search);
+    if (nextSource === 'prompt') params.delete('source');
+    else params.set('source', nextSource);
+    const queryString = params.toString();
+    router.replace(queryString ? `/workspace?${queryString}` : '/workspace', { scroll: false });
+  };
+
+  const handleNewArticle = () => {
+    if (!resumeIntent) handleSourceChange('prompt');
+    setPrompt('');
+    setComposerError(null);
+    submissionRef.current = null;
+    requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-workspace-source-input]')?.focus());
   };
 
   const handleAccessDialogChange = (open: boolean) => {
@@ -1213,6 +1250,7 @@ export function DashboardHome({
     freshResumeRef.current = false;
     setResumeNeedsAction(false);
     const snapshot = {
+      source: 'prompt' as const,
       prompt: resumeIntent.prompt,
       slideCount: resumeIntent.slideCount,
       illustrationStyle: resumeIntent.illustrationStyle,
@@ -1371,6 +1409,7 @@ export function DashboardHome({
             query={query}
             onQueryChange={setQuery}
             language={language}
+            onNewArticle={handleNewArticle}
           />
         )}
         sidebarFooter={(
@@ -1416,9 +1455,11 @@ export function DashboardHome({
                 </Button>
               </div>
             ) : null}
-            <PromptComposer
-              prompt={prompt}
-              onPromptChange={(value) => {
+            <WorkspaceSourceComposer
+              source={source}
+              onSourceChange={handleSourceChange}
+              value={prompt}
+              onValueChange={(value) => {
                 setPrompt(value);
                 if (composerError) setComposerError(null);
               }}
@@ -1428,21 +1469,32 @@ export function DashboardHome({
               onIllustrationStyleChange={setIllustrationStyle}
               onGenerate={handleSubmit}
               onSuggest={handleSuggest}
-              showSuggest
               isGenerating={isSubmitting}
               isSuggesting={isSuggesting}
               labels={{
-                prompt: messages.dashboard.topicPlaceholder,
-                placeholder: messages.dashboard.topicPlaceholder,
+                sourceLabel: messages.dashboard.sourceLabel,
+                sourcePrompt: messages.dashboard.sourcePrompt,
+                sourceText: messages.dashboard.sourceText,
+                sourceUrl: messages.dashboard.sourceUrl,
+                topicLabel: messages.dashboard.topicPlaceholder,
+                topicPlaceholder: messages.dashboard.topicPlaceholder,
+                textLabel: messages.dashboard.textLabel,
+                textPlaceholder: messages.dashboard.textPlaceholder,
+                urlLabel: messages.dashboard.urlLabel,
+                urlPlaceholder: messages.dashboard.urlPlaceholder,
+                urlHint: messages.dashboard.urlHint,
+                urlInvalid: messages.dashboard.urlInvalid,
                 slideCount: messages.dashboard.slideCountLabel,
                 illustrationStyle: messages.dashboard.illustrationStyleLabel,
                 generate: messages.dashboard.generateAction,
+                generateUrl: messages.dashboard.generateUrlAction,
                 generating: messages.dashboard.generateLoading,
                 suggest: messages.dashboard.aiSuggest,
                 suggesting: messages.dashboard.aiSuggestLoading,
               }}
               helperText={helperText}
               error={composerError}
+              sourceLocked={Boolean(resumeIntent)}
             />
           </div>
         </section>

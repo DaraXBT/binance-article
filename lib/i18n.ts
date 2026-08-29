@@ -185,7 +185,17 @@ const en = {
     promptHomeTitle: 'What do you want to write about?',
     promptHomeSubtitle:
       'Start with a topic. We’ll turn it into a full AI-generated article and send you straight to the result.',
+    sourceLabel: 'Article source',
+    sourcePrompt: 'Topic',
+    sourceText: 'Paste text',
+    sourceUrl: 'Import URL',
     topicPlaceholder: 'Enter a topic or angle',
+    textLabel: 'Article text',
+    textPlaceholder: 'Paste a full article or draft (markdown or plain text)…',
+    urlLabel: 'Webpage URL',
+    urlPlaceholder: 'https://example.com/article',
+    urlHint: 'Use an HTTPS article URL. We’ll import it when generation starts.',
+    urlInvalid: 'Enter a valid HTTPS URL without embedded credentials.',
     promptPlaceholder: 'Add your own instructions or let AI suggest them.',
     promptHintEmpty: 'Enter a topic first, then ask AI for a suggestion.',
     promptHintReady: 'You can refine the prompt before generating.',
@@ -198,6 +208,7 @@ const en = {
     slideCountLabel: 'Slides',
     illustrationStyleLabel: 'Style',
     generateAction: 'Generate article',
+    generateUrlAction: 'Import & generate',
     generateLoading: 'Generating article...',
     topicRequired: 'A topic is required.',
     promptRequired: 'A prompt is required.',
@@ -604,6 +615,7 @@ const km: typeof en = {
     filipino: 'Filipino',
   },
   dashboard: {
+    ...en.dashboard,
     workspaceDashboard: 'ផ្ទាំងគ្រប់គ្រងអត្ថបទ',
     searchDecks: 'ស្វែងរកអត្ថបទ',
     allDecks: 'អត្ថបទទាំងអស់',
@@ -1001,6 +1013,7 @@ const id: typeof en = {
     filipino: 'Filipino',
   },
   dashboard: {
+    ...en.dashboard,
     workspaceDashboard: 'Dasbor artikel',
     searchDecks: 'Cari artikel',
     allDecks: 'Semua artikel',
@@ -1398,6 +1411,7 @@ const lo: typeof en = {
     filipino: 'Filipino',
   },
   dashboard: {
+    ...en.dashboard,
     workspaceDashboard: 'ໜ້າຫຼັກບົດຄວາມ',
     searchDecks: 'ຄົ້ນຫາບົດຄວາມ',
     allDecks: 'ບົດຄວາມທັງໝົດ',
@@ -1795,6 +1809,7 @@ const my: typeof en = {
     filipino: 'Filipino',
   },
   dashboard: {
+    ...en.dashboard,
     workspaceDashboard: 'ဆောင်းပါး ဒက်ရှ်ဘုတ်',
     searchDecks: 'ဆောင်းပါးများ ရှာဖွေ',
     allDecks: 'ဆောင်းပါးအားလုံး',
@@ -2192,6 +2207,7 @@ const th: typeof en = {
     filipino: 'Filipino',
   },
   dashboard: {
+    ...en.dashboard,
     workspaceDashboard: 'แดชบอร์ดบทความ',
     searchDecks: 'ค้นหาบทความ',
     allDecks: 'บทความทั้งหมด',
@@ -2589,6 +2605,7 @@ const fil: typeof en = {
     filipino: 'Filipino',
   },
   dashboard: {
+    ...en.dashboard,
     workspaceDashboard: 'Dashboard ng artikulo',
     searchDecks: 'Maghanap ng mga artikulo',
     allDecks: 'Lahat ng artikulo',

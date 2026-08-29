@@ -2,38 +2,21 @@ import { expect } from '@playwright/test';
 
 import { authenticatedTest as test } from './fixtures/authenticated';
 
-test.describe('URL Import', () => {
-  test('creates article from a URL via the new article page', async ({ page }) => {
-    await page.goto('/new');
+test.describe('Workspace URL import', () => {
+  test('creates an article from a URL in the workspace composer', async ({ page }) => {
+    await page.goto('/workspace?source=url');
 
-    // Step 0: switch the wizard to URL mode and enter an HTTPS source.
-    await page.getByRole('tab', { name: 'Import URL' }).click();
+    await expect(page.getByRole('tab', { name: 'Import URL' })).toHaveAttribute('aria-selected', 'true');
     const urlInput = page.getByPlaceholder(/https:\/\//i);
     await expect(urlInput).toBeVisible();
 
-    // Step-0 validation mirrors the server rule: non-HTTPS never proceeds.
+    // The client guard mirrors the server's URL-schema rule.
     await urlInput.fill('http://example.com/article');
-    await expect(page.getByRole('button', { name: 'Next' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Import & generate' })).toBeDisabled();
 
     await urlInput.fill('https://example.com/article');
-    await page.getByRole('button', { name: 'Next' }).click();
-
-    // Step 1 (style) → Generate. Exact match: the wizard stepper also
-    // exposes a "3. Generate" step button.
-    await page.getByRole('button', { name: 'Generate', exact: true }).click();
-
-    // The generate step auto-submits. In E2E environments the article
-    // Workflow binding is absent and no live fetch/LLM runs, so the honest
-    // terminal state is either visible progress or the failure panel with a
-    // retry — never a silent hang.
-    // .first(): in the failure state the page shows the "Generating Your
-    // Article" heading and the "Generation Failed" panel at the same time.
-    await expect(
-      page
-        .getByText('Generating Your Article')
-        .or(page.getByText('Generation Failed'))
-        .first()
-    ).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: 'Import & generate' }).click();
+    await expect(page).toHaveURL(/\/articles\//, { timeout: 15_000 });
   });
 
   test('rejects non-HTTPS URLs via API', async ({ request }) => {
