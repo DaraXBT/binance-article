@@ -393,6 +393,8 @@ describe('DashboardHome', () => {
     expect(html).toContain(messages.workspace.bootstrapLoadingTitle);
     expect(html).not.toContain('data-testid="workspace-onboarding"');
     expect(html).not.toContain(messages.dashboard.promptHomeTitle);
+    expect(html).toContain('data-workspace-bootstrap="true"');
+    expect(html).not.toContain('data-console-panel');
   });
 
   it('shows a workspace bootstrap error state instead of a blank screen', async () => {
@@ -749,7 +751,7 @@ describe('DashboardHome', () => {
     const continueButton = await screen.findByRole('button', {
       name: messages.workspace.resumeChoiceContinue,
     });
-    expect(screen.getByText('DRAFT UNAVAILABLE')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain('Draft unavailable');
     expect(createWorkspaceMutate).not.toHaveBeenCalled();
 
     fireEvent.click(continueButton);

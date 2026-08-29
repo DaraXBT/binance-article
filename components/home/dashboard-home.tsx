@@ -1,6 +1,6 @@
 'use client';
 
-import { useDeferredValue, useEffect, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -13,7 +13,6 @@ import {
 import { useLanguage } from '@/components/language-provider';
 import {
   FrameCornerHandles,
-  SecureConsoleFrame,
 } from '@/components/console/secure-console-frame';
 import {
   AlertDialog,
@@ -53,6 +52,7 @@ import {
   DEFAULT_ILLUSTRATION_STYLE,
   type IllustrationStyleId,
 } from '@/lib/config';
+import { cn } from '@/lib/utils';
 import { formatRelativeTime, type Language } from '@/lib/i18n';
 import {
   useCreateWorkspace,
@@ -115,6 +115,52 @@ interface SubmitPromptArticleOptions {
 const DEFAULT_HOME_SLIDE_COUNT = 5;
 const DEFAULT_HOME_ILLUSTRATION_STYLE = DEFAULT_ILLUSTRATION_STYLE;
 const sidebarSkeletonWidths = ['88%', '64%', '76%', '58%', '71%', '67%'] as const;
+
+function WorkspaceBootstrapScreen({
+  title,
+  description,
+  status,
+  children,
+  tone = 'default',
+}: {
+  title: string;
+  description: string;
+  status: string;
+  children?: ReactNode;
+  tone?: 'default' | 'error';
+}) {
+  const isError = tone === 'error';
+
+  return (
+    <main
+      data-workspace-bootstrap
+      className="flex min-h-dvh w-full bg-background text-foreground"
+      aria-labelledby="workspace-bootstrap-title"
+    >
+      <div className="mx-auto flex w-full max-w-3xl flex-col justify-center px-4 py-8 sm:px-6 lg:px-8">
+        <div className="w-full max-w-lg">
+          <p
+            className={cn(
+              'text-xs font-medium tracking-wide text-muted-foreground',
+              isError && 'text-destructive',
+            )}
+            role={isError ? 'alert' : 'status'}
+            aria-live="polite"
+          >
+            {status}
+          </p>
+          <h1 id="workspace-bootstrap-title" className="mt-3 text-2xl font-semibold leading-tight tracking-normal sm:text-3xl">
+            {title}
+          </h1>
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+            {description}
+          </p>
+          {children ? <div className="mt-5">{children}</div> : null}
+        </div>
+      </div>
+    </main>
+  );
+}
 
 async function readHomeResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
   const data = await response.json().catch(() => null);
@@ -1227,101 +1273,75 @@ export function DashboardHome({
 
   if ((isWorkspaceLoading && !workspace) || isWorkspaceBusy) {
     return (
-      <SecureConsoleFrame
-        variant="private"
-        eyebrow="ACCOUNT CHECK"
+      <WorkspaceBootstrapScreen
         title={messages.workspace.bootstrapLoadingTitle}
-        subtitle={messages.workspace.bootstrapLoadingDescription}
-        panelClassName="mx-auto w-full max-w-lg"
-        contentClassName="flex items-center"
+        description={messages.workspace.bootstrapLoadingDescription}
+        status="Checking your account"
       >
-        <div className="flex min-h-28 items-center gap-3 px-1" role="status" aria-live="polite">
-          <span className="inline-flex size-9 shrink-0 items-center justify-center border border-dotted border-border text-primary">
-            <Loader2 className="size-4 animate-spin" />
-          </span>
-          <span className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">
-            CHECKING
-          </span>
-        </div>
-      </SecureConsoleFrame>
+        <Loader2 aria-hidden="true" className="size-5 animate-spin text-primary" />
+      </WorkspaceBootstrapScreen>
     );
   }
 
   if (workspaceError && !workspace) {
     return (
-      <SecureConsoleFrame
-        variant="private"
-        eyebrow="ACCOUNT ERROR"
+      <WorkspaceBootstrapScreen
         title={messages.workspace.bootstrapErrorTitle}
-        subtitle={workspaceError.message || messages.workspace.bootstrapErrorDescription}
-        panelClassName="mx-auto w-full max-w-lg border-destructive/45 bg-destructive/[0.025]"
-        contentClassName="flex items-center"
+        description={workspaceError.message || messages.workspace.bootstrapErrorDescription}
+        status="Account connection unavailable"
+        tone="error"
       >
-        <div className="flex flex-col gap-3">
-          <p className="font-mono text-xs uppercase tracking-[0.12em] text-destructive" role="alert">
-            CONNECTION UNAVAILABLE
-          </p>
-          <Button type="button" className="w-fit" onClick={() => void refetchWorkspace()}>
-            {messages.common.retry}
-          </Button>
-        </div>
-      </SecureConsoleFrame>
+        <Button type="button" className="w-fit" onClick={() => void refetchWorkspace()}>
+          {messages.common.retry}
+        </Button>
+      </WorkspaceBootstrapScreen>
     );
   }
 
   if (provisioningError && (!workspace || !hasWorkspace)) {
     return (
-      <SecureConsoleFrame
-        variant="private"
-        eyebrow="ACCOUNT ERROR"
+      <WorkspaceBootstrapScreen
         title={messages.workspace.bootstrapErrorTitle}
-        subtitle={provisioningError}
-        panelClassName="mx-auto w-full max-w-lg border-destructive/45 bg-destructive/[0.025]"
-        contentClassName="flex items-center"
+        description={provisioningError}
+        status="Account connection unavailable"
+        tone="error"
       >
-        <div className="flex flex-col gap-3">
-          <Button
-            type="button"
-            className="w-fit"
-            onClick={() => {
-              autoProvisionAttemptedRef.current = false;
-              setProvisioningError(null);
-              setProvisionAttempt((attempt) => attempt + 1);
-            }}
-          >
-            {messages.common.retry}
-          </Button>
-        </div>
-      </SecureConsoleFrame>
+        <Button
+          type="button"
+          className="w-fit"
+          onClick={() => {
+            autoProvisionAttemptedRef.current = false;
+            setProvisioningError(null);
+            setProvisionAttempt((attempt) => attempt + 1);
+          }}
+        >
+          {messages.common.retry}
+        </Button>
+      </WorkspaceBootstrapScreen>
     );
   }
 
   if (!workspace || !hasWorkspace) {
     if (resumeRequested && !resumeBypassed && !resumeIntent) {
       return (
-        <SecureConsoleFrame
-          variant="private"
-          eyebrow="ACCOUNT CHECK"
+        <WorkspaceBootstrapScreen
           title={resumeReady
             ? messages.publicHome.resumeUnavailable
             : messages.workspace.bootstrapLoadingTitle}
-          subtitle={resumeReady
+          description={resumeReady
             ? composerError ?? messages.publicHome.resumeUnavailable
             : messages.workspace.bootstrapLoadingDescription}
-          panelClassName="mx-auto w-full max-w-lg"
-          contentClassName="flex items-center"
+          status={resumeReady ? 'Draft unavailable' : 'Checking your account'}
+          tone={resumeReady ? 'error' : 'default'}
         >
-          <div className="flex flex-col items-start gap-3">
-            <p className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground" role="status">
-              {resumeReady ? 'DRAFT UNAVAILABLE' : 'CHECKING'}
-            </p>
-            {resumeReady ? (
-              <Button type="button" onClick={handleUnavailableResumeContinue}>
-                {messages.workspace.resumeChoiceContinue}
-              </Button>
-            ) : null}
-          </div>
-        </SecureConsoleFrame>
+          {resumeReady ? (
+            <Button type="button" onClick={handleUnavailableResumeContinue}>
+              {messages.workspace.resumeChoiceContinue}
+            </Button>
+          ) : (
+            <Loader2 aria-hidden="true" className="size-5 animate-spin text-primary" />
+          )}
+        </WorkspaceBootstrapScreen>
       );
     }
     // This is only a defensive fallback if provisioning is unavailable. The
