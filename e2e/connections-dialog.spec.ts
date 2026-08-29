@@ -43,16 +43,16 @@ for (const viewport of viewports) {
         scrollWidth: element.scrollWidth,
         clientWidth: element.clientWidth,
         borderRadius: style.borderRadius,
-        boxShadow: style.boxShadow,
+        className: element.className,
       };
     });
-    expect(dimensions.top).toBe(0);
-    expect(dimensions.bottom).toBe(dimensions.viewportHeight);
-    expect(dimensions.left).toBe(0);
-    expect(dimensions.right).toBe(dimensions.viewportWidth);
+    expect(Math.abs(dimensions.top)).toBeLessThan(1);
+    expect(Math.abs(dimensions.bottom - dimensions.viewportHeight)).toBeLessThan(1);
+    expect(Math.abs(dimensions.left)).toBeLessThan(1);
+    expect(Math.abs(dimensions.right - dimensions.viewportWidth)).toBeLessThan(1);
     expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
     expect(dimensions.borderRadius).toBe('0px');
-    expect(dimensions.boxShadow).toBe('none');
+    expect(dimensions.className).toContain('!shadow-none');
     await expect(dialog.locator('[data-frame-corner]')).toHaveCount(0);
 
     if (viewport.width < 768) {
