@@ -1394,7 +1394,10 @@ export function DashboardHome({
         )}
         mainClassName="studio-main-workspace"
       >
-        <section className="studio-home-canvas flex min-h-full w-full flex-col justify-start gap-6 py-6 sm:py-8">
+        <section
+          data-workspace-home
+          className="studio-home-canvas flex min-h-full w-full flex-col justify-start gap-6 py-6 md:justify-center sm:py-8"
+        >
           <div className="studio-intro min-w-0 text-center">
             <h1 className="mx-auto max-w-[24ch] text-balance text-3xl font-semibold leading-[1.08] tracking-normal text-foreground sm:text-4xl lg:text-[2.65rem]">
               {messages.dashboard.promptHomeTitle}
@@ -1429,9 +1432,8 @@ export function DashboardHome({
               isGenerating={isSubmitting}
               isSuggesting={isSuggesting}
               labels={{
-                prompt: (messages.dashboard as typeof messages.dashboard & { promptLabel?: string }).promptLabel
-                  ?? messages.dashboard.promptHomeTitle,
-                placeholder: messages.dashboard.promptPlaceholder,
+                prompt: messages.dashboard.topicPlaceholder,
+                placeholder: messages.dashboard.topicPlaceholder,
                 slideCount: messages.dashboard.slideCountLabel,
                 illustrationStyle: messages.dashboard.illustrationStyleLabel,
                 generate: messages.dashboard.generateAction,

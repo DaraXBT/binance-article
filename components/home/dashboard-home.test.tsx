@@ -460,6 +460,8 @@ describe('DashboardHome', () => {
     expect(html).toContain('data-article-studio-rail="workspace"');
     expect(html).not.toContain('data-article-studio-status-strip');
     expect(html).toContain('data-article-studio-composer');
+    expect(html).toContain('data-workspace-home');
+    expect(html).toContain('md:justify-center');
     expect(html).toContain('mx-auto w-full max-w-3xl');
     expect(html).toContain('data-article-studio-sidebar-trigger');
     expect(html).not.toContain('console-header');
@@ -536,7 +538,7 @@ describe('DashboardHome', () => {
     render(React.createElement(DashboardHome));
 
     expect(screen.queryByText(messages.dashboard.generationLockedBanner)).toBeNull();
-    fireEvent.change(screen.getByPlaceholderText(messages.dashboard.promptPlaceholder), {
+    fireEvent.change(screen.getByPlaceholderText(messages.dashboard.topicPlaceholder), {
       target: { value: 'This is a sufficiently detailed article prompt.' },
     });
     const generate = screen.getByRole('button', { name: messages.dashboard.generateAction });
@@ -931,7 +933,7 @@ describe('DashboardHome', () => {
       const { DashboardHome } = await import('@/components/home/dashboard-home');
       render(React.createElement(DashboardHome));
 
-      fireEvent.change(screen.getByPlaceholderText(messages.dashboard.promptPlaceholder), {
+      fireEvent.change(screen.getByPlaceholderText(messages.dashboard.topicPlaceholder), {
         target: { value: 'Bitcoin' },
       });
       fireEvent.click(screen.getByRole('button', { name: /generate article/i }));
@@ -1041,6 +1043,8 @@ describe('DashboardHome', () => {
 
     render(React.createElement(DashboardHome));
 
+    const topic = screen.getByRole('textbox', { name: messages.dashboard.topicPlaceholder });
+    expect(topic.getAttribute('placeholder')).toBe(messages.dashboard.topicPlaceholder);
     expect(screen.getByRole('button', { name: /ai suggest/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /generate article/i })).toBeTruthy();
 
@@ -1078,7 +1082,7 @@ describe('DashboardHome', () => {
 
       render(React.createElement(dashboardModule.DashboardHome));
 
-      fireEvent.change(screen.getByPlaceholderText(messages.dashboard.promptPlaceholder), {
+      fireEvent.change(screen.getByPlaceholderText(messages.dashboard.topicPlaceholder), {
         target: { value: 'Create an article about treasury settlement using stablecoins.' },
       });
 
