@@ -39,9 +39,15 @@ test('keeps the account control pinned and adapts its menu around the desktop ra
   await accountTrigger.click();
   await expect(accountMenu).toBeVisible();
 
+  await expect.poll(async () => {
+    const [triggerBounds, menuBounds] = await Promise.all([
+      boundsOf(accountTrigger),
+      boundsOf(accountMenu),
+    ]);
+    return Math.abs(menuBounds.width - triggerBounds.width) <= 2;
+  }).toBe(true);
   const expandedTrigger = await boundsOf(accountTrigger);
   const expandedMenu = await boundsOf(accountMenu);
-  expect(Math.abs(expandedMenu.width - expandedTrigger.width)).toBeLessThanOrEqual(2);
   expect(expandedMenu.bottom).toBeLessThanOrEqual(expandedTrigger.top);
 
   await accountTrigger.click();

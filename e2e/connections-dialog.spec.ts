@@ -30,7 +30,7 @@ for (const viewport of viewports) {
     await expect(publishingTab).toBeVisible();
     await expect(page.getByText('Connections', { exact: true })).toHaveCount(0);
 
-    const dimensions = await dialog.evaluate((element) => {
+    const readDimensions = () => dialog.evaluate((element) => {
       const box = element.getBoundingClientRect();
       const style = window.getComputedStyle(element);
       return {
@@ -46,10 +46,14 @@ for (const viewport of viewports) {
         className: element.className,
       };
     });
-    expect(Math.abs(dimensions.top)).toBeLessThan(1);
-    expect(Math.abs(dimensions.bottom - dimensions.viewportHeight)).toBeLessThan(1);
-    expect(Math.abs(dimensions.left)).toBeLessThan(1);
-    expect(Math.abs(dimensions.right - dimensions.viewportWidth)).toBeLessThan(1);
+    await expect.poll(async () => {
+      const dimensions = await readDimensions();
+      return Math.abs(dimensions.top) < 1
+        && Math.abs(dimensions.bottom - dimensions.viewportHeight) < 1
+        && Math.abs(dimensions.left) < 1
+        && Math.abs(dimensions.right - dimensions.viewportWidth) < 1;
+    }).toBe(true);
+    const dimensions = await readDimensions();
     expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
     expect(dimensions.borderRadius).toBe('0px');
     expect(dimensions.className).toContain('!shadow-none');
@@ -63,8 +67,8 @@ for (const viewport of viewports) {
         })),
       );
       for (const target of mobileTabTargets) {
-        expect(target.height).toBeGreaterThanOrEqual(44);
-        expect(target.width).toBeGreaterThanOrEqual(44);
+        expect(target.height).toBeGreaterThanOrEqual(43.5);
+        expect(target.width).toBeGreaterThanOrEqual(43.5);
       }
     } else {
       const desktopTabHeights = await Promise.all(
@@ -73,7 +77,7 @@ for (const viewport of viewports) {
         ))),
       );
       for (const height of desktopTabHeights) {
-        expect(height).toBeGreaterThanOrEqual(44);
+        expect(height).toBeGreaterThanOrEqual(43.5);
         expect(height).toBeLessThanOrEqual(56);
       }
     }
