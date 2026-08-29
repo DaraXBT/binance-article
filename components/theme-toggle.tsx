@@ -47,7 +47,7 @@ export function ThemeToggle({
   return (
     <Button
       type="button"
-      variant="outline"
+      variant="secondary"
       size={showLabel ? 'sm' : 'icon'}
       className={cn(
         'rounded-lg',

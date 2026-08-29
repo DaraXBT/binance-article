@@ -95,8 +95,14 @@ for (const viewport of viewports) {
       await primary.evaluate((element) => element.removeAttribute('disabled'));
 
       expect(await backButton.evaluate((element) => window.getComputedStyle(element).boxShadow)).toBe('none');
-      expect(await themeToggle.evaluate((element) => window.getComputedStyle(element).backgroundImage))
-        .toContain('linear-gradient');
+      const themeMaterial = await themeToggle.evaluate((element) => ({
+        backgroundImage: window.getComputedStyle(element).backgroundImage,
+        boxShadow: window.getComputedStyle(element).boxShadow,
+        isRaisedSecondary: element.classList.contains('button-material-secondary'),
+      }));
+      expect(themeMaterial.backgroundImage).toContain('linear-gradient');
+      expect(themeMaterial.boxShadow).not.toBe('none');
+      expect(themeMaterial.isRaisedSecondary).toBe(true);
 
       await page.screenshot({
         path: `/tmp/xarticle-buttons-${viewport.name}-${theme}-login.png`,
