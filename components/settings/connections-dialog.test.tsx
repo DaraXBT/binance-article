@@ -7,14 +7,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConnectionsDialog } from './connections-dialog';
 
 vi.mock('@/components/workspace-ai-credential-card', () => ({
-  WorkspaceAiCredentialCard: () => (
-    <div data-testid="gemini-card">Your Gemini key</div>
+  WorkspaceAiCredentialCard: ({ className }: { className?: string }) => (
+    <div data-testid="gemini-card" className={className}>Your Gemini key</div>
   ),
 }));
 
 vi.mock('@/components/publisher-device-pairing-card', () => ({
-  PublisherDevicePairingCard: ({ onUncopiedPairingChange }: any) => (
-    <div data-testid="publisher-card">
+  PublisherDevicePairingCard: ({ className, onUncopiedPairingChange }: any) => (
+    <div data-testid="publisher-card" className={className}>
       Browser publisher
       <button
         type="button"
@@ -33,8 +33,8 @@ vi.mock('@/components/publisher-device-pairing-card', () => ({
 }));
 
 vi.mock('@/components/admin-people-access-card', () => ({
-  AdminPeopleAccessCard: ({ onUncopiedAccessChange }: any) => (
-    <section data-testid="people-access-card">
+  AdminPeopleAccessCard: ({ className, onUncopiedAccessChange }: any) => (
+    <section data-testid="people-access-card" className={className}>
       People &amp; access
       <button
         type="button"
@@ -105,6 +105,8 @@ describe('ConnectionsDialog', () => {
     expect(dialog.className).toContain('shadow-lg');
     expect(dialog.className).toContain('!max-w-5xl');
     expect(dialog.className).not.toContain('!inset-0');
+    expect(screen.getByTestId('gemini-card').className).toContain('rounded-xl');
+    expect(screen.getByTestId('gemini-card').className).not.toContain('rounded-none');
   });
 
   it('does not expose owner-only access controls to a non-owner', () => {
@@ -127,11 +129,13 @@ describe('ConnectionsDialog', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Publishing' }));
     expect(screen.getByRole('tab', { name: 'Publishing' }).getAttribute('aria-selected')).toBe('true');
     expect(screen.getByTestId('publisher-card')).toBeTruthy();
+    expect(screen.getByTestId('publisher-card').className).toContain('rounded-xl');
     expect(screen.getByTestId('gemini-card')).toBeTruthy();
     expect(screen.queryByTestId('people-access-card')).toBeNull();
 
     fireEvent.click(screen.getByRole('tab', { name: 'People & access' }));
     expect(screen.getByTestId('people-access-card')).toBeTruthy();
+    expect(screen.getByTestId('people-access-card').className).toContain('rounded-xl');
     expect(screen.getByTestId('publisher-card')).toBeTruthy();
     expect(screen.getByTestId('gemini-card')).toBeTruthy();
 

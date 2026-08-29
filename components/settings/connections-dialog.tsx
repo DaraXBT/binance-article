@@ -321,7 +321,7 @@ export function ConnectionsDialog({
             {closeWarningOpen ? (
               <div
                 role="alert"
-                className="m-3 flex flex-col gap-3 rounded-none border border-amber-500/40 bg-amber-500/10 p-3 text-sm sm:mx-5 sm:mt-5 sm:flex-row sm:items-center sm:justify-between"
+                className="m-3 flex flex-col gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm sm:mx-5 sm:mt-5 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
                   <p className="font-medium text-foreground">Copy your one-time value before closing.</p>
@@ -355,7 +355,7 @@ export function ConnectionsDialog({
                     </div>
                     <WorkspaceAiCredentialCard
                       canManageAi={canManageAi}
-                      className="max-w-none rounded-none border-0 bg-transparent p-0 shadow-none"
+                      className="max-w-none rounded-xl border-border/70 bg-card/70"
                     />
                   </SettingsPanel>
                 </TabsContent>
@@ -371,7 +371,7 @@ export function ConnectionsDialog({
                       </p>
                     </div>
                     <PublisherDevicePairingCard
-                      className="max-w-none rounded-none border-0 bg-transparent p-0 shadow-none"
+                      className="max-w-none rounded-xl border-border/70 bg-card/70"
                       onUncopiedPairingChange={handleUncopiedPairingChange}
                     />
                   </SettingsPanel>
@@ -383,7 +383,7 @@ export function ConnectionsDialog({
                   <SettingsPanel labelledBy="settings-access-title" active={activeSection === 'access'}>
                     <h2 id="settings-access-title" className="sr-only">People &amp; access</h2>
                     <AdminPeopleAccessCard
-                      className="rounded-none border-0 bg-transparent p-0 shadow-none"
+                      className="rounded-xl border-border/70 bg-card/70 p-4 sm:p-5"
                       showFrameCorners={false}
                       onUncopiedAccessChange={handleUncopiedEnrollmentAccessChange}
                     />

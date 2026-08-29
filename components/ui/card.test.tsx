@@ -13,6 +13,7 @@ describe('Card', () => {
 
     const card = screen.getByText('Content');
     expect(card.className).toContain('shadow-none');
+    expect(card.className).toContain('rounded-xl');
     expect(card.className).not.toContain('shadow-sm');
   });
 });
