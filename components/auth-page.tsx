@@ -10,7 +10,14 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
 import { Particles } from '@/components/ui/particles';
 
-export function AuthPage({ children }: { children: ReactNode }) {
+export function AuthPage({
+  children,
+  decorativeBackground = true,
+}: {
+  children: ReactNode;
+  /** Keep focused flows quiet; the account form should be the only focal point. */
+  decorativeBackground?: boolean;
+}) {
   const { messages } = useLanguage();
 
   return (
@@ -18,13 +25,15 @@ export function AuthPage({ children }: { children: ReactNode }) {
       data-auth-page="true"
       className="relative min-h-dvh w-full overflow-x-hidden bg-background text-foreground"
     >
-      <Particles
-        data-auth-particles="true"
-        className="absolute inset-0"
-        color="#666666"
-        ease={20}
-        quantity={120}
-      />
+      {decorativeBackground ? (
+        <Particles
+          data-auth-particles="true"
+          className="absolute inset-0"
+          color="#666666"
+          ease={20}
+          quantity={120}
+        />
+      ) : null}
 
       <header className="absolute inset-x-0 top-0 z-10 flex h-16 items-center justify-between gap-3 px-4 sm:px-6">
         <Button

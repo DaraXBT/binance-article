@@ -77,6 +77,8 @@ describe('JoinForm', () => {
     expect(screen.getByText(/checking invitation/i)).toBeTruthy();
     expect(container.querySelector('[data-auth-panel="join"]')?.className)
       .toContain('shadow-none');
+    expect(container.querySelector('[data-auth-panel="join"]')?.className)
+      .not.toContain('border-dotted');
     await screen.findByText(/invited@example.com/i);
     fireEvent.click(screen.getByRole('button', { name: /continue with google/i }));
 

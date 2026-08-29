@@ -396,12 +396,12 @@ export function JoinForm({
       data-auth-state={state.status}
       aria-busy={isChecking || isSigningIn}
       className={cn(
-        'studio-auth-panel relative w-full max-w-md rounded-xl border border-dotted border-border bg-card/80 p-5 shadow-none dark:border-border/70 dark:bg-card/60 sm:p-6',
+        'relative w-full max-w-md border-0 bg-transparent p-0 shadow-none',
         className,
       )}
     >
-      <div className="mb-5 border-b border-border/70 pb-4">
-        <Heading id="join-form-title" className="text-xl font-semibold leading-tight sm:text-2xl">
+      <div className="mb-6">
+        <Heading id="join-form-title" className="text-2xl font-semibold leading-tight tracking-normal sm:text-3xl">
           {copy.joinTitle}
         </Heading>
         <p role={messageRole} aria-live="polite" className={cn(
