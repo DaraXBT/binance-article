@@ -100,9 +100,11 @@ describe('ConnectionsDialog', () => {
     expect(screen.queryByTestId('publisher-card')).toBeNull();
     expect(screen.queryByTestId('people-access-card')).toBeNull();
     expect(dialog.querySelectorAll('[data-frame-corner]')).toHaveLength(0);
-    expect(dialog.className).toContain('rounded-none');
-    expect(dialog.className).toContain('border-0');
-    expect(dialog.className).toContain('!shadow-none');
+    expect(dialog.className).toContain('rounded-xl');
+    expect(dialog.className).toContain('border-border/80');
+    expect(dialog.className).toContain('shadow-lg');
+    expect(dialog.className).toContain('!max-w-5xl');
+    expect(dialog.className).not.toContain('!inset-0');
   });
 
   it('does not expose owner-only access controls to a non-owner', () => {

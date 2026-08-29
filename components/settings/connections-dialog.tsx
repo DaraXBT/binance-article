@@ -241,12 +241,12 @@ export function ConnectionsDialog({
           event.preventDefault();
           accountTrigger.focus();
         }}
-        className="!fixed !inset-0 !left-0 !top-0 !h-auto !max-h-none !w-auto !max-w-none !translate-x-0 !translate-y-0 grid-cols-1 grid-rows-[minmax(0,1fr)] gap-0 overflow-hidden rounded-none border-0 bg-card p-0 !shadow-none"
+        className="!h-[min(44rem,calc(100dvh-2rem))] !w-[calc(100%-2rem)] !max-w-5xl grid-cols-1 grid-rows-[minmax(0,1fr)] gap-0 overflow-hidden rounded-xl border-border/80 bg-card p-0 shadow-lg"
       >
         <Tabs
           value={activeSection}
           onValueChange={selectSection}
-          className="grid min-h-0 grid-cols-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-0 md:grid-cols-[14rem_minmax(0,1fr)] md:grid-rows-[auto_minmax(0,1fr)]"
+          className="grid h-full min-h-0 grid-cols-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-0 md:grid-cols-[14rem_minmax(0,1fr)] md:grid-rows-[auto_minmax(0,1fr)]"
         >
           <aside
             data-connections-settings-rail

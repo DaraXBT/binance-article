@@ -38,6 +38,8 @@ for (const viewport of viewports) {
         bottom: box.bottom,
         left: box.left,
         right: box.right,
+        width: box.width,
+        height: box.height,
         viewportHeight: window.innerHeight,
         viewportWidth: window.innerWidth,
         scrollWidth: element.scrollWidth,
@@ -46,17 +48,17 @@ for (const viewport of viewports) {
         className: element.className,
       };
     });
-    await expect.poll(async () => {
-      const dimensions = await readDimensions();
-      return Math.abs(dimensions.top) < 1
-        && Math.abs(dimensions.bottom - dimensions.viewportHeight) < 1
-        && Math.abs(dimensions.left) < 1
-        && Math.abs(dimensions.right - dimensions.viewportWidth) < 1;
-    }).toBe(true);
     const dimensions = await readDimensions();
+    expect(dimensions.top).toBeGreaterThan(0);
+    expect(dimensions.bottom).toBeLessThan(dimensions.viewportHeight);
+    expect(dimensions.left).toBeGreaterThan(0);
+    expect(dimensions.right).toBeLessThan(dimensions.viewportWidth);
+    expect(dimensions.width).toBeLessThan(dimensions.viewportWidth);
+    expect(dimensions.height).toBeLessThan(dimensions.viewportHeight);
     expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
-    expect(dimensions.borderRadius).toBe('0px');
-    expect(dimensions.className).toContain('!shadow-none');
+    expect(dimensions.borderRadius).not.toBe('0px');
+    expect(dimensions.className).toContain('rounded-xl');
+    expect(dimensions.className).not.toContain('!inset-0');
     await expect(dialog.locator('[data-frame-corner]')).toHaveCount(0);
 
     if (viewport.width < 768) {
