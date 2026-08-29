@@ -48,7 +48,7 @@ describe('strict browser mutation origin policy', () => {
 
 describe('compatibility mutation origin policy', () => {
   it('uses the browser-requested host when Next has an internal URL origin', () => {
-    const request = new NextRequest('http://localhost:3000/api/articles', {
+    const request = new NextRequest('https://localhost:3000/api/articles', {
       method: 'POST',
       headers: {
         host: '127.0.0.1:3100',

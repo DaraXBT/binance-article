@@ -25,24 +25,17 @@ function getRequestOrigin(request: NextRequest) {
  *
  * `request.nextUrl` is normally derived from that authority. In Next's dev
  * server, however, it can retain an internal localhost origin even when the
- * browser is using 127.0.0.1. Mutation requests would then be rejected even
- * though their Origin and Host headers correctly match. The Host header is
- * the request authority, while a trusted proxy may supply its original
- * protocol through x-forwarded-proto.
+ * browser is using 127.0.0.1. Reverse proxies can likewise rewrite the
+ * internal protocol. The Host header remains the request authority.
  */
-function getRequestTargetOrigin(request: NextRequest) {
+function getRequestTargetHost(request: NextRequest) {
   const host = request.headers.get('host');
-  if (!host) return request.nextUrl.origin;
-
-  const forwardedProtocol = request.headers.get('x-forwarded-proto')
-    ?.split(',', 1)[0]
-    ?.trim();
-  const protocol = forwardedProtocol || request.nextUrl.protocol;
+  if (!host) return null;
 
   try {
-    return new URL(`${protocol}//${host}`).origin;
+    return new URL(`http://${host}`).host;
   } catch {
-    return request.nextUrl.origin;
+    return null;
   }
 }
 
@@ -53,9 +46,10 @@ export function assertAllowedOrigin(request: NextRequest) {
     return;
   }
 
-  const urlOrigin = getRequestTargetOrigin(request);
+  const requestTargetHost = getRequestTargetHost(request);
+  const requestOriginHost = new URL(requestOrigin).host;
 
-  if (requestOrigin !== urlOrigin) {
+  if (requestTargetHost ? requestOriginHost !== requestTargetHost : requestOrigin !== request.nextUrl.origin) {
     throw new AppError({
       code: 'CROSS_SITE_REQUEST_BLOCKED',
       message: 'Cross-site requests are not allowed for this endpoint.',
