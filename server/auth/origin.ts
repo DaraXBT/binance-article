@@ -20,6 +20,32 @@ function getRequestOrigin(request: NextRequest) {
   }
 }
 
+/**
+ * Returns the origin the browser actually addressed.
+ *
+ * `request.nextUrl` is normally derived from that authority. In Next's dev
+ * server, however, it can retain an internal localhost origin even when the
+ * browser is using 127.0.0.1. Mutation requests would then be rejected even
+ * though their Origin and Host headers correctly match. The Host header is
+ * the request authority, while a trusted proxy may supply its original
+ * protocol through x-forwarded-proto.
+ */
+function getRequestTargetOrigin(request: NextRequest) {
+  const host = request.headers.get('host');
+  if (!host) return request.nextUrl.origin;
+
+  const forwardedProtocol = request.headers.get('x-forwarded-proto')
+    ?.split(',', 1)[0]
+    ?.trim();
+  const protocol = forwardedProtocol || request.nextUrl.protocol;
+
+  try {
+    return new URL(`${protocol}//${host}`).origin;
+  } catch {
+    return request.nextUrl.origin;
+  }
+}
+
 export function assertAllowedOrigin(request: NextRequest) {
   const requestOrigin = getRequestOrigin(request);
 
@@ -27,7 +53,7 @@ export function assertAllowedOrigin(request: NextRequest) {
     return;
   }
 
-  const urlOrigin = request.nextUrl.origin;
+  const urlOrigin = getRequestTargetOrigin(request);
 
   if (requestOrigin !== urlOrigin) {
     throw new AppError({

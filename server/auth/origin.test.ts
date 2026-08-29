@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { describe, expect, it } from 'vitest';
 
-import { assertTrustedMutationOrigin } from './origin';
+import { assertAllowedOrigin, assertTrustedMutationOrigin } from './origin';
 
 const canonicalOrigin = 'https://articles.example.com';
 
@@ -43,5 +43,32 @@ describe('strict browser mutation origin policy', () => {
   it('rejects an invalid canonical origin instead of trusting the request host', () => {
     expect(() => assertTrustedMutationOrigin(request({ origin: canonicalOrigin }), 'not-a-url'))
       .toThrow(expect.objectContaining({ code: 'INVALID_ORIGIN_CONFIGURATION' }));
+  });
+});
+
+describe('compatibility mutation origin policy', () => {
+  it('uses the browser-requested host when Next has an internal URL origin', () => {
+    const request = new NextRequest('http://localhost:3000/api/articles', {
+      method: 'POST',
+      headers: {
+        host: '127.0.0.1:3100',
+        origin: 'http://127.0.0.1:3100',
+      },
+    });
+
+    expect(() => assertAllowedOrigin(request)).not.toThrow();
+  });
+
+  it('continues to reject a different browser origin', () => {
+    const request = new NextRequest('http://localhost:3000/api/articles', {
+      method: 'POST',
+      headers: {
+        host: '127.0.0.1:3100',
+        origin: 'http://evil.example',
+      },
+    });
+
+    expect(() => assertAllowedOrigin(request))
+      .toThrow(expect.objectContaining({ code: 'CROSS_SITE_REQUEST_BLOCKED' }));
   });
 });
