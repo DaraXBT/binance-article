@@ -52,6 +52,22 @@ export async function resolveActorWorkspace(
         AND NOT EXISTS (SELECT 1 FROM "ArticleCover" WHERE "workspaceId" = ${workspace.id})
         AND NOT EXISTS (SELECT 1 FROM "PublisherDevice" WHERE "workspaceId" = ${workspace.id})
         AND NOT EXISTS (SELECT 1 FROM "WorkspaceAiCredential" WHERE "workspaceId" = ${workspace.id})
+        -- A pristine account alone is not a reason to show legacy recovery.
+        -- The action is meaningful only while an unclaimed, unexpired legacy
+        -- library actually exists. Ownership is still proven later by its
+        -- full recovery key in the atomic claim transaction.
+        AND EXISTS (
+          SELECT 1
+          FROM "Workspace" AS legacy_candidate
+          WHERE legacy_candidate."origin" = 'legacy'::"WorkspaceOrigin"
+            AND legacy_candidate."accessKeyPrefix" ~ '^dwk_[a-f0-9]{8}$'
+            AND legacy_candidate."legacyClaimExpiresAt" > now()
+            AND NOT EXISTS (
+              SELECT 1
+              FROM "WorkspaceMember" AS legacy_member
+              WHERE legacy_member."workspaceId" = legacy_candidate."id"
+            )
+        )
       `.as('canReplaceWithLegacy'),
     })
     .from(workspaceMember)

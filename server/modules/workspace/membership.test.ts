@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -17,6 +20,17 @@ function databaseReturning(rows: unknown[]) {
 }
 
 describe('authenticated workspace membership', () => {
+  it('offers legacy recovery only when an unclaimed legacy library is still recoverable', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'server/modules/workspace/membership.ts'),
+      'utf8',
+    );
+
+    expect(source).toMatch(/legacy_candidate\."origin" = 'legacy'::"WorkspaceOrigin"/);
+    expect(source).toMatch(/legacy_candidate\."legacyClaimExpiresAt" > now\(\)/);
+    expect(source).toMatch(/legacy_member\."workspaceId" = legacy_candidate\."id"/);
+  });
+
   it('resolves the account workspace without consulting a legacy browser session', async () => {
     const query = databaseReturning([{
       id: 'workspace_1',
