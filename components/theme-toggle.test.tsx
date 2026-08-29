@@ -40,7 +40,7 @@ describe('ThemeToggle', () => {
     const toggle = screen.getByRole('button', { name: 'Toggle theme' });
 
     expect(toggle.getAttribute('aria-pressed')).toBe('false');
-    expect(toggle.classList.contains('button-material-secondary')).toBe(true);
+    expect(toggle.classList.contains('button-flat')).toBe(true);
     expect(container.querySelector('.lucide-sun')).toBeTruthy();
     expect(screen.queryByRole('menu')).toBeNull();
 
