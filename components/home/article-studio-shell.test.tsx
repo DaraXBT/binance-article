@@ -29,7 +29,7 @@ vi.mock('@/components/ui/sidebar', () => ({
 import { ArticleStudioShell } from './article-studio-shell';
 
 describe('ArticleStudioShell', () => {
-  it('renders one workspace landmark with a rail and floating sidebar trigger', () => {
+  it('renders one workspace landmark with a rail and an in-flow mobile sidebar trigger', () => {
     const { container } = render(
       <ArticleStudioShell
         mode="public"
@@ -50,7 +50,13 @@ describe('ArticleStudioShell', () => {
     expect(screen.getByRole('navigation', { name: 'Drafts' })).toBeTruthy();
     expect(container.querySelector('.console-header')).toBeNull();
     expect(container.querySelector('[data-screen-line]')).toBeNull();
-    expect(container.querySelector('[data-article-studio-sidebar-trigger]')).toBeTruthy();
+    const main = container.querySelector('[data-article-studio-main]');
+    const trigger = container.querySelector('[data-article-studio-sidebar-trigger]');
+    expect(main?.className).toContain('flex-col');
+    expect(main?.className).not.toContain('pt-12');
+    expect(main?.className).not.toContain('sm:pt-14');
+    expect(trigger?.parentElement?.className).toContain('h-11');
+    expect(container.querySelector('[data-article-studio-content]')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Open article navigation' })).toBeTruthy();
     expect(screen.getByText('Composer')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy();

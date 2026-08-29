@@ -503,7 +503,7 @@ export function PublicHome({
         onMobileSidebarCloseAutoFocus={handleMobileSidebarCloseAutoFocus}
         mainClassName="studio-main-public"
       >
-        <div className="studio-home-canvas flex min-h-full w-full flex-col justify-center gap-6">
+        <div className="studio-home-canvas flex min-h-full w-full flex-col justify-start gap-6 py-6 sm:py-8">
           <section className="studio-intro min-w-0 text-center">
             <h1 className="mx-auto max-w-[24ch] text-balance text-3xl font-semibold leading-[1.08] tracking-normal sm:text-4xl lg:text-[2.65rem]">
               {copy.studioGreeting || copy.title}

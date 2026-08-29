@@ -146,6 +146,10 @@ describe('PublicHome', () => {
     expect(main?.classList.contains('px-4')).toBe(true);
     expect(main?.classList.contains('sm:px-6')).toBe(true);
     expect(main?.classList.contains('lg:px-8')).toBe(true);
+    expect(main?.classList.contains('pt-12')).toBe(false);
+    expect(main?.classList.contains('sm:pt-14')).toBe(false);
+    expect(container.querySelector('.studio-home-canvas')?.classList.contains('justify-start')).toBe(true);
+    expect(container.querySelector('.studio-home-canvas')?.classList.contains('py-6')).toBe(true);
     expect(composer?.classList.contains('max-w-3xl')).toBe(true);
     expect(composer?.classList.contains('mx-auto')).toBe(true);
     expect(composer?.querySelector('[data-console-panel]')).toBeNull();

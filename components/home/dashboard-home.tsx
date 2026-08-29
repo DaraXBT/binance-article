@@ -1374,7 +1374,7 @@ export function DashboardHome({
         )}
         mainClassName="studio-main-workspace"
       >
-        <section className="studio-home-canvas flex min-h-full w-full flex-col justify-center gap-6">
+        <section className="studio-home-canvas flex min-h-full w-full flex-col justify-start gap-6 py-6 sm:py-8">
           <div className="studio-intro min-w-0 text-center">
             <h1 className="mx-auto max-w-[24ch] text-balance text-3xl font-semibold leading-[1.08] tracking-normal text-foreground sm:text-4xl lg:text-[2.65rem]">
               {messages.dashboard.promptHomeTitle}

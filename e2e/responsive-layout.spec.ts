@@ -74,13 +74,32 @@ for (const viewport of viewports) {
 
     await page.goto('/');
     const composer = page.locator('[data-article-studio-composer]');
+    const main = page.locator('[data-article-studio-main]');
+    const shell = page.locator('[data-studio-surface="public"] > .console-shell');
     await expectInsideViewport(composer, viewport.width);
     await expectVerticallyReachable(composer, viewport.height);
     await expectNoHorizontalOverflow(page);
+    await expect.poll(async () => main.evaluate((element) => window.getComputedStyle(element).paddingTop))
+      .toBe('0px');
+    await expect.poll(async () => shell.evaluate((element) => element.getBoundingClientRect().top))
+      .toBe(0);
+
+    const heading = page.locator('h1').first();
+    await expect(heading).toBeVisible();
+    const headingTop = await heading.evaluate((element) => element.getBoundingClientRect().top);
+    expect(headingTop).toBeLessThanOrEqual(viewport.width < 768 ? 96 : 56);
 
     if (viewport.width < 768) {
       const sidebarTrigger = page.locator('[data-article-studio-sidebar-trigger]');
       await expectInsideViewport(sidebarTrigger, viewport.width);
+      const [triggerBox, headingBox] = await Promise.all([
+        sidebarTrigger.boundingBox(),
+        heading.boundingBox(),
+      ]);
+      expect(triggerBox).not.toBeNull();
+      expect(headingBox).not.toBeNull();
+      expect((triggerBox?.y ?? viewport.height) + (triggerBox?.height ?? 0))
+        .toBeLessThanOrEqual(headingBox?.y ?? 0);
       await sidebarTrigger.click();
       const mobileSidebar = page.locator('[data-mobile="true"]');
       await expectInsideViewport(mobileSidebar, viewport.width);

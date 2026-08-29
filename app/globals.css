@@ -383,7 +383,21 @@
   /* Only the compose shell is edge-to-edge. Standalone checkpoint surfaces
    * keep their small outer frame inset. */
   .studio-compose-viewport {
-    padding-inline: 0;
+    padding: 0;
+  }
+
+  .studio-compose-viewport .viewport-top-line {
+    display: none;
+  }
+
+  .studio-compose-viewport .console-shell {
+    height: 100dvh;
+    border-inline: 0;
+  }
+
+  .studio-compose-viewport [data-article-studio-rail] .border-dotted,
+  [data-connections-dialog] .border-dotted {
+    border-style: solid !important;
   }
 
   .viewport-top-line {

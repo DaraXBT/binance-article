@@ -325,9 +325,11 @@ function PersonActions({
 export function AdminPeopleAccessCard({
   className,
   onUncopiedAccessChange,
+  showFrameCorners = true,
 }: {
   className?: string;
   onUncopiedAccessChange?: (hasUncopiedAccess: boolean) => void;
+  showFrameCorners?: boolean;
 }) {
   const [overview, setOverview] = useState<EnrollmentOverview | null>(null);
   const [people, setPeople] = useState<PersonRow[] | null>(null);
@@ -587,7 +589,7 @@ export function AdminPeopleAccessCard({
 
   return (
     <ConsolePanel corners={false} className={className ?? 'rounded-xl bg-card/70 p-3 sm:p-5'}>
-      <FrameCornerHandles />
+      {showFrameCorners ? <FrameCornerHandles /> : null}
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-dotted border-border/70 pb-2">
         <div>
           <h3 className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.14em]">

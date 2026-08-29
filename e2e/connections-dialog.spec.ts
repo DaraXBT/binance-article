@@ -32,6 +32,7 @@ for (const viewport of viewports) {
 
     const dimensions = await dialog.evaluate((element) => {
       const box = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
       return {
         top: box.top,
         bottom: box.bottom,
@@ -41,13 +42,18 @@ for (const viewport of viewports) {
         viewportWidth: window.innerWidth,
         scrollWidth: element.scrollWidth,
         clientWidth: element.clientWidth,
+        borderRadius: style.borderRadius,
+        boxShadow: style.boxShadow,
       };
     });
-    expect(dimensions.top).toBeGreaterThanOrEqual(0);
-    expect(dimensions.bottom).toBeLessThanOrEqual(dimensions.viewportHeight);
-    expect(dimensions.left).toBeGreaterThanOrEqual(0);
-    expect(dimensions.right).toBeLessThanOrEqual(dimensions.viewportWidth);
+    expect(dimensions.top).toBe(0);
+    expect(dimensions.bottom).toBe(dimensions.viewportHeight);
+    expect(dimensions.left).toBe(0);
+    expect(dimensions.right).toBe(dimensions.viewportWidth);
     expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+    expect(dimensions.borderRadius).toBe('0px');
+    expect(dimensions.boxShadow).toBe('none');
+    await expect(dialog.locator('[data-frame-corner]')).toHaveCount(0);
 
     if (viewport.width < 768) {
       const mobileTabTargets = await Promise.all(

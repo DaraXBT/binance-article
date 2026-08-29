@@ -86,12 +86,12 @@ export function ArticleStudioShell({
             {...(onMobileSidebarCloseAutoFocus
               ? { onMobileCloseAutoFocus: onMobileSidebarCloseAutoFocus }
               : {})}
-            className="z-30 border-r border-dotted border-sidebar-border/80 md:!absolute md:!inset-y-0"
+            className="z-30 border-r border-sidebar-border/80 md:!absolute md:!inset-y-0"
             collapsible="icon"
           >
             {sidebar}
             {sidebarFooter ? (
-              <SidebarFooter className="mt-auto border-t border-dotted border-sidebar-border/80 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:px-2">
+              <SidebarFooter className="mt-auto border-t border-sidebar-border/80 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:px-2">
                 {sidebarFooter}
               </SidebarFooter>
             ) : null}
@@ -103,26 +103,27 @@ export function ArticleStudioShell({
             aria-label={headerTitle}
             className="min-h-0 bg-background"
           >
-            <SidebarTrigger
-              data-article-studio-sidebar-trigger
-              openLabel={mode === 'public' ? 'Open article navigation' : 'Open article history'}
-              closeLabel={mode === 'public' ? 'Close article navigation' : 'Close article history'}
-              className="absolute left-3 top-3 z-20 size-8 rounded-lg border border-border/70 bg-background/95 shadow-none md:hidden"
-            />
-
             <div
               data-article-studio-main
               className={cn(
-                // Keep the canvas full-bleed while reserving a small safe area
-                // for the floating sidebar control.
-                'min-h-0 flex-1 overflow-y-auto px-4 pt-12 sm:px-6 sm:pt-14 lg:px-8',
+                'min-h-0 flex flex-1 flex-col overflow-y-auto px-4 sm:px-6 lg:px-8',
                 mode === 'public'
                   ? 'pb-8 sm:pb-12 lg:pb-16'
                   : 'pb-6 sm:pb-10 lg:pb-12',
                 mainClassName,
               )}
             >
-              {children}
+              <div className="flex h-11 shrink-0 items-center md:hidden">
+                <SidebarTrigger
+                  data-article-studio-sidebar-trigger
+                  openLabel={mode === 'public' ? 'Open article navigation' : 'Open article history'}
+                  closeLabel={mode === 'public' ? 'Close article navigation' : 'Close article history'}
+                  className="size-11 rounded-lg border border-border/70 bg-background/95 shadow-none"
+                />
+              </div>
+              <div data-article-studio-content className="min-h-0 flex-1">
+                {children}
+              </div>
             </div>
           </SidebarInset>
         </SidebarProvider>

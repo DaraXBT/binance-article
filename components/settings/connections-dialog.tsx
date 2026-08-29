@@ -19,10 +19,6 @@ import {
 } from 'lucide-react';
 
 import { AdminPeopleAccessCard } from '@/components/admin-people-access-card';
-import {
-  ConsolePanel,
-  FrameCornerHandles,
-} from '@/components/console/secure-console-frame';
 import { PublisherDevicePairingCard } from '@/components/publisher-device-pairing-card';
 import { Button } from '@/components/ui/button';
 import {
@@ -81,18 +77,15 @@ function SettingsPanel({
   children: ReactNode;
 }) {
   return (
-    <ConsolePanel
-      as="section"
-      corners={false}
+    <section
       aria-labelledby={labelledBy}
       className={cn(
-        'mx-auto w-full max-w-4xl rounded-xl bg-card/70 p-3 sm:p-5',
+        'w-full max-w-none rounded-none border-0 bg-transparent p-0 shadow-none',
         !active && 'hidden',
       )}
     >
-      <FrameCornerHandles />
       {children}
-    </ConsolePanel>
+    </section>
   );
 }
 
@@ -248,7 +241,7 @@ export function ConnectionsDialog({
           event.preventDefault();
           accountTrigger.focus();
         }}
-        className="!fixed !inset-0 !left-0 !top-0 !h-auto !max-h-none !w-auto !max-w-none !translate-x-0 !translate-y-0 grid-cols-1 grid-rows-[minmax(0,1fr)] gap-0 overflow-hidden rounded-none border-dotted bg-card p-0 shadow-xl md:!inset-6 md:rounded-xl"
+        className="!fixed !inset-0 !left-0 !top-0 !h-auto !max-h-none !w-auto !max-w-none !translate-x-0 !translate-y-0 grid-cols-1 grid-rows-[minmax(0,1fr)] gap-0 overflow-hidden rounded-none border-0 bg-card p-0 !shadow-none"
       >
         <Tabs
           value={activeSection}
@@ -258,7 +251,7 @@ export function ConnectionsDialog({
           <aside
             data-connections-settings-rail
             aria-label="Settings navigation"
-            className="sticky top-0 z-20 row-start-2 min-w-0 border-b border-dotted border-border/70 bg-card/95 px-2 py-2 backdrop-blur md:col-start-1 md:row-span-2 md:row-start-1 md:flex md:min-h-0 md:flex-col md:border-b-0 md:border-r md:bg-muted/30 md:p-3"
+            className="sticky top-0 z-20 row-start-2 min-w-0 border-b border-border/70 bg-card/95 px-2 py-2 backdrop-blur md:col-start-1 md:row-span-2 md:row-start-1 md:flex md:min-h-0 md:flex-col md:border-b-0 md:border-r md:bg-muted/30 md:p-3"
           >
             <div className="hidden px-2 pb-5 pt-2 md:block">
               <div className="flex size-9 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary">
@@ -299,7 +292,7 @@ export function ConnectionsDialog({
             </TabsList>
           </aside>
 
-          <DialogHeader className="relative row-start-1 min-w-0 gap-1.5 border-b border-dotted border-border/70 px-4 py-4 pr-14 text-left sm:px-6 sm:py-5 sm:pr-16 md:col-start-2 md:row-start-1">
+          <DialogHeader className="relative row-start-1 min-w-0 gap-1.5 border-b border-border/70 px-4 py-4 pr-14 text-left sm:px-6 sm:py-5 sm:pr-16 md:col-start-2 md:row-start-1">
             <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-primary md:hidden">
               Account
             </p>
@@ -328,7 +321,7 @@ export function ConnectionsDialog({
             {closeWarningOpen ? (
               <div
                 role="alert"
-                className="m-3 flex flex-col gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm sm:mx-5 sm:mt-5 sm:flex-row sm:items-center sm:justify-between"
+                className="m-3 flex flex-col gap-3 rounded-none border border-amber-500/40 bg-amber-500/10 p-3 text-sm sm:mx-5 sm:mt-5 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
                   <p className="font-medium text-foreground">Copy your one-time value before closing.</p>
@@ -391,6 +384,7 @@ export function ConnectionsDialog({
                     <h2 id="settings-access-title" className="sr-only">People &amp; access</h2>
                     <AdminPeopleAccessCard
                       className="rounded-none border-0 bg-transparent p-0 shadow-none"
+                      showFrameCorners={false}
                       onUncopiedAccessChange={handleUncopiedEnrollmentAccessChange}
                     />
                   </SettingsPanel>

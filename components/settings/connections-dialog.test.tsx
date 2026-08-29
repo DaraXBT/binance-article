@@ -99,6 +99,10 @@ describe('ConnectionsDialog', () => {
     expect(screen.getByTestId('gemini-card')).toBeTruthy();
     expect(screen.queryByTestId('publisher-card')).toBeNull();
     expect(screen.queryByTestId('people-access-card')).toBeNull();
+    expect(dialog.querySelectorAll('[data-frame-corner]')).toHaveLength(0);
+    expect(dialog.className).toContain('rounded-none');
+    expect(dialog.className).toContain('border-0');
+    expect(dialog.className).toContain('!shadow-none');
   });
 
   it('does not expose owner-only access controls to a non-owner', () => {
