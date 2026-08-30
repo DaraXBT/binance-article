@@ -145,7 +145,7 @@ export function WorkspaceSourceComposer({
         <AiPromptBox busy={busy} invalid={Boolean(error)}>
           {isUrl ? (
             <div className="relative px-3 pt-3 pb-3">
-              <Link2 aria-hidden="true" className="pointer-events-none absolute left-6 top-1/2 size-4 -translate-y-[15%] text-muted-foreground" />
+              <Link2 aria-hidden="true" className="pointer-events-none absolute left-6 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 id={inputId}
                 data-workspace-source-input

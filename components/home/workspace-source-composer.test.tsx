@@ -48,6 +48,7 @@ describe('WorkspaceSourceComposer', () => {
     const input = screen.getByRole('textbox', { name: 'Webpage URL' });
     expect(input.getAttribute('type')).toBe('url');
     expect(input.parentElement?.className).toContain('pb-3');
+    expect(input.previousElementSibling?.getAttribute('class')).toContain('-translate-y-1/2');
     expect(screen.queryByRole('button', { name: 'AI Suggest' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Import & generate' }).hasAttribute('disabled')).toBe(true);
   });
