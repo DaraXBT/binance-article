@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, ImageIcon, Loader2, MoveDiagonal, ShieldCheck } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 import { useLanguage } from '@/components/language-provider';
 import { Button } from '@/components/ui/button';
@@ -60,7 +61,7 @@ type AssetCopy = Pick<
 >;
 
 type PublicationExportDialogProps = {
-  platform: Platform;
+  platform?: Platform;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   deck: DeckDetailResponse;
@@ -276,11 +277,14 @@ function defaultSelectedImages(): SelectedImages {
 }
 
 export function PublicationExportDialog({
-  platform,
+  platform: fixedPlatform,
   open,
   onOpenChange,
   deck,
 }: PublicationExportDialogProps) {
+  const [selectedPlatform, setSelectedPlatform] = useState<Platform>(fixedPlatform ?? 'binance');
+  const [view, setView] = useState<'edit' | 'preview'>('edit');
+  const platform = fixedPlatform ?? selectedPlatform;
   const { messages } = useLanguage();
   const xCopy = messages.publishing.x;
   const binanceCopy = messages.publishing.binance;
@@ -310,6 +314,7 @@ export function PublicationExportDialog({
   const [isDraftLoading, setIsDraftLoading] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const deckRef = useRef(deck);
@@ -333,6 +338,7 @@ export function PublicationExportDialog({
       setDraftLoadError(null);
       setDownloaded(false);
       setDownloadError(null);
+      setView('edit');
     }
     wasOpenRef.current = open;
   }, [defaultKind, open]);
@@ -387,6 +393,10 @@ export function PublicationExportDialog({
   }, [copy.draftLoadFailed, deck.id, kind, open, reloadToken, route]);
 
   const currentSelectedImages = selectedImages[kind];
+  const previewSlides = useMemo(() => currentSelectedImages
+    .map((slideId) => availableSlides.find((slide) => slide.id === slideId))
+    .filter((slide): slide is DeckSlide => Boolean(slide?.imageUrl))
+    .sort((left, right) => left.order - right.order), [availableSlides, currentSelectedImages]);
   const postMaxCharacters = platform === 'x'
     ? X_POST_MAX_CHARACTERS
     : BINANCE_POST_MAX_CHARACTERS;
@@ -399,6 +409,7 @@ export function PublicationExportDialog({
     selectedImages.article,
     false,
   ), [articleMarkdown, deck, selectedImages.article]);
+  const previewArticleMarkdown = articleBodyForSelection.replace(/!\[[^\]]*\]\([^)]*\)\s*/gu, '');
   const issues = useMemo(() => {
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -468,6 +479,35 @@ export function PublicationExportDialog({
     setDownloadError(null);
   };
 
+  const handlePlatformChange = (nextPlatform: Platform) => {
+    if (nextPlatform === platform || publication.isPreparing || commandActive) return;
+    setSelectedPlatform(nextPlatform);
+    setKind(defaultKindFor(nextPlatform));
+    setDraftRevisions({ post: null, article: null });
+    setView('edit');
+  };
+
+  const saveDraft = async (): Promise<number> => {
+    const orderedAssetIds = selectedAssetIds(deck, currentSelectedImages);
+    const body: Record<string, unknown> = kind === 'post'
+      ? { kind, expectedRevision: draftRevision, text: postText, orderedAssetIds }
+      : { kind, expectedRevision: draftRevision, title: articleTitle, markdown: articleMarkdownForSelection(deck, articleMarkdown, selectedImages.article, true), orderedAssetIds };
+    if (kind === 'article' && includeCover) {
+      const coverAssetId = assetIdForUrl(deck.cover?.imageUrl);
+      if (coverAssetId) body.cover = { assetId: coverAssetId, focalX: focal.x, focalY: focal.y, targetWidth: BINANCE_COVER_WIDTH, targetHeight: BINANCE_COVER_HEIGHT };
+    }
+    const savedResponse = await fetch(`/api/articles/${encodeURIComponent(deck.id)}/publications/${route}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const saved = await readPublicationResponse(savedResponse, copy.draftSaveFailed);
+    setDraftRevisions((current) => ({ ...current, [kind]: saved.draft.revision }));
+    return saved.draft.revision;
+  };
+
+  const handleSaveDraft = async () => {
+    if (issues.errors.length > 0 || isDraftLoading || draftRevision === null || isSavingDraft) return;
+    setIsSavingDraft(true);
+    try { await saveDraft(); } catch (error) { setDownloadError(error instanceof Error ? error.message : copy.draftSaveFailed); } finally { setIsSavingDraft(false); }
+  };
+
   const toggleImage = (slideId: string) => {
     setDownloaded(false);
     setDownloadError(null);
@@ -495,54 +535,13 @@ export function PublicationExportDialog({
       publication.isPreparing || commandActive
     ) return;
     await publication.prepare(async () => {
-      const orderedAssetIds = selectedAssetIds(deck, currentSelectedImages);
-      const body: Record<string, unknown> = kind === 'post'
-        ? {
-          kind,
-          expectedRevision: draftRevision,
-          text: postText,
-          orderedAssetIds,
-        }
-        : {
-          kind,
-          expectedRevision: draftRevision,
-          title: articleTitle,
-          markdown: articleMarkdownForSelection(
-            deck,
-            articleMarkdown,
-            selectedImages.article,
-            true,
-          ),
-          orderedAssetIds,
-        };
-      if (kind === 'article' && includeCover) {
-        const coverAssetId = assetIdForUrl(deck.cover?.imageUrl);
-        if (coverAssetId) {
-          body.cover = {
-            assetId: coverAssetId,
-            focalX: focal.x,
-            focalY: focal.y,
-            targetWidth: BINANCE_COVER_WIDTH,
-            targetHeight: BINANCE_COVER_HEIGHT,
-          };
-        }
-      }
-      const savedResponse = await fetch(
-        `/api/articles/${encodeURIComponent(deck.id)}/publications/${route}`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        },
-      );
-      const saved = await readPublicationResponse(savedResponse, copy.draftSaveFailed);
-      setDraftRevisions((current) => ({ ...current, [kind]: saved.draft.revision }));
+      const revision = await saveDraft();
       const preparedResponse = await fetch(
         `/api/articles/${encodeURIComponent(deck.id)}/publications/${route}/prepare`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ kind, expectedRevision: saved.draft.revision }),
+          body: JSON.stringify({ kind, expectedRevision: revision }),
         },
       );
       return readPublicationResponse(preparedResponse, copy.prepareFailed);
@@ -662,10 +661,20 @@ export function PublicationExportDialog({
           <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
 
+        {!fixedPlatform ? (
+          <div role="tablist" aria-label="Publishing destination" className="flex w-fit gap-1 rounded-lg border border-border bg-muted/30 p-1">
+            {(['binance', 'x'] as const).map((candidate) => (
+              <Button key={candidate} type="button" role="tab" aria-selected={platform === candidate} size="sm" variant={platform === candidate ? 'default' : 'outline'} disabled={publication.isPreparing || Boolean(commandActive)} onClick={() => handlePlatformChange(candidate)}>
+                {candidate === 'binance' ? 'Binance Square' : 'X'}
+              </Button>
+            ))}
+          </div>
+        ) : null}
+
         <div
           role="tablist"
           aria-label="Publication format"
-          className="flex w-fit gap-1 border border-border bg-muted/30 p-1"
+          className="flex w-fit gap-1 rounded-lg border border-border bg-muted/30 p-1"
         >
           {(['post', 'article'] as const).map((candidate) => (
             <Button
@@ -683,7 +692,22 @@ export function PublicationExportDialog({
           ))}
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <div role="tablist" aria-label="Publication review view" className="flex w-fit gap-1 rounded-lg border border-border bg-muted/30 p-1">
+          {(['edit', 'preview'] as const).map((candidate) => <Button key={candidate} type="button" role="tab" aria-selected={view === candidate} size="sm" variant={view === candidate ? 'default' : 'outline'} onClick={() => setView(candidate)}>{candidate === 'edit' ? 'Edit draft' : 'Preview post'}</Button>)}
+        </div>
+
+        {view === 'preview' ? (
+          <section data-publication-preview className="space-y-4 rounded-xl border border-border/80 bg-card/70 p-4 sm:p-6">
+            <div className="flex items-center justify-between gap-3 border-b border-border/70 pb-3">
+              <div><p className="text-sm font-semibold">{platform === 'binance' ? 'Binance Square' : 'X'} {kind === 'post' ? 'post' : 'article'}</p><p className="mt-1 text-xs text-muted-foreground">Draft preview of the exact content and media sent for final Chrome review.</p></div>
+              <span className="text-xs text-muted-foreground">{kind === 'post' ? `${postCharacterCount}/${postMaxCharacters}` : `${previewSlides.length}/${ARTICLE_MAX_IMAGES} media`}</span>
+            </div>
+            {kind === 'article' ? <><h2 className="text-2xl font-semibold">{articleTitle || 'Untitled article'}</h2>{includeCover && coverPreviewUrl ? <img src={coverPreviewUrl} alt="Selected article cover" className="aspect-[5/2] w-full rounded-lg object-cover" style={{ objectPosition: `${focal.x * 100}% ${focal.y * 100}%` }} /> : null}<div className="prose prose-sm max-w-none dark:prose-invert"><ReactMarkdown>{previewArticleMarkdown}</ReactMarkdown></div></> : <p className="whitespace-pre-wrap text-sm leading-relaxed">{postText || 'Media-only post'}</p>}
+            {previewSlides.length ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{previewSlides.map((slide) => <img key={slide.id} src={buildArticleSlideAssetUrl(deck.id, slide.imageUrl!)} alt={slide.title} className="aspect-square w-full rounded-lg object-cover" />)}</div> : null}
+          </section>
+        ) : null}
+
+        {view === 'edit' ? <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="min-w-0 space-y-4">
             {kind === 'post' ? (
               <>
@@ -919,9 +943,12 @@ export function PublicationExportDialog({
               {copy.fallbackSecurity}
             </div>
           </aside>
-        </div>
+        </div> : null}
 
         <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => void handleSaveDraft()} disabled={issues.errors.length > 0 || isDraftLoading || draftRevision === null || isSavingDraft}>
+            {isSavingDraft ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : null} Save draft
+          </Button>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {messages.common.cancel}
           </Button>

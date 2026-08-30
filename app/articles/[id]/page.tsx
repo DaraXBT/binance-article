@@ -8,9 +8,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { CaptionViewer } from '@/components/caption-viewer';
 import { ArticleCoverCard } from '@/components/article-cover-card';
-import { BinanceExportDialog } from '@/components/binance-export-dialog';
 import { GenerateAccessDialog } from '@/components/generate-access-dialog';
-import { XExportDialog } from '@/components/x-export-dialog';
+import { PublicationExportDialog } from '@/components/publication-export-dialog';
 import {
   FrameCornerHandles,
   ScreenLine,
@@ -128,8 +127,7 @@ export default function DeckPage({ params }: DeckPageProps) {
   const [mobileTab, setMobileTab] = useState<'slides' | 'editor' | 'preview'>('slides');
   const [showAccessDialog, setShowAccessDialog] = useState(false);
   const [accessRetryTarget, setAccessRetryTarget] = useState<'slides' | 'cover'>('slides');
-  const [showBinanceExport, setShowBinanceExport] = useState(false);
-  const [showXExport, setShowXExport] = useState(false);
+  const [showPublicationReview, setShowPublicationReview] = useState(false);
   const { generationLocked, unlockGeneration, markGenerationAccessLost } = useGenerationLock();
   const { data, isLoading, isError, refetch } = useDeck(deckId, { pollActiveJob: true });
   const deck = data ?? null;
@@ -475,26 +473,13 @@ export default function DeckPage({ params }: DeckPageProps) {
               size="sm"
               variant="outline"
               className="gap-2 rounded-lg"
-              onClick={() => setShowBinanceExport(true)}
+              onClick={() => setShowPublicationReview(true)}
               disabled={slides.length === 0}
-              aria-label={publishingCopy.binance.prepare}
-              data-testid="open-binance-export"
+              aria-label="Review and publish"
+              data-testid="open-publication-review"
             >
               <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">{publishingCopy.binance.prepare}</span>
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-2 rounded-lg"
-              onClick={() => setShowXExport(true)}
-              aria-label={publishingCopy.x.prepare}
-              data-testid="open-x-export"
-            >
-              <span aria-hidden="true" className="inline-flex size-4 items-center justify-center font-mono text-sm font-semibold">
-                X
-              </span>
-              <span className="hidden sm:inline">{publishingCopy.x.prepare}</span>
+              <span className="hidden sm:inline">Review &amp; publish</span>
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -703,14 +688,9 @@ export default function DeckPage({ params }: DeckPageProps) {
           else retryFailedImages.mutate();
         }}
       />
-      <BinanceExportDialog
-        open={showBinanceExport}
-        onOpenChange={setShowBinanceExport}
-        deck={deck}
-      />
-      <XExportDialog
-        open={showXExport}
-        onOpenChange={setShowXExport}
+      <PublicationExportDialog
+        open={showPublicationReview}
+        onOpenChange={setShowPublicationReview}
         deck={deck}
       />
     </>
