@@ -588,9 +588,9 @@ function DeckSidebarList({
               ) : decks.length > 0 ? (
                 decks.map((deck) => <DeckSidebarRow key={deck.id} deck={deck} language={language} />)
               ) : (
-                <div className="border border-dotted border-sidebar-border/80 bg-background/40 px-3 py-3 text-sm text-sidebar-foreground/70">
+                <p className="px-2 py-2 text-xs leading-relaxed text-sidebar-foreground/60">
                   {query ? messages.dashboard.noMatchingDecks : messages.dashboard.noDecksYet}
-                </div>
+                </p>
               )}
             </SidebarMenu>
           </SidebarGroupContent>
