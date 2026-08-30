@@ -171,11 +171,8 @@ describe('XExportDialog', () => {
     }
   });
 
-  it('blocks an empty bundle after all images are removed', () => {
+  it('blocks an empty post until text or an image is added', () => {
     renderInEnglish(<XExportDialog open onOpenChange={vi.fn()} deck={{ ...deck, captions: null }} />);
-    for (let index = 1; index <= 4; index += 1) {
-      fireEvent.click(screen.getByLabelText(`Use Slide ${index} image`));
-    }
 
     expect(screen.getByText('Add post text or select at least one image.')).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Download fallback ZIP' }) as HTMLButtonElement).disabled)

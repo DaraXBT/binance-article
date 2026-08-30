@@ -268,11 +268,10 @@ function downloadBytes(bytes: Uint8Array, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
-function defaultSelectedImages(deck: DeckDetailResponse): SelectedImages {
-  const available = generatedImageSlides(deck.slides);
+function defaultSelectedImages(): SelectedImages {
   return {
-    post: available.slice(0, X_POST_MAX_IMAGES).map((slide) => slide.id),
-    article: available.slice(0, ARTICLE_MAX_IMAGES).map((slide) => slide.id),
+    post: [],
+    article: [],
   };
 }
 
@@ -299,11 +298,9 @@ export function PublicationExportDialog({
   );
   const [articleMarkdown, setArticleMarkdown] = useState(() => initialArticleMarkdown(deck));
   const [selectedImages, setSelectedImages] = useState<SelectedImages>(
-    () => defaultSelectedImages(deck),
+    defaultSelectedImages,
   );
-  const [includeCover, setIncludeCover] = useState(
-    () => deck.cover?.status === 'generated' && Boolean(deck.cover.imageUrl),
-  );
+  const [includeCover, setIncludeCover] = useState(false);
   const [focal, setFocal] = useState<FocalPoint>({ x: 0.5, y: 0.5 });
   const [draftRevisions, setDraftRevisions] = useState<DraftRevisions>({
     post: null,
@@ -329,8 +326,8 @@ export function PublicationExportDialog({
       setPostText(initialPostText(currentDeck));
       setArticleTitle(currentDeck.captions?.blogTitle?.trim() || currentDeck.title);
       setArticleMarkdown(initialArticleMarkdown(currentDeck));
-      setSelectedImages(defaultSelectedImages(currentDeck));
-      setIncludeCover(currentDeck.cover?.status === 'generated' && Boolean(currentDeck.cover.imageUrl));
+      setSelectedImages(defaultSelectedImages());
+      setIncludeCover(false);
       setFocal({ x: 0.5, y: 0.5 });
       setDraftRevisions({ post: null, article: null });
       setDraftLoadError(null);
@@ -358,13 +355,13 @@ export function PublicationExportDialog({
             ...current,
             post: draft
               ? selectedSlideIdsFromAssets(currentDeck, draft.orderedAssetIds)
-              : defaultSelectedImages(currentDeck).post,
+              : defaultSelectedImages().post,
           }));
           return;
         }
         const selected = draft
           ? selectedSlideIdsFromAssets(currentDeck, draft.orderedAssetIds)
-          : defaultSelectedImages(currentDeck).article;
+          : defaultSelectedImages().article;
         setArticleTitle(draft ? draft.title : currentDeck.captions?.blogTitle?.trim() || currentDeck.title);
         setArticleMarkdown(draft
           ? articleMarkdownForSelection(currentDeck, draft.markdown, selected, false)
@@ -373,7 +370,7 @@ export function PublicationExportDialog({
         const coverAssetId = assetIdForUrl(currentDeck.cover?.imageUrl);
         setIncludeCover(draft
           ? Boolean(coverAssetId && draft.cover?.assetId === coverAssetId)
-          : currentDeck.cover?.status === 'generated' && Boolean(coverAssetId));
+          : false);
         setFocal(draft?.cover
           ? { x: draft.cover.focalX, y: draft.cover.focalY }
           : { x: 0.5, y: 0.5 });
@@ -651,7 +648,7 @@ export function PublicationExportDialog({
     })()
     : null;
   const postTextLabel = platform === 'x' ? xCopy.textLabel : 'Binance post text';
-  const imagesTitle = kind === 'post' ? 'Post images' : 'Article media';
+  const imagesTitle = kind === 'post' ? 'Add images (optional)' : 'Article media (optional)';
   const dialogTitle = platform === 'x' && kind === 'article' ? 'Prepare X Article' : copy.dialogTitle;
   const dialogDescription = kind === 'article'
     ? 'Edit the title and Markdown, then optionally include a cover and body images. The local companion waits for review and explicit approval before publishing.'
