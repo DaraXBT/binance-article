@@ -452,6 +452,16 @@ describe('DashboardHome', () => {
     expect(html).toContain(messages.dashboard.generateAction);
   });
 
+  it('shows the empty article history as flat helper text instead of a card', async () => {
+    const { DashboardHome } = await import('@/components/home/dashboard-home');
+    render(React.createElement(DashboardHome));
+
+    const emptyState = screen.getByText(messages.dashboard.noDecksYet);
+    expect(emptyState.className).toContain('px-2');
+    expect(emptyState.className).not.toContain('border');
+    expect(emptyState.className).not.toContain('bg-');
+  });
+
   it('uses the shared workspace shell with a history rail and focused composer', async () => {
     const { DashboardHome } = await import('@/components/home/dashboard-home');
     const html = renderToStaticMarkup(React.createElement(DashboardHome));
