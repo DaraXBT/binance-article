@@ -248,7 +248,7 @@ function OneTimeCodePanel({
   onDismiss: () => void;
 }) {
   return (
-    <div className="mt-3 space-y-3 border border-dotted border-primary/35 bg-primary/5 p-3 text-sm">
+    <div className="mt-3 space-y-3 rounded-lg border border-dotted border-primary/35 bg-primary/5 p-3 text-sm">
       <div>
         <p className="font-medium">Copy this enrollment code or link now.</p>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
@@ -663,7 +663,7 @@ export function AdminPeopleAccessCard({
           </p>
         ) : null}
         {overviewError ? (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border border-dotted border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dotted border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
             <p role="alert">{overviewError}</p>
             <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 rounded-lg text-xs" disabled={overviewLoading} onClick={() => void refreshOverview()}>
               <RefreshCcw aria-hidden="true" className="size-3.5" />
@@ -685,7 +685,7 @@ export function AdminPeopleAccessCard({
           />
         ) : null}
         {codeActionError && !rotationConfirmOpen && !disableConfirmOpen ? (
-          <p role="alert" className="mt-3 border border-dotted border-destructive/40 bg-destructive/5 p-2.5 text-sm text-destructive">
+          <p role="alert" className="mt-3 rounded-lg border border-dotted border-destructive/40 bg-destructive/5 p-2.5 text-sm text-destructive">
             {codeActionError}
           </p>
         ) : null}
@@ -709,7 +709,7 @@ export function AdminPeopleAccessCard({
           </p>
         ) : null}
         {peopleError ? (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border border-dotted border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dotted border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
             <p role="alert">{peopleError}</p>
             <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 rounded-lg text-xs" disabled={peopleLoading} onClick={() => void refreshPeople()}>
               <RefreshCcw aria-hidden="true" className="size-3.5" />
@@ -720,7 +720,7 @@ export function AdminPeopleAccessCard({
         {people && people.length > 0 ? (
           <ul className="mt-3 space-y-2">
             {people.map((person) => (
-              <li key={person.id} className="flex min-w-0 flex-wrap items-center gap-3 border border-dotted border-border/75 bg-background/25 px-3 py-2.5">
+              <li key={person.id} className="flex min-w-0 flex-wrap items-center gap-3 rounded-lg border border-dotted border-border/75 bg-background/25 px-3 py-2.5">
                 <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
                   {(person.name || person.email).slice(0, 1).toUpperCase()}
                 </span>
@@ -770,7 +770,7 @@ export function AdminPeopleAccessCard({
             </AlertDialogDescription>
           </AlertDialogHeader>
           {codeActionError ? (
-            <p role="alert" className="border border-dotted border-destructive/40 bg-destructive/5 p-2.5 text-sm text-destructive">
+            <p role="alert" className="rounded-lg border border-dotted border-destructive/40 bg-destructive/5 p-2.5 text-sm text-destructive">
               {codeActionError}
             </p>
           ) : null}
@@ -800,7 +800,7 @@ export function AdminPeopleAccessCard({
             </AlertDialogDescription>
           </AlertDialogHeader>
           {codeActionError ? (
-            <p role="alert" className="border border-dotted border-destructive/40 bg-destructive/5 p-2.5 text-sm text-destructive">
+            <p role="alert" className="rounded-lg border border-dotted border-destructive/40 bg-destructive/5 p-2.5 text-sm text-destructive">
               {codeActionError}
             </p>
           ) : null}
@@ -839,7 +839,7 @@ export function AdminPeopleAccessCard({
             </AlertDialogDescription>
           </AlertDialogHeader>
           {personActionError ? (
-            <p role="alert" className="border border-dotted border-destructive/40 bg-destructive/5 p-2.5 text-sm text-destructive">
+            <p role="alert" className="rounded-lg border border-dotted border-destructive/40 bg-destructive/5 p-2.5 text-sm text-destructive">
               {personActionError}
             </p>
           ) : null}

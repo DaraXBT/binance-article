@@ -86,6 +86,8 @@ describe('AdminPeopleAccessCard', () => {
     expect(summary!.className).not.toContain('border');
     expect(summary!.className).not.toContain('bg-');
     expect(summary!.className).not.toContain('rounded');
+    const personRow = await screen.findByText('Owner');
+    expect(personRow.closest('li')?.className).toContain('rounded-lg');
   });
 
   it('keeps enrollment controls usable when only the people request fails', async () => {
