@@ -145,16 +145,16 @@ describe('XExportDialog', () => {
     vi.restoreAllMocks();
   });
 
-  it('prefills a generated caption and safely limits the default image selection to four', () => {
+  it('prefills a generated caption without automatically attaching generated images', () => {
     renderInEnglish(<XExportDialog open onOpenChange={vi.fn()} deck={deck} />);
 
     expect(screen.getByRole('heading', { name: 'Prepare X post' })).toBeTruthy();
     expect((screen.getByLabelText('X post text') as HTMLTextAreaElement).value)
       .toBe('First generated X post.');
-    expect((screen.getByLabelText('Use Slide 1 image') as HTMLInputElement).checked).toBe(true);
-    expect((screen.getByLabelText('Use Slide 4 image') as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByLabelText('Use Slide 1 image') as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByLabelText('Use Slide 4 image') as HTMLInputElement).checked).toBe(false);
     expect((screen.getByLabelText('Use Slide 5 image') as HTMLInputElement).checked).toBe(false);
-    expect((screen.getByLabelText('Use Slide 5 image') as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByLabelText('Use Slide 5 image') as HTMLInputElement).disabled).toBe(false);
   });
 
   it('lets the user choose another generated caption without posting anything', () => {
@@ -354,6 +354,44 @@ describe('XExportDialog', () => {
     expect(requestJson(prepareCall?.[1])).toEqual({ kind: 'post', expectedRevision: 1 });
   });
 
+  it('prepares an image-only Post when the selected image has a private asset reference', async () => {
+    const fetchMock = installPublicationFetch();
+    const assetBackedDeck: DeckDetailResponse = {
+      ...deck,
+      captions: null,
+      slides: [{
+        ...deck.slides[0],
+        imageUrl: 'r2://article-assets/asset_slide_1/slide-1.png',
+      }],
+    };
+    renderInEnglish(<XExportDialog open onOpenChange={vi.fn()} deck={assetBackedDeck} />);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/articles/deck-1/publications/x?kind=post',
+        expect.objectContaining({ cache: 'no-store' }),
+      );
+    });
+    expect((screen.getByLabelText('Use Slide 1 image') as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(screen.getByLabelText('Use Slide 1 image'));
+
+    const prepare = screen.getByRole('button', { name: 'Prepare on X' });
+    await waitFor(() => expect((prepare as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(prepare);
+
+    await waitFor(() => {
+      const saveCall = fetchMock.mock.calls.find(([input, options]) => (
+        requestUrl(input).endsWith('/publications/x') && options?.method === 'PUT'
+      ));
+      expect(requestJson(saveCall?.[1])).toEqual({
+        kind: 'post',
+        expectedRevision: 0,
+        text: '',
+        orderedAssetIds: ['asset_slide_1'],
+      });
+    });
+  });
+
   it('prepares a media-free Article without inventing a cover', async () => {
     const fetchMock = installPublicationFetch();
     const mediaFreeDeck: DeckDetailResponse = {
@@ -421,7 +459,7 @@ describe('XExportDialog', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Article' }));
 
     const cover = await screen.findByLabelText('Use article cover');
-    expect((cover as HTMLInputElement).checked).toBe(true);
+    expect((cover as HTMLInputElement).checked).toBe(false);
     expect(screen.getAllByRole('checkbox').length).toBeGreaterThan(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'Clear all media' }));

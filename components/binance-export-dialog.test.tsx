@@ -143,13 +143,15 @@ describe('BinanceExportDialog', () => {
     vi.unstubAllGlobals();
   });
 
-  it('prefills an editable Binance article and uses the dedicated generated cover', () => {
+  it('prefills an editable Binance article without automatically attaching generated media', () => {
     renderInEnglish(<BinanceExportDialog open onOpenChange={() => undefined} deck={deck} />);
 
     expect(screen.getByRole('heading', { name: 'Export to Binance Square' })).toBeTruthy();
     expect((screen.getByLabelText('Article title') as HTMLInputElement).value).toBe('Binance-ready title');
     expect((screen.getByLabelText('Article Markdown') as HTMLTextAreaElement).value).toContain('## Opening');
     expect(screen.getByAltText('Dedicated Binance cover preview')).toBeTruthy();
+    expect((screen.getByLabelText('Use article cover') as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByLabelText('Use Opening image') as HTMLInputElement).checked).toBe(false);
     // Regression: a generated dedicated cover must never trip the cover
     // validation (its id is not a slide id).
     expect(screen.queryByText('Generate the dedicated 5:2 article cover before preparing Binance.')).toBeNull();
