@@ -515,6 +515,7 @@ export function PublisherDevicePairingCard({
                               : device.status === 'revoked'
                                 ? 'outline'
                                 : 'default'}
+                            className="rounded-full"
                           >
                             {device.status === 'active'
                               ? 'Active'

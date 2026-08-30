@@ -645,7 +645,7 @@ describe('PublisherDevicePairingCard', () => {
     const revokedDevice = screen.getByRole('listitem', {
       name: 'Publishing device Old Mac',
     });
-    expect(within(revokedDevice).getByText('Revoked')).toBeTruthy();
+    expect(within(revokedDevice).getByText('Revoked').className).toContain('rounded-full');
     expect(within(revokedDevice).queryByRole('button', { name: 'Revoke Old Mac' })).toBeNull();
 
     fireEvent.click(within(activeDevice).getByRole('button', { name: 'Revoke Studio Mac' }));
