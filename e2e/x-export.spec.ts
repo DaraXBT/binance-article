@@ -111,10 +111,11 @@ test('prepares, reviews, and explicitly approves one regular X post click', asyn
   });
 
   await page.goto('/articles/e2e-x-export');
-  await page.getByRole('button', { name: 'Prepare on X' }).click();
+  await page.getByTestId('open-publication-review').click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('tab', { name: 'X' }).click();
   await expect(page.getByRole('heading', { name: 'Prepare X post' })).toBeVisible();
   await expect(page.getByLabel('X post text')).toHaveValue('A generated X post.');
-  const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'Prepare on X' }).click();
   await expect(dialog.getByText(/Composer ready/i)).toBeVisible();
   await dialog.getByRole('button', { name: 'Approve one publish click' }).click();

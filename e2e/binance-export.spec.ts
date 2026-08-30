@@ -127,8 +127,8 @@ test('prepares, reviews, and explicitly approves one Binance publish click', asy
   });
 
   await page.goto('/articles/e2e-binance-export');
-  await expect(page.getByRole('button', { name: 'Prepare in Binance' })).toBeVisible();
-  await page.getByRole('button', { name: 'Prepare in Binance' }).click();
+  await expect(page.getByTestId('open-publication-review')).toBeVisible();
+  await page.getByTestId('open-publication-review').click();
   await expect(page.getByRole('heading', { name: 'Export to Binance Square' })).toBeVisible();
   await expect(page.getByLabel('Article Markdown')).toHaveValue(/## Market setup/);
   const dialog = page.getByRole('dialog');
