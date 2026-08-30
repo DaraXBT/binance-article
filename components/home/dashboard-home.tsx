@@ -401,7 +401,7 @@ function DeckSidebarRow({
     <SidebarMenuItem className="group/item">
       <div className="group relative">
         {isRenaming ? (
-          <div className="flex min-w-0 items-start gap-2 border border-dotted border-sidebar-border/80 bg-sidebar-accent/25 px-3 py-3 pr-12 text-sidebar-foreground">
+          <div className="flex min-w-0 items-start gap-2 rounded-lg border border-dotted border-sidebar-border/80 bg-sidebar-accent/25 px-3 py-3 pr-12 text-sidebar-foreground">
             <FolderOpenDot className="mt-1 h-4 w-4 shrink-0" />
             <div className="min-w-0 flex-1">
               <Input
