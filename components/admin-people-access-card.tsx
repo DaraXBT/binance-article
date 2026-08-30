@@ -215,22 +215,22 @@ function CapacitySummary({ overview }: { overview: EnrollmentOverview }) {
     overview.capacity.legacyInvitations +
     overview.capacity.reservedClaims;
   return (
-    <dl className="mt-3 grid grid-cols-2 border border-dotted border-border/75 bg-background/30 text-center sm:grid-cols-4">
-      <div className="px-2 py-2.5">
+    <dl data-capacity-summary className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1.5 text-sm">
+      <div className="flex items-baseline gap-1.5">
         <dt className="font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">Active</dt>
-        <dd className="mt-0.5 text-sm font-semibold">{overview.capacity.activeUsers}</dd>
+        <dd className="font-semibold">{overview.capacity.activeUsers}</dd>
       </div>
-      <div className="border-l border-dotted border-border/75 px-2 py-2.5">
+      <div className="flex items-baseline gap-1.5">
         <dt className="font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">Invited</dt>
-        <dd className="mt-0.5 text-sm font-semibold">{overview.capacity.legacyInvitations}</dd>
+        <dd className="font-semibold">{overview.capacity.legacyInvitations}</dd>
       </div>
-      <div className="border-t border-dotted border-border/75 px-2 py-2.5 sm:border-l sm:border-t-0">
+      <div className="flex items-baseline gap-1.5">
         <dt className="font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">Reserved</dt>
-        <dd className="mt-0.5 text-sm font-semibold">{overview.capacity.reservedClaims}</dd>
+        <dd className="font-semibold">{overview.capacity.reservedClaims}</dd>
       </div>
-      <div className="border-l border-t border-dotted border-border/75 px-2 py-2.5 sm:border-t-0">
+      <div className="flex items-baseline gap-1.5">
         <dt className="font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">Capacity</dt>
-        <dd className="mt-0.5 text-sm font-semibold">{used}/{overview.capacity.limit}</dd>
+        <dd className="font-semibold">{used}/{overview.capacity.limit}</dd>
       </div>
     </dl>
   );

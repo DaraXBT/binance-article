@@ -80,6 +80,12 @@ describe('AdminPeopleAccessCard', () => {
     const invited = await screen.findByText('Invited');
     expect(invited.parentElement?.textContent).toContain('2');
     expect(screen.getByText('6/10')).toBeTruthy();
+    const summary = document.querySelector('[data-capacity-summary]');
+    expect(summary).toBeTruthy();
+    expect(summary!.className).not.toContain('grid');
+    expect(summary!.className).not.toContain('border');
+    expect(summary!.className).not.toContain('bg-');
+    expect(summary!.className).not.toContain('rounded');
   });
 
   it('keeps enrollment controls usable when only the people request fails', async () => {
