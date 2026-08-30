@@ -247,7 +247,7 @@ export function WorkspaceAiCredentialCard({
           <KeyRound className="size-4" aria-hidden="true" />
           Gemini connection
           {status?.configured ? (
-            <Badge variant="outline" className="ml-auto gap-1 text-[0.65rem]">
+            <Badge variant="outline" className="ml-auto gap-1 rounded-full text-[0.65rem]">
               <Check className="size-3" aria-hidden="true" /> Configured
             </Badge>
           ) : null}

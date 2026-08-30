@@ -101,6 +101,7 @@ describe('WorkspaceAiCredentialCard', () => {
   it('presents Gemini as a personal account connection without member-owner language', () => {
     render(<WorkspaceAiCredentialCard workspaceRole="owner" />);
 
+    expect(screen.getByText('Configured').className).toContain('rounded-full');
     const visibleCopy = document.body.textContent ?? '';
     expect(visibleCopy).toContain('Your Gemini key');
     expect(visibleCopy).toMatch(/your account/i);
