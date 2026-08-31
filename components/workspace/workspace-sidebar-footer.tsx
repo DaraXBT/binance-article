@@ -8,6 +8,7 @@ import {
   ChevronUp,
   Copy,
   KeyRound,
+  Languages,
   Loader2,
   LogOut,
   RotateCcw,
@@ -25,6 +26,7 @@ import {
 } from '@/components/ui/popover';
 import { useSidebar } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
+import { LANGUAGES } from '@/lib/i18n';
 import { RecoverWorkspaceDialog } from './recover-workspace-dialog';
 
 export interface WorkspaceSidebarFooterProps {
@@ -68,7 +70,7 @@ export function WorkspaceSidebarFooter({
   onSignOut,
   className,
 }: WorkspaceSidebarFooterProps) {
-  const { messages } = useLanguage();
+  const { language, messages, setLanguage } = useLanguage();
   const { isMobile, state } = useSidebar();
   const [copied, setCopied] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -218,6 +220,47 @@ export function WorkspaceSidebarFooter({
               showLabel
               className="w-full min-w-0 overflow-hidden rounded-lg"
             />
+          </div>
+
+          <div className="border-t border-border/70 py-1.5">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-9 w-full justify-start rounded-lg px-2.5 font-normal"
+                  aria-label="Language"
+                >
+                  <Languages aria-hidden="true" className="size-4" />
+                  <span className="flex-1 text-left">Language</span>
+                  <span className="text-xs text-muted-foreground">
+                    {LANGUAGES.find((candidate) => candidate.code === language)?.nativeName ?? 'English'}
+                  </span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                side="right"
+                align="start"
+                sideOffset={8}
+                className="w-52 rounded-xl border-border/80 p-1.5 shadow-lg"
+              >
+                <p className="px-2.5 py-1.5 text-xs font-medium text-muted-foreground">Language</p>
+                {LANGUAGES.map((candidate) => (
+                  <Button
+                    key={candidate.code}
+                    type="button"
+                    variant="ghost"
+                    className="h-9 w-full justify-start rounded-lg px-2.5 font-normal"
+                    aria-pressed={language === candidate.code}
+                    onClick={() => setLanguage(candidate.code)}
+                  >
+                    <span aria-hidden="true" className="w-5 text-center">{candidate.flag}</span>
+                    <span className="flex-1 text-left">{candidate.nativeName}</span>
+                    {language === candidate.code ? <Check aria-hidden="true" className="size-4" /> : null}
+                  </Button>
+                ))}
+              </PopoverContent>
+            </Popover>
           </div>
 
           {showRecovery && accessKeyPrefix ? (

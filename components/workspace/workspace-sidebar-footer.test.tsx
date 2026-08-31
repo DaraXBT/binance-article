@@ -119,7 +119,8 @@ describe('WorkspaceSidebarFooter', () => {
     expect(html).toContain('Settings');
     expect(html).toContain('Import old workspace');
     expect(html).toContain('Sign out');
-    expect(html).not.toContain('Language');
+    expect(html).toContain('aria-label="Language"');
+    expect(html).toContain('English');
     expect(html).toContain('Theme');
   });
 

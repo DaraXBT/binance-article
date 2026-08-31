@@ -6,12 +6,14 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useState,
   type ReactNode,
 } from 'react';
 
 import {
   LANGUAGE_COOKIE_NAME,
   LEGACY_LANGUAGE_COOKIE_NAME,
+  isLanguage,
   translations,
   UI_LANGUAGE,
   type Language,
@@ -29,32 +31,42 @@ const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 export function LanguageProvider({
   children,
+  initialLanguage,
 }: {
   children: ReactNode;
   initialLanguage?: Language;
 }) {
-  const language = UI_LANGUAGE;
-  const setLanguage = useCallback((_nextLanguage: Language) => {
-    // Kept as a no-op for context/API compatibility. The product chrome is
-    // intentionally English-only; article content may still carry its own
-    // source language.
+  const [language, setLanguageState] = useState<Language>(initialLanguage ?? UI_LANGUAGE);
+  const setLanguage = useCallback((nextLanguage: Language) => {
+    setLanguageState(nextLanguage);
   }, []);
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(STORAGE_KEY, UI_LANGUAGE);
+      const storedLanguage = window.localStorage.getItem(STORAGE_KEY);
+      if (!initialLanguage && isLanguage(storedLanguage)) {
+        setLanguageState(storedLanguage);
+      }
       window.localStorage.removeItem(LEGACY_LANGUAGE_COOKIE_NAME);
     } catch {
-      // The fixed English UI does not depend on browser storage availability.
+      // The selected language remains available for the current session.
+    }
+  }, [initialLanguage]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, language);
+    } catch {
+      // The selected language remains available for the current session.
     }
     try {
-      document.cookie = `${LANGUAGE_COOKIE_NAME}=${UI_LANGUAGE}; path=/; max-age=${60 * 60 * 24 * 365}`;
+      document.cookie = `${LANGUAGE_COOKIE_NAME}=${language}; path=/; max-age=${60 * 60 * 24 * 365}`;
       document.cookie = `${LEGACY_LANGUAGE_COOKIE_NAME}=; path=/; max-age=0`;
     } catch {
-      // Hardened cookie settings cannot change the in-memory English locale.
+      // Hardened cookie settings cannot change the in-memory selection.
     }
-    document.documentElement.lang = UI_LANGUAGE;
-  }, []);
+    document.documentElement.lang = language;
+  }, [initialLanguage, language]);
 
   const value = useMemo(
     () => ({
