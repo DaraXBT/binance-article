@@ -14,12 +14,20 @@ const workspaceMessages = {
   recoverWorkspaceDescription: 'Use a legacy recovery key to import older articles into this account.',
   openRecoverDialogAction: 'Import legacy articles',
   recoverDialogTitle: 'Import legacy articles',
+  bootstrapLoadingDescription: 'Preparing your article library…',
+};
+
+const authMessages = {
+  accountStatus: 'Account status',
 };
 
 vi.mock('@/components/language-provider', () => ({
   useLanguage: () => ({
     language: 'en',
-    messages: { workspace: workspaceMessages },
+    messages: {
+      auth: authMessages,
+      workspace: workspaceMessages,
+    },
   }),
 }));
 
@@ -34,12 +42,13 @@ vi.mock('@/components/theme-toggle', () => ({
 vi.mock('@/components/console/secure-console-frame', () => ({
   ConsoleHeader: ({ actions }: any) => React.createElement('header', null, actions),
   ConsolePanel: ({ children }: any) => React.createElement('section', null, children),
-  SecureConsoleFrame: ({ children, title, subtitle }: any) => React.createElement(
+  SecureConsoleFrame: ({ children, footer, title, subtitle }: any) => React.createElement(
     'main',
     null,
     title ? React.createElement('h1', null, title) : null,
     subtitle ? React.createElement('p', null, subtitle) : null,
     children,
+    footer ? React.createElement('footer', null, footer) : null,
   ),
 }));
 
@@ -63,10 +72,11 @@ describe('WorkspaceOnboarding', () => {
     const html = renderToStaticMarkup(React.createElement(WorkspaceOnboarding));
 
     expect(html).toContain(workspaceMessages.onboardingTitle);
+    expect(html).toContain(authMessages.accountStatus);
+    expect(html).toContain(workspaceMessages.bootstrapLoadingDescription);
     expect(html).not.toContain(workspaceMessages.createWorkspaceTitle);
     expect(html).not.toContain(workspaceMessages.createWorkspaceAction);
-    expect(html).not.toContain(workspaceMessages.openRecoverDialogAction);
-    expect(html).not.toContain(workspaceMessages.recoverDialogTitle);
+    expect(html).not.toContain(workspaceMessages.recoverWorkspaceDescription);
     expect(html).not.toContain('new workspace');
   });
 });
