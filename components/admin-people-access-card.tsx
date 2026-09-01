@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
   Copy,
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 
 import { ConsolePanel, FrameCornerHandles } from '@/components/console/secure-console-frame';
+import { useLanguage } from '@/components/language-provider';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -25,6 +26,12 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  accountSettingsErrorMessage,
+  formatAccountSettingsDate,
+  getAccountSettingsCopy,
+  type AccountSettingsCopy,
+} from '@/lib/account-settings-i18n';
 import { readSettingsResponse, SettingsApiError } from '@/lib/settings-api';
 import { cn } from '@/lib/utils';
 
@@ -196,13 +203,6 @@ function parseOneTimeCode(payload: Record<string, unknown>): OneTimeCode {
   };
 }
 
-function formatDate(value: string | null): string {
-  if (!value) return 'Not available';
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return 'Not available';
-  return date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
-}
-
 const STATUS_STYLES: Record<UserStatus, string> = {
   pending: 'border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-300',
   active: 'border-emerald-500/35 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
@@ -210,26 +210,26 @@ const STATUS_STYLES: Record<UserStatus, string> = {
   revoked: 'border-border bg-muted text-muted-foreground',
 };
 
-function CapacitySummary({ overview }: { overview: EnrollmentOverview }) {
+function CapacitySummary({ overview, copy }: { overview: EnrollmentOverview; copy: AccountSettingsCopy }) {
   const used = overview.capacity.activeUsers +
     overview.capacity.legacyInvitations +
     overview.capacity.reservedClaims;
   return (
     <dl data-capacity-summary className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1.5 text-sm">
       <div className="flex items-baseline gap-1.5">
-        <dt className="font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">Active</dt>
+        <dt className="font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">{copy.t('capacityActive')}</dt>
         <dd className="font-semibold">{overview.capacity.activeUsers}</dd>
       </div>
       <div className="flex items-baseline gap-1.5">
-        <dt className="font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">Invited</dt>
+        <dt className="font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">{copy.t('capacityInvited')}</dt>
         <dd className="font-semibold">{overview.capacity.legacyInvitations}</dd>
       </div>
       <div className="flex items-baseline gap-1.5">
-        <dt className="font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">Reserved</dt>
+        <dt className="font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">{copy.t('capacityReserved')}</dt>
         <dd className="font-semibold">{overview.capacity.reservedClaims}</dd>
       </div>
       <div className="flex items-baseline gap-1.5">
-        <dt className="font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">Capacity</dt>
+        <dt className="font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">{copy.t('capacity')}</dt>
         <dd className="font-semibold">{used}/{overview.capacity.limit}</dd>
       </div>
     </dl>
@@ -241,50 +241,52 @@ function OneTimeCodePanel({
   copiedValue,
   onCopy,
   onDismiss,
+  copy,
 }: {
   value: OneTimeCode;
   copiedValue: 'code' | 'link' | null;
   onCopy: (kind: 'code' | 'link') => void;
   onDismiss: () => void;
+  copy: AccountSettingsCopy;
 }) {
   return (
     <div className="mt-3 space-y-3 rounded-lg border border-dotted border-primary/35 bg-primary/5 p-3 text-sm">
       <div>
-        <p className="font-medium">Copy this enrollment code or link now.</p>
+        <p className="font-medium">{copy.t('copyEnrollment')}</p>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          The full code is shown only once. Anyone with it can request an account until you rotate it.
+          {copy.t('copyEnrollmentDescription')}
         </p>
       </div>
       <div className="space-y-1.5">
-        <p className="font-mono text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Code</p>
+        <p className="font-mono text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{copy.t('code')}</p>
         <div className="flex min-w-0 items-center gap-2">
           <code className="min-w-0 flex-1 break-all rounded-md bg-background/65 px-2 py-1.5 font-mono text-xs">
             {value.code}
           </code>
           <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 rounded-lg text-xs" onClick={() => onCopy('code')}>
             {copiedValue === 'code' ? <Check aria-hidden="true" className="size-3.5" /> : <Copy aria-hidden="true" className="size-3.5" />}
-            {copiedValue === 'code' ? 'Copied' : 'Copy code'}
+            {copiedValue === 'code' ? copy.t('copied') : copy.t('copyCode')}
           </Button>
         </div>
       </div>
       <div className="space-y-1.5">
-        <p className="font-mono text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Join link</p>
+        <p className="font-mono text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{copy.t('joinLink')}</p>
         <div className="flex min-w-0 items-center gap-2">
           <code className="min-w-0 flex-1 truncate rounded-md bg-background/65 px-2 py-1.5 font-mono text-xs">
             {value.joinUrl}
           </code>
           <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 rounded-lg text-xs" onClick={() => onCopy('link')}>
             {copiedValue === 'link' ? <Check aria-hidden="true" className="size-3.5" /> : <Copy aria-hidden="true" className="size-3.5" />}
-            {copiedValue === 'link' ? 'Copied' : 'Copy link'}
+            {copiedValue === 'link' ? copy.t('copied') : copy.t('copyLink')}
           </Button>
         </div>
       </div>
       <div className="flex items-center justify-between gap-3 border-t border-dotted border-primary/25 pt-2">
         <span className="font-mono text-[0.62rem] uppercase tracking-[0.1em] text-muted-foreground">
-          {value.version ? `Version ${value.version}` : `Prefix ${value.codePrefix}`}
+          {value.version ? copy.t('version', { version: value.version }) : copy.t('prefix', { prefix: value.codePrefix })}
         </span>
         <Button type="button" size="sm" variant="ghost" className="h-8 rounded-lg text-xs" onClick={onDismiss}>
-          Dismiss
+          {copy.t('dismiss')}
         </Button>
       </div>
     </div>
@@ -295,27 +297,29 @@ function PersonActions({
   person,
   busy,
   onAction,
+  copy,
 }: {
   person: PersonRow;
   busy: boolean;
   onAction: (action: PersonAction) => void;
+  copy: AccountSettingsCopy;
 }) {
   if (person.isCurrentUser) return null;
   return (
     <div className="flex shrink-0 gap-1.5">
       {person.status === 'active' ? (
         <Button type="button" size="sm" variant="outline" className="h-8 rounded-lg text-xs" disabled={busy} onClick={() => onAction('suspend')}>
-          Suspend
+          {copy.t('suspend')}
         </Button>
       ) : null}
       {person.status === 'suspended' || person.status === 'revoked' ? (
         <Button type="button" size="sm" variant="outline" className="h-8 rounded-lg text-xs" disabled={busy} onClick={() => onAction('restore')}>
-          Restore
+          {copy.t('restore')}
         </Button>
       ) : null}
       {person.status !== 'revoked' ? (
         <Button type="button" size="sm" variant="ghost" className="h-8 rounded-lg text-xs text-destructive hover:text-destructive" disabled={busy} onClick={() => onAction('revoke')}>
-          Revoke
+          {copy.t('revoke')}
         </Button>
       ) : null}
     </div>
@@ -331,6 +335,8 @@ export function AdminPeopleAccessCard({
   onUncopiedAccessChange?: (hasUncopiedAccess: boolean) => void;
   showFrameCorners?: boolean;
 }) {
+  const { language } = useLanguage();
+  const copy = useMemo(() => getAccountSettingsCopy(language), [language]);
   const [overview, setOverview] = useState<EnrollmentOverview | null>(null);
   const [people, setPeople] = useState<PersonRow[] | null>(null);
   const [hidden, setHidden] = useState(false);
@@ -385,21 +391,19 @@ export function AdminPeopleAccessCard({
       });
       const overviewBody = await readSettingsResponse<Record<string, unknown>>(
         response,
-        'Enrollment access could not be loaded.',
+        copy.t('enrollmentCouldNotLoad'),
       );
       if (overviewSequenceRef.current !== sequence) return;
       setOverview(parseOverview(overviewBody));
     } catch (error) {
       if (overviewSequenceRef.current !== sequence) return;
       if (!handleOwnerAccessError(error)) {
-        setOverviewError(error instanceof Error
-          ? error.message
-          : 'Enrollment access could not be loaded.');
+        setOverviewError(accountSettingsErrorMessage(error, copy, 'enrollmentCouldNotLoad'));
       }
     } finally {
       if (overviewSequenceRef.current === sequence) setOverviewLoading(false);
     }
-  }, [handleOwnerAccessError]);
+  }, [copy, handleOwnerAccessError]);
 
   const refreshPeople = useCallback(async () => {
     const sequence = ++peopleSequenceRef.current;
@@ -412,19 +416,19 @@ export function AdminPeopleAccessCard({
       });
       const peopleBody = await readSettingsResponse<Record<string, unknown>>(
         response,
-        'People could not be loaded.',
+        copy.t('peopleCouldNotLoad'),
       );
       if (peopleSequenceRef.current !== sequence) return;
       setPeople(parsePeople(peopleBody));
     } catch (error) {
       if (peopleSequenceRef.current !== sequence) return;
       if (!handleOwnerAccessError(error)) {
-        setPeopleError(error instanceof Error ? error.message : 'People could not be loaded.');
+        setPeopleError(accountSettingsErrorMessage(error, copy, 'peopleCouldNotLoad'));
       }
     } finally {
       if (peopleSequenceRef.current === sequence) setPeopleLoading(false);
     }
-  }, [handleOwnerAccessError]);
+  }, [copy, handleOwnerAccessError]);
 
   const refresh = useCallback(async () => {
     await Promise.all([refreshOverview(), refreshPeople()]);
@@ -459,8 +463,8 @@ export function AdminPeopleAccessCard({
         },
       );
       const body = await readSettingsResponse<Record<string, unknown>>(response, action === 'create'
-        ? 'The enrollment code could not be created.'
-        : 'The enrollment code could not be rotated.');
+        ? copy.t('enrollmentCouldNotCreate')
+        : copy.t('enrollmentCouldNotRotate'));
       if (!mountedRef.current) return;
       const createdCode = parseOneTimeCode(body);
       replaceOneTimeCode(createdCode);
@@ -475,9 +479,7 @@ export function AdminPeopleAccessCard({
       codeRequestPendingRef.current = false;
       if (!mountedRef.current) return;
       if (!responseValidated) setUncopiedAccess(hadUncopiedAccess);
-      setCodeActionError(error instanceof Error
-        ? error.message
-        : 'The enrollment code could not be updated.');
+      setCodeActionError(accountSettingsErrorMessage(error, copy, 'enrollmentCouldNotUpdate'));
     } finally {
       codeRequestPendingRef.current = false;
       if (mountedRef.current) setCodeAction(null);
@@ -495,7 +497,7 @@ export function AdminPeopleAccessCard({
       });
       await readSettingsResponse<Record<string, unknown>>(
         response,
-        'The enrollment code could not be disabled.',
+        copy.t('enrollmentCouldNotDisable'),
       );
       if (!mountedRef.current) return;
       replaceOneTimeCode(null);
@@ -506,9 +508,7 @@ export function AdminPeopleAccessCard({
       if (mountedRef.current) setDisableConfirmOpen(false);
     } catch (error) {
       if (!mountedRef.current) return;
-      setCodeActionError(error instanceof Error
-        ? error.message
-        : 'The enrollment code could not be disabled.');
+      setCodeActionError(accountSettingsErrorMessage(error, copy, 'enrollmentCouldNotDisable'));
     } finally {
       if (mountedRef.current) setCodeAction(null);
     }
@@ -517,7 +517,7 @@ export function AdminPeopleAccessCard({
   const copySecret = async (kind: 'code' | 'link') => {
     const codeToCopy = oneTimeCode;
     if (!codeToCopy || !navigator.clipboard?.writeText) {
-      setCodeActionError('Clipboard access is unavailable. Select and copy the value manually.');
+      setCodeActionError(copy.t('clipboardUnavailable'));
       return;
     }
     const codeGeneration = oneTimeCodeGenerationRef.current;
@@ -539,7 +539,7 @@ export function AdminPeopleAccessCard({
       }, 2000);
     } catch {
       if (!copyStillTargetsCurrentCode()) return;
-      setCodeActionError('The browser could not copy that value. Select and copy it manually.');
+      setCodeActionError(copy.t('browserCouldNotCopy'));
     }
   };
 
@@ -555,14 +555,15 @@ export function AdminPeopleAccessCard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: requestedAction.action }),
       });
-      const pastTense = requestedAction.action === 'suspend'
-        ? 'suspended'
-        : requestedAction.action === 'restore'
-          ? 'restored'
-          : 'revoked';
       await readSettingsResponse<Record<string, unknown>>(
         response,
-        `The account could not be ${pastTense}.`,
+        copy.t('accountCouldNotBe', {
+          action: requestedAction.action === 'suspend'
+            ? copy.t('statusSuspended').toLowerCase()
+            : requestedAction.action === 'restore'
+              ? copy.t('restore').toLowerCase()
+              : copy.t('statusRevoked').toLowerCase(),
+        }),
       );
       const nextStatus: UserStatus = requestedAction.action === 'restore'
         ? 'active'
@@ -575,9 +576,7 @@ export function AdminPeopleAccessCard({
       await refresh();
       setPersonAction(null);
     } catch (error) {
-      setPersonActionError(error instanceof Error
-        ? error.message
-        : 'The account status could not be changed.');
+      setPersonActionError(accountSettingsErrorMessage(error, copy, 'accountStatusCouldNotChange'));
     } finally {
       setPersonActionBusy(false);
     }
@@ -593,11 +592,10 @@ export function AdminPeopleAccessCard({
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-dotted border-border/70 pb-2">
         <div>
           <h3 className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.14em]">
-            PEOPLE &amp; ACCESS
+            {copy.t('peopleAccess')}
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Each person receives a separate personal account and private article library.
-            Share one enrollment code, then suspend or revoke accounts individually.
+            {copy.t('peopleAccessDescription')}
           </p>
         </div>
         <ShieldCheck aria-hidden="true" className="size-4 text-primary" />
@@ -606,15 +604,19 @@ export function AdminPeopleAccessCard({
       <section aria-labelledby="enrollment-code-title" className="mt-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h4 id="enrollment-code-title" className="text-sm font-semibold">Enrollment code</h4>
+            <h4 id="enrollment-code-title" className="text-sm font-semibold">{copy.t('enrollmentCode')}</h4>
             {activeCode ? (
               <p className="mt-1 font-mono text-[0.68rem] uppercase tracking-[0.1em] text-muted-foreground">
-                Version {activeCode.version} · {activeCode.codePrefix}… · created {formatDate(activeCode.createdAt)}
+                {copy.t('activeCodeMetadata', {
+                  version: activeCode.version,
+                  prefix: activeCode.codePrefix,
+                  date: formatAccountSettingsDate(language, activeCode.createdAt, copy.t('notYet')),
+                })}
               </p>
             ) : overview ? (
-              <p className="mt-1 text-xs text-muted-foreground">No active code. Create one before sharing access.</p>
+              <p className="mt-1 text-xs text-muted-foreground">{copy.t('noActiveCode')}</p>
             ) : (
-              <p className="mt-1 text-xs text-muted-foreground">Manage the shared code used to request an account.</p>
+              <p className="mt-1 text-xs text-muted-foreground">{copy.t('manageSharedCode')}</p>
             )}
           </div>
           {overview && activeCode ? (
@@ -631,7 +633,7 @@ export function AdminPeopleAccessCard({
                 }}
               >
                 <RotateCw aria-hidden="true" className="size-3.5" />
-                Rotate code
+                {copy.t('rotateCode')}
               </Button>
               <Button
                 type="button"
@@ -645,13 +647,13 @@ export function AdminPeopleAccessCard({
                 }}
               >
                 <ShieldOff aria-hidden="true" className="size-3.5" />
-                Disable code
+                {copy.t('disableCode')}
               </Button>
             </div>
           ) : overview ? (
             <Button type="button" size="sm" className="h-9 gap-1.5 rounded-lg" disabled={codeAction !== null} onClick={() => void mutateCode('create')}>
               {codeAction === 'create' ? <Loader2 aria-hidden="true" className="size-3.5 animate-spin" /> : <ShieldCheck aria-hidden="true" className="size-3.5" />}
-              Create code
+              {copy.t('createCode')}
             </Button>
           ) : null}
         </div>
@@ -659,7 +661,7 @@ export function AdminPeopleAccessCard({
         {overviewLoading ? (
           <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground" role="status">
             <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-            {overview ? 'Refreshing enrollment access…' : 'Loading enrollment access…'}
+            {overview ? copy.t('refreshingEnrollment') : copy.t('loadingEnrollment')}
           </p>
         ) : null}
         {overviewError ? (
@@ -667,15 +669,16 @@ export function AdminPeopleAccessCard({
             <p role="alert">{overviewError}</p>
             <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 rounded-lg text-xs" disabled={overviewLoading} onClick={() => void refreshOverview()}>
               <RefreshCcw aria-hidden="true" className="size-3.5" />
-              Retry
+              {copy.t('retry')}
             </Button>
           </div>
         ) : null}
-        {overview ? <CapacitySummary overview={overview} /> : null}
+        {overview ? <CapacitySummary overview={overview} copy={copy} /> : null}
         {oneTimeCode ? (
           <OneTimeCodePanel
             value={oneTimeCode}
             copiedValue={copiedValue}
+            copy={copy}
             onCopy={(kind) => void copySecret(kind)}
             onDismiss={() => {
               replaceOneTimeCode(null);
@@ -694,10 +697,10 @@ export function AdminPeopleAccessCard({
       <section aria-labelledby="people-list-title" className="mt-5 border-t border-dotted border-border/70 pt-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h4 id="people-list-title" className="text-sm font-semibold">People</h4>
-            <p className="mt-1 text-xs text-muted-foreground">Suspension and revocation block access while preserving account data.</p>
+            <h4 id="people-list-title" className="text-sm font-semibold">{copy.t('people')}</h4>
+            <p className="mt-1 text-xs text-muted-foreground">{copy.t('peopleDescription')}</p>
           </div>
-          <Button type="button" size="icon-sm" variant="ghost" className="rounded-lg" aria-label="Refresh people" disabled={peopleLoading} onClick={() => void refreshPeople()}>
+          <Button type="button" size="icon-sm" variant="ghost" className="rounded-lg" aria-label={copy.t('refreshPeople')} disabled={peopleLoading} onClick={() => void refreshPeople()}>
             <RefreshCcw aria-hidden="true" className={cn('size-3.5', peopleLoading && 'animate-spin')} />
           </Button>
         </div>
@@ -705,7 +708,7 @@ export function AdminPeopleAccessCard({
         {peopleLoading ? (
           <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground" role="status">
             <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-            {people ? 'Refreshing people…' : 'Loading people…'}
+            {people ? copy.t('refreshingPeople') : copy.t('loadingPeople')}
           </p>
         ) : null}
         {peopleError ? (
@@ -713,7 +716,7 @@ export function AdminPeopleAccessCard({
             <p role="alert">{peopleError}</p>
             <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 rounded-lg text-xs" disabled={peopleLoading} onClick={() => void refreshPeople()}>
               <RefreshCcw aria-hidden="true" className="size-3.5" />
-              Retry
+              {copy.t('retry')}
             </Button>
           </div>
         ) : null}
@@ -727,20 +730,29 @@ export function AdminPeopleAccessCard({
                 <div className="min-w-0 flex-1">
                   <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                     <span className="truncate text-sm font-medium">{person.name}</span>
-                    {person.role === 'owner' ? <Badge variant="outline" className="rounded-full text-[0.6rem]">Administrator</Badge> : null}
+                    {person.role === 'owner' ? <Badge variant="outline" className="rounded-full text-[0.6rem]">{copy.t('administrator')}</Badge> : null}
                     <Badge variant="outline" className={cn('rounded-full text-[0.6rem] capitalize', STATUS_STYLES[person.status])}>
-                      {person.status}
+                      {person.status === 'active'
+                        ? copy.t('statusActive')
+                        : person.status === 'pending'
+                          ? copy.t('statusPending')
+                          : person.status === 'suspended'
+                            ? copy.t('statusSuspended')
+                            : copy.t('statusRevoked')}
                     </Badge>
                   </div>
                   <p className="truncate text-xs text-muted-foreground">{person.email}</p>
                   <p className="mt-0.5 truncate font-mono text-[0.58rem] uppercase tracking-[0.08em] text-muted-foreground/75">
-                    Joined {formatDate(person.createdAt)}
+                    {copy.t('joined', {
+                      date: formatAccountSettingsDate(language, person.createdAt, copy.t('notYet')),
+                    })}
                     {person.enrollmentSource ? ` · ${person.enrollmentSource.replace(/_/g, ' ')}` : ''}
                   </p>
                 </div>
                 <PersonActions
                   person={person}
                   busy={personActionBusy}
+                  copy={copy}
                   onAction={(action) => {
                     setPersonActionError(null);
                     setPersonAction({ person, action });
@@ -750,7 +762,7 @@ export function AdminPeopleAccessCard({
             ))}
           </ul>
         ) : people && !peopleLoading ? (
-          <p className="mt-3 text-sm text-muted-foreground">No enrolled people yet.</p>
+          <p className="mt-3 text-sm text-muted-foreground">{copy.t('noPeople')}</p>
         ) : null}
       </section>
 
@@ -764,9 +776,9 @@ export function AdminPeopleAccessCard({
       >
         <AlertDialogContent className="console-dialog border-dotted p-4 sm:max-w-md sm:p-5">
           <AlertDialogHeader>
-            <AlertDialogTitle>Rotate the enrollment code?</AlertDialogTitle>
+            <AlertDialogTitle>{copy.t('rotateQuestion')}</AlertDialogTitle>
             <AlertDialogDescription>
-              The current code and every unfinished enrollment using it will stop working immediately. Existing users keep access.
+              {copy.t('rotateDescription')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {codeActionError ? (
@@ -775,10 +787,10 @@ export function AdminPeopleAccessCard({
             </p>
           ) : null}
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={codeAction === 'rotate'}>Keep current code</AlertDialogCancel>
+            <AlertDialogCancel disabled={codeAction === 'rotate'}>{copy.t('keepCurrentCode')}</AlertDialogCancel>
             <Button type="button" disabled={codeAction === 'rotate'} onClick={() => void mutateCode('rotate')}>
               {codeAction === 'rotate' ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : <RotateCw aria-hidden="true" className="size-4" />}
-              Rotate code
+              {copy.t('rotateCode')}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -794,9 +806,9 @@ export function AdminPeopleAccessCard({
       >
         <AlertDialogContent className="console-dialog border-dotted p-4 sm:max-w-md sm:p-5">
           <AlertDialogHeader>
-            <AlertDialogTitle>Disable the enrollment code?</AlertDialogTitle>
+            <AlertDialogTitle>{copy.t('disableQuestion')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This code and every unfinished enrollment using it will stop immediately. No replacement is created. Existing users keep access, and legacy invitation links are unaffected.
+              {copy.t('disableDescription')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {codeActionError ? (
@@ -805,10 +817,10 @@ export function AdminPeopleAccessCard({
             </p>
           ) : null}
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={codeAction === 'disable'}>Keep enrollment open</AlertDialogCancel>
+            <AlertDialogCancel disabled={codeAction === 'disable'}>{copy.t('keepEnrollmentOpen')}</AlertDialogCancel>
             <Button type="button" variant="destructive" disabled={codeAction === 'disable'} onClick={() => void disableCode()}>
               {codeAction === 'disable' ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : <ShieldOff aria-hidden="true" className="size-4" />}
-              Disable code
+              {copy.t('disableCode')}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -827,15 +839,15 @@ export function AdminPeopleAccessCard({
           <AlertDialogHeader>
             <AlertDialogTitle>
               {personAction?.action === 'restore'
-                ? 'Restore this account?'
+                ? copy.t('restoreQuestion')
                 : personAction?.action === 'suspend'
-                  ? 'Suspend this account?'
-                  : 'Revoke this account?'}
+                  ? copy.t('suspendQuestion')
+                  : copy.t('revokeQuestion')}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {personAction?.action === 'restore'
-                ? 'The user can sign in again if beta capacity is available.'
-                : 'Current sessions and publisher devices will be invalidated. Account content is retained.'}
+                ? copy.t('restoreDescription')
+                : copy.t('invalidateDescription')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {personActionError ? (
@@ -844,10 +856,10 @@ export function AdminPeopleAccessCard({
             </p>
           ) : null}
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={personActionBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={personActionBusy}>{copy.t('cancel')}</AlertDialogCancel>
             <Button type="button" disabled={personActionBusy} onClick={() => void mutatePerson()}>
               {personActionBusy ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : personAction?.action === 'restore' ? <UserRoundCheck aria-hidden="true" className="size-4" /> : <UserRoundX aria-hidden="true" className="size-4" />}
-              {personAction?.action === 'restore' ? 'Restore' : personAction?.action === 'suspend' ? 'Suspend' : 'Revoke'}
+              {personAction?.action === 'restore' ? copy.t('restore') : personAction?.action === 'suspend' ? copy.t('suspend') : copy.t('revoke')}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

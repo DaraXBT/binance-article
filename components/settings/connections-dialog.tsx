@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 
 import { AdminPeopleAccessCard } from '@/components/admin-people-access-card';
+import { useLanguage } from '@/components/language-provider';
 import { PublisherDevicePairingCard } from '@/components/publisher-device-pairing-card';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,6 +36,7 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs';
 import { WorkspaceAiCredentialCard } from '@/components/workspace-ai-credential-card';
+import { getAccountSettingsCopy } from '@/lib/account-settings-i18n';
 import { cn } from '@/lib/utils';
 
 type SettingsSectionId = 'ai' | 'publishing' | 'access';
@@ -43,22 +45,6 @@ interface SettingsSection {
   id: SettingsSectionId;
   label: string;
 }
-
-const BASE_SECTIONS: readonly SettingsSection[] = [
-  {
-    id: 'ai',
-    label: 'AI & generation',
-  },
-  {
-    id: 'publishing',
-    label: 'Publishing',
-  },
-] as const;
-
-const ACCESS_SECTION: SettingsSection = {
-  id: 'access',
-  label: 'People & access',
-};
 
 export interface ConnectionsDialogProps {
   open: boolean;
@@ -95,9 +81,19 @@ export function ConnectionsDialog({
   canManageAi,
   canManageAccess,
 }: ConnectionsDialogProps) {
+  const { language } = useLanguage();
+  const copy = useMemo(() => getAccountSettingsCopy(language), [language]);
   const sections = useMemo(
-    () => canManageAccess ? [...BASE_SECTIONS, ACCESS_SECTION] : [...BASE_SECTIONS],
-    [canManageAccess],
+    (): SettingsSection[] => {
+      const base: SettingsSection[] = [
+        { id: 'ai', label: copy.t('aiGeneration') },
+        { id: 'publishing', label: copy.t('publishing') },
+      ];
+      return canManageAccess
+        ? [...base, { id: 'access', label: copy.t('peopleAccess') }]
+        : base;
+    },
+    [canManageAccess, copy],
   );
   const [activeSection, setActiveSection] = useState<SettingsSectionId>('ai');
   const [visitedSections, setVisitedSections] = useState<Set<SettingsSectionId>>(
@@ -250,7 +246,7 @@ export function ConnectionsDialog({
         >
           <aside
             data-connections-settings-rail
-            aria-label="Settings navigation"
+            aria-label={copy.t('settingsNavigation')}
             className="sticky top-0 z-20 row-start-2 min-w-0 border-b border-border/70 bg-card/95 px-2 py-2 backdrop-blur md:col-start-1 md:row-span-2 md:row-start-1 md:flex md:min-h-0 md:flex-col md:border-b-0 md:border-r md:bg-muted/30 md:p-3"
           >
             <div className="hidden px-2 pb-5 pt-2 md:block">
@@ -258,15 +254,15 @@ export function ConnectionsDialog({
                 <Bot aria-hidden="true" className="size-4" />
               </div>
               <p className="mt-4 font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-primary">
-                Account settings
+                {copy.t('accountSettings')}
               </p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                Personal connections and access
+                {copy.t('personalConnectionsAndAccess')}
               </p>
             </div>
 
             <TabsList
-              aria-label="Settings sections"
+              aria-label={copy.t('settingsSections')}
               className="h-auto min-h-11 w-full justify-start gap-1 overflow-x-auto bg-transparent p-0 md:flex-none md:flex-col md:items-stretch md:justify-start md:overflow-visible"
             >
               {sections.map((section) => {
@@ -294,20 +290,20 @@ export function ConnectionsDialog({
 
           <DialogHeader className="relative row-start-1 min-w-0 gap-1.5 border-b border-border/70 px-4 py-4 pr-14 text-left sm:px-6 sm:py-5 sm:pr-16 md:col-start-2 md:row-start-1">
             <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-primary md:hidden">
-              Account
+              {copy.t('account')}
             </p>
             <DialogTitle className="text-2xl leading-tight tracking-normal sm:text-3xl">
-              Account settings
+              {copy.t('accountSettings')}
             </DialogTitle>
             <DialogDescription className="max-w-2xl text-xs leading-relaxed sm:text-sm">
-              Manage AI generation, publishing computers, and account access in one place.
+              {copy.t('manageAccount')}
             </DialogDescription>
             <Button
               type="button"
               variant="ghost"
               size="icon"
               className="absolute right-2 top-2 z-30 size-11 rounded-lg sm:right-3 sm:top-3"
-              aria-label="Close account settings"
+              aria-label={copy.t('closeAccountSettings')}
               onClick={requestClose}
             >
               <X aria-hidden="true" className="size-4" />
@@ -324,17 +320,17 @@ export function ConnectionsDialog({
                 className="m-3 flex flex-col gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm sm:mx-5 sm:mt-5 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
-                  <p className="font-medium text-foreground">Copy your one-time value before closing.</p>
+                  <p className="font-medium text-foreground">{copy.t('oneTimeValueWarningTitle')}</p>
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    It will not be shown again after Account settings closes.
+                    {copy.t('oneTimeValueWarningDescription')}
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
                   <Button type="button" size="sm" variant="outline" onClick={reviewSensitiveValue}>
-                    Review code
+                    {copy.t('reviewCode')}
                   </Button>
                   <Button type="button" size="sm" variant="ghost" onClick={discardAndClose}>
-                    Discard and close
+                    {copy.t('discardAndClose')}
                   </Button>
                 </div>
               </div>
@@ -348,9 +344,9 @@ export function ConnectionsDialog({
                 <TabsContent value="ai" forceMount className="m-0 data-[state=inactive]:hidden">
                   <SettingsPanel labelledBy="settings-ai-title" active={activeSection === 'ai'}>
                     <div className="mb-4 border-b border-dotted border-border/70 pb-3">
-                      <h2 id="settings-ai-title" className="text-base font-semibold">AI &amp; generation</h2>
+                      <h2 id="settings-ai-title" className="text-base font-semibold">{copy.t('aiGeneration')}</h2>
                       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                        Choose how article generation connects to Gemini.
+                        {copy.t('chooseGemini')}
                       </p>
                     </div>
                     <WorkspaceAiCredentialCard
@@ -365,9 +361,9 @@ export function ConnectionsDialog({
                 <TabsContent value="publishing" forceMount className="m-0 data-[state=inactive]:hidden">
                   <SettingsPanel labelledBy="settings-publishing-title" active={activeSection === 'publishing'}>
                     <div className="mb-4 border-b border-dotted border-border/70 pb-3">
-                      <h2 id="settings-publishing-title" className="text-base font-semibold">Publishing</h2>
+                      <h2 id="settings-publishing-title" className="text-base font-semibold">{copy.t('publishing')}</h2>
                       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                        Pair and manage the computers that publish through your signed-in browser sessions.
+                        {copy.t('publishersDescription')}
                       </p>
                     </div>
                     <PublisherDevicePairingCard
@@ -381,7 +377,7 @@ export function ConnectionsDialog({
               {canManageAccess && visitedSections.has('access') ? (
                 <TabsContent value="access" forceMount className="m-0 data-[state=inactive]:hidden">
                   <SettingsPanel labelledBy="settings-access-title" active={activeSection === 'access'}>
-                    <h2 id="settings-access-title" className="sr-only">People &amp; access</h2>
+                    <h2 id="settings-access-title" className="sr-only">{copy.t('peopleAccess')}</h2>
                     <AdminPeopleAccessCard
                       className="rounded-xl border-border/70 bg-card/70 p-4 sm:p-5"
                       showFrameCorners={false}

@@ -4,6 +4,10 @@ import React, { type ComponentProps } from 'react';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('@/components/language-provider', () => ({
+  useLanguage: () => ({ language: 'en' }),
+}));
+
 import { ConnectionsDialog } from './connections-dialog';
 
 vi.mock('@/components/workspace-ai-credential-card', () => ({

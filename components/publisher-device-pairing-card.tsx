@@ -19,6 +19,7 @@ import {
   TerminalSquare,
 } from 'lucide-react';
 
+import { useLanguage } from '@/components/language-provider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -38,6 +39,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
+import {
+  formatAccountSettingsDate,
+  getAccountSettingsCopy,
+} from '@/lib/account-settings-i18n';
 import { readSettingsResponse } from '@/lib/settings-api';
 import { cn } from '@/lib/utils';
 
@@ -141,6 +146,8 @@ export function PublisherDevicePairingCard({
   className?: string;
   onUncopiedPairingChange?: (hasUncopiedPairing: boolean) => void;
 }) {
+  const { language } = useLanguage();
+  const copy = useMemo(() => getAccountSettingsCopy(language), [language]);
   const [pairing, setPairing] = useState<PairingState>({ status: 'idle' });
   const [devices, setDevices] = useState<DevicesState>({ status: 'idle' });
   const [revokingDeviceId, setRevokingDeviceId] = useState<string | null>(null);
@@ -148,7 +155,7 @@ export function PublisherDevicePairingCard({
   const [deviceNotice, setDeviceNotice] = useState<string | null>(null);
   const [copyState, setCopyState] = useState<CopyState>('idle');
   const [pairingCodeCopied, setPairingCodeCopied] = useState(false);
-  const [deviceName, setDeviceName] = useState('My publishing computer');
+  const [deviceName, setDeviceName] = useState(() => copy.t('defaultComputerName'));
   const [appOrigin, setAppOrigin] = useState('https://your-app.example');
   const [replaceConfirmationOpen, setReplaceConfirmationOpen] = useState(false);
   const [replacementPending, setReplacementPending] = useState(false);
@@ -181,7 +188,7 @@ export function PublisherDevicePairingCard({
       });
       const body = await readSettingsResponse<unknown>(
         response,
-        'Publishing computers could not be loaded.',
+        copy.t('computersCouldNotLoad'),
       );
       if (
         !mountedRef.current
@@ -199,7 +206,7 @@ export function PublisherDevicePairingCard({
         devices: 'devices' in current ? current.devices : null,
       }));
     }
-  }, []);
+  }, [copy]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -253,7 +260,7 @@ export function PublisherDevicePairingCard({
       });
       const body = await readSettingsResponse<unknown>(
         response,
-        'A pairing code could not be created.',
+        copy.t('pairingCouldNotCreate'),
       );
       if (!mountedRef.current) return;
       const created = readPairingResponse(body);
@@ -290,7 +297,7 @@ export function PublisherDevicePairingCard({
       if (!mountedRef.current) return;
       if (replacingExistingPairing) {
         setReplacementError(
-          'A replacement code could not be created. Your current code is still available. Try again.',
+          copy.t('replacementCouldNotCreate'),
         );
         setReplaceConfirmationOpen(true);
         onUncopiedPairingChange?.(existingPairingWasUncopied);
@@ -356,13 +363,13 @@ export function PublisherDevicePairingCard({
       });
       const body = await readSettingsResponse<unknown>(
         response,
-        `${device.name} could not be revoked.`,
+        copy.t('deviceCouldNotRevoke', { name: device.name }),
       );
       if (!isRecord(body) || body.revoked !== true) {
         throw new Error('Publisher device revocation failed.');
       }
       revokeSucceededRef.current = true;
-      setDeviceNotice(`${device.name} was revoked.`);
+      setDeviceNotice(copy.t('deviceRevokedNotice', { name: device.name }));
       devicesRequestGenerationRef.current += 1;
       setDevices((current) => 'devices' in current && current.devices
         ? {
@@ -374,7 +381,7 @@ export function PublisherDevicePairingCard({
         : current);
       setDeviceToRevoke(null);
     } catch {
-      setDeviceError(`${device.name} could not be revoked. Check the connection and try again.`);
+      setDeviceError(copy.t('deviceCouldNotRevoke', { name: device.name }));
     } finally {
       setRevokingDeviceId(null);
     }
@@ -395,9 +402,9 @@ export function PublisherDevicePairingCard({
             <MonitorUp aria-hidden="true" className="size-4 text-primary" />
           </span>
           <div className="space-y-1.5">
-            <CardTitle>Browser publisher</CardTitle>
+            <CardTitle>{copy.t('browserPublisher')}</CardTitle>
             <CardDescription className="max-w-xl leading-relaxed">
-              Pair this account with the companion on the computer where Chrome is already signed in to Binance Square or X.
+              {copy.t('browserPublisherDescription')}
             </CardDescription>
           </div>
         </div>
@@ -406,7 +413,7 @@ export function PublisherDevicePairingCard({
       <CardContent className="space-y-5">
         <form className="space-y-3" onSubmit={createPairing}>
             <label className="block space-y-1.5" htmlFor="publisher-device-name">
-              <span className="text-sm font-medium">Computer name</span>
+              <span className="text-sm font-medium">{copy.t('computerName')}</span>
               <Input
                 id="publisher-device-name"
                 name="deviceName"
@@ -414,7 +421,7 @@ export function PublisherDevicePairingCard({
                 maxLength={80}
                 autoComplete="off"
                 onChange={(event) => setDeviceName(event.currentTarget.value)}
-                placeholder="My MacBook"
+                placeholder={copy.t('computerPlaceholder')}
                 disabled={pairingRequestPending}
               />
             </label>
@@ -429,13 +436,13 @@ export function PublisherDevicePairingCard({
                   <KeyRound aria-hidden="true" className="size-4" />
                 )}
                 {pairingRequestPending
-                  ? 'Creating code…'
+                  ? copy.t('creatingCode')
                   : pairingValue
-                    ? 'Create new code'
-                    : 'Create pairing code'}
+                    ? copy.t('createNewCode')
+                    : copy.t('createPairingCode')}
               </Button>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Codes expire after 10 minutes and are shown only in this browser session.
+                {copy.t('codeExpires')}
               </p>
             </div>
         </form>
@@ -452,10 +459,10 @@ export function PublisherDevicePairingCard({
                   tabIndex={-1}
                   className="text-sm font-semibold outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                 >
-                  Publishing computers
+                  {copy.t('publishingComputers')}
                 </h4>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  Revoke a computer to disable its token or unused pairing code immediately.
+                  {copy.t('publishingComputersDescription')}
                 </p>
               </div>
               <Button
@@ -470,20 +477,20 @@ export function PublisherDevicePairingCard({
                 ) : (
                   <RefreshCw aria-hidden="true" className="size-4" />
                 )}
-                Refresh
+                {copy.t('refresh')}
               </Button>
             </div>
 
             {devices.status === 'loading' ? (
               <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
                 <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-                Loading publishing computers…
+                {copy.t('loadingPublishingComputers')}
               </p>
             ) : null}
 
             {devices.status === 'error' ? (
               <p className="text-sm text-destructive" role="alert">
-                Publishing computers could not be loaded. Check the connection and try again.
+                {copy.t('computersCouldNotLoad')}
               </p>
             ) : null}
 
@@ -492,7 +499,7 @@ export function PublisherDevicePairingCard({
             ) : null}
 
             {devices.status === 'ready' && devices.devices.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No publishing computers yet.</p>
+              <p className="text-sm text-muted-foreground">{copy.t('noPublishingComputers')}</p>
             ) : null}
 
             {displayedDevices && displayedDevices.length > 0 ? (
@@ -502,7 +509,7 @@ export function PublisherDevicePairingCard({
                   return (
                     <li
                       key={device.id}
-                      aria-label={`Publishing device ${device.name}`}
+                      aria-label={copy.t('publisherDevice', { name: device.name })}
                       tabIndex={-1}
                       className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/75 bg-muted/20 p-3 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                     >
@@ -518,25 +525,22 @@ export function PublisherDevicePairingCard({
                             className="rounded-full"
                           >
                             {device.status === 'active'
-                              ? 'Active'
+                              ? copy.t('deviceActive')
                               : device.status === 'pending'
-                                ? 'Pending'
-                                : 'Revoked'}
+                                ? copy.t('devicePending')
+                                : copy.t('deviceRevoked')}
                           </Badge>
-                          <span>Protocol v{device.protocolVersion}</span>
+                          <span>{copy.t('protocol', { version: device.protocolVersion })}</span>
                           <span aria-hidden="true">·</span>
                           {device.lastSeenAt ? (
                             <span>
-                              Last seen{' '}
+                              {copy.t('lastSeen', { date: '' })}{' '}
                               <time dateTime={device.lastSeenAt}>
-                                {new Date(device.lastSeenAt).toLocaleString([], {
-                                  dateStyle: 'medium',
-                                  timeStyle: 'short',
-                                })}
+                                {formatAccountSettingsDate(language, device.lastSeenAt, copy.t('neverSeen'))}
                               </time>
                             </span>
                           ) : (
-                            <span>Never seen</span>
+                            <span>{copy.t('neverSeen')}</span>
                           )}
                         </div>
                       </div>
@@ -545,7 +549,7 @@ export function PublisherDevicePairingCard({
                           type="button"
                           size="sm"
                           variant="outline"
-                          aria-label={`Revoke ${device.name}`}
+                          aria-label={`${copy.t('revoke')} ${device.name}`}
                           disabled={revokingDeviceId !== null}
                           onClick={(event) => {
                             revokeTriggerRef.current = event.currentTarget;
@@ -560,7 +564,7 @@ export function PublisherDevicePairingCard({
                           ) : (
                             <ShieldOff aria-hidden="true" className="size-4" />
                           )}
-                          {isRevoking ? 'Revoking…' : 'Revoke'}
+                          {isRevoking ? copy.t('revoking') : copy.t('revoke')}
                         </Button>
                       ) : null}
                     </li>
@@ -573,7 +577,7 @@ export function PublisherDevicePairingCard({
 
         {pairing.status === 'error' ? (
           <p className="text-sm text-destructive" role="alert">
-            A pairing code could not be created. Confirm your account connection and try again.
+            {copy.t('pairingCouldNotCreate')}
           </p>
         ) : null}
 
@@ -583,16 +587,15 @@ export function PublisherDevicePairingCard({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h4 id="publisher-pairing-code-title" className="text-sm font-semibold">
-                    One-time pairing code
+                    {copy.t('oneTimePairingCode')}
                   </h4>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Valid until{' '}
-                    <time dateTime={pairingValue.expiresAt}>
-                      {new Date(pairingValue.expiresAt).toLocaleTimeString([], {
+                    {copy.t('validUntil', {
+                      time: formatAccountSettingsDate(language, pairingValue.expiresAt, '', {
                         hour: '2-digit',
                         minute: '2-digit',
-                      })}
-                    </time>.
+                      }),
+                    })}
                   </p>
                 </div>
                 <Button
@@ -603,7 +606,7 @@ export function PublisherDevicePairingCard({
                   onClick={() => void copyText('code', pairingValue.pairingCode)}
                 >
                   {copyState === 'code' ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-                  {copyState === 'code' ? 'Copied code' : 'Copy code'}
+                  {copyState === 'code' ? copy.t('copiedCode') : copy.t('copyCode')}
                 </Button>
               </div>
               <code
@@ -619,10 +622,10 @@ export function PublisherDevicePairingCard({
                 <div>
                   <h4 id="publisher-companion-commands-title" className="flex items-center gap-2 text-sm font-semibold">
                     <TerminalSquare aria-hidden="true" className="size-4 text-primary" />
-                    Companion commands
+                    {copy.t('companionCommands')}
                   </h4>
                   <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">
-                    Run the pair command, paste the code into its hidden prompt, then start the companion. The code is kept out of shell history.
+                    {copy.t('companionCommandsDescription')}
                   </p>
                 </div>
                 <Button
@@ -632,7 +635,7 @@ export function PublisherDevicePairingCard({
                   onClick={() => void copyText('commands', companionCommands)}
                 >
                   {copyState === 'commands' ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-                  {copyState === 'commands' ? 'Copied commands' : 'Copy commands'}
+                  {copyState === 'commands' ? copy.t('copiedCommands') : copy.t('copyCommands')}
                 </Button>
               </div>
               <pre className="overflow-x-auto rounded-lg border border-border/80 bg-muted/35 p-3 font-mono text-xs leading-6 text-foreground">
@@ -641,14 +644,14 @@ export function PublisherDevicePairingCard({
             </section>
 
             <p className="text-xs leading-relaxed text-muted-foreground">
-              The companion stores its device token in your operating-system keyring. Your Binance and X sessions remain in your local Chrome profile.
+              {copy.t('companionSecurity')}
             </p>
           </div>
         ) : null}
 
         {copyState === 'error' ? (
           <p className="text-xs text-destructive" role="alert">
-            Clipboard access is unavailable. Select and copy the value manually.
+            {copy.t('clipboardUnavailable')}
           </p>
         ) : null}
       </CardContent>
@@ -663,11 +666,11 @@ export function PublisherDevicePairingCard({
       >
         <AlertDialogContent className="console-dialog border-dotted p-4 sm:max-w-md sm:p-5">
           <AlertDialogHeader>
-            <AlertDialogTitle>Create a new pairing code?</AlertDialogTitle>
+            <AlertDialogTitle>{copy.t('newPairingCodeQuestion')}</AlertDialogTitle>
             <AlertDialogDescription>
               {pairingCodeCopied
-                ? 'Your current code was copied. It remains available until a replacement is created successfully.'
-                : 'The current one-time code has not been copied. Creating a new code will replace it in Account settings.'}
+                ? copy.t('currentCodeCopied')
+                : copy.t('currentCodeNotCopied')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {replacementError ? (
@@ -679,7 +682,7 @@ export function PublisherDevicePairingCard({
             </p>
           ) : null}
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={replacementPending}>Review current code</AlertDialogCancel>
+            <AlertDialogCancel disabled={replacementPending}>{copy.t('reviewCurrentCode')}</AlertDialogCancel>
             <Button
               type="button"
               disabled={replacementPending}
@@ -687,10 +690,10 @@ export function PublisherDevicePairingCard({
             >
               {replacementPending ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : null}
               {replacementPending
-                ? 'Creating…'
+                ? copy.t('creating')
                 : replacementError
-                  ? 'Try again'
-                  : 'Replace code'}
+                  ? copy.t('tryAgain')
+                  : copy.t('replaceCode')}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -719,9 +722,11 @@ export function PublisherDevicePairingCard({
           }}
         >
           <AlertDialogHeader>
-            <AlertDialogTitle>Revoke publishing computer?</AlertDialogTitle>
+            <AlertDialogTitle>{copy.t('revokeComputerQuestion')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {deviceToRevoke?.name ?? 'This computer'} will no longer be able to receive publishing requests.
+              {copy.t('computerNoLongerReceives', {
+                name: deviceToRevoke?.name ?? copy.t('thisComputer'),
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deviceError ? (
@@ -733,7 +738,7 @@ export function PublisherDevicePairingCard({
             </p>
           ) : null}
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={revokingDeviceId !== null}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={revokingDeviceId !== null}>{copy.t('cancel')}</AlertDialogCancel>
             <Button
               type="button"
               variant="destructive"
@@ -747,7 +752,7 @@ export function PublisherDevicePairingCard({
               ) : (
                 <ShieldOff aria-hidden="true" className="size-4" />
               )}
-              {revokingDeviceId ? 'Revoking…' : 'Revoke'}
+              {revokingDeviceId ? copy.t('revoking') : copy.t('revoke')}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

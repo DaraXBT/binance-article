@@ -3,6 +3,10 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('@/components/language-provider', () => ({
+  useLanguage: () => ({ language: 'en' }),
+}));
+
 import { PublisherDevicePairingCard } from './publisher-device-pairing-card';
 
 const fetchMock = vi.fn();

@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Check, KeyRound, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 
+import { useLanguage } from '@/components/language-provider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,6 +31,11 @@ import {
   useWorkspaceAiCredential,
   type WorkspaceAiCredentialSource,
 } from '@/lib/hooks';
+import {
+  accountSettingsErrorMessage,
+  formatAccountSettingsDate,
+  getAccountSettingsCopy,
+} from '@/lib/account-settings-i18n';
 import { cn } from '@/lib/utils';
 
 type WorkspaceRole = 'owner' | 'member' | null | undefined;
@@ -41,25 +47,13 @@ type WorkspaceAiCredentialCardProps = {
   className?: string;
 };
 
-function formatDate(value: string | null | undefined): string {
-  if (!value) return 'Not yet';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Not yet';
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date);
-}
-
-function mutationMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
-
 export function WorkspaceAiCredentialCard({
   canManageAi,
   workspaceRole,
   className,
 }: WorkspaceAiCredentialCardProps) {
+  const { language } = useLanguage();
+  const copy = useMemo(() => getAccountSettingsCopy(language), [language]);
   const permissionResolved = typeof canManageAi === 'boolean' || workspaceRole !== undefined;
   const canManage = canManageAi ?? workspaceRole === 'owner';
   const statusQuery = useWorkspaceAiCredential(canManage);
@@ -76,9 +70,9 @@ export function WorkspaceAiCredentialCard({
 
   useEffect(() => {
     if (statusQuery.data?.activeSource === 'workspace' && !statusQuery.data.configured) {
-      setNotice('Your saved Gemini key is no longer available. Platform credits remain active.');
+      setNotice(copy.t('savedKeyUnavailable'));
     }
-  }, [statusQuery.data]);
+  }, [copy, statusQuery.data]);
 
   if (!permissionResolved) {
     return (
@@ -86,9 +80,9 @@ export function WorkspaceAiCredentialCard({
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <KeyRound className="size-4" aria-hidden="true" />
-            Gemini connection
+            {copy.t('geminiConnection')}
           </CardTitle>
-          <CardDescription>Loading your account connection…</CardDescription>
+          <CardDescription>{copy.t('loadingAccountConnection')}</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -100,10 +94,10 @@ export function WorkspaceAiCredentialCard({
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <KeyRound className="size-4" aria-hidden="true" />
-            Gemini connection
+            {copy.t('geminiConnection')}
           </CardTitle>
           <CardDescription>
-            A personal Gemini key is not available for this account.
+            {copy.t('noPersonalKey')}
           </CardDescription>
         </CardHeader>
       </Card>
@@ -116,14 +110,14 @@ export function WorkspaceAiCredentialCard({
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <KeyRound className="size-4" aria-hidden="true" />
-            Gemini connection
+            {copy.t('geminiConnection')}
           </CardTitle>
-          <CardDescription>Checking the saved connection status…</CardDescription>
+          <CardDescription>{copy.t('checkingConnection')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-            Loading Gemini connection…
+            {copy.t('loadingGeminiConnection')}
           </div>
         </CardContent>
       </Card>
@@ -136,15 +130,15 @@ export function WorkspaceAiCredentialCard({
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <KeyRound className="size-4" aria-hidden="true" />
-            Gemini connection
+            {copy.t('geminiConnection')}
           </CardTitle>
           <CardDescription>
-            Add a personal Gemini key to your account for article generation.
+            {copy.t('addKeyDescription')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <p role="alert" className="text-sm text-destructive">
-            {mutationMessage(statusQuery.error, 'Gemini connection could not be loaded.')}
+            {accountSettingsErrorMessage(statusQuery.error, copy, 'connectionCouldNotLoad')}
           </p>
           <Button
             type="button"
@@ -157,7 +151,7 @@ export function WorkspaceAiCredentialCard({
             ) : (
               <RefreshCw className="mr-2 size-4" aria-hidden="true" />
             )}
-            Retry
+            {copy.t('retry')}
           </Button>
         </CardContent>
       </Card>
@@ -187,8 +181,8 @@ export function WorkspaceAiCredentialCard({
     try {
       const savedStatus = await saveMutation.mutateAsync(value);
       setNotice(savedStatus.activeSource === 'workspace'
-        ? 'Gemini key validated and replaced. Your Gemini key remains active.'
-        : 'Gemini key validated and saved. Platform credits remain active until you switch sources.');
+        ? copy.t('keyValidatedReplaced')
+        : copy.t('keyValidatedSaved'));
     } catch {
       // The mutation exposes a sanitized error below; the key is already cleared.
     }
@@ -200,8 +194,8 @@ export function WorkspaceAiCredentialCard({
     try {
       await sourceMutation.mutateAsync(source);
       setNotice(source === 'workspace'
-        ? 'Your Gemini key is now active.'
-        : 'Platform credits are now active.');
+        ? copy.t('keyNowActive')
+        : copy.t('creditsNowActive'));
     } catch {
       // The mutation exposes a sanitized error below.
     }
@@ -211,7 +205,7 @@ export function WorkspaceAiCredentialCard({
     setNotice(null);
     try {
       await testMutation.mutateAsync();
-      setNotice('Gemini connection is working.');
+      setNotice(copy.t('connectionWorking'));
     } catch {
       // The mutation exposes a sanitized error below.
     }
@@ -231,10 +225,10 @@ export function WorkspaceAiCredentialCard({
     setDeleteConfirmPending(true);
     try {
       await deleteMutation.mutateAsync();
-      setNotice('Your saved key was deleted. This does not revoke the key at Google.');
+      setNotice(copy.t('keyDeleted'));
       setDeleteConfirmOpen(false);
     } catch (deleteError) {
-      setDeleteConfirmError(mutationMessage(deleteError, 'Gemini key could not be deleted.'));
+      setDeleteConfirmError(accountSettingsErrorMessage(deleteError, copy, 'keyCouldNotDelete'));
     } finally {
       setDeleteConfirmPending(false);
     }
@@ -245,21 +239,21 @@ export function WorkspaceAiCredentialCard({
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <KeyRound className="size-4" aria-hidden="true" />
-          Gemini connection
+          {copy.t('geminiConnection')}
           {status?.configured ? (
             <Badge variant="outline" className="ml-auto gap-1 rounded-full text-[0.65rem]">
-              <Check className="size-3" aria-hidden="true" /> Configured
+              <Check className="size-3" aria-hidden="true" /> {copy.t('configured')}
             </Badge>
           ) : null}
         </CardTitle>
         <CardDescription>
-          Add your own Gemini API key to your account. The key is encrypted before it is stored and is never shown again.
+          {copy.t('geminiKeyDescription')}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <form onSubmit={submit} className="space-y-2">
           <label htmlFor="account-gemini-key" className="text-sm font-medium">
-            {status?.configured ? 'Replace your Gemini key' : 'Your Gemini key'}
+            {status?.configured ? copy.t('replaceGeminiKey') : copy.t('yourGeminiKey')}
           </label>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
@@ -269,27 +263,27 @@ export function WorkspaceAiCredentialCard({
               type="password"
               autoComplete="new-password"
               onChange={(event) => setHasApiKey(Boolean(event.target.value.trim()))}
-              placeholder="Paste a Gemini API key"
+              placeholder={copy.t('pasteGeminiKey')}
               minLength={20}
               maxLength={512}
               disabled={busy}
             />
             <Button type="submit" disabled={busy || !hasApiKey}>
               {saveMutation.isPending ? <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" /> : null}
-              {status?.configured ? 'Replace' : 'Save'}
+              {status?.configured ? copy.t('replace') : copy.t('save')}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Only Gemini keys are supported. You can revoke access separately in Google AI Studio.
+            {copy.t('onlyGeminiKeys')}
           </p>
         </form>
 
         <div className="rounded-lg border border-border/70 p-3">
-          <div className="mb-2 text-sm font-medium">Generation source</div>
+          <div className="mb-2 text-sm font-medium">{copy.t('generationSource')}</div>
           <div className="grid gap-2 sm:grid-cols-2">
             {([
-              ['platform', 'Platform credits', 'Use the operator-managed Gemini project.'],
-              ['workspace', 'Your Gemini key', 'Use the encrypted key saved to your account.'],
+              ['platform', copy.t('platformCredits'), copy.t('platformCreditsDescription')],
+              ['workspace', copy.t('yourGeminiKey'), copy.t('yourGeminiKeyDescription')],
             ] as const).map(([source, label, description]) => (
               <button
                 key={source}
@@ -311,31 +305,31 @@ export function WorkspaceAiCredentialCard({
             ))}
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
-            Active: <span className="font-medium text-foreground">{activeSource === 'workspace' ? 'Your Gemini key' : 'Platform credits'}</span>
+            {copy.t('active')}: <span className="font-medium text-foreground">{activeSource === 'workspace' ? copy.t('yourGeminiKey') : copy.t('platformCredits')}</span>
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
           {status?.configured ? (
-            <span aria-label="Stored key masked">Stored key: <span className="font-mono tracking-[0.16em] text-foreground">••••••••••••••••</span></span>
+            <span aria-label={copy.t('storedKey')}>{copy.t('storedKey')}: <span className="font-mono tracking-[0.16em] text-foreground">••••••••••••••••</span></span>
           ) : null}
-          <span>Validated: {formatDate(status?.validatedAt)}</span>
-          <span>Updated: {formatDate(status?.updatedAt)}</span>
+          <span>{copy.t('validated')}: {formatAccountSettingsDate(language, status?.validatedAt, copy.t('notYet'))}</span>
+          <span>{copy.t('updated')}: {formatAccountSettingsDate(language, status?.updatedAt, copy.t('notYet'))}</span>
         </div>
 
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" onClick={() => void testConnection()} disabled={busy || !status?.configured}>
             {testMutation.isPending ? <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="mr-2 size-4" aria-hidden="true" />}
-            Test connection
+            {copy.t('testConnection')}
           </Button>
           <Button type="button" variant="ghost" onClick={requestDeleteConnection} disabled={busy || !status?.configured}>
             <Trash2 className="mr-2 size-4" aria-hidden="true" />
-            Delete key
+            {copy.t('deleteKey')}
           </Button>
         </div>
 
-        {statusQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading Gemini connection…</p> : null}
-        {error ? <p role="alert" className="text-sm text-destructive">{mutationMessage(error, 'Gemini connection request failed.')}</p> : null}
+        {statusQuery.isLoading ? <p className="text-sm text-muted-foreground">{copy.t('loadingGeminiConnection')}</p> : null}
+        {error ? <p role="alert" className="text-sm text-destructive">{accountSettingsErrorMessage(error, copy, 'connectionRequestFailed')}</p> : null}
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </CardContent>
 
@@ -349,9 +343,9 @@ export function WorkspaceAiCredentialCard({
       >
         <AlertDialogContent className="console-dialog border-dotted p-4 sm:max-w-md sm:p-5">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete your Gemini key?</AlertDialogTitle>
+            <AlertDialogTitle>{copy.t('deleteKeyQuestion')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes the encrypted key from your account. It does not revoke the key at Google AI Studio.
+              {copy.t('deleteKeyDescription')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deleteConfirmError ? (
@@ -360,7 +354,7 @@ export function WorkspaceAiCredentialCard({
             </p>
           ) : null}
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteConfirmPending}>Keep key</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteConfirmPending}>{copy.t('keepKey')}</AlertDialogCancel>
             <Button
               type="button"
               variant="destructive"
@@ -370,7 +364,7 @@ export function WorkspaceAiCredentialCard({
               {deleteConfirmPending ? (
                 <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
               ) : null}
-              Delete key
+              {copy.t('deleteKey')}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -4,6 +4,10 @@ import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('@/components/language-provider', () => ({
+  useLanguage: () => ({ language: 'en' }),
+}));
+
 import { AdminPeopleAccessCard } from './admin-people-access-card';
 
 const fetchMock = vi.fn();
@@ -104,7 +108,7 @@ describe('AdminPeopleAccessCard', () => {
     expect(peopleSection).not.toBeNull();
     expect(within(enrollmentSection!).getByRole('button', { name: 'Create code' })).toBeTruthy();
     expect(within(peopleSection!).getByRole('alert').textContent).toContain(
-      'People directory unavailable.',
+      'People could not be loaded.',
     );
     expect(within(peopleSection!).getByRole('button', { name: /retry/i })).toBeTruthy();
   });
@@ -122,7 +126,7 @@ describe('AdminPeopleAccessCard', () => {
     expect(enrollmentSection).not.toBeNull();
     expect(peopleSection).not.toBeNull();
     expect(within(enrollmentSection!).getByRole('alert').textContent).toContain(
-      'Enrollment access unavailable.',
+      'Enrollment access could not be loaded.',
     );
     expect(within(enrollmentSection!).getByRole('button', { name: /retry/i })).toBeTruthy();
     expect(within(peopleSection!).getByRole('button', { name: 'Suspend' })).toBeTruthy();
@@ -504,7 +508,7 @@ describe('AdminPeopleAccessCard', () => {
     fireEvent.click(within(confirmation).getByRole('button', { name: 'Disable code' }));
 
     expect(await screen.findByRole('button', { name: 'Create code' })).toBeTruthy();
-    expect(screen.getByRole('alert').textContent).toContain('Refresh unavailable');
+    expect(screen.getByRole('alert').textContent).toContain('Enrollment access could not be loaded.');
     expect(screen.queryByRole('button', { name: 'Rotate code' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Disable code' })).toBeNull();
   });
@@ -561,9 +565,9 @@ describe('AdminPeopleAccessCard', () => {
       name: 'Suspend this account?',
     });
     await waitFor(() => expect(within(openConfirmation).getByRole('alert').textContent).toContain(
-      'The account could not be suspended. Try again.',
+      'The account status could not be changed.',
     ));
-    expect(screen.getByText('new@example.com').closest('li')?.textContent).toContain('active');
+    expect(screen.getByText('new@example.com').closest('li')?.textContent).toContain('Active');
   });
 
   it('protects the current owner while allowing another owner and a revoked user to be managed', async () => {

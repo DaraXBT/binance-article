@@ -11,6 +11,10 @@ const mocks = vi.hoisted(() => ({
   useDeleteWorkspaceAiCredential: vi.fn(),
 }));
 
+vi.mock('@/components/language-provider', () => ({
+  useLanguage: () => ({ language: 'en' }),
+}));
+
 vi.mock('@/lib/hooks', () => mocks);
 
 import { WorkspaceAiCredentialCard } from './workspace-ai-credential-card';
