@@ -292,6 +292,7 @@ export function PublicationExportDialog({
   const { language, messages } = useLanguage();
   const xCopy = messages.publishing.x;
   const binanceCopy = messages.publishing.binance;
+  const commandCopy = messages.publishing.command;
   const reviewCopy = messages.publishing.review;
   const copy = platform === 'x' ? xCopy : binanceCopy;
   const numberFormatter = useMemo(() => new Intl.NumberFormat(language), [language]);
@@ -564,7 +565,7 @@ export function PublicationExportDialog({
           body: JSON.stringify({ kind, expectedRevision: revision }),
         },
       );
-      return readPublicationResponse(preparedResponse, copy.prepareFailed);
+      return readPublicationResponse(preparedResponse, copy.prepareFailed, commandCopy);
     });
   };
 

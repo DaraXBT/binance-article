@@ -45,18 +45,37 @@ const CANCELLABLE_STATES = new Set<PublicationCommandState>([
 
 class LocalizedPublicationError extends Error {}
 
-async function responseJson(response: Response, fallback: string) {
+type KnownPublicationErrorCopy = Pick<
+  PublishingMessages['command'],
+  'xLoginRequired' | 'xArticlesUnavailable'
+>;
+
+function knownPublicationErrorCopy(
+  code: unknown,
+  copy: KnownPublicationErrorCopy | undefined,
+): string | null {
+  if (!copy || typeof code !== 'string') return null;
+  if (code === 'X_LOGIN_REQUIRED') return copy.xLoginRequired;
+  if (code === 'X_ARTICLES_UNAVAILABLE') return copy.xArticlesUnavailable;
+  return null;
+}
+
+async function responseJson(
+  response: Response,
+  fallback: string,
+  knownErrorCopy?: KnownPublicationErrorCopy,
+) {
   const body = await response.json().catch(() => null);
   if (!response.ok) {
-    const serverMessage = body
-      && typeof body === 'object'
-      && 'error' in body
-      && typeof body.error === 'string'
-      && body.error.trim().length > 0
-      && body.error.length <= 500
-      ? body.error.trim()
-      : fallback;
-    throw new LocalizedPublicationError(serverMessage);
+    // API error text can include provider or implementation details. It is
+    // never safe to render directly. Only the two X capability codes carry
+    // user-actionable guidance; every other failure uses local recovery copy.
+    const code = body && typeof body === 'object' && 'code' in body
+      ? body.code
+      : null;
+    throw new LocalizedPublicationError(
+      knownPublicationErrorCopy(code, knownErrorCopy) ?? fallback,
+    );
   }
   return body;
 }
@@ -108,7 +127,7 @@ export function usePublicationCommand(
 
     void fetch(`/api/publisher/commands/${encodeURIComponent(storedCommandId)}`, {
       cache: 'no-store',
-    }).then((response) => responseJson(response, copy.statusFailed))
+    }).then((response) => responseJson(response, copy.statusFailed, copy))
       .then((body) => {
         if (cancelled) return;
         const restored = body.command as PublicationCommand;
@@ -128,7 +147,7 @@ export function usePublicationCommand(
       });
 
     return () => { cancelled = true; };
-  }, [copy.statusFailed, copy.targetMismatch, kind, setRememberedCommand, storageKey, target]);
+  }, [copy, kind, setRememberedCommand, storageKey, target]);
 
   const prepare = useCallback(async (
     action: () => Promise<{ command: PublicationCommand }>,
@@ -151,7 +170,7 @@ export function usePublicationCommand(
     } finally {
       setIsPreparing(false);
     }
-  }, [copy.preparationFailed, copy.targetMismatch, kind, setRememberedCommand, target]);
+  }, [copy, kind, setRememberedCommand, target]);
 
   const approve = useCallback(async () => {
     if (!command || command.state !== 'awaiting_review') return;
@@ -167,14 +186,14 @@ export function usePublicationCommand(
           confirmed: true,
         }),
       });
-      const body = await responseJson(response, copy.approveFailed);
+      const body = await responseJson(response, copy.approveFailed, copy);
       setRememberedCommand(body.command as PublicationCommand);
     } catch (caught) {
       setError(caught instanceof LocalizedPublicationError ? caught.message : copy.approveFailed);
     } finally {
       setIsApproving(false);
     }
-  }, [command, copy.approveFailed, setRememberedCommand]);
+  }, [command, copy, setRememberedCommand]);
 
   const cancel = useCallback(async () => {
     if (!command || !CANCELLABLE_STATES.has(command.state)) return;
@@ -190,14 +209,14 @@ export function usePublicationCommand(
           confirmed: true,
         }),
       });
-      const body = await responseJson(response, copy.cancelFailed);
+      const body = await responseJson(response, copy.cancelFailed, copy);
       setRememberedCommand(body.command as PublicationCommand);
     } catch (caught) {
       setError(caught instanceof LocalizedPublicationError ? caught.message : copy.cancelFailed);
     } finally {
       setIsCancelling(false);
     }
-  }, [command, copy.cancelFailed, setRememberedCommand]);
+  }, [command, copy, setRememberedCommand]);
 
   const commandId = command?.id;
   const commandState = command?.state;
@@ -213,7 +232,7 @@ export function usePublicationCommand(
         const response = await fetch(`/api/publisher/commands/${encodeURIComponent(commandId)}`, {
           cache: 'no-store',
         });
-        const body = await responseJson(response, copy.statusFailed);
+        const body = await responseJson(response, copy.statusFailed, copy);
         if (!cancelled) {
           const next = body.command as PublicationCommand;
           if (
@@ -244,7 +263,7 @@ export function usePublicationCommand(
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [commandId, commandState, copy.statusFailed, copy.targetMismatch, kind, setRememberedCommand, target]);
+  }, [commandId, commandState, copy, kind, setRememberedCommand, target]);
 
   return {
     command,
@@ -282,9 +301,7 @@ function failureReasonCopy(
   reason: string,
   copy: PublishingMessages['command'],
 ): string {
-  if (reason === 'X_LOGIN_REQUIRED') return copy.xLoginRequired;
-  if (reason === 'X_ARTICLES_UNAVAILABLE') return copy.xArticlesUnavailable;
-  return reason;
+  return knownPublicationErrorCopy(reason, copy) ?? copy.failed;
 }
 
 export function PublicationCommandPanel({

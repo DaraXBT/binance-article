@@ -486,11 +486,15 @@ describe('XExportDialog', () => {
     await waitFor(() => expect((prepare as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(prepare);
 
-    expect(await screen.findByText('X Articles are unavailable for this account.')).toBeTruthy();
+    expect(await screen.findByText(
+      'X Articles are unavailable for this account. Use an X Post or enable Articles access, then prepare again.',
+    )).toBeTruthy();
 
     fireEvent.click(screen.getByRole('tab', { name: 'Post' }));
     await waitFor(() => {
-      expect(screen.queryByText('X Articles are unavailable for this account.')).toBeNull();
+      expect(screen.queryByText(
+        'X Articles are unavailable for this account. Use an X Post or enable Articles access, then prepare again.',
+      )).toBeNull();
       expect((screen.getByRole('button', { name: 'Prepare on X' }) as HTMLButtonElement).disabled)
         .toBe(false);
     });

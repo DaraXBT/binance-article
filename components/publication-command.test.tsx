@@ -102,6 +102,21 @@ describe('reviewed publication command UI', () => {
     expect(screen.queryByText(failureReason)).toBeNull();
   });
 
+  it('uses safe recovery copy for an unknown companion failure reason', () => {
+    const upstreamDetail = 'Editor crashed after receiving secret publisher metadata.';
+    render(<PublicationCommandPanel
+      command={{ ...command, state: 'failed', failureReason: upstreamDetail }}
+      error={null}
+      isApproving={false}
+      isCancelling={false}
+      onApprove={vi.fn()}
+      onCancel={vi.fn()}
+    />, { wrapper: EnglishLanguageProvider });
+
+    expect(screen.getAllByText('Publication failed before a verified result.')).toHaveLength(2);
+    expect(screen.queryByText(upstreamDetail)).toBeNull();
+  });
+
   it('renders guidance after the companion asynchronously aborts an X Article', async () => {
     const queued = { ...command, kind: 'article' as const, state: 'queued' as const };
     const aborted = {
@@ -140,14 +155,33 @@ describe('reviewed publication command UI', () => {
     unmount();
   });
 
-  it('preserves the sanitized server error instead of replacing it with a generic fallback', async () => {
+  it('uses the local fallback instead of an unknown server error body', async () => {
+    const upstreamDetail = 'No paired publisher device is online. Request ID: secret-123.';
     const response = new Response(JSON.stringify({
-      error: 'No paired publisher device is online.',
+      error: upstreamDetail,
       code: 'PUBLISHER_DEVICE_OFFLINE',
     }), { status: 409, headers: { 'content-type': 'application/json' } });
 
     await expect(readPublicationResponse(response, 'Publication preparation failed.'))
-      .rejects.toThrow('No paired publisher device is online.');
+      .rejects.toThrow('Publication preparation failed.');
+  });
+
+  it.each([
+    ['X_LOGIN_REQUIRED', 'Log in to X in the companion Chrome window, then prepare again.'],
+    [
+      'X_ARTICLES_UNAVAILABLE',
+      'X Articles are unavailable for this account. Use an X Post or enable Articles access, then prepare again.',
+    ],
+  ])('maps known response code %s to localized recovery guidance', async (code, guidance) => {
+    const response = new Response(JSON.stringify({
+      code,
+      error: 'Untrusted upstream wording must not be rendered.',
+    }), { status: 409, headers: { 'content-type': 'application/json' } });
+
+    await expect(readPublicationResponse(response, 'Publication preparation failed.', {
+      xLoginRequired: 'Log in to X in the companion Chrome window, then prepare again.',
+      xArticlesUnavailable: 'X Articles are unavailable for this account. Use an X Post or enable Articles access, then prepare again.',
+    })).rejects.toThrow(guidance);
   });
 
   it('explains the one-click approval boundary', () => {
