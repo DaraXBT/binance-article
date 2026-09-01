@@ -49,6 +49,12 @@ describe('publishing translations', () => {
     expect(messages.x.assetRequestFailed(429)).toContain('429');
     expect(messages.x.maxImages(4)).toContain('4');
     expect(messages.x.textTooLong(280)).toContain('280');
+    expect(messages.review.characterCount('7', '90')).toContain('7');
+    expect(messages.review.characterCount('7', '90')).toContain('90');
+    expect(messages.review.mediaCount('3', '4')).toContain('3');
+    expect(messages.review.mediaCount('3', '4')).toContain('4');
+    expect(messages.review.binancePostTextTooLong('280')).toContain('280');
+    expect(messages.review.xArticleTitleTooLong('100')).toContain('100');
   });
 
   it.each(languages)('drives visible publishing validation in %s', (language) => {
@@ -71,5 +77,15 @@ describe('publishing translations', () => {
     expect(article.warnings).toContain(messages.binance.slideNoCopy(1));
     expect(article.warnings).toContain(messages.binance.slideNoImage(1));
     expect(xIssues.errors).toContain(messages.x.contentRequired);
+  });
+
+  it.each(languages)('provides the review surface for %s', (language) => {
+    const messages = publishingTranslations[language];
+
+    expect(messages.articlePage.reviewAndPublish.trim()).not.toBe('');
+    expect(messages.review.destinationLabel.trim()).not.toBe('');
+    expect(messages.review.formatLabel.trim()).not.toBe('');
+    expect(messages.review.reviewViewLabel.trim()).not.toBe('');
+    expect(messages.review.saveDraft.trim()).not.toBe('');
   });
 });

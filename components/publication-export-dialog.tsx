@@ -59,6 +59,10 @@ type AssetCopy = Pick<
   PublishingMessages['x'],
   'assetRequestFailed' | 'assetEmpty' | 'decodeFailed'
 >;
+type CoverAssetCopy = AssetCopy & Pick<
+  PublishingMessages['binance'],
+  'previewUnavailable' | 'cropFailed'
+>;
 
 type PublicationExportDialogProps = {
   platform?: Platform;
@@ -229,7 +233,7 @@ async function getImageDimensions(blob: Blob, copy: AssetCopy) {
   };
 }
 
-async function cropCoverToJpeg(blob: Blob, focal: FocalPoint, copy: AssetCopy): Promise<Blob> {
+async function cropCoverToJpeg(blob: Blob, focal: FocalPoint, copy: CoverAssetCopy): Promise<Blob> {
   const image = await loadImage(blob, copy);
   const width = image.naturalWidth || image.width;
   const height = image.naturalHeight || image.height;
@@ -238,7 +242,7 @@ async function cropCoverToJpeg(blob: Blob, focal: FocalPoint, copy: AssetCopy): 
   canvas.width = BINANCE_COVER_WIDTH;
   canvas.height = BINANCE_COVER_HEIGHT;
   const context = canvas.getContext('2d');
-  if (!context) throw new LocalizedExportError('Your browser cannot create a cover preview.');
+  if (!context) throw new LocalizedExportError(copy.previewUnavailable);
   context.drawImage(
     image,
     crop.sourceX,
@@ -253,7 +257,7 @@ async function cropCoverToJpeg(blob: Blob, focal: FocalPoint, copy: AssetCopy): 
   return new Promise((resolve, reject) => {
     canvas.toBlob((result) => {
       if (result) resolve(result);
-      else reject(new LocalizedExportError('The cover crop could not be encoded as JPEG.'));
+      else reject(new LocalizedExportError(copy.cropFailed));
     }, 'image/jpeg', 0.92);
   });
 }
@@ -285,10 +289,12 @@ export function PublicationExportDialog({
   const [selectedPlatform, setSelectedPlatform] = useState<Platform>(fixedPlatform ?? 'binance');
   const [view, setView] = useState<'edit' | 'preview'>('edit');
   const platform = fixedPlatform ?? selectedPlatform;
-  const { messages } = useLanguage();
+  const { language, messages } = useLanguage();
   const xCopy = messages.publishing.x;
   const binanceCopy = messages.publishing.binance;
+  const reviewCopy = messages.publishing.review;
   const copy = platform === 'x' ? xCopy : binanceCopy;
+  const numberFormatter = useMemo(() => new Intl.NumberFormat(language), [language]);
   const target = targetFor(platform);
   const route = routeFor(platform);
   const defaultKind = defaultKindFor(platform);
@@ -415,31 +421,37 @@ export function PublicationExportDialog({
     const warnings: string[] = [];
     if (kind === 'post') {
       if (!postText.trim() && selectedImages.post.length === 0) {
-        errors.push(platform === 'x' ? xCopy.contentRequired : 'Add post text or select at least one image.');
+        errors.push(platform === 'x' ? xCopy.contentRequired : reviewCopy.binancePostContentRequired);
       }
       if ([...postText.trim()].length > postMaxCharacters) {
         errors.push(platform === 'x'
           ? xCopy.textTooLong(postMaxCharacters)
-          : `Binance post text must be ${postMaxCharacters.toLocaleString()} characters or fewer.`);
+          : reviewCopy.binancePostTextTooLong(numberFormatter.format(postMaxCharacters)));
       }
       if (selectedImages.post.length > postMaxImages) {
         errors.push(platform === 'x'
           ? xCopy.maxImages(postMaxImages)
-          : `Binance posts support at most ${postMaxImages} images.`);
+          : reviewCopy.binancePostMaxImages(numberFormatter.format(postMaxImages)));
       }
       return { errors, warnings };
     }
     if (!articleTitle.trim()) {
-      errors.push(platform === 'binance' ? binanceCopy.titleRequired : 'An X article title is required.');
+      errors.push(platform === 'binance' ? binanceCopy.titleRequired : reviewCopy.xArticleTitleRequired);
     }
     if (articleTitle.length > BINANCE_TITLE_MAX_CHARACTERS) {
       errors.push(platform === 'binance'
         ? binanceCopy.titleTooLong(BINANCE_TITLE_MAX_CHARACTERS)
-        : `The X article title must be ${BINANCE_TITLE_MAX_CHARACTERS} characters or fewer.`);
+        : reviewCopy.xArticleTitleTooLong(numberFormatter.format(BINANCE_TITLE_MAX_CHARACTERS)));
     }
-    if (!articleBodyForSelection.trim()) errors.push(binanceCopy.markdownRequired);
+    if (!articleBodyForSelection.trim()) {
+      errors.push(platform === 'binance'
+        ? binanceCopy.markdownRequired
+        : reviewCopy.xArticleMarkdownRequired);
+    }
     if (articleBodyForSelection.length > BINANCE_ARTICLE_MAX_CHARACTERS) {
-      errors.push(binanceCopy.markdownTooLong);
+      errors.push(platform === 'binance'
+        ? binanceCopy.markdownTooLong
+        : reviewCopy.xArticleMarkdownTooLong);
     }
     return { errors, warnings };
   }, [
@@ -451,6 +463,8 @@ export function PublicationExportDialog({
     postMaxCharacters,
     postMaxImages,
     postText,
+    numberFormatter,
+    reviewCopy,
     selectedImages.post.length,
     xCopy,
   ]);
@@ -505,7 +519,13 @@ export function PublicationExportDialog({
   const handleSaveDraft = async () => {
     if (issues.errors.length > 0 || isDraftLoading || draftRevision === null || isSavingDraft) return;
     setIsSavingDraft(true);
-    try { await saveDraft(); } catch (error) { setDownloadError(error instanceof Error ? error.message : copy.draftSaveFailed); } finally { setIsSavingDraft(false); }
+    try {
+      await saveDraft();
+    } catch {
+      setDownloadError(copy.draftSaveFailed);
+    } finally {
+      setIsSavingDraft(false);
+    }
   };
 
   const toggleImage = (slideId: string) => {
@@ -646,11 +666,17 @@ export function PublicationExportDialog({
       }
     })()
     : null;
-  const postTextLabel = platform === 'x' ? xCopy.textLabel : 'Binance post text';
-  const imagesTitle = kind === 'post' ? 'Add images (optional)' : 'Article media (optional)';
-  const dialogTitle = platform === 'x' && kind === 'article' ? 'Prepare X Article' : copy.dialogTitle;
+  const postTextLabel = platform === 'x' ? xCopy.textLabel : reviewCopy.binancePostText;
+  const imagesTitle = kind === 'post'
+    ? reviewCopy.addImagesOptional
+    : reviewCopy.articleMediaOptional;
+  const platformLabel = platform === 'binance' ? reviewCopy.binanceSquare : 'X';
+  const kindLabel = kind === 'post' ? reviewCopy.post : reviewCopy.article;
+  const dialogTitle = platform === 'x' && kind === 'article'
+    ? reviewCopy.xArticleDialogTitle
+    : copy.dialogTitle;
   const dialogDescription = kind === 'article'
-    ? 'Edit the title and Markdown, then optionally include a cover and body images. The local companion waits for review and explicit approval before publishing.'
+    ? reviewCopy.articleDialogDescription
     : copy.dialogDescription;
 
   return (
@@ -662,10 +688,23 @@ export function PublicationExportDialog({
         </DialogHeader>
 
         {!fixedPlatform ? (
-          <div role="tablist" aria-label="Publishing destination" className="flex w-fit gap-1 rounded-lg border border-border bg-muted/30 p-1">
+          <div
+            role="tablist"
+            aria-label={reviewCopy.destinationLabel}
+            className="flex w-fit gap-1 rounded-lg border border-border bg-muted/30 p-1"
+          >
             {(['binance', 'x'] as const).map((candidate) => (
-              <Button key={candidate} type="button" role="tab" aria-selected={platform === candidate} size="sm" variant={platform === candidate ? 'default' : 'outline'} disabled={publication.isPreparing || Boolean(commandActive)} onClick={() => handlePlatformChange(candidate)}>
-                {candidate === 'binance' ? 'Binance Square' : 'X'}
+              <Button
+                key={candidate}
+                type="button"
+                role="tab"
+                aria-selected={platform === candidate}
+                size="sm"
+                variant={platform === candidate ? 'default' : 'outline'}
+                disabled={publication.isPreparing || Boolean(commandActive)}
+                onClick={() => handlePlatformChange(candidate)}
+              >
+                {candidate === 'binance' ? reviewCopy.binanceSquare : 'X'}
               </Button>
             ))}
           </div>
@@ -673,7 +712,7 @@ export function PublicationExportDialog({
 
         <div
           role="tablist"
-          aria-label="Publication format"
+          aria-label={reviewCopy.formatLabel}
           className="flex w-fit gap-1 rounded-lg border border-border bg-muted/30 p-1"
         >
           {(['post', 'article'] as const).map((candidate) => (
@@ -687,22 +726,76 @@ export function PublicationExportDialog({
               disabled={publication.isPreparing || Boolean(commandActive)}
               onClick={() => handleKindChange(candidate)}
             >
-              {candidate === 'post' ? 'Post' : 'Article'}
+              {candidate === 'post' ? reviewCopy.post : reviewCopy.article}
             </Button>
           ))}
         </div>
 
-        <div role="tablist" aria-label="Publication review view" className="flex w-fit gap-1 rounded-lg border border-border bg-muted/30 p-1">
-          {(['edit', 'preview'] as const).map((candidate) => <Button key={candidate} type="button" role="tab" aria-selected={view === candidate} size="sm" variant={view === candidate ? 'default' : 'outline'} onClick={() => setView(candidate)}>{candidate === 'edit' ? 'Edit draft' : 'Preview post'}</Button>)}
+        <div
+          role="tablist"
+          aria-label={reviewCopy.reviewViewLabel}
+          className="flex w-fit gap-1 rounded-lg border border-border bg-muted/30 p-1"
+        >
+          {(['edit', 'preview'] as const).map((candidate) => (
+            <Button
+              key={candidate}
+              type="button"
+              role="tab"
+              aria-selected={view === candidate}
+              size="sm"
+              variant={view === candidate ? 'default' : 'outline'}
+              onClick={() => setView(candidate)}
+            >
+              {candidate === 'edit' ? reviewCopy.editDraft : reviewCopy.previewPost}
+            </Button>
+          ))}
         </div>
 
         {view === 'preview' ? (
           <section data-publication-preview className="space-y-4 rounded-xl border border-border/80 bg-card/70 p-4 sm:p-6">
             <div className="flex items-center justify-between gap-3 border-b border-border/70 pb-3">
-              <div><p className="text-sm font-semibold">{platform === 'binance' ? 'Binance Square' : 'X'} {kind === 'post' ? 'post' : 'article'}</p><p className="mt-1 text-xs text-muted-foreground">Draft preview of the exact content and media sent for final Chrome review.</p></div>
-              <span className="text-xs text-muted-foreground">{kind === 'post' ? `${postCharacterCount}/${postMaxCharacters}` : `${previewSlides.length}/${ARTICLE_MAX_IMAGES} media`}</span>
+              <div>
+                <p className="text-sm font-semibold">
+                  {reviewCopy.destinationFormat(platformLabel, kindLabel)}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {reviewCopy.draftPreviewDescription}
+                </p>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {kind === 'post'
+                  ? reviewCopy.characterCount(
+                    numberFormatter.format(postCharacterCount),
+                    numberFormatter.format(postMaxCharacters),
+                  )
+                  : reviewCopy.mediaCount(
+                    numberFormatter.format(previewSlides.length),
+                    numberFormatter.format(ARTICLE_MAX_IMAGES),
+                  )}
+              </span>
             </div>
-            {kind === 'article' ? <><h2 className="text-2xl font-semibold">{articleTitle || 'Untitled article'}</h2>{includeCover && coverPreviewUrl ? <img src={coverPreviewUrl} alt="Selected article cover" className="aspect-[5/2] w-full rounded-lg object-cover" style={{ objectPosition: `${focal.x * 100}% ${focal.y * 100}%` }} /> : null}<div className="prose prose-sm max-w-none dark:prose-invert"><ReactMarkdown>{previewArticleMarkdown}</ReactMarkdown></div></> : <p className="whitespace-pre-wrap text-sm leading-relaxed">{postText || 'Media-only post'}</p>}
+            {kind === 'article' ? (
+              <>
+                <h2 className="text-2xl font-semibold">
+                  {articleTitle || reviewCopy.untitledArticle}
+                </h2>
+                {includeCover && coverPreviewUrl ? (
+                  <img
+                    src={coverPreviewUrl}
+                    alt={reviewCopy.selectedArticleCover}
+                    className="aspect-[5/2] w-full rounded-lg object-cover"
+                    style={{ objectPosition: `${focal.x * 100}% ${focal.y * 100}%` }}
+                  />
+                ) : null}
+                <div className="prose prose-sm max-w-none dark:prose-invert">
+                  <ReactMarkdown>{previewArticleMarkdown}</ReactMarkdown>
+                </div>
+              </>
+            ) : (
+              <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                {postText || reviewCopy.mediaOnlyPost}
+              </p>
+            )}
             {previewSlides.length ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{previewSlides.map((slide) => <img key={slide.id} src={buildArticleSlideAssetUrl(deck.id, slide.imageUrl!)} alt={slide.title} className="aspect-square w-full rounded-lg object-cover" />)}</div> : null}
           </section>
         ) : null}
@@ -712,7 +805,7 @@ export function PublicationExportDialog({
             {kind === 'post' ? (
               <>
                 {posts.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5" aria-label="Generated posts">
+                  <div className="flex flex-wrap gap-1.5" aria-label={xCopy.generatedPosts}>
                     {posts.map((post, index) => (
                       <Button
                         key={`${index}-${post.slice(0, 24)}`}
@@ -720,16 +813,16 @@ export function PublicationExportDialog({
                         size="sm"
                         variant={postText === post ? 'default' : 'outline'}
                         className="h-8 rounded-lg text-xs"
-                        aria-label={`Use post ${index + 1}`}
+                        aria-label={xCopy.usePost(index + 1)}
                         onClick={() => setPostText(post)}
                       >
-                        Post {index + 1}
+                        {xCopy.post(index + 1)}
                       </Button>
                     ))}
                   </div>
                 ) : (
                   <p className="border border-dotted border-border px-3 py-2 text-xs text-muted-foreground">
-                    No generated caption is available yet. Write the post below.
+                    {xCopy.noGeneratedPost}
                   </p>
                 )}
                 <div className="space-y-2">
@@ -744,7 +837,10 @@ export function PublicationExportDialog({
                     className="min-h-48 resize-y font-sans text-sm leading-relaxed"
                   />
                   <p className="text-xs text-muted-foreground">
-                    {postCharacterCount.toLocaleString()}/{postMaxCharacters.toLocaleString()} characters
+                    {reviewCopy.characterCount(
+                      numberFormatter.format(postCharacterCount),
+                      numberFormatter.format(postMaxCharacters),
+                    )}
                   </p>
                 </div>
               </>
@@ -752,33 +848,39 @@ export function PublicationExportDialog({
               <>
                 <div className="space-y-2">
                   <label htmlFor={`${platform}-article-title`} className="text-sm font-medium">
-                    Article title
+                    {binanceCopy.articleTitle}
                   </label>
                   <Input
                     id={`${platform}-article-title`}
-                    aria-label="Article title"
+                    aria-label={binanceCopy.articleTitle}
                     value={articleTitle}
                     onChange={(event) => setArticleTitle(event.target.value)}
                     maxLength={BINANCE_TITLE_MAX_CHARACTERS}
                   />
                   <p className="text-xs text-muted-foreground">
-                    {articleTitle.length.toLocaleString()}/{BINANCE_TITLE_MAX_CHARACTERS.toLocaleString()} characters
+                    {reviewCopy.characterCount(
+                      numberFormatter.format(articleTitle.length),
+                      numberFormatter.format(BINANCE_TITLE_MAX_CHARACTERS),
+                    )}
                   </p>
                 </div>
                 <div className="space-y-2">
                   <label htmlFor={`${platform}-article-markdown`} className="text-sm font-medium">
-                    Article Markdown
+                    {binanceCopy.articleMarkdown}
                   </label>
                   <Textarea
                     id={`${platform}-article-markdown`}
-                    aria-label="Article Markdown"
+                    aria-label={binanceCopy.articleMarkdown}
                     value={articleMarkdown}
                     onChange={(event) => setArticleMarkdown(event.target.value)}
                     className="min-h-64 font-mono text-xs sm:min-h-[28rem]"
                     spellCheck={false}
                   />
                   <p className="text-xs text-muted-foreground">
-                    {articleMarkdown.length.toLocaleString()}/{BINANCE_ARTICLE_MAX_CHARACTERS.toLocaleString()} characters
+                    {reviewCopy.characterCount(
+                      numberFormatter.format(articleMarkdown.length),
+                      numberFormatter.format(BINANCE_ARTICLE_MAX_CHARACTERS),
+                    )}
                   </p>
                 </div>
               </>
@@ -828,25 +930,25 @@ export function PublicationExportDialog({
             {kind === 'article' ? (
               <div className="space-y-2 border border-dotted border-border p-3">
                 <p className="flex items-center gap-2 text-sm font-medium">
-                  <MoveDiagonal aria-hidden="true" className="size-4" /> Article cover (optional)
+                  <MoveDiagonal aria-hidden="true" className="size-4" /> {reviewCopy.articleCoverOptional}
                 </p>
                 {coverPreviewUrl ? (
                   <>
                     <label className="flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"
-                        aria-label="Use article cover"
+                        aria-label={reviewCopy.useArticleCover}
                         checked={includeCover}
                         onChange={(event) => setIncludeCover(event.target.checked)}
                       />
-                      Use article cover
+                      {reviewCopy.useArticleCover}
                     </label>
                     <div className="overflow-hidden border bg-muted">
                       <img
                         src={coverPreviewUrl}
                         alt={platform === 'binance'
                           ? binanceCopy.coverPreviewAlt
-                          : 'X article cover preview'}
+                          : reviewCopy.xArticleCoverPreview}
                         className="aspect-[5/2] w-full object-cover"
                         style={{ objectPosition: `${focal.x * 100}% ${focal.y * 100}%` }}
                       />
@@ -854,11 +956,11 @@ export function PublicationExportDialog({
                     {includeCover ? (
                       <>
                         <label className="block text-xs text-muted-foreground" htmlFor={`${platform}-cover-x`}>
-                          Horizontal focus
+                          {binanceCopy.horizontalFocus}
                         </label>
                         <input
                           id={`${platform}-cover-x`}
-                          aria-label="Horizontal focus"
+                          aria-label={binanceCopy.horizontalFocus}
                           type="range"
                           min="0"
                           max="100"
@@ -870,11 +972,11 @@ export function PublicationExportDialog({
                           className="w-full"
                         />
                         <label className="block text-xs text-muted-foreground" htmlFor={`${platform}-cover-y`}>
-                          Vertical focus
+                          {binanceCopy.verticalFocus}
                         </label>
                         <input
                           id={`${platform}-cover-y`}
-                          aria-label="Vertical focus"
+                          aria-label={binanceCopy.verticalFocus}
                           type="range"
                           min="0"
                           max="100"
@@ -890,7 +992,7 @@ export function PublicationExportDialog({
                   </>
                 ) : (
                   <p className="text-xs leading-relaxed text-muted-foreground">
-                    No generated cover is available. A coverless article is supported.
+                    {reviewCopy.noGeneratedCover} {reviewCopy.coverlessSupported}
                   </p>
                 )}
               </div>
@@ -902,12 +1004,15 @@ export function PublicationExportDialog({
                   <ImageIcon aria-hidden="true" className="size-4" /> {imagesTitle}
                 </p>
                 <span className="font-mono text-[0.65rem] text-muted-foreground">
-                  {currentSelectedImages.length}/{currentMaxImages}
+                  {reviewCopy.mediaCount(
+                    numberFormatter.format(currentSelectedImages.length),
+                    numberFormatter.format(currentMaxImages),
+                  )}
                 </span>
               </div>
               {(availableSlides.length > 0 || (kind === 'article' && coverPreviewUrl)) ? (
                 <Button type="button" size="sm" variant="outline" onClick={clearAllMedia}>
-                  Clear all media
+                  {reviewCopy.clearAllMedia}
                 </Button>
               ) : null}
               {availableSlides.length > 0 ? (
@@ -922,7 +1027,7 @@ export function PublicationExportDialog({
                       >
                         <input
                           type="checkbox"
-                          aria-label={`Use ${slide.title} image`}
+                          aria-label={xCopy.useImage(slide.title)}
                           checked={selected}
                           disabled={!selected && selectionFull}
                           onChange={() => toggleImage(slide.id)}
@@ -935,7 +1040,7 @@ export function PublicationExportDialog({
                 </div>
               ) : (
                 <p className="border border-dotted border-border px-3 py-3 text-xs leading-relaxed text-muted-foreground">
-                  No generated slide images are available. Media is optional.
+                  {kind === 'post' ? xCopy.noImages : reviewCopy.mediaOptional}
                 </p>
               )}
             </div>
@@ -947,7 +1052,8 @@ export function PublicationExportDialog({
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => void handleSaveDraft()} disabled={issues.errors.length > 0 || isDraftLoading || draftRevision === null || isSavingDraft}>
-            {isSavingDraft ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : null} Save draft
+            {isSavingDraft ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : null}
+            {reviewCopy.saveDraft}
           </Button>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {messages.common.cancel}
@@ -958,7 +1064,7 @@ export function PublicationExportDialog({
             onClick={() => void handleDownload()}
             disabled={!canDownloadFallback || issues.errors.length > 0 || isDownloading}
             title={!canDownloadFallback
-              ? 'Fallback ZIP is not available for this format; use the local companion.'
+              ? reviewCopy.fallbackUnavailable
               : undefined}
           >
             {isDownloading ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : <Download aria-hidden="true" className="size-4" />}

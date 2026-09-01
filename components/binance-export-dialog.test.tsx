@@ -12,8 +12,16 @@ function EnglishLanguageProvider({ children }: React.PropsWithChildren) {
   return <LanguageProvider initialLanguage="en">{children}</LanguageProvider>;
 }
 
+function KhmerLanguageProvider({ children }: React.PropsWithChildren) {
+  return <LanguageProvider initialLanguage="km">{children}</LanguageProvider>;
+}
+
 function renderInEnglish(ui: React.ReactElement) {
   return render(ui, { wrapper: EnglishLanguageProvider });
+}
+
+function renderInKhmer(ui: React.ReactElement) {
+  return render(ui, { wrapper: KhmerLanguageProvider });
 }
 
 type PublicationKind = 'post' | 'article';
@@ -157,6 +165,19 @@ describe('BinanceExportDialog', () => {
     expect(screen.queryByText('Generate the dedicated 5:2 article cover before preparing Binance.')).toBeNull();
     expect(screen.getByText(/Slide 2 has no generated image/)).toBeTruthy();
     expect(screen.getByText(/Slide 2 uses slide content because its blog section is missing/)).toBeTruthy();
+  });
+
+  it('localizes the review controls without translating authored article content', () => {
+    renderInKhmer(<BinanceExportDialog open onOpenChange={() => undefined} deck={deck} />);
+
+    expect(screen.getByRole('heading', { name: 'នាំចេញទៅ Binance Square' })).toBeTruthy();
+    expect(screen.getByRole('tablist', { name: 'ទម្រង់បោះពុម្ព' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'អត្ថបទ' })).toBeTruthy();
+    expect(screen.getByRole('tablist', { name: 'ទិដ្ឋភាពពិនិត្យបោះពុម្ព' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'កែសេចក្ដីព្រាង' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'រក្សាទុកសេចក្ដីព្រាង' })).toBeTruthy();
+    expect((screen.getByLabelText('ចំណងជើងអត្ថបទ') as HTMLInputElement).value)
+      .toBe('Binance-ready title');
   });
 
   it('updates validation as the user edits the title and Markdown', () => {

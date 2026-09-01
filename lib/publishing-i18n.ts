@@ -1,3 +1,201 @@
+type PublishingLocale = 'en' | 'km' | 'id' | 'lo' | 'my' | 'th' | 'fil';
+
+type PublicationReviewMessages = {
+  destinationLabel: string;
+  formatLabel: string;
+  reviewViewLabel: string;
+  binanceSquare: string;
+  post: string;
+  article: string;
+  editDraft: string;
+  previewPost: string;
+  xArticleDialogTitle: string;
+  articleDialogDescription: string;
+  binancePostText: string;
+  addImagesOptional: string;
+  articleMediaOptional: string;
+  destinationFormat: (destination: string, format: string) => string;
+  draftPreviewDescription: string;
+  characterCount: (count: string, max: string) => string;
+  mediaCount: (count: string, max: string) => string;
+  untitledArticle: string;
+  selectedArticleCover: string;
+  mediaOnlyPost: string;
+  articleCoverOptional: string;
+  useArticleCover: string;
+  xArticleCoverPreview: string;
+  noGeneratedCover: string;
+  coverlessSupported: string;
+  clearAllMedia: string;
+  mediaOptional: string;
+  saveDraft: string;
+  fallbackUnavailable: string;
+  binancePostContentRequired: string;
+  binancePostTextTooLong: (max: string) => string;
+  binancePostMaxImages: (max: string) => string;
+  xArticleTitleRequired: string;
+  xArticleTitleTooLong: (max: string) => string;
+  xArticleMarkdownRequired: string;
+  xArticleMarkdownTooLong: string;
+};
+
+const publicationReview: Record<PublishingLocale, PublicationReviewMessages> = {
+  en: {
+    destinationLabel: 'Publishing destination', formatLabel: 'Publication format', reviewViewLabel: 'Publication review view',
+    binanceSquare: 'Binance Square', post: 'Post', article: 'Article', editDraft: 'Edit draft', previewPost: 'Preview post',
+    xArticleDialogTitle: 'Prepare X Article',
+    articleDialogDescription: 'Edit the title and Markdown, then optionally include a cover and body images. The local companion waits for review and explicit approval before publishing.',
+    binancePostText: 'Binance post text', addImagesOptional: 'Add images (optional)', articleMediaOptional: 'Article media (optional)',
+    destinationFormat: (destination, format) => `${destination} ${format}`,
+    draftPreviewDescription: 'Draft preview of the exact content and media sent for final Chrome review.',
+    characterCount: (count, max) => `${count}/${max} characters`, mediaCount: (count, max) => `${count}/${max} media`,
+    untitledArticle: 'Untitled article', selectedArticleCover: 'Selected article cover', mediaOnlyPost: 'Media-only post',
+    articleCoverOptional: 'Article cover (optional)', useArticleCover: 'Use article cover', xArticleCoverPreview: 'X article cover preview',
+    noGeneratedCover: 'No generated cover is available.', coverlessSupported: 'A coverless article is supported.',
+    clearAllMedia: 'Clear all media', mediaOptional: 'No generated slide images are available. Media is optional.', saveDraft: 'Save draft',
+    fallbackUnavailable: 'Fallback ZIP is not available for this format; use the local companion.',
+    binancePostContentRequired: 'Add post text or select at least one image.',
+    binancePostTextTooLong: (max) => `Binance post text must be ${max} characters or fewer.`,
+    binancePostMaxImages: (max) => `Binance posts support at most ${max} images.`,
+    xArticleTitleRequired: 'An X article title is required.',
+    xArticleTitleTooLong: (max) => `The X article title must be ${max} characters or fewer.`,
+    xArticleMarkdownRequired: 'X article Markdown cannot be empty.',
+    xArticleMarkdownTooLong: 'X article Markdown exceeds the supported character limit.',
+  },
+  km: {
+    destinationLabel: 'គោលដៅបោះពុម្ព', formatLabel: 'ទម្រង់បោះពុម្ព', reviewViewLabel: 'ទិដ្ឋភាពពិនិត្យបោះពុម្ព',
+    binanceSquare: 'Binance Square', post: 'ប្រកាស', article: 'អត្ថបទ', editDraft: 'កែសេចក្ដីព្រាង', previewPost: 'មើលប្រកាសជាមុន',
+    xArticleDialogTitle: 'រៀបចំអត្ថបទ X',
+    articleDialogDescription: 'កែចំណងជើង និង Markdown រួចជ្រើសរើសដាក់គម្រប និងរូបភាពក្នុងខ្លឹមសារ។ កម្មវិធីជំនួយក្នុងម៉ាស៊ីនរង់ចាំការពិនិត្យ និងការអនុម័តច្បាស់លាស់មុនបោះពុម្ព។',
+    binancePostText: 'អត្ថបទប្រកាស Binance', addImagesOptional: 'បន្ថែមរូបភាព (ជម្រើស)', articleMediaOptional: 'មេឌាអត្ថបទ (ជម្រើស)',
+    destinationFormat: (destination, format) => `${destination} ${format}`,
+    draftPreviewDescription: 'មើលជាមុននូវខ្លឹមសារ និងមេឌាពិតប្រាកដដែលនឹងផ្ញើទៅពិនិត្យចុងក្រោយក្នុង Chrome។',
+    characterCount: (count, max) => `${count}/${max} តួអក្សរ`, mediaCount: (count, max) => `${count}/${max} មេឌា`,
+    untitledArticle: 'អត្ថបទគ្មានចំណងជើង', selectedArticleCover: 'គម្របអត្ថបទដែលបានជ្រើស', mediaOnlyPost: 'ប្រកាសមានតែរូបភាព',
+    articleCoverOptional: 'គម្របអត្ថបទ (ជម្រើស)', useArticleCover: 'ប្រើគម្របអត្ថបទ', xArticleCoverPreview: 'មើលគម្របអត្ថបទ X ជាមុន',
+    noGeneratedCover: 'មិនមានគម្របដែលបានបង្កើតទេ។', coverlessSupported: 'អត្ថបទគ្មានគម្របត្រូវបានគាំទ្រ។',
+    clearAllMedia: 'លុបមេឌាទាំងអស់', mediaOptional: 'មិនមានរូបភាពស្លាយដែលបានបង្កើតទេ។ មេឌាគឺជាជម្រើស។', saveDraft: 'រក្សាទុកសេចក្ដីព្រាង',
+    fallbackUnavailable: 'ZIP បម្រុងមិនមានសម្រាប់ទម្រង់នេះទេ។ សូមប្រើកម្មវិធីជំនួយក្នុងម៉ាស៊ីន។',
+    binancePostContentRequired: 'បន្ថែមអត្ថបទប្រកាស ឬជ្រើសរើសរូបភាពយ៉ាងហោចណាស់មួយ។',
+    binancePostTextTooLong: (max) => `អត្ថបទប្រកាស Binance ត្រូវមាន ${max} តួអក្សរ ឬតិចជាងនេះ។`,
+    binancePostMaxImages: (max) => `ប្រកាស Binance គាំទ្ររូបភាពអតិបរមា ${max}។`,
+    xArticleTitleRequired: 'ត្រូវការចំណងជើងអត្ថបទ X។',
+    xArticleTitleTooLong: (max) => `ចំណងជើងអត្ថបទ X ត្រូវមាន ${max} តួអក្សរ ឬតិចជាងនេះ។`,
+    xArticleMarkdownRequired: 'Markdown អត្ថបទ X មិនអាចទទេបានទេ។',
+    xArticleMarkdownTooLong: 'Markdown អត្ថបទ X លើសដែនកំណត់តួអក្សរដែលគាំទ្រ។',
+  },
+  id: {
+    destinationLabel: 'Tujuan publikasi', formatLabel: 'Format publikasi', reviewViewLabel: 'Tampilan peninjauan publikasi',
+    binanceSquare: 'Binance Square', post: 'Posting', article: 'Artikel', editDraft: 'Edit draf', previewPost: 'Pratinjau posting',
+    xArticleDialogTitle: 'Siapkan Artikel X',
+    articleDialogDescription: 'Edit judul dan Markdown, lalu tambahkan sampul dan gambar isi bila perlu. Pendamping lokal menunggu peninjauan dan persetujuan eksplisit sebelum menerbitkan.',
+    binancePostText: 'Teks posting Binance', addImagesOptional: 'Tambahkan gambar (opsional)', articleMediaOptional: 'Media artikel (opsional)',
+    destinationFormat: (destination, format) => `${destination} ${format}`,
+    draftPreviewDescription: 'Pratinjau draf dari konten dan media tepat yang dikirim untuk peninjauan akhir di Chrome.',
+    characterCount: (count, max) => `${count}/${max} karakter`, mediaCount: (count, max) => `${count}/${max} media`,
+    untitledArticle: 'Artikel tanpa judul', selectedArticleCover: 'Sampul artikel terpilih', mediaOnlyPost: 'Posting hanya media',
+    articleCoverOptional: 'Sampul artikel (opsional)', useArticleCover: 'Gunakan sampul artikel', xArticleCoverPreview: 'Pratinjau sampul artikel X',
+    noGeneratedCover: 'Tidak ada sampul yang dibuat.', coverlessSupported: 'Artikel tanpa sampul didukung.',
+    clearAllMedia: 'Hapus semua media', mediaOptional: 'Tidak ada gambar slide yang dibuat. Media bersifat opsional.', saveDraft: 'Simpan draf',
+    fallbackUnavailable: 'ZIP cadangan tidak tersedia untuk format ini; gunakan pendamping lokal.',
+    binancePostContentRequired: 'Tambahkan teks posting atau pilih setidaknya satu gambar.',
+    binancePostTextTooLong: (max) => `Teks posting Binance harus ${max} karakter atau kurang.`,
+    binancePostMaxImages: (max) => `Posting Binance mendukung paling banyak ${max} gambar.`,
+    xArticleTitleRequired: 'Judul artikel X wajib diisi.',
+    xArticleTitleTooLong: (max) => `Judul artikel X harus ${max} karakter atau kurang.`,
+    xArticleMarkdownRequired: 'Markdown artikel X tidak boleh kosong.',
+    xArticleMarkdownTooLong: 'Markdown artikel X melampaui batas karakter yang didukung.',
+  },
+  lo: {
+    destinationLabel: 'ປາຍທາງການເຜີຍແຜ່', formatLabel: 'ຮູບແບບການເຜີຍແຜ່', reviewViewLabel: 'ມຸມມອງກວດການເຜີຍແຜ່',
+    binanceSquare: 'Binance Square', post: 'ໂພສ', article: 'ບົດຄວາມ', editDraft: 'ແກ້ໄຂຮ່າງ', previewPost: 'ເບິ່ງໂພສລ່ວງໜ້າ',
+    xArticleDialogTitle: 'ກະກຽມບົດຄວາມ X',
+    articleDialogDescription: 'ແກ້ໄຂຫົວຂໍ້ ແລະ Markdown, ແລ້ວເພີ່ມຮູບປົກ ແລະ ຮູບໃນເນື້ອຫາຕາມຕ້ອງການ. ໂປຣແກຣມຊ່ວຍໃນເຄື່ອງຈະລໍຖ້າການກວດ ແລະ ອະນຸມັດຊັດເຈນກ່ອນເຜີຍແຜ່.',
+    binancePostText: 'ຂໍ້ຄວາມໂພສ Binance', addImagesOptional: 'ເພີ່ມຮູບ (ຕົວເລືອກ)', articleMediaOptional: 'ສື່ບົດຄວາມ (ຕົວເລືອກ)',
+    destinationFormat: (destination, format) => `${destination} ${format}`,
+    draftPreviewDescription: 'ຕົວຢ່າງຮ່າງຂອງເນື້ອຫາ ແລະ ສື່ທີ່ຈະສົ່ງໄປກວດຄັ້ງສຸດທ້າຍໃນ Chrome.',
+    characterCount: (count, max) => `${count}/${max} ຕົວອັກສອນ`, mediaCount: (count, max) => `${count}/${max} ສື່`,
+    untitledArticle: 'ບົດຄວາມບໍ່ມີຫົວຂໍ້', selectedArticleCover: 'ຮູບປົກບົດຄວາມທີ່ເລືອກ', mediaOnlyPost: 'ໂພສມີແຕ່ສື່',
+    articleCoverOptional: 'ຮູບປົກບົດຄວາມ (ຕົວເລືອກ)', useArticleCover: 'ໃຊ້ຮູບປົກບົດຄວາມ', xArticleCoverPreview: 'ຕົວຢ່າງຮູບປົກບົດຄວາມ X',
+    noGeneratedCover: 'ບໍ່ມີຮູບປົກທີ່ສ້າງ.', coverlessSupported: 'ຮອງຮັບບົດຄວາມບໍ່ມີຮູບປົກ.',
+    clearAllMedia: 'ລ້າງສື່ທັງໝົດ', mediaOptional: 'ບໍ່ມີຮູບສະໄລດ໌ທີ່ສ້າງ. ສື່ເປັນຕົວເລືອກ.', saveDraft: 'ບັນທຶກຮ່າງ',
+    fallbackUnavailable: 'ZIP ສຳຮອງບໍ່ມີສຳລັບຮູບແບບນີ້; ໃຊ້ໂປຣແກຣມຊ່ວຍໃນເຄື່ອງ.',
+    binancePostContentRequired: 'ເພີ່ມຂໍ້ຄວາມໂພສ ຫຼື ເລືອກຢ່າງໜ້ອຍໜຶ່ງຮູບ.',
+    binancePostTextTooLong: (max) => `ຂໍ້ຄວາມໂພສ Binance ຕ້ອງມີ ${max} ຕົວອັກສອນ ຫຼື ໜ້ອຍກວ່າ.`,
+    binancePostMaxImages: (max) => `ໂພສ Binance ຮອງຮັບສູງສຸດ ${max} ຮູບ.`,
+    xArticleTitleRequired: 'ຕ້ອງມີຫົວຂໍ້ບົດຄວາມ X.',
+    xArticleTitleTooLong: (max) => `ຫົວຂໍ້ບົດຄວາມ X ຕ້ອງມີ ${max} ຕົວອັກສອນ ຫຼື ໜ້ອຍກວ່າ.`,
+    xArticleMarkdownRequired: 'Markdown ບົດຄວາມ X ຫ້າມຫວ່າງ.',
+    xArticleMarkdownTooLong: 'Markdown ບົດຄວາມ X ເກີນຂີດຈຳກັດຕົວອັກສອນທີ່ຮອງຮັບ.',
+  },
+  my: {
+    destinationLabel: 'ထုတ်ဝေရန်နေရာ', formatLabel: 'ထုတ်ဝေမှုပုံစံ', reviewViewLabel: 'ထုတ်ဝေမှုစစ်ဆေးမြင်ကွင်း',
+    binanceSquare: 'Binance Square', post: 'ပို့စ်', article: 'ဆောင်းပါး', editDraft: 'မူကြမ်းပြင်ရန်', previewPost: 'ပို့စ်အကြိုကြည့်ရန်',
+    xArticleDialogTitle: 'X ဆောင်းပါး ပြင်ဆင်ရန်',
+    articleDialogDescription: 'ခေါင်းစဉ်နှင့် Markdown ကိုပြင်ပြီး မျက်နှာဖုံးနှင့် အကြောင်းအရာပုံများကို လိုအပ်သလို ထည့်နိုင်သည်။ စက်တွင်း companion သည် စစ်ဆေးမှုနှင့် ရှင်းလင်းသောအတည်ပြုချက်ကို ထုတ်ဝေမီ စောင့်နေမည်။',
+    binancePostText: 'Binance ပို့စ်စာသား', addImagesOptional: 'ပုံထည့်ရန် (ရွေးချယ်နိုင်)', articleMediaOptional: 'ဆောင်းပါးမီဒီယာ (ရွေးချယ်နိုင်)',
+    destinationFormat: (destination, format) => `${destination} ${format}`,
+    draftPreviewDescription: 'Chrome တွင် နောက်ဆုံးစစ်ဆေးရန် ပို့မည့် အကြောင်းအရာနှင့် မီဒီယာအစစ်ကို မူကြမ်းအကြိုမြင်ထားသည်။',
+    characterCount: (count, max) => `${count}/${max} အက္ခရာ`, mediaCount: (count, max) => `${count}/${max} မီဒီယာ`,
+    untitledArticle: 'ခေါင်းစဉ်မရှိသော ဆောင်းပါး', selectedArticleCover: 'ရွေးချယ်ထားသော ဆောင်းပါးမျက်နှာဖုံး', mediaOnlyPost: 'မီဒီယာသာ ပါသောပို့စ်',
+    articleCoverOptional: 'ဆောင်းပါးမျက်နှာဖုံး (ရွေးချယ်နိုင်)', useArticleCover: 'ဆောင်းပါးမျက်နှာဖုံး သုံးမည်', xArticleCoverPreview: 'X ဆောင်းပါးမျက်နှာဖုံး အကြိုကြည့်ရန်',
+    noGeneratedCover: 'ဖန်တီးထားသော မျက်နှာဖုံးမရှိပါ။', coverlessSupported: 'မျက်နှာဖုံးမပါသော ဆောင်းပါးကို အသုံးပြုနိုင်သည်။',
+    clearAllMedia: 'မီဒီယာအားလုံး ရှင်းရန်', mediaOptional: 'ဖန်တီးထားသော ဆလိုက်ပုံမရှိပါ။ မီဒီယာသည် ရွေးချယ်နိုင်သည်။', saveDraft: 'မူကြမ်းသိမ်းရန်',
+    fallbackUnavailable: 'ဤပုံစံအတွက် အရန် ZIP မရနိုင်ပါ; စက်တွင်း companion ကိုသုံးပါ။',
+    binancePostContentRequired: 'ပို့စ်စာသားထည့်ပါ သို့မဟုတ် အနည်းဆုံး ပုံတစ်ပုံရွေးပါ။',
+    binancePostTextTooLong: (max) => `Binance ပို့စ်စာသားသည် ${max} အက္ခရာထက် မပိုရပါ။`,
+    binancePostMaxImages: (max) => `Binance ပို့စ်များတွင် အများဆုံး ပုံ ${max} ပုံ ထည့်နိုင်သည်။`,
+    xArticleTitleRequired: 'X ဆောင်းပါးခေါင်းစဉ် လိုအပ်သည်။',
+    xArticleTitleTooLong: (max) => `X ဆောင်းပါးခေါင်းစဉ်သည် ${max} အက္ခရာထက် မပိုရပါ။`,
+    xArticleMarkdownRequired: 'X ဆောင်းပါး Markdown ကို ဗလာမထားနိုင်ပါ။',
+    xArticleMarkdownTooLong: 'X ဆောင်းပါး Markdown သည် ပံ့ပိုးထားသော အက္ခရာကန့်သတ်ချက်ကို ကျော်လွန်နေသည်။',
+  },
+  th: {
+    destinationLabel: 'ปลายทางการเผยแพร่', formatLabel: 'รูปแบบการเผยแพร่', reviewViewLabel: 'มุมมองตรวจทานการเผยแพร่',
+    binanceSquare: 'Binance Square', post: 'โพสต์', article: 'บทความ', editDraft: 'แก้ไขฉบับร่าง', previewPost: 'ดูตัวอย่างโพสต์',
+    xArticleDialogTitle: 'เตรียมบทความ X',
+    articleDialogDescription: 'แก้ไขชื่อและ Markdown จากนั้นเลือกใส่ภาพปกและรูปภาพในเนื้อหาได้ โปรแกรมคู่หูในเครื่องจะรอการตรวจทานและการอนุมัติอย่างชัดเจนก่อนเผยแพร่',
+    binancePostText: 'ข้อความโพสต์ Binance', addImagesOptional: 'เพิ่มรูปภาพ (ไม่บังคับ)', articleMediaOptional: 'สื่อในบทความ (ไม่บังคับ)',
+    destinationFormat: (destination, format) => `${destination} ${format}`,
+    draftPreviewDescription: 'ตัวอย่างฉบับร่างของเนื้อหาและสื่อที่จะส่งไปตรวจทานขั้นสุดท้ายใน Chrome',
+    characterCount: (count, max) => `${count}/${max} อักขระ`, mediaCount: (count, max) => `${count}/${max} สื่อ`,
+    untitledArticle: 'บทความไม่มีชื่อ', selectedArticleCover: 'ภาพปกบทความที่เลือก', mediaOnlyPost: 'โพสต์ที่มีเฉพาะสื่อ',
+    articleCoverOptional: 'ภาพปกบทความ (ไม่บังคับ)', useArticleCover: 'ใช้ภาพปกบทความ', xArticleCoverPreview: 'ตัวอย่างภาพปกบทความ X',
+    noGeneratedCover: 'ไม่มีภาพปกที่สร้างไว้', coverlessSupported: 'รองรับบทความที่ไม่มีภาพปก',
+    clearAllMedia: 'ล้างสื่อทั้งหมด', mediaOptional: 'ไม่มีภาพสไลด์ที่สร้างไว้ สื่อเป็นตัวเลือก', saveDraft: 'บันทึกฉบับร่าง',
+    fallbackUnavailable: 'ไม่มี ZIP สำรองสำหรับรูปแบบนี้ ให้ใช้โปรแกรมคู่หูในเครื่อง',
+    binancePostContentRequired: 'เพิ่มข้อความโพสต์หรือเลือกรูปภาพอย่างน้อยหนึ่งรูป',
+    binancePostTextTooLong: (max) => `ข้อความโพสต์ Binance ต้องมีไม่เกิน ${max} อักขระ`,
+    binancePostMaxImages: (max) => `โพสต์ Binance รองรับรูปภาพได้สูงสุด ${max} รูป`,
+    xArticleTitleRequired: 'ต้องระบุชื่อบทความ X',
+    xArticleTitleTooLong: (max) => `ชื่อบทความ X ต้องมีไม่เกิน ${max} อักขระ`,
+    xArticleMarkdownRequired: 'Markdown ของบทความ X ต้องไม่ว่างเปล่า',
+    xArticleMarkdownTooLong: 'Markdown ของบทความ X เกินขีดจำกัดอักขระที่รองรับ',
+  },
+  fil: {
+    destinationLabel: 'Destinasyon ng pag-publish', formatLabel: 'Format ng pag-publish', reviewViewLabel: 'View ng pagsusuri sa pag-publish',
+    binanceSquare: 'Binance Square', post: 'Post', article: 'Artikulo', editDraft: 'I-edit ang draft', previewPost: 'I-preview ang post',
+    xArticleDialogTitle: 'Ihanda ang Artikulo sa X',
+    articleDialogDescription: 'I-edit ang pamagat at Markdown, pagkatapos ay magdagdag ng cover at mga larawan sa katawan kung gusto. Hihintayin ng lokal na companion ang pagsusuri at tahasang pag-apruba bago mag-publish.',
+    binancePostText: 'Teksto ng post sa Binance', addImagesOptional: 'Magdagdag ng larawan (opsyonal)', articleMediaOptional: 'Media ng artikulo (opsyonal)',
+    destinationFormat: (destination, format) => `${destination} ${format}`,
+    draftPreviewDescription: 'Preview ng eksaktong nilalaman at media na ipapadala para sa huling pagsusuri sa Chrome.',
+    characterCount: (count, max) => `${count}/${max} character`, mediaCount: (count, max) => `${count}/${max} media`,
+    untitledArticle: 'Artikulong walang pamagat', selectedArticleCover: 'Napiling cover ng artikulo', mediaOnlyPost: 'Post na media lamang',
+    articleCoverOptional: 'Cover ng artikulo (opsyonal)', useArticleCover: 'Gamitin ang cover ng artikulo', xArticleCoverPreview: 'Preview ng cover ng artikulo sa X',
+    noGeneratedCover: 'Walang nabuong cover.', coverlessSupported: 'Sinusuportahan ang artikulong walang cover.',
+    clearAllMedia: 'Alisin lahat ng media', mediaOptional: 'Walang available na nabuong larawan ng slide. Opsyonal ang media.', saveDraft: 'I-save ang draft',
+    fallbackUnavailable: 'Walang fallback ZIP para sa format na ito; gamitin ang lokal na companion.',
+    binancePostContentRequired: 'Magdagdag ng teksto ng post o pumili ng kahit isang larawan.',
+    binancePostTextTooLong: (max) => `Dapat ${max} character o mas kaunti ang teksto ng post sa Binance.`,
+    binancePostMaxImages: (max) => `Hanggang ${max} larawan ang sinusuportahan ng mga post sa Binance.`,
+    xArticleTitleRequired: 'Kailangan ang pamagat ng artikulo sa X.',
+    xArticleTitleTooLong: (max) => `Dapat ${max} character o mas kaunti ang pamagat ng artikulo sa X.`,
+    xArticleMarkdownRequired: 'Hindi maaaring walang laman ang Markdown ng artikulo sa X.',
+    xArticleMarkdownTooLong: 'Lumampas ang Markdown ng artikulo sa X sa suportadong limitasyon ng character.',
+  },
+};
+
 const en = {
   cover: {
     ready: 'Ready',
@@ -47,6 +245,7 @@ const en = {
     editorViews: 'Article editor views',
     jobStatusFailed: 'Failed to fetch job status.',
     jobTimedOut: 'Timed out while waiting for the background job to finish.',
+    reviewAndPublish: 'Review & publish',
   },
   binance: {
     dialogTitle: 'Export to Binance Square',
@@ -122,6 +321,7 @@ const en = {
     maxImages: (max: number) => `X posts support at most ${max} images.`,
     textTooLong: (max: number) => `X post text must be ${max.toLocaleString()} characters or fewer.`,
   },
+  review: publicationReview.en,
 } as const;
 
 type WidenPublishingMessages<T> = T extends string
@@ -167,6 +367,7 @@ const km: PublishingMessages = {
     editorViews: 'ទិដ្ឋភាពកម្មវិធីកែអត្ថបទ',
     jobStatusFailed: 'មិនអាចទាញយកស្ថានភាពការងារបានទេ។',
     jobTimedOut: 'អស់ពេលរង់ចាំការងារផ្ទៃខាងក្រោយបញ្ចប់។',
+    reviewAndPublish: 'ពិនិត្យ និងបោះពុម្ព',
   },
   binance: {
     dialogTitle: 'នាំចេញទៅ Binance Square',
@@ -207,6 +408,7 @@ const km: PublishingMessages = {
     contentRequired: 'បន្ថែមអត្ថបទប្រកាស ឬជ្រើសរូបភាពយ៉ាងហោចណាស់មួយ។', maxImages: (max) => `ប្រកាស X គាំទ្ររូបភាពអតិបរមា ${max}។`,
     textTooLong: (max) => `អត្ថបទប្រកាស X ត្រូវមាន ${max.toLocaleString()} តួអក្សរ ឬតិចជាងនេះ។`,
   },
+  review: publicationReview.km,
 };
 
 const id: PublishingMessages = {
@@ -239,6 +441,7 @@ const id: PublishingMessages = {
     editorViews: 'Tampilan editor artikel',
     jobStatusFailed: 'Gagal mengambil status tugas.',
     jobTimedOut: 'Waktu tunggu pekerjaan latar belakang berakhir.',
+    reviewAndPublish: 'Tinjau & terbitkan',
   },
   binance: {
     dialogTitle: 'Ekspor ke Binance Square', dialogDescription: 'Edit draf dan pratinjau sampul 5:2 khusus. Persiapan pendamping langsung adalah jalur utama; ZIP adalah cadangan.',
@@ -271,6 +474,7 @@ const id: PublishingMessages = {
     contentRequired: 'Tambahkan teks posting atau pilih setidaknya satu gambar.', maxImages: (max) => `Posting X mendukung paling banyak ${max} gambar.`,
     textTooLong: (max) => `Teks posting X harus ${max.toLocaleString()} karakter atau kurang.`,
   },
+  review: publicationReview.id,
 };
 
 const lo: PublishingMessages = {
@@ -300,6 +504,7 @@ const lo: PublishingMessages = {
     editorViews: 'ມຸມມອງຕົວແກ້ໄຂບົດຄວາມ',
     jobStatusFailed: 'ດຶງສະຖານະວຽກບໍ່ສຳເລັດ.',
     jobTimedOut: 'ໝົດເວລາລໍຖ້າວຽກເບື້ອງຫຼັງສຳເລັດ.',
+    reviewAndPublish: 'ກວດກາ ແລະ ເຜີຍແຜ່',
   },
   binance: {
     dialogTitle: 'ສົ່ງອອກໄປ Binance Square', dialogDescription: 'ແກ້ໄຂຮ່າງ ແລະ ເບິ່ງຮູບປົກ 5:2 ສະເພາະ. ການກະກຽມດ້ວຍໂປຣແກຣມຊ່ວຍແມ່ນທາງຫຼັກ; ZIP ແມ່ນທາງສຳຮອງ.',
@@ -331,6 +536,7 @@ const lo: PublishingMessages = {
     contentRequired: 'ເພີ່ມຂໍ້ຄວາມໂພສ ຫຼື ເລືອກຢ່າງໜ້ອຍໜຶ່ງຮູບ.', maxImages: (max) => `ໂພສ X ຮອງຮັບສູງສຸດ ${max} ຮູບ.`,
     textTooLong: (max) => `ຂໍ້ຄວາມໂພສ X ຕ້ອງມີ ${max.toLocaleString()} ຕົວອັກສອນ ຫຼື ໜ້ອຍກວ່າ.`,
   },
+  review: publicationReview.lo,
 };
 
 const my: PublishingMessages = {
@@ -381,6 +587,7 @@ const my: PublishingMessages = {
     editorViews: 'ဆောင်းပါးတည်းဖြတ်ကိရိယာ မြင်ကွင်းများ',
     jobStatusFailed: 'လုပ်ငန်းအခြေအနေကို ရယူ၍မရပါ။',
     jobTimedOut: 'နောက်ခံလုပ်ငန်း ပြီးဆုံးရန် စောင့်ဆိုင်းချိန် ကုန်သွားပါပြီ။',
+    reviewAndPublish: 'စစ်ဆေးပြီး ထုတ်ဝေရန်',
   },
   binance: {
     dialogTitle: 'Binance Square သို့ တင်ပို့မည်',
@@ -450,6 +657,7 @@ const my: PublishingMessages = {
     maxImages: (max) => `X ပို့စ်များတွင် အများဆုံး ပုံ ${max} ပုံ ထည့်နိုင်သည်။`,
     textTooLong: (max) => `X ပို့စ်စာသားသည် အက္ခရာ ${max.toLocaleString()} လုံးထက် မပိုရပါ။`,
   },
+  review: publicationReview.my,
 };
 
 const th: PublishingMessages = {
@@ -500,6 +708,7 @@ const th: PublishingMessages = {
     editorViews: 'มุมมองเครื่องมือแก้ไขบทความ',
     jobStatusFailed: 'ดึงสถานะงานไม่สำเร็จ',
     jobTimedOut: 'หมดเวลารอให้งานเบื้องหลังเสร็จสิ้น',
+    reviewAndPublish: 'ตรวจทานและเผยแพร่',
   },
   binance: {
     dialogTitle: 'ส่งออกไปยัง Binance Square',
@@ -569,6 +778,7 @@ const th: PublishingMessages = {
     maxImages: (max) => `โพสต์ X รองรับภาพได้สูงสุด ${max} ภาพ`,
     textTooLong: (max) => `ข้อความโพสต์ X ต้องมีไม่เกิน ${max.toLocaleString()} อักขระ`,
   },
+  review: publicationReview.th,
 };
 
 const fil: PublishingMessages = {
@@ -619,6 +829,7 @@ const fil: PublishingMessages = {
     editorViews: 'Mga view ng editor ng artikulo',
     jobStatusFailed: 'Hindi makuha ang status ng trabaho.',
     jobTimedOut: 'Nag-timeout habang hinihintay matapos ang background job.',
+    reviewAndPublish: 'Suriin at i-publish',
   },
   binance: {
     dialogTitle: 'I-export sa Binance Square',
@@ -688,6 +899,7 @@ const fil: PublishingMessages = {
     maxImages: (max) => `Hanggang ${max} larawan ang sinusuportahan ng mga X post.`,
     textTooLong: (max) => `Dapat ${max.toLocaleString()} character o mas kaunti ang teksto ng X post.`,
   },
+  review: publicationReview.fil,
 };
 
 export const publishingTranslations: Record<

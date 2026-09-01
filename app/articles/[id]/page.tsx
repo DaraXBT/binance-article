@@ -475,11 +475,11 @@ export default function DeckPage({ params }: DeckPageProps) {
               className="gap-2 rounded-lg"
               onClick={() => setShowPublicationReview(true)}
               disabled={slides.length === 0}
-              aria-label="Review and publish"
+              aria-label={publishingCopy.articlePage.reviewAndPublish}
               data-testid="open-publication-review"
             >
               <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Review &amp; publish</span>
+              <span className="hidden sm:inline">{publishingCopy.articlePage.reviewAndPublish}</span>
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
