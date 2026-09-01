@@ -26,6 +26,15 @@ describe('shared chrome translations', () => {
       .not.toBe(formatChromeDate('en', '2026-08-31T00:00:00.000Z', english.t('notAvailable')));
   });
 
+  it('uses Filipino labels for sidebar controls', () => {
+    const filipino = getChromeCopy('fil');
+
+    expect(filipino.t('sidebar')).toBe('Panel sa gilid');
+    expect(filipino.t('openSidebar')).toBe('Buksan ang panel sa gilid');
+    expect(filipino.t('closeSidebar')).toBe('Isara ang panel sa gilid');
+    expect(filipino.t('toggleSidebar')).toBe('Ipakita o itago ang panel sa gilid');
+  });
+
   it('uses safe localized recovery copy instead of raw invitation API errors', () => {
     const copy = getChromeCopy('th');
     const error = Object.assign(new Error('Raw upstream response'), {

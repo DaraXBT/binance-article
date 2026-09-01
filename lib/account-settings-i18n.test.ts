@@ -26,6 +26,21 @@ describe('account settings translations', () => {
       .not.toBe(formatAccountSettingsDate('en', '2026-08-31T00:00:00.000Z', english.t('notYet')));
   });
 
+  it('uses localized Myanmar and Filipino labels while keeping product and command IDs intact', () => {
+    const myanmar = getAccountSettingsCopy('my');
+    const filipino = getAccountSettingsCopy('fil');
+
+    expect(myanmar.t('platformCredits')).toBe('ပလက်ဖောင်း ခရက်ဒစ်များ');
+    expect(myanmar.t('companionCommands')).toBe('တွဲဖက်အက်ပ် အမိန့်များ');
+    expect(myanmar.t('companionCommandsDescription')).toContain('pair');
+
+    expect(filipino.t('account')).toBe('Akawnt');
+    expect(filipino.t('publisherDevice', { name: 'MacBook' })).toBe('Aparato sa pag-publish MacBook');
+    expect(filipino.t('enrollmentCode')).toBe('Code sa pagpapatala');
+    expect(filipino.t('protocol', { version: 2 })).toBe('Protokol v2');
+    expect(filipino.t('browserPublisherDescription')).toContain('Binance Square');
+  });
+
   it('uses localized recovery messages instead of raw API error bodies', () => {
     const copy = getAccountSettingsCopy('th');
     const error = new SettingsApiError('Raw upstream response', {

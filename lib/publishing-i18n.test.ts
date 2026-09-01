@@ -43,6 +43,16 @@ describe('publishing translations', () => {
     expect(messages.review.editDraft).not.toBe(english.review.editDraft);
   });
 
+  it('uses Filipino safe-frame and preview wording without changing product identifiers', () => {
+    const filipino = publishingTranslations.fil;
+
+    expect(filipino.cover.safeFrame).toBe('5:2 ligtas na frame');
+    expect(filipino.cover.previewAlt).toContain('Paunang tingin');
+    expect(filipino.binance.coverPreviewAlt).toBe('Paunang tingin sa nakalaang Binance cover');
+    expect(filipino.review.previewPost).toBe('Tingnan muna ang post');
+    expect(filipino.review.xArticleCoverPreview).toContain('X');
+  });
+
   it.each(languages)('interpolates dynamic publishing copy for %s', (language) => {
     const messages = publishingTranslations[language];
 
