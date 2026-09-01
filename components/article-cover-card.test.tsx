@@ -36,6 +36,10 @@ function renderInEnglish(ui: React.ReactElement) {
   return render(ui, { wrapper: EnglishLanguageProvider });
 }
 
+function ThaiLanguageProvider({ children }: React.PropsWithChildren) {
+  return <LanguageProvider initialLanguage="th">{children}</LanguageProvider>;
+}
+
 describe('ArticleCoverCard', () => {
   afterEach(() => {
     cleanup();
@@ -52,6 +56,19 @@ describe('ArticleCoverCard', () => {
 
     expect(screen.getByRole('heading', { name: 'Article cover' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Generate cover' })).toBeTruthy();
+  });
+
+  it('updates the cover UI from the selected interface language', () => {
+    render(<ArticleCoverCard
+      articleId="article_1"
+      cover={null}
+      isRetrying={false}
+      onRetry={vi.fn()}
+    />, { wrapper: ThaiLanguageProvider });
+
+    expect(screen.getByRole('heading', { name: 'ภาพปกบทความ' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'สร้างภาพปก' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Generate cover' })).toBeNull();
   });
 
   it('previews the centered safe frame and offers regeneration', () => {

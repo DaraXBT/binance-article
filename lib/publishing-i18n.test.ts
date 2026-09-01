@@ -6,6 +6,7 @@ import { publishingTranslations } from './publishing-i18n';
 import { getXPostExportIssues } from './x-export';
 
 const languages = ['en', 'km', 'id', 'lo', 'my', 'th', 'fil'] as const satisfies readonly Language[];
+const translatedLanguages = languages.filter((language) => language !== 'en');
 
 function nestedKeys(value: unknown, prefix = ''): string[] {
   if (value === null || typeof value !== 'object') return [];
@@ -26,6 +27,20 @@ describe('publishing translations', () => {
     for (const language of languages) {
       expect(nestedKeys(publishingTranslations[language]), language).toEqual(englishKeys);
     }
+  });
+
+  it.each(translatedLanguages)('does not silently use English publishing review fallbacks for %s', (language) => {
+    const messages = publishingTranslations[language];
+    const english = publishingTranslations.en;
+
+    // These are ordinary interface labels rather than product names, so an
+    // exact English match here would indicate a catalog fallback leaking into
+    // the selected language.
+    expect(messages.cover.title).not.toBe(english.cover.title);
+    expect(messages.command.failed).not.toBe(english.command.failed);
+    expect(messages.binance.dialogTitle).not.toBe(english.binance.dialogTitle);
+    expect(messages.x.dialogTitle).not.toBe(english.x.dialogTitle);
+    expect(messages.review.editDraft).not.toBe(english.review.editDraft);
   });
 
   it.each(languages)('interpolates dynamic publishing copy for %s', (language) => {
