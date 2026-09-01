@@ -51,4 +51,22 @@ describe('account settings translations', () => {
     expect(accountSettingsErrorMessage(error, copy, 'peopleCouldNotLoad'))
       .toBe(copy.t('peopleCouldNotLoad'));
   });
+
+  it.each([
+    ['GEMINI_CREDENTIAL_INVALID', 'geminiKeyCouldNotVerify'],
+    ['GEMINI_API_KEY_INVALID', 'geminiKeyCouldNotVerify'],
+    ['GEMINI_CONNECTION_UNAVAILABLE', 'geminiServiceUnavailable'],
+    ['WORKSPACE_GEMINI_CONNECTION_INVALID', 'savedGeminiKeyNeedsAttention'],
+    ['AI_CREDENTIAL_STORAGE_UNAVAILABLE', 'geminiStorageUnavailable'],
+    ['AI_CREDENTIAL_NOT_CONFIGURED', 'saveGeminiKeyFirst'],
+    ['AI_CREDENTIAL_CONFLICT', 'geminiConnectionChanged'],
+  ] as const)('maps %s to localized Gemini recovery copy', (code, key) => {
+    const copy = getAccountSettingsCopy('km');
+    const error = new SettingsApiError('private provider detail must stay hidden', {
+      status: 503,
+      code,
+    });
+
+    expect(accountSettingsErrorMessage(error, copy, 'connectionRequestFailed')).toBe(copy.t(key));
+  });
 });

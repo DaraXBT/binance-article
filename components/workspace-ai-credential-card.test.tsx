@@ -18,6 +18,7 @@ vi.mock('@/components/language-provider', () => ({
 vi.mock('@/lib/hooks', () => mocks);
 
 import { WorkspaceAiCredentialCard } from './workspace-ai-credential-card';
+import { SettingsApiError } from '@/lib/settings-api';
 
 function mutation() {
   return {
@@ -130,5 +131,35 @@ describe('WorkspaceAiCredentialCard', () => {
 
     fireEvent.click(within(confirmation).getByRole('button', { name: /delete key/i }));
     await waitFor(() => expect(deleteMutation.mutateAsync).toHaveBeenCalledTimes(1));
+  });
+
+  it('shows the current test result and clears a prior test error before retrying', async () => {
+    const testMutation = mutation();
+    testMutation.mutateAsync
+      .mockRejectedValueOnce(new SettingsApiError('provider detail must stay hidden', {
+        status: 400,
+        code: 'GEMINI_CREDENTIAL_INVALID',
+      }));
+    const staleSaveMutation = {
+      ...mutation(),
+      error: new SettingsApiError('stale save error', { status: 503, code: 'AI_CREDENTIAL_STORAGE_UNAVAILABLE' }),
+    };
+    mocks.useSaveWorkspaceAiCredential.mockReturnValue(staleSaveMutation);
+    mocks.useTestWorkspaceAiCredential.mockReturnValue(testMutation);
+
+    render(<WorkspaceAiCredentialCard workspaceRole="owner" />);
+
+    const testButton = screen.getByRole('button', { name: 'Test connection' });
+    fireEvent.click(testButton);
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain(
+      'couldn’t verify this Gemini key',
+    ));
+
+    fireEvent.click(testButton);
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain(
+      'Gemini connection is working.',
+    ));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(testMutation.mutateAsync).toHaveBeenCalledTimes(2);
   });
 });

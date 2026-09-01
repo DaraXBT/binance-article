@@ -267,7 +267,7 @@ describe('Gemini REST provider boundary', () => {
     });
   });
 
-  it('validates both configured models with bounded GET requests and a header-only key', async () => {
+  it('validates the required text model with a bounded GET request and a header-only key', async () => {
     const apiKey = 'private-api-key-with-enough-length';
     const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (url, request) => (
       jsonResponse({ name: `models/${String(url).split('/').at(-1)}` }, { status: 200 })
@@ -277,12 +277,11 @@ describe('Gemini REST provider boundary', () => {
     await expect(validateGeminiApiKey({
       apiKey: `  ${apiKey}  `,
       textModel: 'gemini-2.5-flash',
-      imageModel: 'gemini-3.1-flash-image-preview',
     })).resolves.toEqual({
-      models: ['gemini-2.5-flash', 'gemini-3.1-flash-image-preview'],
+      models: ['gemini-2.5-flash'],
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     for (const [url, request] of fetchMock.mock.calls) {
       expect(String(url)).toMatch(/\/v1beta\/models\/gemini-/);
       expect(String(url)).not.toContain(apiKey);
@@ -303,7 +302,6 @@ describe('Gemini REST provider boundary', () => {
     await expect(validateGeminiApiKey({
       apiKey,
       textModel: 'gemini-text',
-      imageModel: 'gemini-image',
     })).rejects.toMatchObject({
       code: 'GEMINI_INVALID_REQUEST',
       statusCode: 400,
@@ -325,7 +323,6 @@ describe('Gemini REST provider boundary', () => {
     const caught = await validateGeminiApiKey({
       apiKey,
       textModel: 'gemini-text',
-      imageModel: 'gemini-image',
       maxResponseBytes: 1_024,
     }).then(() => null, (error: unknown) => error);
 
@@ -352,7 +349,6 @@ describe('Gemini REST provider boundary', () => {
     const pending = validateGeminiApiKey({
       apiKey,
       textModel: 'gemini-text',
-      imageModel: 'gemini-image',
       timeoutMs: 25,
     });
     const assertion = expect(pending).rejects.toMatchObject({

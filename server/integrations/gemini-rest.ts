@@ -71,13 +71,12 @@ interface GenerateGeminiContentInput {
 export interface ValidateGeminiApiKeyInput {
   apiKey: string;
   textModel: string;
-  imageModel: string;
   timeoutMs?: number;
   maxResponseBytes?: number;
 }
 
 export interface ValidatedGeminiApiKey {
-  readonly models: readonly [string, string];
+  readonly models: readonly [string];
 }
 
 interface GeminiRestErrorOptions {
@@ -378,16 +377,16 @@ async function validateGeminiModelAccess(input: {
 }
 
 /**
- * Confirms that a transient key can access both operator-configured models.
- * The credential is sent only through Google's API-key header and no provider
- * response body is returned to callers.
+ * Confirms that a transient key can access the required text-generation model.
+ * Image generation is optional, so it validates its configured model only when
+ * the user asks to create images. The credential is sent only through Google's
+ * API-key header and no provider response body is returned to callers.
  */
 export async function validateGeminiApiKey(
   input: ValidateGeminiApiKeyInput,
 ): Promise<ValidatedGeminiApiKey> {
   const apiKey = normalizeApiKeyForValidation(input.apiKey);
   const textModel = normalizeModelForValidation(input.textModel);
-  const imageModel = normalizeModelForValidation(input.imageModel);
   const timeoutMs = positiveInteger(
     input.timeoutMs,
     DEFAULT_VALIDATION_TIMEOUT_MS,
@@ -398,20 +397,14 @@ export async function validateGeminiApiKey(
     DEFAULT_VALIDATION_MAX_RESPONSE_BYTES,
     'Gemini validation response limit',
   );
-  const models = [textModel, imageModel] as const;
+  await validateGeminiModelAccess({
+    apiKey,
+    model: textModel,
+    timeoutMs,
+    maxResponseBytes,
+  });
 
-  // Validate sequentially so a provider failure is deterministic and one
-  // malformed response cannot race another request into an unsanitized error.
-  for (const model of [...new Set(models)]) {
-    await validateGeminiModelAccess({
-      apiKey,
-      model,
-      timeoutMs,
-      maxResponseBytes,
-    });
-  }
-
-  return { models };
+  return { models: [textModel] };
 }
 
 export async function generateGeminiContent(

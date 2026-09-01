@@ -64,6 +64,7 @@ export function WorkspaceAiCredentialCard({
   const apiKeyInputRef = useRef<HTMLInputElement>(null);
   const [hasApiKey, setHasApiKey] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<unknown>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmPending, setDeleteConfirmPending] = useState(false);
   const [deleteConfirmError, setDeleteConfirmError] = useState<string | null>(null);
@@ -164,16 +165,20 @@ export function WorkspaceAiCredentialCard({
     || sourceMutation.isPending
     || deleteMutation.isPending
     || deleteConfirmPending;
-  const error = statusQuery.error
-    || saveMutation.error
-    || testMutation.error
-    || sourceMutation.error
-    || (!deleteConfirmOpen ? deleteMutation.error : null);
   const activeSource: WorkspaceAiCredentialSource = status?.activeSource ?? 'platform';
+
+  const clearActionFeedback = () => {
+    setNotice(null);
+    setActionError(null);
+    saveMutation.reset?.();
+    testMutation.reset?.();
+    sourceMutation.reset?.();
+    deleteMutation.reset?.();
+  };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setNotice(null);
+    clearActionFeedback();
     const value = apiKeyInputRef.current?.value ?? '';
     if (apiKeyInputRef.current) apiKeyInputRef.current.value = '';
     setHasApiKey(false);
@@ -183,44 +188,45 @@ export function WorkspaceAiCredentialCard({
       setNotice(savedStatus.activeSource === 'workspace'
         ? copy.t('keyValidatedReplaced')
         : copy.t('keyValidatedSaved'));
-    } catch {
-      // The mutation exposes a sanitized error below; the key is already cleared.
+    } catch (error) {
+      // Keep the mutation error only for this action; the key is already cleared.
+      setActionError(error);
     }
   };
 
   const changeSource = async (source: WorkspaceAiCredentialSource) => {
     if (source === activeSource || busy) return;
-    setNotice(null);
+    clearActionFeedback();
     try {
       await sourceMutation.mutateAsync(source);
       setNotice(source === 'workspace'
         ? copy.t('keyNowActive')
         : copy.t('creditsNowActive'));
-    } catch {
-      // The mutation exposes a sanitized error below.
+    } catch (error) {
+      setActionError(error);
     }
   };
 
   const testConnection = async () => {
-    setNotice(null);
+    clearActionFeedback();
     try {
       await testMutation.mutateAsync();
       setNotice(copy.t('connectionWorking'));
-    } catch {
-      // The mutation exposes a sanitized error below.
+    } catch (error) {
+      setActionError(error);
     }
   };
 
   const requestDeleteConnection = () => {
     if (busy) return;
-    deleteMutation.reset?.();
+    clearActionFeedback();
     setDeleteConfirmError(null);
     setDeleteConfirmOpen(true);
   };
 
   const deleteConnection = async () => {
     if (deleteConfirmPending) return;
-    setNotice(null);
+    clearActionFeedback();
     setDeleteConfirmError(null);
     setDeleteConfirmPending(true);
     try {
@@ -329,7 +335,7 @@ export function WorkspaceAiCredentialCard({
         </div>
 
         {statusQuery.isLoading ? <p className="text-sm text-muted-foreground">{copy.t('loadingGeminiConnection')}</p> : null}
-        {error ? <p role="alert" className="text-sm text-destructive">{accountSettingsErrorMessage(error, copy, 'connectionRequestFailed')}</p> : null}
+        {actionError ? <p role="alert" className="text-sm text-destructive">{accountSettingsErrorMessage(actionError, copy, 'connectionRequestFailed')}</p> : null}
         {notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
       </CardContent>
 

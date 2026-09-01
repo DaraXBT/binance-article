@@ -12,8 +12,9 @@ operator-controlled.
    settings**.
 2. The user pastes a Gemini API key into the **Gemini connection** card.
    The field is a password input and is cleared immediately after submission.
-3. xArticle checks the key against the configured Gemini text and image models.
-   A key that cannot access either model is not saved.
+3. xArticle checks the key against the configured Gemini text model. A key that
+   cannot generate text is not saved. Images are optional and their model is
+   checked only when the user asks to generate an image.
 4. After a successful save, **Platform credits** remains selected. The user
    explicitly chooses **Your Gemini key** when ready to use it.
 5. **Test connection** rechecks the encrypted key. **Replace** validates and
@@ -64,7 +65,8 @@ versioned AES keyring:
 - `GEMINI_API_KEY`: the platform fallback, still required even when BYOK is
   enabled.
 - `GEMINI_TEXT_MODEL` and `GEMINI_IMAGE_MODEL`: keep these model values
-  identical on both Workers; validation and generation use the same pair.
+  identical on both Workers. Connection validation checks the required text
+  model; optional image actions validate their image model when used.
 
 Generate a keyring value in an approved operator shell. The command output is
 itself sensitive encryption-key material: capture it directly into the approved

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { getImageModel } from '@/lib/image-gen';
 import {
   validateGeminiApiKey,
   GeminiRestError,
@@ -69,20 +68,36 @@ function credentialEnvironment() {
   return process.env as Record<string, string | undefined>;
 }
 
-function providerModels(environment: Record<string, string | undefined>) {
-  const text = environment.GEMINI_TEXT_MODEL?.trim() ||
+function providerTextModel(environment: Record<string, string | undefined>) {
+  return environment.GEMINI_TEXT_MODEL?.trim() ||
     environment.GEMINI_MODEL?.trim() ||
     'gemini-2.5-flash';
-  const image = getImageModel(environment);
-  return { textModel: text, imageModel: image };
 }
 
 function providerValidationError(error: unknown): AppError {
   const status = error instanceof GeminiRestError ? error.statusCode : 502;
+  if (status === 429) {
+    return new AppError({
+      code: 'RATE_LIMITED',
+      message: 'Gemini connection rate limit exceeded. Please try again later.',
+      status: 429,
+      cause: error,
+    });
+  }
+
+  const unavailable = !(error instanceof GeminiRestError)
+    || error.code === 'GEMINI_TIMEOUT'
+    || error.code === 'GEMINI_NETWORK_ERROR'
+    || error.code === 'GEMINI_RESPONSE_TOO_LARGE'
+    || error.code === 'GEMINI_INVALID_RESPONSE'
+    || status >= 500;
+
   return new AppError({
-    code: 'GEMINI_CREDENTIAL_INVALID',
-    message: 'The Gemini key could not be validated. Check the key and enabled Gemini models, then try again.',
-    status: status === 429 ? 429 : status >= 500 ? 503 : 400,
+    code: unavailable ? 'GEMINI_CONNECTION_UNAVAILABLE' : 'GEMINI_CREDENTIAL_INVALID',
+    message: unavailable
+      ? 'Gemini could not be reached. Please try again shortly.'
+      : 'The Gemini connection could not be validated. Check the key and enabled Gemini text model, then try again.',
+    status: unavailable ? 503 : 400,
     cause: error,
   });
 }
@@ -147,11 +162,11 @@ async function keyringFromEnvironment() {
 
 async function validateKey(apiKey: string) {
   const environment = credentialEnvironment();
-  const models = providerModels(environment);
+  const textModel = providerTextModel(environment);
   try {
     await validateGeminiApiKey({
       apiKey,
-      ...models,
+      textModel,
     });
   } catch (error) {
     throw providerValidationError(error);
