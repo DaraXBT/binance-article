@@ -1,8 +1,9 @@
-import type { Metadata } from 'next';
-
 import type { Language } from '@/lib/i18n';
 
-type LocalizedMetadata = Pick<Metadata, 'title' | 'description'>;
+type LocalizedMetadata = {
+  title: string;
+  description: string;
+};
 
 const metadataByLanguage: Record<Language, LocalizedMetadata> = {
   en: {

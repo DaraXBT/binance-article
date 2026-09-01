@@ -140,7 +140,12 @@ test('a saved locale initializes server-rendered public UI and clears legacy pre
 
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('lang', 'km');
+  await expect(page).toHaveTitle('xArticle — ស្ទូឌីយោអត្ថបទ Binance Square');
   await expect(page.getByRole('heading', { name: 'តើអ្នកចង់សរសេរអំពីអ្វី?' })).toBeVisible();
+  await page.getByRole('combobox', { name: 'ស្ទាយ៍' }).click();
+  await expect(
+    page.locator('[data-slot="select-content"]').getByText('Binance គ្រប់យ៉ាងក្នុងមួយ'),
+  ).toBeVisible();
   await expect(page.locator('[data-language-toggle]')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem('xarticle_language')))
     .toBe('km');

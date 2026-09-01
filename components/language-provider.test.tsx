@@ -18,6 +18,25 @@ function Probe() {
   );
 }
 
+function DraftAndDialogProbe() {
+  const { messages, setLanguage } = useLanguage();
+  const [draft, setDraft] = React.useState('');
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+
+  return (
+    <div>
+      <input
+        aria-label="Draft"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+      />
+      <button type="button" onClick={() => setDialogOpen(true)}>Open settings</button>
+      <button type="button" onClick={() => setLanguage('km')}>Switch to Khmer</button>
+      {dialogOpen ? <div role="dialog">{messages.dashboard.settings}</div> : null}
+    </div>
+  );
+}
+
 describe('LanguageProvider', () => {
   afterEach(() => {
     cleanup();
@@ -25,6 +44,7 @@ describe('LanguageProvider', () => {
     document.cookie = 'xarticle_language=; Max-Age=0; path=/';
     document.cookie = 'deckforge_language=; Max-Age=0; path=/';
     document.documentElement.lang = 'en';
+    document.title = '';
   });
 
   it('uses the server-provided locale instead of a stale browser preference', async () => {
@@ -67,6 +87,7 @@ describe('LanguageProvider', () => {
       expect(document.documentElement.lang).toBe('km');
       expect(window.localStorage.getItem('xarticle_language')).toBe('km');
       expect(document.cookie).toContain('xarticle_language=km');
+      expect(document.title).toBe('xArticle — ស្ទូឌីយោអត្ថបទ Binance Square');
     });
 
     unmount();
@@ -89,5 +110,21 @@ describe('LanguageProvider', () => {
 
     expect(screen.getByTestId('language').textContent).toBe('en');
     expect(screen.getByTestId('greeting').textContent).toBe('What do you want to write about?');
+  });
+
+  it('keeps active draft and dialog state when switching language', () => {
+    render(
+      <LanguageProvider initialLanguage="en">
+        <DraftAndDialogProbe />
+      </LanguageProvider>,
+    );
+
+    const draft = screen.getByRole('textbox', { name: 'Draft' }) as HTMLInputElement;
+    fireEvent.change(draft, { target: { value: 'Keep this working draft' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to Khmer' }));
+
+    expect(draft.value).toBe('Keep this working draft');
+    expect(screen.getByRole('dialog').textContent).toBe('ការកំណត់');
   });
 });

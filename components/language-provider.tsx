@@ -18,6 +18,7 @@ import {
   UI_LANGUAGE,
   type Language,
 } from '@/lib/i18n';
+import { metadataForLanguage } from '@/lib/page-metadata';
 
 const STORAGE_KEY = LANGUAGE_COOKIE_NAME;
 const ONE_YEAR_IN_SECONDS = 60 * 60 * 24 * 365;
@@ -55,6 +56,7 @@ function persistLanguage(language: Language) {
   }
 
   document.documentElement.lang = language;
+  document.title = metadataForLanguage(language).title;
 }
 
 export function LanguageProvider({
