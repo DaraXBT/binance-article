@@ -1,6 +1,7 @@
 'use client';
 
-import { EnrollmentCompletion } from '@/components/auth/enrollment-completion';
+import type { ReactNode } from 'react';
+
 import {
   ConsoleHeader,
   SecureConsoleFrame,
@@ -9,11 +10,9 @@ import { useLanguage } from '@/components/language-provider';
 import { ThemeToggle } from '@/components/theme-toggle';
 
 export function EnrollmentCompleteFrame({
-  providerError,
-  returnTo,
+  children,
 }: {
-  providerError?: string | null;
-  returnTo?: string | null;
+  children: ReactNode;
 }) {
   const { messages } = useLanguage();
 
@@ -31,7 +30,7 @@ export function EnrollmentCompleteFrame({
       )}
     >
       <div className="mx-auto w-full max-w-md">
-        <EnrollmentCompletion providerError={providerError} returnTo={returnTo} />
+        {children}
       </div>
     </SecureConsoleFrame>
   );
