@@ -7,6 +7,7 @@ import { useLanguage } from '@/components/language-provider';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { buildArticleSlideAssetUrl } from '@/lib/article-assets';
+import { getChromeCopy } from '@/lib/chrome-i18n';
 import { DeckSlide } from '@/lib/schemas';
 
 interface SlidePreviewProps {
@@ -22,7 +23,8 @@ export function SlidePreview({
   theme = 'default',
   isGenerating = false,
 }: SlidePreviewProps) {
-  const { messages } = useLanguage();
+  const { language, messages } = useLanguage();
+  const chrome = getChromeCopy(language);
 
   if (!slide) {
     return (
@@ -102,7 +104,7 @@ export function SlidePreview({
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Download className="w-4 h-4" />
-                  <span className="sr-only sm:not-sr-only">Download</span>
+                  <span className="sr-only sm:not-sr-only">{chrome.t('download')}</span>
                 </a>
               </Button>
             </div>

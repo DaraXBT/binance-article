@@ -1,3 +1,5 @@
+'use client'
+
 import * as React from 'react'
 import {
   ChevronLeftIcon,
@@ -7,12 +9,16 @@ import {
 
 import { cn } from '@/lib/utils'
 import { Button, buttonVariants } from '@/components/ui/button'
+import { useLanguage } from '@/components/language-provider'
+import { getChromeCopy } from '@/lib/chrome-i18n'
 
 function Pagination({ className, ...props }: React.ComponentProps<'nav'>) {
+  const { language } = useLanguage()
+
   return (
     <nav
       role="navigation"
-      aria-label="pagination"
+      aria-label={getChromeCopy(language).t('pagination')}
       data-slot="pagination"
       className={cn('mx-auto flex w-full justify-center', className)}
       {...props}
@@ -69,15 +75,18 @@ function PaginationPrevious({
   className,
   ...props
 }: React.ComponentProps<typeof PaginationLink>) {
+  const { language } = useLanguage()
+  const chrome = getChromeCopy(language)
+
   return (
     <PaginationLink
-      aria-label="Go to previous page"
+      aria-label={chrome.t('goToPreviousPage')}
       size="default"
       className={cn('gap-1 px-2.5 sm:pl-2.5', className)}
       {...props}
     >
       <ChevronLeftIcon />
-      <span className="hidden sm:block">Previous</span>
+      <span className="hidden sm:block">{chrome.t('previous')}</span>
     </PaginationLink>
   )
 }
@@ -86,14 +95,17 @@ function PaginationNext({
   className,
   ...props
 }: React.ComponentProps<typeof PaginationLink>) {
+  const { language } = useLanguage()
+  const chrome = getChromeCopy(language)
+
   return (
     <PaginationLink
-      aria-label="Go to next page"
+      aria-label={chrome.t('goToNextPage')}
       size="default"
       className={cn('gap-1 px-2.5 sm:pr-2.5', className)}
       {...props}
     >
-      <span className="hidden sm:block">Next</span>
+      <span className="hidden sm:block">{chrome.t('next')}</span>
       <ChevronRightIcon />
     </PaginationLink>
   )
@@ -103,6 +115,8 @@ function PaginationEllipsis({
   className,
   ...props
 }: React.ComponentProps<'span'>) {
+  const { language } = useLanguage()
+
   return (
     <span
       aria-hidden
@@ -111,7 +125,7 @@ function PaginationEllipsis({
       {...props}
     >
       <MoreHorizontalIcon className="size-4" />
-      <span className="sr-only">More pages</span>
+      <span className="sr-only">{getChromeCopy(language).t('morePages')}</span>
     </span>
   )
 }

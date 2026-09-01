@@ -1,11 +1,17 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Copy, Loader2, MailPlus, RotateCcw } from 'lucide-react';
 
 import { ConsolePanel, FrameCornerHandles } from '@/components/console/secure-console-frame';
+import { useLanguage } from '@/components/language-provider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  chromeInvitationErrorMessage,
+  formatChromeDate,
+  getChromeCopy,
+} from '@/lib/chrome-i18n';
 
 interface InvitationRow {
   id: string;
@@ -22,18 +28,26 @@ interface CreatedInvitation {
   expiresAt: string;
 }
 
+type InvitationErrorState = {
+  error: unknown;
+  fallback: 'invitationCouldNotCreate' | 'invitationCouldNotRevoke';
+};
+
 class InvitationApiError extends Error {
-  constructor(message: string, readonly code: string | null) {
-    super(message);
+  constructor(
+    readonly code: string | null,
+    readonly status: number,
+  ) {
+    super(code ?? `Invitation request failed (${status}).`);
   }
 }
 
-async function readJson(response: Response, fallback: string) {
+async function readJson(response: Response) {
   const body = await response.json().catch(() => null) as Record<string, unknown> | null;
   if (!response.ok) {
     throw new InvitationApiError(
-      typeof body?.error === 'string' ? body.error : fallback,
       typeof body?.code === 'string' ? body.code : null,
+      response.status,
     );
   }
   return body ?? {};
@@ -53,14 +67,16 @@ export function AdminInvitationsCard({
   className?: string;
   onUncopiedInvitationChange?: (hasUncopiedInvitation: boolean) => void;
 }) {
+  const { language } = useLanguage();
+  const chrome = useMemo(() => getChromeCopy(language), [language]);
   const [invitations, setInvitations] = useState<InvitationRow[] | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<unknown | null>(null);
   // The workspace-member role can't distinguish app-global owners, so the
   // card probes the owner-only API and removes itself on OWNER_REQUIRED.
   const [hidden, setHidden] = useState(false);
   const [email, setEmail] = useState('');
   const [isCreating, setIsCreating] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<InvitationErrorState | null>(null);
   const [created, setCreated] = useState<CreatedInvitation | null>(null);
   const [copied, setCopied] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
@@ -73,7 +89,7 @@ export function AdminInvitationsCard({
     setLoadError(null);
     try {
       const response = await fetch('/api/admin/invitations', { cache: 'no-store' });
-      const body = await readJson(response, 'The invitations could not be loaded.');
+      const body = await readJson(response);
       if (refreshSequenceRef.current !== sequence) return;
       setInvitations((body.invitations ?? []) as InvitationRow[]);
     } catch (error) {
@@ -82,7 +98,7 @@ export function AdminInvitationsCard({
         setHidden(true);
         return;
       }
-      setLoadError(error instanceof Error ? error.message : 'The invitations could not be loaded.');
+      setLoadError(error);
     }
   }, []);
 
@@ -106,7 +122,7 @@ export function AdminInvitationsCard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: trimmed }),
       });
-      const body = await readJson(response, 'The invitation could not be created.');
+      const body = await readJson(response);
       const invitation = body.invitation as { joinUrl: string; expiresAt: string };
       setCreated({ email: trimmed, joinUrl: invitation.joinUrl, expiresAt: invitation.expiresAt });
       onUncopiedInvitationChange?.(true);
@@ -114,7 +130,7 @@ export function AdminInvitationsCard({
       await refresh();
     } catch (error) {
       onUncopiedInvitationChange?.(false);
-      setActionError(error instanceof Error ? error.message : 'The invitation could not be created.');
+      setActionError({ error, fallback: 'invitationCouldNotCreate' });
     } finally {
       setIsCreating(false);
     }
@@ -128,10 +144,10 @@ export function AdminInvitationsCard({
       const response = await fetch(`/api/admin/invitations/${encodeURIComponent(invitationId)}`, {
         method: 'DELETE',
       });
-      await readJson(response, 'The invitation could not be revoked.');
+      await readJson(response);
       await refresh();
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'The invitation could not be revoked.');
+      setActionError({ error, fallback: 'invitationCouldNotRevoke' });
     } finally {
       setRevokingId(null);
     }
@@ -155,12 +171,10 @@ export function AdminInvitationsCard({
     <ConsolePanel corners={false} className={className ?? 'rounded-xl bg-card/70 p-3 sm:p-5'}>
       <FrameCornerHandles />
       <h3 className="mb-3 border-b border-dotted border-border/70 pb-2 font-mono text-[0.65rem] font-semibold uppercase tracking-[0.14em]">
-        INVITATIONS
+        {chrome.t('invitations')}
       </h3>
       <p className="text-sm text-muted-foreground">
-        Invite a teammate by email. The join link is shown once — copy it now;
-        only its hash is stored. The private beta caps enrollment at ten
-        active users.
+        {chrome.t('invitationsDescription')}
       </p>
 
       <form
@@ -178,7 +192,7 @@ export function AdminInvitationsCard({
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="teammate@example.com"
-          aria-label="Invitation email"
+          aria-label={chrome.t('invitationEmail')}
           disabled={isCreating}
           className="h-10 max-w-xs rounded-lg border-dotted bg-background/40 text-sm"
         />
@@ -186,14 +200,14 @@ export function AdminInvitationsCard({
           {isCreating
             ? <Loader2 aria-hidden="true" className="size-4 animate-spin" />
             : <MailPlus aria-hidden="true" className="size-4" />}
-          {isCreating ? 'Creating…' : 'Create invitation'}
+          {isCreating ? chrome.t('creating') : chrome.t('createInvitation')}
         </Button>
       </form>
 
       {created ? (
         <div className="mt-3 space-y-2 border border-dotted border-primary/35 bg-primary/5 p-3 text-sm">
           <p className="font-medium">
-            Invitation for {created.email} — copy the join link now; it will not be shown again.
+            {chrome.t('invitationFor', { email: created.email })}
           </p>
           <div className="flex min-w-0 items-center gap-2">
             <code className="min-w-0 flex-1 truncate font-mono text-xs">{created.joinUrl}</code>
@@ -207,25 +221,27 @@ export function AdminInvitationsCard({
               {copied
                 ? <Check aria-hidden="true" className="size-3.5" />
                 : <Copy aria-hidden="true" className="size-3.5" />}
-              {copied ? 'Copied' : 'Copy link'}
+              {copied ? chrome.t('copied') : chrome.t('copyLink')}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Expires {new Date(created.expiresAt).toLocaleString()}.
+            {chrome.t('expires', {
+              date: formatChromeDate(language, created.expiresAt, chrome.t('notAvailable')),
+            })}
           </p>
         </div>
       ) : null}
 
       {actionError ? (
         <p role="alert" className="mt-3 border border-dotted border-destructive/40 bg-destructive/5 p-2.5 text-sm text-destructive">
-          {actionError}
+          {chromeInvitationErrorMessage(actionError.error, chrome, actionError.fallback)}
         </p>
       ) : null}
 
       <div className="mt-4 border-t border-dotted border-border/70 pt-3">
         {loadError ? (
           <div className="flex items-center justify-between gap-3 text-sm text-destructive">
-            <p role="alert">{loadError}</p>
+            <p role="alert">{chromeInvitationErrorMessage(loadError, chrome, 'invitationsCouldNotLoad')}</p>
             <Button
               type="button"
               size="sm"
@@ -234,13 +250,13 @@ export function AdminInvitationsCard({
               onClick={() => void refresh()}
             >
               <RotateCcw aria-hidden="true" className="size-3.5" />
-              Retry
+              {chrome.t('retry')}
             </Button>
           </div>
         ) : invitations === null ? (
-          <p className="text-sm text-muted-foreground">Loading invitations…</p>
+          <p className="text-sm text-muted-foreground">{chrome.t('loadingInvitations')}</p>
         ) : invitations.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No invitations yet.</p>
+          <p className="text-sm text-muted-foreground">{chrome.t('noInvitations')}</p>
         ) : (
           <ul className="space-y-1.5">
             {invitations.map((row) => (
@@ -251,7 +267,7 @@ export function AdminInvitationsCard({
                 <span className="min-w-0 flex-1 truncate">{row.email}</span>
                 <span className="font-mono text-[0.65rem] text-muted-foreground">{row.tokenPrefix}…</span>
                 <span className={`font-mono text-[0.65rem] uppercase tracking-[0.12em] ${STATUS_STYLES[row.status]}`}>
-                  {row.status}
+                  {chrome.t(row.status)}
                 </span>
                 {row.status === 'pending' ? (
                   <Button
@@ -261,11 +277,11 @@ export function AdminInvitationsCard({
                     className="h-7 rounded-lg text-xs"
                     disabled={revokingId !== null}
                     onClick={() => void handleRevoke(row.id)}
-                    aria-label={`Revoke invitation for ${row.email}`}
+                    aria-label={chrome.t('revokeInvitation', { email: row.email })}
                   >
                     {revokingId === row.id
                       ? <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
-                      : 'Revoke'}
+                      : chrome.t('revoke')}
                   </Button>
                 ) : null}
               </li>

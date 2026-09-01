@@ -5,7 +5,9 @@ import { Slot } from '@radix-ui/react-slot'
 import { cva, VariantProps } from 'class-variance-authority'
 import { PanelLeftCloseIcon, PanelLeftOpenIcon } from 'lucide-react'
 
+import { useLanguage } from '@/components/language-provider'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { getChromeCopy } from '@/lib/chrome-i18n'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -166,6 +168,8 @@ function Sidebar({
   onMobileCloseAutoFocus?: React.ComponentProps<typeof SheetContent>['onCloseAutoFocus']
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const { language } = useLanguage()
+  const chrome = getChromeCopy(language)
 
   if (collapsible === 'none') {
     return (
@@ -199,8 +203,8 @@ function Sidebar({
           onCloseAutoFocus={onMobileCloseAutoFocus}
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+            <SheetTitle>{chrome.t('sidebar')}</SheetTitle>
+            <SheetDescription>{chrome.t('mobileSidebarDescription')}</SheetDescription>
           </SheetHeader>
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>
@@ -261,8 +265,8 @@ function SidebarTrigger({
   className,
   onClick,
   title,
-  openLabel = 'Open Sidebar',
-  closeLabel = 'Close Sidebar',
+  openLabel,
+  closeLabel,
   'aria-label': ariaLabel,
   ...props
 }: React.ComponentProps<typeof Button> & {
@@ -270,8 +274,12 @@ function SidebarTrigger({
   closeLabel?: string
 }) {
   const { isMobile, openMobile, state, toggleSidebar } = useSidebar()
+  const { language } = useLanguage()
+  const chrome = getChromeCopy(language)
   const isOpen = isMobile ? openMobile : state === 'expanded'
-  const label = isOpen ? closeLabel : openLabel
+  const label = isOpen
+    ? (closeLabel ?? chrome.t('closeSidebar'))
+    : (openLabel ?? chrome.t('openSidebar'))
   const Icon = isOpen ? PanelLeftCloseIcon : PanelLeftOpenIcon
 
   return (
@@ -298,15 +306,17 @@ function SidebarTrigger({
 
 function SidebarRail({ className, ...props }: React.ComponentProps<'button'>) {
   const { toggleSidebar } = useSidebar()
+  const { language } = useLanguage()
+  const label = getChromeCopy(language).t('toggleSidebar')
 
   return (
     <button
       data-sidebar="rail"
       data-slot="sidebar-rail"
-      aria-label="Toggle Sidebar"
+      aria-label={label}
       tabIndex={-1}
       onClick={toggleSidebar}
-      title="Toggle Sidebar"
+      title={label}
       className={cn(
         'hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] md:flex',
         'in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize',

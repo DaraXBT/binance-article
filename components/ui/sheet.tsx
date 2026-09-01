@@ -4,6 +4,8 @@ import * as React from 'react'
 import * as SheetPrimitive from '@radix-ui/react-dialog'
 import { XIcon } from 'lucide-react'
 
+import { useLanguage } from '@/components/language-provider'
+import { getChromeCopy } from '@/lib/chrome-i18n'
 import { cn } from '@/lib/utils'
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
@@ -48,10 +50,15 @@ function SheetContent({
   className,
   children,
   side = 'right',
+  closeLabel,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: 'top' | 'right' | 'bottom' | 'left'
+  closeLabel?: string
 }) {
+  const { language } = useLanguage()
+  const defaultCloseLabel = closeLabel ?? getChromeCopy(language).t('close')
+
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -72,9 +79,12 @@ function SheetContent({
         {...props}
       >
         {children}
-        <SheetPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute top-4 right-4  opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none">
+        <SheetPrimitive.Close
+          aria-label={defaultCloseLabel}
+          className="ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute top-4 right-4  opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
+        >
           <XIcon className="size-4" />
-          <span className="sr-only">Close</span>
+          <span className="sr-only">{defaultCloseLabel}</span>
         </SheetPrimitive.Close>
       </SheetPrimitive.Content>
     </SheetPortal>
