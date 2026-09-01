@@ -1,6 +1,7 @@
 import { expect, type Locator } from '@playwright/test';
 
 import { authenticatedTest as test } from './fixtures/authenticated';
+import { E2E_BASE_URL } from './fixtures/base-url';
 
 type Bounds = {
   left: number;
@@ -77,4 +78,38 @@ test('keeps the account control pinned and adapts its menu around the desktop ra
   const collapsedMenu = await boundsOf(accountMenu);
   expect(collapsedMenu.left).toBeGreaterThanOrEqual(0);
   expect(collapsedMenu.right).toBeLessThanOrEqual(1280);
+});
+
+test('switches the workspace language immediately and keeps it after reload', async ({ context, page }) => {
+  await context.addCookies([{
+    name: 'xarticle_language',
+    value: 'en',
+    url: E2E_BASE_URL,
+  }]);
+  await page.addInitScript(() => {
+    window.localStorage.setItem('xarticle_language', 'en');
+  });
+  await page.goto('/workspace');
+
+  const heading = page.locator('[data-workspace-home] h1');
+  await expect(heading).toBeVisible();
+  const englishHeading = await heading.textContent();
+  expect(englishHeading).toBeTruthy();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+
+  await page.locator('[data-workspace-account-trigger]').click();
+  const languageMenuTrigger = page.locator('[data-language-menu-trigger]');
+  await expect(languageMenuTrigger).toBeVisible();
+  await languageMenuTrigger.click();
+  await page.locator('[data-language-option="km"]').click();
+
+  await expect(page.locator('html')).toHaveAttribute('lang', 'km');
+  await expect.poll(() => heading.textContent()).not.toBe(englishHeading);
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem('xarticle_language')))
+    .toBe('km');
+  expect(page.url()).toContain('/workspace');
+
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'km');
+  await expect(heading).toHaveText('តើអ្នកចង់សរសេរអំពីអ្វី?');
 });

@@ -1,9 +1,10 @@
 'use client';
 
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LanguageProvider } from '@/components/language-provider';
 import { ThemeProvider } from '@/components/theme-provider';
+import type { Language } from '@/lib/i18n';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -14,7 +15,13 @@ const queryClient = new QueryClient({
   },
 });
 
-export function Providers({ children }: { children: ReactNode }) {
+export function Providers({
+  children,
+  initialLanguage,
+}: {
+  children: ReactNode;
+  initialLanguage: Language;
+}) {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider
@@ -23,7 +30,7 @@ export function Providers({ children }: { children: ReactNode }) {
         enableSystem
         disableTransitionOnChange
       >
-        <LanguageProvider>
+        <LanguageProvider initialLanguage={initialLanguage}>
           {children}
         </LanguageProvider>
       </ThemeProvider>

@@ -17,13 +17,22 @@ const sidebarMock = vi.hoisted(() => ({
   isMobile: false,
   state: 'expanded' as 'expanded' | 'collapsed',
 }));
+const languageSetMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/components/language-provider', () => ({
   useLanguage: () => ({
     language: 'en',
+    setLanguage: languageSetMock,
     messages: {
+      auth: {
+        accountAccessLabel: 'Account access',
+      },
+      language: {
+        ariaLabel: 'Switch language',
+      },
       workspace: workspaceMessages,
       dashboard: {
+        settings: 'Settings',
         importOldWorkspace: 'Import old workspace',
         signOut: 'Sign out',
         signingOut: 'Signing out…',
@@ -74,6 +83,7 @@ describe('WorkspaceSidebarFooter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    languageSetMock.mockReset();
     sidebarMock.isMobile = false;
     sidebarMock.state = 'expanded';
   });
@@ -90,7 +100,7 @@ describe('WorkspaceSidebarFooter', () => {
       })
     );
 
-    expect(html).toContain('Account: Niccolo');
+    expect(html).toContain('Account access');
     expect(html).not.toContain('dwk_f525');
     expect(html).not.toContain(workspaceMessages.sidebarKeyLabel);
     expect(html).not.toContain(workspaceMessages.copyPrefix);
@@ -111,7 +121,7 @@ describe('WorkspaceSidebarFooter', () => {
       })
     );
 
-    expect(html).toContain('aria-label="Account: Niccolo"');
+    expect(html).toContain('aria-label="Account access"');
     expect(html).toContain('title="Niccolo"');
     expect(html).toContain('group-data-[collapsible=icon]:size-8');
     expect(html).toContain('niccolo@example.com');
@@ -119,7 +129,8 @@ describe('WorkspaceSidebarFooter', () => {
     expect(html).toContain('Settings');
     expect(html).toContain('Import old workspace');
     expect(html).toContain('Sign out');
-    expect(html).toContain('aria-label="Language"');
+    expect(html).toContain('aria-label="Switch language"');
+    expect(html).toContain('data-language-menu-trigger="true"');
     expect(html).toContain('English');
     expect(html).toContain('Theme');
   });
@@ -214,6 +225,20 @@ describe('WorkspaceSidebarFooter', () => {
 
     expect(onImportOldWorkspace).toHaveBeenCalledTimes(1);
     expect(onSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the localized language menu label and selects a locale without navigation', async () => {
+    const { WorkspaceSidebarFooter } = await import('./workspace-sidebar-footer');
+    render(
+      React.createElement(WorkspaceSidebarFooter, {
+        accountLabel: 'Niccolo',
+      }),
+    );
+
+    expect(screen.getByRole('button', { name: 'Switch language' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'ខ្មែរ' }));
+
+    expect(languageSetMock).toHaveBeenCalledWith('km');
   });
 
   it('opens settings through the client callback when provided', async () => {

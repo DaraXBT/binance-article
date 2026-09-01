@@ -55,11 +55,11 @@ function firstAccountCharacter(accountLabel: string) {
 export function WorkspaceSidebarFooter({
   accessKeyPrefix,
   showRecovery = true,
-  accountLabel = 'Account',
+  accountLabel,
   accountEmail,
   accountInitial,
   profileLabel,
-  settingsLabel = 'Settings',
+  settingsLabel,
   settingsHref = '/workspace?settings=connections',
   onOpenSettings,
   importOldWorkspaceLabel,
@@ -83,7 +83,16 @@ export function WorkspaceSidebarFooter({
   const profilePopoverWidth = isCollapsedDesktop
     ? 'min(calc(var(--studio-rail-width) - 1rem), calc(100vw - 1rem))'
     : 'var(--radix-popover-trigger-width)';
-  const resolvedInitial = accountInitial || firstAccountCharacter(accountLabel);
+  const resolvedAccountLabel = accountLabel
+    ?? messages.auth?.accountAccessLabel
+    ?? 'Account';
+  const resolvedProfileLabel = profileLabel
+    ?? messages.auth?.accountAccessLabel
+    ?? resolvedAccountLabel;
+  const resolvedSettingsLabel = settingsLabel
+    ?? messages.dashboard?.settings
+    ?? 'Settings';
+  const resolvedInitial = accountInitial || firstAccountCharacter(resolvedAccountLabel);
   const resolvedImportLabel = importOldWorkspaceLabel
     ?? messages.dashboard?.importOldWorkspace
     ?? 'Import old data';
@@ -142,8 +151,8 @@ export function WorkspaceSidebarFooter({
             type="button"
             variant="ghost"
             data-workspace-account-trigger
-            aria-label={profileLabel ?? `Account: ${accountLabel}`}
-            title={profileLabel ?? accountLabel}
+            aria-label={resolvedProfileLabel}
+            title={profileLabel ?? resolvedAccountLabel}
             className={cn(
               'group h-auto min-h-11 w-full justify-start gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:min-h-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0',
               className,
@@ -154,9 +163,9 @@ export function WorkspaceSidebarFooter({
             </span>
             <span className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
               <span className="block truncate text-sm font-medium text-sidebar-foreground">
-                {accountLabel}
+                {resolvedAccountLabel}
               </span>
-              {accountEmail && accountEmail !== accountLabel ? (
+              {accountEmail && accountEmail !== resolvedAccountLabel ? (
                 <span className="block truncate text-xs text-sidebar-foreground/60">
                   {accountEmail}
                 </span>
@@ -184,7 +193,7 @@ export function WorkspaceSidebarFooter({
           }}
         >
           <div className="min-w-0 px-2.5 py-2">
-            <p className="truncate text-sm font-medium text-foreground">{accountLabel}</p>
+            <p className="truncate text-sm font-medium text-foreground">{resolvedAccountLabel}</p>
             {accountEmail ? (
               <p className="truncate text-xs text-muted-foreground">{accountEmail}</p>
             ) : null}
@@ -199,7 +208,7 @@ export function WorkspaceSidebarFooter({
                 onClick={handleSettingsOpen}
               >
                 <Settings2 aria-hidden="true" className="size-4" />
-                {settingsLabel}
+                {resolvedSettingsLabel}
               </Button>
             ) : (
               <Button
@@ -209,7 +218,7 @@ export function WorkspaceSidebarFooter({
               >
                 <Link href={settingsHref} onClick={handleSettingsOpen}>
                   <Settings2 aria-hidden="true" className="size-4" />
-                  {settingsLabel}
+                  {resolvedSettingsLabel}
                 </Link>
               </Button>
             )}
@@ -229,10 +238,11 @@ export function WorkspaceSidebarFooter({
                   type="button"
                   variant="ghost"
                   className="h-9 w-full justify-start rounded-lg px-2.5 font-normal"
-                  aria-label="Language"
+                  aria-label={messages.language.ariaLabel}
+                  data-language-menu-trigger
                 >
                   <Languages aria-hidden="true" className="size-4" />
-                  <span className="flex-1 text-left">Language</span>
+                  <span className="flex-1 text-left">{messages.language.ariaLabel}</span>
                   <span className="text-xs text-muted-foreground">
                     {LANGUAGES.find((candidate) => candidate.code === language)?.nativeName ?? 'English'}
                   </span>
@@ -244,7 +254,9 @@ export function WorkspaceSidebarFooter({
                 sideOffset={8}
                 className="w-52 rounded-xl border-border/80 p-1.5 shadow-lg"
               >
-                <p className="px-2.5 py-1.5 text-xs font-medium text-muted-foreground">Language</p>
+                <p className="px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
+                  {messages.language.ariaLabel}
+                </p>
                 {LANGUAGES.map((candidate) => (
                   <Button
                     key={candidate.code}
@@ -253,6 +265,7 @@ export function WorkspaceSidebarFooter({
                     className="h-9 w-full justify-start rounded-lg px-2.5 font-normal"
                     aria-pressed={language === candidate.code}
                     onClick={() => setLanguage(candidate.code)}
+                    data-language-option={candidate.code}
                   >
                     <span aria-hidden="true" className="w-5 text-center">{candidate.flag}</span>
                     <span className="flex-1 text-left">{candidate.nativeName}</span>

@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import localFont from 'next/font/local'
+import { cookies } from 'next/headers'
 import '@fontsource/google-sans/latin.css'
 
 import { Providers } from '@/components/providers'
-import { UI_LANGUAGE } from '@/lib/i18n'
+import { isLanguage, LANGUAGE_COOKIE_NAME, UI_LANGUAGE } from '@/lib/i18n'
 import './globals.css'
 
 const interKhmerLooped = localFont({
@@ -51,12 +52,16 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const cookieStore = await cookies()
+  const savedLanguage = cookieStore.get(LANGUAGE_COOKIE_NAME)?.value
+  const initialLanguage = isLanguage(savedLanguage) ? savedLanguage : UI_LANGUAGE
+
   return (
-    <html lang={UI_LANGUAGE} suppressHydrationWarning>
+    <html lang={initialLanguage} suppressHydrationWarning>
       <body
         className={`${interKhmerLooped.variable} bg-background font-sans text-foreground antialiased`}
       >
-        <Providers>
+        <Providers initialLanguage={initialLanguage}>
           {children}
         </Providers>
       </body>

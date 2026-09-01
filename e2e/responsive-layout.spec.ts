@@ -119,23 +119,31 @@ for (const viewport of viewports) {
   });
 }
 
-test('stale non-English preferences cannot change the English UI', async ({ context, page }) => {
+test('a saved locale initializes server-rendered public UI and clears legacy preference', async ({ context, page }) => {
   await page.setViewportSize(viewports[0]);
-  await context.addCookies([{
-    name: 'deckforge_language',
-    value: 'km',
-    url: E2E_BASE_URL,
-  }]);
+  await context.addCookies([
+    {
+      name: 'xarticle_language',
+      value: 'km',
+      url: E2E_BASE_URL,
+    },
+    {
+      name: 'deckforge_language',
+      value: 'en',
+      url: E2E_BASE_URL,
+    },
+  ]);
   await page.addInitScript(() => {
-    window.localStorage.setItem('deckforge_language', 'km');
+    window.localStorage.setItem('xarticle_language', 'en');
+    window.localStorage.setItem('deckforge_language', 'en');
   });
 
   await page.goto('/');
-  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-  await expect(page.getByRole('heading', { name: 'What do you want to write about?' })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'km');
+  await expect(page.getByRole('heading', { name: 'តើអ្នកចង់សរសេរអំពីអ្វី?' })).toBeVisible();
   await expect(page.locator('[data-language-toggle]')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem('xarticle_language')))
-    .toBe('en');
+    .toBe('km');
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem('deckforge_language')))
     .toBeNull();
   await expectNoHorizontalOverflow(page);
