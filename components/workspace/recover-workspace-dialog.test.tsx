@@ -1,5 +1,8 @@
+// @vitest-environment jsdom
+
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const workspaceMessages = {
@@ -51,6 +54,8 @@ describe('RecoverWorkspaceDialog', () => {
     vi.resetModules();
   });
 
+  afterEach(() => cleanup());
+
   it('does not render when open is false', async () => {
     const { RecoverWorkspaceDialog } = await import('./recover-workspace-dialog');
     const html = renderToStaticMarkup(
@@ -77,5 +82,21 @@ describe('RecoverWorkspaceDialog', () => {
     );
 
     expect(html).toContain(workspaceMessages.recoverDialogAction);
+  });
+
+  it('uses a localized recovery error instead of remote error details', async () => {
+    mutateAsync.mockRejectedValueOnce(new Error('upstream diagnostic that must stay private'));
+    const { RecoverWorkspaceDialog } = await import('./recover-workspace-dialog');
+
+    render(React.createElement(RecoverWorkspaceDialog, { open: true, onOpenChange: vi.fn() }));
+    fireEvent.change(screen.getByPlaceholderText(workspaceMessages.recoverDialogPlaceholder), {
+      target: { value: 'dwk_example' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: workspaceMessages.recoverDialogAction }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toContain(workspaceMessages.recoverDialogFailed);
+    });
+    expect(screen.queryByText('upstream diagnostic that must stay private')).toBeNull();
   });
 });

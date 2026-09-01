@@ -41,6 +41,9 @@ export function SlidePreview({
   const downloadUrl = slide.imageUrl
     ? buildArticleSlideAssetUrl(articleId, slide.imageUrl, { download: true })
     : null;
+  // "default" is a persistence sentinel, not presentation copy. Do not
+  // surface it next to the slide title.
+  const visibleTheme = theme === 'default' ? null : theme;
   const imageMessage =
     imageStatus === 'failed'
       ? messages.slidePreview.imageFailed
@@ -130,9 +133,9 @@ export function SlidePreview({
               <ImageIcon className="h-8 w-8" />
             )}
             <p className="text-sm">{imageMessage}</p>
-            {imageStatus === 'failed' && slide.imageError ? (
+            {imageStatus === 'failed' ? (
               <p className="max-w-md text-center text-xs text-destructive/80">
-                {messages.slidePreview.imageFailureReason}: {slide.imageError}
+                {messages.slidePreview.imageFailureReason}: {messages.slidePreview.imageFailureRecovery}
               </p>
             ) : null}
           </div>
@@ -143,7 +146,7 @@ export function SlidePreview({
       <div className="flex-shrink-0 break-words rounded-xl border border-dotted border-border bg-card/70 p-4 [overflow-wrap:anywhere] sm:p-6">
         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
           <span>{messages.slidePreview.slide(slide.order + 1)}</span>
-          {theme && <span className="capitalize">• {theme}</span>}
+          {visibleTheme ? <span className="capitalize">• {visibleTheme}</span> : null}
         </div>
 
         <h2 className="text-xl font-bold mb-2">{slide.title}</h2>

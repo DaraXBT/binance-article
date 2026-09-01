@@ -57,12 +57,10 @@ export function RecoverWorkspaceDialog({
       setKeyInput('');
       onSuccess?.();
       closeTimeoutRef.current = setTimeout(() => onOpenChange(false), 1200);
-    } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : messages.workspace.recoverDialogFailed
-      );
+    } catch {
+      // Recovery errors may originate in a remote service. Keep technical
+      // details out of the UI and give every locale the same safe action.
+      setMessage(messages.workspace.recoverDialogFailed);
       setIsError(true);
     }
   };

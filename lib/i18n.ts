@@ -160,6 +160,11 @@ const en = {
     submit: 'Unlock Generation',
     submitting: 'Checking...',
     invalidCode: 'Invalid article access code',
+    codeChanged: 'This access code has changed. Ask an administrator for the latest code.',
+    codeInUse: 'This access code is already active in another browser. Ask an administrator for a new code.',
+    codeRevoked: 'This access code is no longer active. Ask an administrator for the latest code.',
+    tooManyAttempts: 'Too many attempts. Please wait and try again.',
+    requestFailed: 'We could not verify the access code. Please try again.',
   },
   theme: {
     ariaLabel: 'Toggle theme',
@@ -447,7 +452,8 @@ const en = {
     imageNotGenerated: 'Image not generated yet',
     imagePending: 'Image generation is pending',
     imageFailed: 'Image generation failed',
-    imageFailureReason: 'Last error',
+    imageFailureReason: 'Next step',
+    imageFailureRecovery: 'Try generating this image again from the article page.',
     slide: (index: number) => `Slide ${index}`,
     notes: 'Notes',
     viewFullImage: 'View full image',
@@ -696,6 +702,11 @@ const km: typeof en = {
     submit: 'ដោះសោការបង្កើត',
     submitting: 'កំពុងពិនិត្យ...',
     invalidCode: 'កូដចូលប្រើអត្ថបទមិនត្រឹមត្រូវ',
+    codeChanged: 'កូដចូលប្រើនេះត្រូវបានប្ដូរ។ សូមស្នើកូដថ្មីបំផុតពីអ្នកគ្រប់គ្រង។',
+    codeInUse: 'កូដចូលប្រើនេះកំពុងប្រើនៅក្នុងកម្មវិធីរុករកផ្សេងទៀត។ សូមស្នើកូដថ្មីពីអ្នកគ្រប់គ្រង។',
+    codeRevoked: 'កូដចូលប្រើនេះលែងសកម្មហើយ។ សូមស្នើកូដថ្មីបំផុតពីអ្នកគ្រប់គ្រង។',
+    tooManyAttempts: 'អ្នកបានសាកល្បងច្រើនដងពេក។ សូមរង់ចាំ ហើយសាកល្បងម្ដងទៀត។',
+    requestFailed: 'មិនអាចផ្ទៀងផ្ទាត់កូដចូលប្រើបានទេ។ សូមសាកល្បងម្ដងទៀត។',
   },
   theme: {
     ariaLabel: 'ប្ដូររូបរាង',
@@ -818,12 +829,11 @@ const km: typeof en = {
       detailed: '១៥ ស្លាយ (លម្អិត)',
     },
     styleOptions: {
-      ...en.newDeck.styleOptions,
       'pixel-art': {
-        name: 'ភីកសែលអាត',
+        name: 'សិល្បៈភីកសែល',
         description:
           'ស្ទាយ៍ហ្គេម 8-bit បែប retro ជាមួយភីកសែលធំៗ និងឈុតឆាក isometric',
-        bestFor: 'GameFi',
+        bestFor: 'មាតិកា GameFi',
       },
       'fantasy-animation': {
         name: 'អានីមេសិនបែបហ្វែនតាស៊ី',
@@ -836,6 +846,36 @@ const km: typeof en = {
         description:
           'គំនូសតាងបច្ចេកទេសជាមួយការកត់សម្គាល់ស្រាលៗ និងភាពច្បាស់លាស់',
         bestFor: 'ការពន្យល់ Protocol',
+      },
+      binance: {
+        name: 'លំហូរ Isometric របស់ Binance',
+        description: 'ឈុតឆាកគ្រីបតូបែប isometric លើផ្ទៃងងឹត មានវេទិកាលេងសើច និងស្នាមពណ៌មាស។',
+        bestFor: 'ប្រព័ន្ធអេកូគ្រីបតូ',
+      },
+      'binance-master': {
+        name: 'Binance គ្រប់យ៉ាងក្នុងមួយ',
+        description: 'ប្រព័ន្ធពណ៌មាសលើផ្ទៃខ្មៅ សម្រាប់ឈុតឆាក យន្តការ សេចក្ដីសង្ខេប និងមគ្គុទេសក៍។',
+        bestFor: 'មាតិកាគ្រីបតូចម្រុះ',
+      },
+      'binance-briefing': {
+        name: 'សេចក្ដីសង្ខេបបច្ចេកទេស Binance',
+        description: 'អ៊ីនហ្វូក្រាហ្វិកងងឹតកម្រិតស្រាវជ្រាវ ជាមួយដ្យាក្រាម isometric និងសញ្ញាកំណត់ចំណាំ។',
+        bestFor: 'ម៉ែត្រ និងការស្រាវជ្រាវ',
+      },
+      'binance-mondo-panoramic': {
+        name: 'ទេសភាព Mondo របស់ Binance',
+        description: 'រឿងរ៉ាវបែប screen-print ងងឹត ដែលបង្ហាញការវិវត្តពីឆ្វេងទៅស្ដាំក្នុងបីតំបន់។',
+        bestFor: 'រឿងរ៉ាវអំពីការផ្លាស់ប្ដូរ',
+      },
+      'binance-sketch-notes': {
+        name: 'កំណត់ត្រាគំនូស Binance',
+        description: 'កំណត់ត្រាគំនូរដោយប៊ិចពណ៌មាស និងដីស លើទំព័រសៀវភៅគ្រីបតូងងឹត។',
+        bestFor: 'ការណែនាំអ្នកចាប់ផ្ដើម',
+      },
+      'binance-vector-illustration': {
+        name: 'វ៉ិចទ័ររាបស្មើ Binance',
+        description: 'ឈុតឆាកពណ៌រាបស្មើ ជាមួយគ្រោងពណ៌មាស និងប្រផេះស្រាល ព្រមទាំងវត្ថុបែបម៉ូឌែលក្មេងលេង។',
+        bestFor: 'ការពន្យល់ងាយស្រួល',
       },
     },
     generateView: {
@@ -874,18 +914,18 @@ const km: typeof en = {
       unknownError: 'មានបញ្ហាមួយបានកើតឡើង',
     },
     promptView: {
-      title: 'Generate with AI',
+      title: 'បង្កើតដោយ AI',
       subtitle:
-        'Describe the topic or idea you want to present. Our AI will write the full article and generate the slides for you.',
-      topicLabel: 'Topic Title',
-      topicPlaceholder: 'e.g., The Future of Web3 Wallets',
-      promptLabel: 'Detailed Instructions (Prompt)',
+        'ពិពណ៌នាប្រធានបទ ឬគំនិតដែលអ្នកចង់បង្ហាញ។ AI របស់យើងនឹងសរសេរអត្ថបទពេញ និងបង្កើតស្លាយឲ្យអ្នក។',
+      topicLabel: 'ចំណងជើងប្រធានបទ',
+      topicPlaceholder: 'ឧ. អនាគតនៃកាបូប Web3',
+      promptLabel: 'សេចក្ដីណែនាំលម្អិត (Prompt)',
       promptPlaceholder:
-        'Write a comprehensive article exploring the evolution of crypto wallets over the next 5 years, focusing on account abstraction and seamless onboarding...',
+        'សរសេរអត្ថបទលម្អិតអំពីការវិវត្តនៃកាបូបគ្រីបតូក្នុងរយៈពេល ៥ ឆ្នាំខាងមុខ ដោយផ្ដោតលើ account abstraction និងការចាប់ផ្ដើមប្រើប្រាស់ដោយរលូន...',
       promptHintWithTopic:
-        'Click AI Suggest to auto-generate instructions from your prompt, or write your own.',
+        'ចុច AI Suggest ដើម្បីបង្កើតសេចក្ដីណែនាំដោយស្វ័យប្រវត្តិពីប្រធានបទរបស់អ្នក ឬសរសេរដោយខ្លួនឯង។',
       promptHintEmpty:
-        'Enter your prompt, then click AI Suggest to auto-generate.',
+        'បញ្ចូលប្រធានបទរបស់អ្នក រួចចុច AI Suggest ដើម្បីបង្កើតដោយស្វ័យប្រវត្តិ។',
       generationLockedBanner:
         'អ្នកអាចតែង prompt បាន ប៉ុន្តែការបង្កើតដោយ AI ត្រូវបានចាក់សោរហូតដល់ browser នេះត្រូវបានដោះសោដោយកូដចូលប្រើអត្ថបទចុងក្រោយ។',
       generationLockedHint:
@@ -949,22 +989,23 @@ const km: typeof en = {
     imageNotGenerated: 'រូបភាពមិនទាន់ត្រូវបានបង្កើតទេ',
     imagePending: 'រូបភាពកំពុងរង់ចាំការបង្កើត',
     imageFailed: 'ការបង្កើតរូបភាពបានបរាជ័យ',
-    imageFailureReason: 'កំហុសចុងក្រោយ',
+    imageFailureReason: 'ជំហានបន្ទាប់',
+    imageFailureRecovery: 'សូមសាកល្បងបង្កើតរូបភាពនេះម្ដងទៀតពីទំព័រអត្ថបទ។',
     slide: (index: number) => `ស្លាយ ${index}`,
     notes: 'កំណត់ចំណាំ',
     viewFullImage: 'មើលរូបភាពពេញ',
   },
   captions: {
-    noCaptions: 'មិនមាន captions ទេ',
+    noCaptions: 'មិនមានអត្ថបទពិពណ៌នាទេ',
     blog: 'ប្លក់',
     twitter: 'Twitter/X',
     seoTitle: 'ចំណងជើង SEO',
-    metaDescription: 'Meta Description',
+    metaDescription: 'សេចក្ដីពិពណ៌នា Meta',
     introText: 'អត្ថបទផ្ដើម',
-    tags: 'Tags',
-    individualTweets: 'Tweets ដាច់ដោយឡែក',
-    tweet: (index: number) => `Tweet ${index}`,
-    twitterThread: 'Twitter Thread',
+    tags: 'ស្លាក',
+    individualTweets: 'ប្រកាស X ដាច់ដោយឡែក',
+    tweet: (index: number) => `ប្រកាស X ${index}`,
+    twitterThread: 'ខ្សែស្រឡាយ Twitter',
     characters: (count: number, max: number) => `${count}/${max} តួអក្សរ`,
   },
   settingsStep: {
@@ -1198,6 +1239,11 @@ const id: typeof en = {
     submit: 'Buka Kunci Pembuatan',
     submitting: 'Memeriksa...',
     invalidCode: 'Kode pembuatan tidak valid',
+    codeChanged: 'Kode akses ini telah berubah. Minta kode terbaru kepada administrator.',
+    codeInUse: 'Kode akses ini sudah aktif di browser lain. Minta kode baru kepada administrator.',
+    codeRevoked: 'Kode akses ini tidak lagi aktif. Minta kode terbaru kepada administrator.',
+    tooManyAttempts: 'Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.',
+    requestFailed: 'Kami tidak dapat memverifikasi kode akses. Silakan coba lagi.',
   },
   theme: {
     ariaLabel: 'Ganti tema',
@@ -1320,12 +1366,11 @@ const id: typeof en = {
       detailed: '15 slide (detail)',
     },
     styleOptions: {
-      ...en.newDeck.styleOptions,
       'pixel-art': {
-        name: 'Pixel Art',
+        name: 'Seni Piksel',
         description:
           'Estetika game crypto 8-bit retro dengan piksel besar dan adegan isometrik',
-        bestFor: 'GameFi',
+        bestFor: 'Konten GameFi',
       },
       'fantasy-animation': {
         name: 'Animasi Fantasi',
@@ -1337,7 +1382,37 @@ const id: typeof en = {
         name: 'Catatan Laboratorium',
         description:
           'Diagram riset teknis beranotasi dengan kejelasan catatan yang ringkas',
-        bestFor: 'Penjelasan Protocol',
+        bestFor: 'Penjelasan protokol',
+      },
+      binance: {
+        name: 'Alur Isometrik Binance',
+        description: 'Adegan isometrik crypto gelap dengan platform yang dinamis dan aksen emas yang terstruktur.',
+        bestFor: 'Ekosistem crypto',
+      },
+      'binance-master': {
+        name: 'Binance Serba Ada',
+        description: 'Satu sistem emas-di-atas-hitam untuk adegan, mekanisme, ringkasan, dan pengantar.',
+        bestFor: 'Konten crypto campuran',
+      },
+      'binance-briefing': {
+        name: 'Briefing Teknis Binance',
+        description: 'Infografik gelap setingkat riset dengan diagram isometrik dan keterangan beranotasi.',
+        bestFor: 'Metrik dan riset',
+      },
+      'binance-mondo-panoramic': {
+        name: 'Panorama Mondo Binance',
+        description: 'Cerita cetak-layar gelap yang bergerak dari kiri ke kanan melalui tiga zona.',
+        bestFor: 'Kisah transformasi',
+      },
+      'binance-sketch-notes': {
+        name: 'Catatan Sketsa Binance',
+        description: 'Catatan pena gel emas dan kapur yang ditulis tangan di halaman buku sketsa crypto gelap.',
+        bestFor: 'Onboarding pemula',
+      },
+      'binance-vector-illustration': {
+        name: 'Vektor Datar Binance',
+        description: 'Adegan bergaya buku mewarnai dengan warna datar, garis emas dan abu-abu muda, serta properti model mainan.',
+        bestFor: 'Penjelasan yang ramah',
       },
     },
     generateView: {
@@ -1347,9 +1422,9 @@ const id: typeof en = {
       generatingBlogAndX: 'Menghasilkan postingan blog & X',
       deckReady: 'Artikel Anda Siap!',
       generatingDeck: 'Menghasilkan Artikel Anda',
-      generationLockedTitle: 'Generation Locked',
+      generationLockedTitle: 'Pembuatan Terkunci',
       generationLockedDescription:
-        'This browser must be unlocked with the latest article access code before we can spend tokens to generate your article.',
+        'Browser ini harus dibuka dengan kode akses artikel terbaru sebelum kami menggunakan token untuk membuat artikel Anda.',
       readyDescription: 'Slide, gambar, dan teks keterangan sudah siap. Mengalihkan...',
       readyWithWarningsDescription:
         'Artikel sudah siap, tetapi beberapa gambar masih perlu perhatian. Mengalihkan agar Anda dapat mencoba lagi.',
@@ -1389,9 +1464,9 @@ const id: typeof en = {
       promptHintEmpty:
         'Masukkan prompt Anda, lalu klik AI Suggest untuk menghasilkan secara otomatis.',
       generationLockedBanner:
-        'Prompt drafting is available, but AI generation is locked until this browser is unlocked with the latest article access code.',
+        'Penyusunan prompt tersedia, tetapi pembuatan AI terkunci sampai browser ini dibuka dengan kode akses artikel terbaru.',
       generationLockedHint:
-        'Unlock generation with the latest article access code before using AI Suggest.',
+        'Buka pembuatan dengan kode akses artikel terbaru sebelum memakai AI Suggest.',
     },
   },
   deckPage: {
@@ -1417,19 +1492,19 @@ const id: typeof en = {
     slidesReordered: 'Slide diurutkan ulang.',
     slideReorderFailed: 'Gagal mengurutkan ulang slide',
     tabsSlides: (count: number) => `Slide (${count})`,
-    tabsEditor: 'Editor',
+    tabsEditor: 'Penyunting',
     tabsPreview: 'Pratinjau',
   },
   slideList: {
     slides: (count: number) => `Slide (${count})`,
     noSlidesYet: 'Belum ada slide',
-    slide: (index: number) => `Slide ${index}`,
+    slide: (index: number) => `Slide ke-${index}`,
     moveUp: 'Pindahkan slide ke atas',
     moveDown: 'Pindahkan slide ke bawah',
   },
   slideEditor: {
     selectSlide: 'Pilih slide untuk diedit',
-    editSlide: (index: number) => `Edit Slide ${index}`,
+    editSlide: (index: number) => `Sunting Slide ${index}`,
     untitledSlide: 'Slide Tanpa Judul',
     slideTitle: 'Judul Slide',
     subtitle: 'Subjudul (Opsional)',
@@ -1451,14 +1526,15 @@ const id: typeof en = {
     imageNotGenerated: 'Gambar belum dihasilkan',
     imagePending: 'Pembuatan gambar sedang menunggu',
     imageFailed: 'Pembuatan gambar gagal',
-    imageFailureReason: 'Kesalahan terakhir',
-    slide: (index: number) => `Slide ${index}`,
+    imageFailureReason: 'Langkah berikutnya',
+    imageFailureRecovery: 'Coba buat ulang gambar ini dari halaman artikel.',
+    slide: (index: number) => `Slide ke-${index}`,
     notes: 'Catatan',
     viewFullImage: 'Lihat gambar penuh',
   },
   captions: {
     noCaptions: 'Tidak ada teks keterangan',
-    blog: 'Blog',
+    blog: 'Artikel blog',
     twitter: 'Twitter/X',
     seoTitle: 'Judul SEO',
     metaDescription: 'Deskripsi Meta',
@@ -1700,6 +1776,11 @@ const lo: typeof en = {
     submit: 'ປົດລ໊ອກການສ້າງ',
     submitting: 'ກຳລັງກວດສອບ...',
     invalidCode: 'ລະຫັດການສ້າງບໍ່ຖືກຕ້ອງ',
+    codeChanged: 'ລະຫັດເຂົ້າເຖິງນີ້ຖືກປ່ຽນແລ້ວ. ຂໍລະຫັດຫຼ້າສຸດຈາກຜູ້ດູແລ.',
+    codeInUse: 'ລະຫັດເຂົ້າເຖິງນີ້ກຳລັງໃຊ້ຢູ່ໃນ browser ອື່ນ. ຂໍລະຫັດໃໝ່ຈາກຜູ້ດູແລ.',
+    codeRevoked: 'ລະຫັດເຂົ້າເຖິງນີ້ບໍ່ໃຊ້ໄດ້ອີກຕໍ່ໄປ. ຂໍລະຫັດຫຼ້າສຸດຈາກຜູ້ດູແລ.',
+    tooManyAttempts: 'ທ່ານໄດ້ລອງຫຼາຍເກີນໄປ. ກະລຸນາລໍຖ້າ ແລະ ລອງອີກ.',
+    requestFailed: 'ພວກເຮົາບໍ່ສາມາດກວດສອບລະຫັດເຂົ້າເຖິງໄດ້. ກະລຸນາລອງອີກ.',
   },
   theme: {
     ariaLabel: 'ສະຫຼັບຮູບແບບ',
@@ -1822,24 +1903,53 @@ const lo: typeof en = {
       detailed: '15 ສະໄລ້ (ລະອຽດ)',
     },
     styleOptions: {
-      ...en.newDeck.styleOptions,
       'pixel-art': {
-        name: 'Pixel Art',
+        name: 'ສິລະປະພິກເຊວ',
         description:
           'ຮູບແບບເກມ crypto ແບບ 8-bit ຍ້ອນຍຸກ ພ້ອມ pixels ຂະໜາດໃຫຍ່ ແລະ ສາກ isometric',
-        bestFor: 'GameFi',
+        bestFor: 'ເນື້ອຫາ GameFi',
       },
       'fantasy-animation': {
-        name: 'Fantasy Animation',
+        name: 'ອະນິເມຊັນແຟນຕາຊີ',
         description:
           'ການເລົ່າເລື່ອງແບບນິທານມະຫັດສະຈັນ ພ້ອມແສງເຮືອງຮອງ ແລະ ຄວາມອົບອຸ່ນແບບຈິດຕະກຳ',
         bestFor: 'ອະທິບາຍ Web3',
       },
       'lab-notes': {
-        name: 'Lab Notes',
+        name: 'ບັນທຶກຫ້ອງທົດລອງ',
         description:
           'ແຜນວາດການຄົ້ນຄວ້າທາງເຕັກນິກທີ່ມີຄຳອະທິບາຍ ພ້ອມຄວາມຊັດເຈນແບບບັນທຶກ',
-        bestFor: 'ອະທິບາຍ Protocol',
+        bestFor: 'ອະທິບາຍໂປຣໂຕຄອນ',
+      },
+      binance: {
+        name: 'ກະແສ Isometric ຂອງ Binance',
+        description: 'ສາກ crypto ແບບ isometric ໂທນມືດ ມີແພລດຟອມສົນກຸກ ແລະ ຈຸດເນັ້ນສີທອງທີ່ເປັນລະບຽບ.',
+        bestFor: 'ລະບົບນິເວດ crypto',
+      },
+      'binance-master': {
+        name: 'Binance ຄົບຈົບໃນບ່ອນດຽວ',
+        description: 'ລະບົບສີທອງເທິງສີດຳ ສຳລັບສາກ ກົນໄກ ບົດສະຫຼຸບ ແລະ ຄູ່ມືເລີ່ມຕົ້ນ.',
+        bestFor: 'ເນື້ອຫາ crypto ປະສົມ',
+      },
+      'binance-briefing': {
+        name: 'ບົດສະຫຼຸບເຕັກນິກ Binance',
+        description: 'ອິນໂຟກຣາຟິກໂທນມືດລະດັບງານຄົ້ນຄວ້າ ພ້ອມແຜນວາດ isometric ແລະ ຄຳກຳກັບ.',
+        bestFor: 'ຕົວຊີ້ວັດ ແລະ ການຄົ້ນຄວ້າ',
+      },
+      'binance-mondo-panoramic': {
+        name: 'ພາໂນຣາມາ Mondo Binance',
+        description: 'ການເລົ່າເລື່ອງແບບ screen-print ໂທນມືດ ທີ່ເຄື່ອນຈາກຊ້າຍໄປຂວາຜ່ານສາມເຂດ.',
+        bestFor: 'ເລື່ອງລາວການປ່ຽນແປງ',
+      },
+      'binance-sketch-notes': {
+        name: 'ບັນທຶກສະເກັດ Binance',
+        description: 'ບັນທຶກທີ່ຂຽນດ້ວຍປາກກາເຈວສີທອງ ແລະ ຊອກ ເທິງໜ້າສະເກັດບຸກ crypto ໂທນມືດ.',
+        bestFor: 'ການແນະນຳຜູ້ເລີ່ມຕົ້ນ',
+      },
+      'binance-vector-illustration': {
+        name: 'ເວັກເຕີແບບແປ Binance',
+        description: 'ສາກສີແປແບບປຶ້ມລະບາຍສີ ພ້ອມເສັ້ນຂອບສີທອງ ແລະ ເທົາອ່ອນ ກັບອຸປະກອນແບບຂອງຫຼິ້ນ.',
+        bestFor: 'ຄຳອະທິບາຍທີ່ເຂົ້າໃຈງ່າຍ',
       },
     },
     generateView: {
@@ -1849,9 +1959,9 @@ const lo: typeof en = {
       generatingBlogAndX: 'ກຳລັງສ້າງບົດບລ໊ອກ ແລະ ໂພສ X',
       deckReady: 'ບົດຄວາມຂອງທ່ານພ້ອມແລ້ວ!',
       generatingDeck: 'ກຳລັງສ້າງບົດຄວາມຂອງທ່ານ',
-      generationLockedTitle: 'Generation Locked',
+      generationLockedTitle: 'ການສ້າງຖືກລັອກ',
       generationLockedDescription:
-        'This browser must be unlocked with the latest article access code before we can spend tokens to generate your article.',
+        'browser ນີ້ຕ້ອງຖືກປົດລັອກດ້ວຍລະຫັດເຂົ້າເຖິງບົດຄວາມຫຼ້າສຸດ ກ່ອນທີ່ພວກເຮົາຈະໃຊ້ token ເພື່ອສ້າງບົດຄວາມຂອງທ່ານ.',
       readyDescription: 'ສະໄລ້, ຮູບພາບ, ແລະ ຄຳບັນຍາຍພ້ອມແລ້ວ. ກຳລັງປ່ຽນເສັ້ນທາງ...',
       readyWithWarningsDescription:
         'ບົດຄວາມພ້ອມແລ້ວ, ແຕ່ບາງຮູບພາບຍັງຕ້ອງການຄວາມສົນໃຈ. ກຳລັງປ່ຽນເສັ້ນທາງເພື່ອໃຫ້ທ່ານລອງອີກ.',
@@ -1891,9 +2001,9 @@ const lo: typeof en = {
       promptHintEmpty:
         'ປ້ອນຫົວຂໍ້ຂອງທ່ານ, ຈາກນັ້ນກົດ AI ແນະນຳ ເພື່ອສ້າງອັດຕະໂນມັດ.',
       generationLockedBanner:
-        'Prompt drafting is available, but AI generation is locked until this browser is unlocked with the latest article access code.',
+        'ທ່ານສາມາດຮ່າງ prompt ໄດ້ ແຕ່ການສ້າງດ້ວຍ AI ຖືກລັອກ ຈົນກວ່າ browser ນີ້ຈະຖືກປົດລັອກດ້ວຍລະຫັດເຂົ້າເຖິງບົດຄວາມຫຼ້າສຸດ.',
       generationLockedHint:
-        'Unlock generation with the latest article access code before using AI Suggest.',
+        'ປົດລັອກການສ້າງດ້ວຍລະຫັດເຂົ້າເຖິງບົດຄວາມຫຼ້າສຸດ ກ່ອນໃຊ້ AI Suggest.',
     },
   },
   deckPage: {
@@ -1953,7 +2063,8 @@ const lo: typeof en = {
     imageNotGenerated: 'ຍັງບໍ່ໄດ້ສ້າງຮູບພາບ',
     imagePending: 'ການສ້າງຮູບພາບກຳລັງລໍຖ້າ',
     imageFailed: 'ການສ້າງຮູບພາບລົ້ມເຫຼວ',
-    imageFailureReason: 'ຂໍ້ຜິດພາດຫຼ້າສຸດ',
+    imageFailureReason: 'ຂັ້ນຕອນຕໍ່ໄປ',
+    imageFailureRecovery: 'ລອງສ້າງຮູບພາບນີ້ໃໝ່ຈາກໜ້າບົດຄວາມ.',
     slide: (index: number) => `ສະໄລ້ ${index}`,
     notes: 'ບັນທຶກ',
     viewFullImage: 'ເບິ່ງຮູບພາບເຕັມ',
@@ -2202,6 +2313,11 @@ const my: typeof en = {
     submit: 'ထုတ်လုပ်ခွင့် ဖွင့်',
     submitting: 'စစ်ဆေးနေသည်...',
     invalidCode: 'ထုတ်လုပ်ခွင့်ကုဒ် မမှန်ပါ',
+    codeChanged: 'ဤဝင်ရောက်ခွင့်ကုဒ် ပြောင်းလဲသွားပါပြီ။ နောက်ဆုံးကုဒ်ကို စီမံခန့်ခွဲသူထံ တောင်းပါ။',
+    codeInUse: 'ဤဝင်ရောက်ခွင့်ကုဒ်ကို အခြား browser တွင် အသုံးပြုနေပါသည်။ ကုဒ်အသစ်ကို စီမံခန့်ခွဲသူထံ တောင်းပါ။',
+    codeRevoked: 'ဤဝင်ရောက်ခွင့်ကုဒ်သည် အသက်မဝင်တော့ပါ။ နောက်ဆုံးကုဒ်ကို စီမံခန့်ခွဲသူထံ တောင်းပါ။',
+    tooManyAttempts: 'အကြိမ်များစွာ စမ်းသပ်ပြီးပါပြီ။ ခဏစောင့်ပြီး ထပ်စမ်းပါ။',
+    requestFailed: 'ဝင်ရောက်ခွင့်ကုဒ်ကို စစ်ဆေးမရပါ။ ထပ်စမ်းပါ။',
   },
   theme: {
     ariaLabel: 'အပြင်အဆင် ပြောင်းလဲ',
@@ -2324,12 +2440,11 @@ const my: typeof en = {
       detailed: 'ဆလိုက် ၁၅ ခု (အသေးစိတ်)',
     },
     styleOptions: {
-      ...en.newDeck.styleOptions,
       'pixel-art': {
-        name: 'Pixel Art',
+        name: 'ပစ်ဇယ်အနုပညာ',
         description:
           'ကြီးမားသော ပစ်ဇယ်များနှင့် အိုင်ဆိုမက်ထရစ် မြင်ကွင်းများဖြင့် ရက်ထရို 8-bit crypto ဂိမ်း အနုပညာစတိုင်',
-        bestFor: 'GameFi',
+        bestFor: 'GameFi အကြောင်းအရာ',
       },
       'fantasy-animation': {
         name: 'စိတ်ကူးယဉ် ကာတွန်း',
@@ -2343,6 +2458,36 @@ const my: typeof en = {
           'ရှင်းလင်းသော မှတ်စုများဖြင့် နည်းပညာဆိုင်ရာ သုတေသန ပုံကြမ်းများ',
         bestFor: 'Protocol ရှင်းလင်းချက်များ',
       },
+      binance: {
+        name: 'Binance Isometric စီးဆင်းမှု',
+        description: 'ဖွဲ့စည်းထားသော ရွှေရောင်အလှဆင်မှုများနှင့် ကစားဖွယ်ပလက်ဖောင်းများပါဝင်သည့် မှောင်မိုက်သော crypto isometric မြင်ကွင်းများ။',
+        bestFor: 'crypto ဂေဟစနစ်များ',
+      },
+      'binance-master': {
+        name: 'Binance အားလုံးတစ်နေရာတည်း',
+        description: 'မြင်ကွင်း၊ ယန္တရား၊ အကျဉ်းချုပ်နှင့် အခြေခံလမ်းညွှန်အတွက် ရွှေရောင်-အနက်ရောင် စနစ်တစ်ခု။',
+        bestFor: 'ရောနှောထားသော crypto အကြောင်းအရာ',
+      },
+      'binance-briefing': {
+        name: 'Binance နည်းပညာဆိုင်ရာ အကျဉ်းချုပ်',
+        description: 'isometric ပုံကြမ်းများနှင့် မှတ်ချက်ပြုထားသော ခေါ်ထုတ်ချက်များပါသည့် သုတေသနအဆင့် မှောင်မိုက် infographics။',
+        bestFor: 'တိုင်းတာချက်များနှင့် သုတေသန',
+      },
+      'binance-mondo-panoramic': {
+        name: 'Binance Mondo မြင်ကွင်းကျယ်',
+        description: 'ဇုန်သုံးခုဖြတ်၍ ဘယ်မှညာသို့ ပြောင်းလဲမှုကို ပြသသည့် မှောင်မိုက် screen-print ဇာတ်လမ်းပုံစံ။',
+        bestFor: 'ပြောင်းလဲမှု ဇာတ်လမ်းများ',
+      },
+      'binance-sketch-notes': {
+        name: 'Binance ပုံကြမ်းမှတ်စုများ',
+        description: 'မှောင်မိုက် crypto sketchbook စာမျက်နှာပေါ်ရှိ ရွှေရောင် gel-pen နှင့် chalk ဖြင့် လက်ရေးမှတ်စုများ။',
+        bestFor: 'စတင်သူ လမ်းညွှန်',
+      },
+      'binance-vector-illustration': {
+        name: 'Binance ပြားသောဗက်တာ',
+        description: 'ရွှေရောင်နှင့် မီးခိုးဖျော့ အပြင်လိုင်းများ၊ ကစားစရာမော်ဒယ် အရာများပါသည့် ပြားသောအရောင်ခြယ် မြင်ကွင်းများ။',
+        bestFor: 'လွယ်ကူသော ရှင်းလင်းချက်များ',
+      },
     },
     generateView: {
       creatingDeck: 'ဆောင်းပါး ဖန်တီးနေသည်',
@@ -2351,9 +2496,9 @@ const my: typeof en = {
       generatingBlogAndX: 'Blog နှင့် X ပို့စ်များ ထုတ်လုပ်နေသည်',
       deckReady: 'သင့်ဆောင်းပါး အဆင်သင့်ဖြစ်ပါပြီ!',
       generatingDeck: 'သင့်ဆောင်းပါး ထုတ်လုပ်နေသည်',
-      generationLockedTitle: 'Generation Locked',
+      generationLockedTitle: 'ထုတ်လုပ်ခြင်းကို လော့ခ်ချထားသည်',
       generationLockedDescription:
-        'This browser must be unlocked with the latest article access code before we can spend tokens to generate your article.',
+        'သင့်ဆောင်းပါးကို ထုတ်လုပ်ရန် token မသုံးမီ ဤ browser ကို နောက်ဆုံး ဆောင်းပါးဝင်ရောက်ခွင့်ကုဒ်ဖြင့် ဖွင့်ရပါမည်။',
       readyDescription: 'ဆလိုက်များ၊ ပုံများနှင့် ခေါင်းစီးများ အားလုံး အဆင်သင့်ဖြစ်ပါပြီ။ ပြန်ညွှန်းနေသည်...',
       readyWithWarningsDescription:
         'ဆောင်းပါး အဆင်သင့်ဖြစ်ပါပြီ၊ သို့သော် ပုံအချို့ ပြန်ကြည့်ရန် လိုအပ်သည်။ ထပ်စမ်းနိုင်ရန် ပြန်ညွှန်းနေသည်...',
@@ -2393,9 +2538,9 @@ const my: typeof en = {
       promptHintEmpty:
         'သင့်ညွှန်ကြားချက်ကို ထည့်ပါ၊ ထို့နောက် AI အကြံပြုကို နှိပ်ပြီး အလိုအလျောက် ထုတ်လုပ်ပါ။',
       generationLockedBanner:
-        'Prompt drafting is available, but AI generation is locked until this browser is unlocked with the latest article access code.',
+        'prompt ရေးသားနိုင်သော်လည်း ဤ browser ကို နောက်ဆုံး ဆောင်းပါးဝင်ရောက်ခွင့်ကုဒ်ဖြင့် ဖွင့်မချင်း AI ထုတ်လုပ်ခြင်းကို လော့ခ်ချထားသည်။',
       generationLockedHint:
-        'Unlock generation with the latest article access code before using AI Suggest.',
+        'AI Suggest မသုံးမီ နောက်ဆုံး ဆောင်းပါးဝင်ရောက်ခွင့်ကုဒ်ဖြင့် ထုတ်လုပ်ခြင်းကို ဖွင့်ပါ။',
     },
   },
   deckPage: {
@@ -2455,22 +2600,23 @@ const my: typeof en = {
     imageNotGenerated: 'ပုံ မထုတ်လုပ်ရသေးပါ',
     imagePending: 'ပုံထုတ်လုပ်ခြင်း စောင့်ဆိုင်းဆဲ ဖြစ်သည်',
     imageFailed: 'ပုံထုတ်လုပ်ခြင်း မအောင်မြင်ပါ',
-    imageFailureReason: 'နောက်ဆုံးအမှား',
+    imageFailureReason: 'နောက်တစ်ဆင့်',
+    imageFailureRecovery: 'ဆောင်းပါးစာမျက်နှာမှ ဤပုံကို ထပ်မံဖန်တီးကြည့်ပါ။',
     slide: (index: number) => `ဆလိုက် ${index}`,
     notes: 'မှတ်စု',
     viewFullImage: 'ပုံအပြည့်အစုံ ကြည့်ရှု',
   },
   captions: {
     noCaptions: 'ခေါင်းစီးများ မရရှိနိုင်ပါ',
-    blog: 'Blog',
+    blog: 'ဘလော့ဂ်',
     twitter: 'Twitter/X',
     seoTitle: 'SEO ခေါင်းစဉ်',
     metaDescription: 'Meta ဖော်ပြချက်',
     introText: 'မိတ်ဆက်စာသား',
     tags: 'တဂ်များ',
-    individualTweets: 'Tweet တစ်ခုချင်းစီ',
-    tweet: (index: number) => `Tweet ${index}`,
-    twitterThread: 'Twitter Thread',
+    individualTweets: 'X ပို့စ်တစ်ခုချင်းစီ',
+    tweet: (index: number) => `X ပို့စ် ${index}`,
+    twitterThread: 'Twitter အစဉ်လိုက်ပို့စ်',
     characters: (count: number, max: number) => `${count}/${max} စာလုံး`,
   },
   settingsStep: {
@@ -2704,6 +2850,11 @@ const th: typeof en = {
     submit: 'ปลดล็อกการสร้าง',
     submitting: 'กำลังตรวจสอบ...',
     invalidCode: 'รหัสสร้างเนื้อหาไม่ถูกต้อง',
+    codeChanged: 'รหัสเข้าถึงนี้มีการเปลี่ยนแปลงแล้ว โปรดขอรหัสล่าสุดจากผู้ดูแลระบบ',
+    codeInUse: 'รหัสเข้าถึงนี้กำลังใช้งานอยู่ในเบราว์เซอร์อื่น โปรดขอรหัสใหม่จากผู้ดูแลระบบ',
+    codeRevoked: 'รหัสเข้าถึงนี้ไม่ใช้งานอีกต่อไป โปรดขอรหัสล่าสุดจากผู้ดูแลระบบ',
+    tooManyAttempts: 'ลองหลายครั้งเกินไป โปรดรอสักครู่แล้วลองอีกครั้ง',
+    requestFailed: 'เราไม่สามารถตรวจสอบรหัสเข้าถึงได้ โปรดลองอีกครั้ง',
   },
   theme: {
     ariaLabel: 'สลับธีม',
@@ -2826,12 +2977,11 @@ const th: typeof en = {
       detailed: '15 สไลด์ (ละเอียด)',
     },
     styleOptions: {
-      ...en.newDeck.styleOptions,
       'pixel-art': {
-        name: 'Pixel Art',
+        name: 'พิกเซลอาร์ต',
         description:
           'สุนทรียะเกมคริปโตย้อนยุค 8 บิตพร้อมพิกเซลใหญ่และฉากไอโซเมตริก',
-        bestFor: 'GameFi',
+        bestFor: 'เนื้อหา GameFi',
       },
       'fantasy-animation': {
         name: 'แฟนตาซีแอนิเมชัน',
@@ -2845,6 +2995,36 @@ const th: typeof en = {
           'แผนภาพวิจัยพร้อมคำอธิบายเชิงเทคนิคที่กระชับชัดเจน',
         bestFor: 'อธิบายโปรโตคอล',
       },
+      binance: {
+        name: 'โฟลว์ไอโซเมตริก Binance',
+        description: 'ฉากคริปโตไอโซเมตริกโทนมืด พร้อมแพลตฟอร์มที่ดูสนุกและรายละเอียดสีทองที่เป็นระเบียบ',
+        bestFor: 'ระบบนิเวศคริปโต',
+      },
+      'binance-master': {
+        name: 'Binance ครบจบในที่เดียว',
+        description: 'ระบบสีทองบนพื้นดำหนึ่งเดียวสำหรับฉาก กลไก บรีฟ และเนื้อหาเริ่มต้น',
+        bestFor: 'เนื้อหาคริปโตหลากหลาย',
+      },
+      'binance-briefing': {
+        name: 'บรีฟเทคนิค Binance',
+        description: 'อินโฟกราฟิกโทนมืดระดับงานวิจัย พร้อมไดอะแกรมไอโซเมตริกและคำอธิบายกำกับ',
+        bestFor: 'เมตริกและงานวิจัย',
+      },
+      'binance-mondo-panoramic': {
+        name: 'พาโนรามา Mondo Binance',
+        description: 'การเล่าเรื่องแบบสกรีนพิมพ์โทนมืดที่พัฒนาจากซ้ายไปขวาผ่านสามโซน',
+        bestFor: 'เรื่องราวการเปลี่ยนแปลง',
+      },
+      'binance-sketch-notes': {
+        name: 'บันทึกสเก็ตช์ Binance',
+        description: 'โน้ตลายมือด้วยปากกาเจลสีทองและชอล์กบนหน้าสมุดสเก็ตช์คริปโตโทนมืด',
+        bestFor: 'การเริ่มต้นสำหรับมือใหม่',
+      },
+      'binance-vector-illustration': {
+        name: 'เวกเตอร์แบน Binance',
+        description: 'ฉากระบายสีแบบแบน มีเส้นขอบสีทองและเทาอ่อน พร้อมพร็อพโมเดลของเล่น',
+        bestFor: 'คำอธิบายที่เป็นมิตร',
+      },
     },
     generateView: {
       creatingDeck: 'กำลังสร้างบทความ',
@@ -2853,9 +3033,9 @@ const th: typeof en = {
       generatingBlogAndX: 'กำลังสร้างโพสต์ Blog และ X',
       deckReady: 'บทความของคุณพร้อมแล้ว!',
       generatingDeck: 'กำลังสร้างบทความของคุณ',
-      generationLockedTitle: 'Generation Locked',
+      generationLockedTitle: 'ล็อกการสร้างอยู่',
       generationLockedDescription:
-        'This browser must be unlocked with the latest article access code before we can spend tokens to generate your article.',
+        'เบราว์เซอร์นี้ต้องปลดล็อกด้วยรหัสเข้าถึงบทความล่าสุดก่อนที่เราจะใช้โทเค็นเพื่อสร้างบทความของคุณ',
       readyDescription: 'สไลด์ รูปภาพ และคำบรรยายพร้อมหมดแล้ว กำลังเปลี่ยนเส้นทาง...',
       readyWithWarningsDescription:
         'บทความพร้อมแล้ว แต่รูปภาพบางส่วนยังต้องแก้ไข กำลังเปลี่ยนเส้นทางเพื่อให้คุณลองใหม่',
@@ -2895,9 +3075,9 @@ const th: typeof en = {
       promptHintEmpty:
         'ใส่พรอมต์ของคุณ แล้วคลิก AI แนะนำเพื่อสร้างอัตโนมัติ',
       generationLockedBanner:
-        'Prompt drafting is available, but AI generation is locked until this browser is unlocked with the latest article access code.',
+        'คุณยังร่างพรอมต์ได้ แต่การสร้างด้วย AI จะถูกล็อกจนกว่าเบราว์เซอร์นี้จะปลดล็อกด้วยรหัสเข้าถึงบทความล่าสุด',
       generationLockedHint:
-        'Unlock generation with the latest article access code before using AI Suggest.',
+        'ปลดล็อกการสร้างด้วยรหัสเข้าถึงบทความล่าสุดก่อนใช้ AI Suggest',
     },
   },
   deckPage: {
@@ -2957,14 +3137,15 @@ const th: typeof en = {
     imageNotGenerated: 'ยังไม่ได้สร้างรูปภาพ',
     imagePending: 'การสร้างรูปภาพอยู่ระหว่างรอดำเนินการ',
     imageFailed: 'การสร้างรูปภาพล้มเหลว',
-    imageFailureReason: 'ข้อผิดพลาดล่าสุด',
+    imageFailureReason: 'ขั้นตอนถัดไป',
+    imageFailureRecovery: 'ลองสร้างรูปภาพนี้อีกครั้งจากหน้าบทความ',
     slide: (index: number) => `สไลด์ ${index}`,
     notes: 'บันทึก',
     viewFullImage: 'ดูรูปภาพเต็ม',
   },
   captions: {
     noCaptions: 'ไม่มีคำบรรยาย',
-    blog: 'Blog',
+    blog: 'บล็อก',
     twitter: 'Twitter/X',
     seoTitle: 'ชื่อ SEO',
     metaDescription: 'คำอธิบาย Meta',
@@ -3206,6 +3387,11 @@ const fil: typeof en = {
     submit: 'I-unlock ang Pagbuo',
     submitting: 'Sinusuri...',
     invalidCode: 'Hindi wastong generation code',
+    codeChanged: 'Nagbago ang access code na ito. Hingin ang pinakabagong code sa administrator.',
+    codeInUse: 'Aktibo na ang access code na ito sa ibang browser. Hingin ang bagong code sa administrator.',
+    codeRevoked: 'Hindi na aktibo ang access code na ito. Hingin ang pinakabagong code sa administrator.',
+    tooManyAttempts: 'Masyadong maraming pagsubok. Maghintay sandali at subukan muli.',
+    requestFailed: 'Hindi namin ma-verify ang access code. Subukan muli.',
   },
   theme: {
     ariaLabel: 'Palitan ang tema',
@@ -3328,24 +3514,53 @@ const fil: typeof en = {
       detailed: '15 slide (detalyado)',
     },
     styleOptions: {
-      ...en.newDeck.styleOptions,
       'pixel-art': {
-        name: 'Pixel Art',
+        name: 'Sining ng Pixel',
         description:
           'Retro 8-bit crypto gaming aesthetic na may malalaking pixel at isometric na eksena',
-        bestFor: 'GameFi',
+        bestFor: 'Nilalamang GameFi',
       },
       'fantasy-animation': {
-        name: 'Fantasy Animation',
+        name: 'Animasyong Pantasya',
         description:
           'Engkantadong storybook na kwento na may mahiwagang kinang at mainit na pintura',
         bestFor: 'Mga paliwanag sa Web3',
       },
       'lab-notes': {
-        name: 'Lab Notes',
+        name: 'Mga Tala sa Laboratoryo',
         description:
           'Teknikal na anotadong mga diagram ng pananaliksik na may malinaw na mga tala',
         bestFor: 'Mga paliwanag sa protocol',
+      },
+      binance: {
+        name: 'Isometric na Daloy ng Binance',
+        description: 'Madidilim na isometric na eksena ng crypto na may masiglang platform at organisadong gintong accent.',
+        bestFor: 'Mga ecosystem ng crypto',
+      },
+      'binance-master': {
+        name: 'Binance Lahat-sa-Iisa',
+        description: 'Iisang sistemang ginto-sa-itim para sa eksena, mekanismo, briefing, at panimulang gabay.',
+        bestFor: 'Halo-halong nilalamang crypto',
+      },
+      'binance-briefing': {
+        name: 'Teknikal na Briefing ng Binance',
+        description: 'Madidilim na infographic na pang-research na may isometric na diagram at may anotasyong callout.',
+        bestFor: 'Mga sukatan at pananaliksik',
+      },
+      'binance-mondo-panoramic': {
+        name: 'Mondo Panoramic ng Binance',
+        description: 'Madilim na screen-print na pagkukuwento na umuunlad mula kaliwa pakanan sa tatlong sona.',
+        bestFor: 'Mga kuwentong pagbabago',
+      },
+      'binance-sketch-notes': {
+        name: 'Mga Tala ng Sketch ng Binance',
+        description: 'Mga sulat-kamay na tala gamit ang gintong gel-pen at chalk sa madilim na crypto sketchbook.',
+        bestFor: 'Pag-onboard ng baguhan',
+      },
+      'binance-vector-illustration': {
+        name: 'Patag na Vector ng Binance',
+        description: 'Patag na mga eksenang parang coloring book na may gintong at mapusyaw na abong outline at toy-model na props.',
+        bestFor: 'Magiliw na pagpapaliwanag',
       },
     },
     generateView: {
@@ -3355,9 +3570,9 @@ const fil: typeof en = {
       generatingBlogAndX: 'Bumubuo ng blog at X post',
       deckReady: 'Handa na ang Iyong Artikulo!',
       generatingDeck: 'Binubuo ang Iyong Artikulo',
-      generationLockedTitle: 'Generation Locked',
+      generationLockedTitle: 'Naka-lock ang Pagbuo',
       generationLockedDescription:
-        'This browser must be unlocked with the latest article access code before we can spend tokens to generate your article.',
+        'Kailangang i-unlock ang browser na ito gamit ang pinakabagong access code ng artikulo bago kami gumamit ng token upang buuin ang iyong artikulo.',
       readyDescription: 'Handa na ang mga slide, larawan, at caption. Nire-redirect...',
       readyWithWarningsDescription:
         'Handa na ang artikulo, ngunit may ilang larawan pa na nangangailangan ng atensyon. Nire-redirect upang masubukan mo ulit ang mga ito.',
@@ -3397,9 +3612,9 @@ const fil: typeof en = {
       promptHintEmpty:
         'Ilagay ang iyong prompt, pagkatapos ay i-click ang Mungkahi ng AI upang awtomatikong bumuo.',
       generationLockedBanner:
-        'Prompt drafting is available, but AI generation is locked until this browser is unlocked with the latest article access code.',
+        'Maaari kang mag-draft ng prompt, ngunit naka-lock ang pagbuo gamit ang AI hanggang ma-unlock ang browser na ito gamit ang pinakabagong access code ng artikulo.',
       generationLockedHint:
-        'Unlock generation with the latest article access code before using AI Suggest.',
+        'I-unlock ang pagbuo gamit ang pinakabagong access code ng artikulo bago gamitin ang AI Suggest.',
     },
   },
   deckPage: {
@@ -3425,13 +3640,13 @@ const fil: typeof en = {
     slidesReordered: 'Na-ayos muli ang mga slide.',
     slideReorderFailed: 'Hindi ma-ayos muli ang mga slide',
     tabsSlides: (count: number) => `Mga Slide (${count})`,
-    tabsEditor: 'Editor',
-    tabsPreview: 'Preview',
+    tabsEditor: 'Tagapag-edit',
+    tabsPreview: 'Paunang tingin',
   },
   slideList: {
     slides: (count: number) => `Mga Slide (${count})`,
     noSlidesYet: 'Wala pang mga slide',
-    slide: (index: number) => `Slide ${index}`,
+    slide: (index: number) => `Slide blg. ${index}`,
     moveUp: 'Ilipat ang slide pataas',
     moveDown: 'Ilipat ang slide pababa',
   },
@@ -3459,22 +3674,23 @@ const fil: typeof en = {
     imageNotGenerated: 'Hindi pa nabuo ang larawan',
     imagePending: 'Nakabinbin ang pagbuo ng larawan',
     imageFailed: 'Nabigo ang pagbuo ng larawan',
-    imageFailureReason: 'Huling error',
-    slide: (index: number) => `Slide ${index}`,
+    imageFailureReason: 'Susunod na hakbang',
+    imageFailureRecovery: 'Subukang buuin muli ang larawang ito mula sa pahina ng artikulo.',
+    slide: (index: number) => `Slide blg. ${index}`,
     notes: 'Mga Tala',
     viewFullImage: 'Tingnan ang buong larawan',
   },
   captions: {
     noCaptions: 'Walang mga caption na available',
-    blog: 'Blog',
+    blog: 'Artikulo sa blog',
     twitter: 'Twitter/X',
     seoTitle: 'Pamagat ng SEO',
-    metaDescription: 'Meta Description',
+    metaDescription: 'Paglalarawan ng Meta',
     introText: 'Panimulang Teksto',
     tags: 'Mga Tag',
     individualTweets: 'Mga Indibidwal na Tweet',
     tweet: (index: number) => `Tweet ${index}`,
-    twitterThread: 'Twitter Thread',
+    twitterThread: 'Thread sa Twitter',
     characters: (count: number, max: number) => `${count}/${max} karakter`,
   },
   settingsStep: {

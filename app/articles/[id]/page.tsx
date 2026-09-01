@@ -60,6 +60,10 @@ interface DeckPageProps {
 
 class LocalizedArticleError extends Error {}
 
+function localizedArticleError(error: unknown, fallback: string): string {
+  return error instanceof LocalizedArticleError ? error.message : fallback;
+}
+
 function buildMovedSlideOrder(
   slides: DeckSlide[],
   slideId: string,
@@ -154,7 +158,7 @@ export default function DeckPage({ params }: DeckPageProps) {
         if (GenerateAccessError.isGenerateAccessResponse(res.status, data)) {
           throw new GenerateAccessError();
         }
-        throw new Error(data?.error || messages.deckPage.imageRetryFailed);
+        throw new LocalizedArticleError(messages.deckPage.imageRetryFailed);
       }
 
       return waitForJob(data.jobId, publishingCopy.articlePage);
@@ -168,7 +172,7 @@ export default function DeckPage({ params }: DeckPageProps) {
       await refetch();
 
       if (result.status !== 'completed') {
-        setRetryError(result.error || messages.deckPage.imageRetryFailed);
+        setRetryError(messages.deckPage.imageRetryFailed);
         return;
       }
 
@@ -191,7 +195,7 @@ export default function DeckPage({ params }: DeckPageProps) {
         setShowAccessDialog(true);
         return;
       }
-      setRetryError(error instanceof Error ? error.message : messages.deckPage.imageRetryFailed);
+      setRetryError(localizedArticleError(error, messages.deckPage.imageRetryFailed));
     },
   });
 
@@ -231,11 +235,7 @@ export default function DeckPage({ params }: DeckPageProps) {
         setShowAccessDialog(true);
         return;
       }
-      setCoverError(
-        error instanceof LocalizedArticleError
-          ? error.message
-          : publishingCopy.cover.failed,
-      );
+      setCoverError(localizedArticleError(error, publishingCopy.cover.failed));
     },
   });
 
@@ -295,9 +295,7 @@ export default function DeckPage({ params }: DeckPageProps) {
           setActiveSlideId(createdSlide.id);
         },
         onError: (error) => {
-          setEditorError(
-            error instanceof Error ? error.message : messages.deckPage.slideAddFailed
-          );
+          setEditorError(localizedArticleError(error, messages.deckPage.slideAddFailed));
         },
       }
     );
@@ -320,9 +318,7 @@ export default function DeckPage({ params }: DeckPageProps) {
           setEditorFeedback(messages.deckPage.slideSaved);
         },
         onError: (error) => {
-          setEditorError(
-            error instanceof Error ? error.message : messages.deckPage.slideSaveFailed
-          );
+          setEditorError(localizedArticleError(error, messages.deckPage.slideSaveFailed));
         },
       }
     );
@@ -344,9 +340,7 @@ export default function DeckPage({ params }: DeckPageProps) {
         setEditorFeedback(messages.deckPage.slideDeleted);
       },
       onError: (error) => {
-        setEditorError(
-          error instanceof Error ? error.message : messages.deckPage.slideDeleteFailed
-        );
+        setEditorError(localizedArticleError(error, messages.deckPage.slideDeleteFailed));
       },
     });
   };
@@ -364,9 +358,7 @@ export default function DeckPage({ params }: DeckPageProps) {
         setEditorFeedback(messages.deckPage.slidesReordered);
       },
       onError: (error) => {
-        setEditorError(
-          error instanceof Error ? error.message : messages.deckPage.slideReorderFailed
-        );
+        setEditorError(localizedArticleError(error, messages.deckPage.slideReorderFailed));
       },
     });
   };
@@ -377,9 +369,7 @@ export default function DeckPage({ params }: DeckPageProps) {
         router.push('/workspace');
       },
       onError: (error) => {
-        setEditorError(
-          error instanceof Error ? error.message : messages.deckPage.deleteArticleFailed
-        );
+        setEditorError(localizedArticleError(error, messages.deckPage.deleteArticleFailed));
       },
     });
   };

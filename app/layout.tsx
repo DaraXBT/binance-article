@@ -5,6 +5,7 @@ import '@fontsource/google-sans/latin.css'
 
 import { Providers } from '@/components/providers'
 import { isLanguage, LANGUAGE_COOKIE_NAME, UI_LANGUAGE } from '@/lib/i18n'
+import { metadataForLanguage } from '@/lib/page-metadata'
 import './globals.css'
 
 const interKhmerLooped = localFont({
@@ -24,9 +25,7 @@ const interKhmerLooped = localFont({
   display: 'swap',
 })
 
-export const metadata: Metadata = {
-  title: 'xArticle — Binance Square article studio',
-  description: 'Turn a market idea into a publish-ready Binance Square article.',
+const baseMetadata: Omit<Metadata, 'title' | 'description'> = {
   applicationName: 'xArticle',
   icons: {
     icon: [
@@ -47,14 +46,25 @@ export const metadata: Metadata = {
   },
 }
 
+async function savedLanguage() {
+  const cookieStore = await cookies()
+  const saved = cookieStore.get(LANGUAGE_COOKIE_NAME)?.value
+  return isLanguage(saved) ? saved : UI_LANGUAGE
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    ...baseMetadata,
+    ...metadataForLanguage(await savedLanguage()),
+  }
+}
+
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const cookieStore = await cookies()
-  const savedLanguage = cookieStore.get(LANGUAGE_COOKIE_NAME)?.value
-  const initialLanguage = isLanguage(savedLanguage) ? savedLanguage : UI_LANGUAGE
+  const initialLanguage = await savedLanguage()
 
   return (
     <html lang={initialLanguage} suppressHydrationWarning>

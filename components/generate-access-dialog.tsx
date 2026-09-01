@@ -14,11 +14,49 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import type { Messages } from '@/lib/i18n';
 
 interface GenerateAccessDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void | Promise<void>;
+}
+
+type GenerateAccessMessages = Messages['generateAccess'];
+
+function responseCode(body: unknown): string | null {
+  if (typeof body !== 'object' || body === null || !('code' in body)) return null;
+  return typeof body.code === 'string' ? body.code : null;
+}
+
+function responseReason(body: unknown): string | null {
+  if (typeof body !== 'object' || body === null || !('reason' in body)) return null;
+  return typeof body.reason === 'string' ? body.reason : null;
+}
+
+// API error bodies can include implementation or provider detail. Only known,
+// actionable response codes are mapped to user-visible copy; all others stay
+// behind a local recovery message.
+export function generateAccessFailureMessage(
+  status: number,
+  body: unknown,
+  copy: GenerateAccessMessages,
+): string {
+  const code = responseCode(body);
+
+  if (status === 429 || code === 'RATE_LIMITED') return copy.tooManyAttempts;
+  if (code !== 'INVALID_GENERATE_CODE') return copy.requestFailed;
+
+  switch (responseReason(body)) {
+    case 'rotated':
+      return copy.codeChanged;
+    case 'already_used':
+      return copy.codeInUse;
+    case 'revoked':
+      return copy.codeRevoked;
+    default:
+      return copy.invalidCode;
+  }
 }
 
 export function GenerateAccessDialog({ open, onOpenChange, onSuccess }: GenerateAccessDialogProps) {
@@ -42,7 +80,7 @@ export function GenerateAccessDialog({ open, onOpenChange, onSuccess }: Generate
       const data = await response.json().catch(() => null);
 
       if (!response.ok) {
-        setError(data?.error || messages.generateAccess.invalidCode);
+        setError(generateAccessFailureMessage(response.status, data, messages.generateAccess));
         return;
       }
 
@@ -53,7 +91,7 @@ export function GenerateAccessDialog({ open, onOpenChange, onSuccess }: Generate
       await onSuccess();
       onOpenChange(false);
     } catch {
-      setError(messages.generateAccess.invalidCode);
+      setError(messages.generateAccess.requestFailed);
     } finally {
       setIsSubmitting(false);
     }

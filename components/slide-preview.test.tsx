@@ -21,6 +21,10 @@ function EnglishLanguageProvider({ children }: React.PropsWithChildren) {
   return <LanguageProvider initialLanguage="en">{children}</LanguageProvider>;
 }
 
+function KhmerLanguageProvider({ children }: React.PropsWithChildren) {
+  return <LanguageProvider initialLanguage="km">{children}</LanguageProvider>;
+}
+
 function slide(overrides: Partial<DeckSlide> = {}): DeckSlide {
   return {
     id: 'slide_1',
@@ -75,13 +79,33 @@ describe('SlidePreview image generation state', () => {
     expect(screen.queryByText('Quota exceeded')).toBeNull();
   });
 
-  it('preserves the failed-image explanation outside a retry', () => {
+  it('hides raw image-provider detail and gives safe recovery guidance outside a retry', () => {
     render(
       <SlidePreview articleId="article_1" slide={slide()} />,
       { wrapper: EnglishLanguageProvider },
     );
 
     expect(screen.queryByTestId('image-generation-loader')).toBeNull();
-    expect(screen.getByText(/Quota exceeded/)).toBeTruthy();
+    expect(screen.queryByText(/Quota exceeded/)).toBeNull();
+    expect(screen.getByText('Next step: Try generating this image again from the article page.')).toBeTruthy();
+  });
+
+  it('uses the selected locale for failed-image recovery guidance', () => {
+    render(
+      <SlidePreview articleId="article_1" slide={slide()} />,
+      { wrapper: KhmerLanguageProvider },
+    );
+
+    expect(screen.queryByText(/Quota exceeded/)).toBeNull();
+    expect(screen.getByText('ជំហានបន្ទាប់: សូមសាកល្បងបង្កើតរូបភាពនេះម្ដងទៀតពីទំព័រអត្ថបទ។')).toBeTruthy();
+  });
+
+  it('does not display the persisted default theme sentinel', () => {
+    const { container } = render(
+      <SlidePreview articleId="article_1" slide={slide()} theme="default" />,
+      { wrapper: EnglishLanguageProvider },
+    );
+
+    expect(container.textContent).not.toContain('• default');
   });
 });
