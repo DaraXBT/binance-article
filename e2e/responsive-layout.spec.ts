@@ -134,6 +134,9 @@ test('a saved locale initializes server-rendered public UI and clears legacy pre
     },
   ]);
   await page.addInitScript(() => {
+    // Cloudflare injects a same-origin helper iframe in production. Only the
+    // top-level document represents the browser preference under test.
+    if (window.top !== window) return;
     window.localStorage.setItem('xarticle_language', 'en');
     window.localStorage.setItem('deckforge_language', 'en');
   });
