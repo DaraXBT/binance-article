@@ -10,6 +10,7 @@ import {
   PromptComposer,
 } from './prompt-composer';
 import { ILLUSTRATION_STYLES } from '@/lib/config';
+import { getIllustrationStyleCopy } from '@/lib/illustration-style-i18n';
 
 type PromptComposerProps = React.ComponentProps<typeof PromptComposer>;
 type PromptComposerWithoutSuggestProps = Extract<
@@ -108,6 +109,28 @@ describe('PromptComposer', () => {
         .toContain(style.name);
     },
   );
+
+  it('uses the active locale for the selected style and its visible menu description', () => {
+    const copy = getIllustrationStyleCopy('km', 'binance-master');
+    const nextStyle = getIllustrationStyleCopy('km', 'pixel-art');
+    const onIllustrationStyleChange = vi.fn();
+    renderPromptComposer({
+      language: 'km',
+      illustrationStyle: 'binance-master',
+      onIllustrationStyleChange,
+    });
+
+    const selector = screen.getByRole('combobox', { name: 'Style' });
+    expect(selector.textContent).toContain(copy.name);
+    expect(selector.textContent).not.toContain(copy.description);
+    expect(selector.textContent).not.toContain('Binance All-In-One');
+
+    fireEvent.click(selector);
+    expect(screen.getByText(copy.description)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('option', { name: new RegExp(nextStyle.name) }));
+    expect(onIllustrationStyleChange).toHaveBeenCalledWith('pixel-art');
+  });
 
   it('keeps prompt editing controlled by the caller', () => {
     const onPromptChange = vi.fn();

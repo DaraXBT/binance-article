@@ -22,6 +22,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { ILLUSTRATION_STYLES, type IllustrationStyleId } from '@/lib/config';
+import { getIllustrationStyleCopy } from '@/lib/illustration-style-i18n';
+import { UI_LANGUAGE, type Language } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 export const COMPOSER_SLIDE_COUNTS = [1, 3, 5, 7, 10, 15] as const;
@@ -51,6 +53,7 @@ type PromptComposerLabels = {
 };
 
 type PromptComposerBaseProps = {
+  language?: Language;
   textareaRef?: Ref<HTMLTextAreaElement>;
   prompt: string;
   onPromptChange: (value: string) => void;
@@ -86,6 +89,7 @@ export type PromptComposerProps = PromptComposerBaseProps & (
 );
 
 export function PromptComposer({
+  language = UI_LANGUAGE,
   textareaRef,
   prompt,
   onPromptChange,
@@ -215,11 +219,20 @@ export function PromptComposer({
                   collisionPadding={12}
                   className="rounded-2xl border-border/80 shadow-lg"
                 >
-                  {ILLUSTRATION_STYLES.map((style) => (
-                    <SelectItem key={style.id} value={style.id} className="rounded-xl">
-                      {style.name}
-                    </SelectItem>
-                  ))}
+                  {ILLUSTRATION_STYLES.map((style) => {
+                    const copy = getIllustrationStyleCopy(language, style.id);
+
+                    return (
+                      <SelectItem
+                        key={style.id}
+                        value={style.id}
+                        description={copy.description}
+                        className="rounded-xl py-2"
+                      >
+                        {copy.name}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>

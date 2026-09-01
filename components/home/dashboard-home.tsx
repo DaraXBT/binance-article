@@ -1469,6 +1469,7 @@ export function DashboardHome({
               </div>
             ) : null}
             <WorkspaceSourceComposer
+              language={language}
               source={source}
               onSourceChange={handleSourceChange}
               value={prompt}

@@ -5,6 +5,7 @@ import type { ComponentProps } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { WorkspaceSourceComposer } from './workspace-source-composer';
+import { getIllustrationStyleCopy } from '@/lib/illustration-style-i18n';
 
 const labels = {
   sourceLabel: 'Article source', sourcePrompt: 'Topic', sourceText: 'Paste text', sourceUrl: 'Import URL',
@@ -61,5 +62,27 @@ describe('WorkspaceSourceComposer', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Paste text' }));
     expect(onGenerate).toHaveBeenCalledOnce();
     expect(onSourceChange).toHaveBeenCalledWith('text');
+  });
+
+  it('renders localized style names and descriptions while preserving the selected ID', () => {
+    const copy = getIllustrationStyleCopy('th', 'binance-master');
+    const nextStyle = getIllustrationStyleCopy('th', 'pixel-art');
+    const onIllustrationStyleChange = vi.fn();
+    renderComposer({
+      language: 'th',
+      illustrationStyle: 'binance-master',
+      onIllustrationStyleChange,
+    });
+
+    const selector = screen.getByRole('combobox', { name: 'Style' });
+    expect(selector.textContent).toContain(copy.name);
+    expect(selector.textContent).not.toContain(copy.description);
+    expect(selector.textContent).not.toContain('Binance All-In-One');
+
+    fireEvent.click(selector);
+    expect(screen.getByText(copy.description)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('option', { name: new RegExp(nextStyle.name) }));
+    expect(onIllustrationStyleChange).toHaveBeenCalledWith('pixel-art');
   });
 });

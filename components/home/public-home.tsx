@@ -181,7 +181,7 @@ export function PublicHome({
   onNavigate?: (href: string) => void;
   storage?: Storage;
 }) {
-  const { messages } = useLanguage();
+  const { language, messages } = useLanguage();
   const copy = messages.publicHome;
   const [prompt, setPrompt] = useState('');
   const [slideCount, setSlideCount] = useState<ComposerSlideCount>(5);
@@ -515,6 +515,7 @@ export function PublicHome({
           <div data-article-studio-composer className="mx-auto w-full max-w-3xl">
             <div id="public-composer" className="scroll-mt-4">
               <PromptComposer
+                language={language}
                 textareaRef={promptRef}
                 prompt={prompt}
                 onPromptChange={(value) => {

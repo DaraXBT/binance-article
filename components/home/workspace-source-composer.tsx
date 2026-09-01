@@ -24,6 +24,8 @@ import {
   type ComposerSlideCount,
 } from '@/components/home/prompt-composer';
 import { ILLUSTRATION_STYLES, type IllustrationStyleId } from '@/lib/config';
+import { getIllustrationStyleCopy } from '@/lib/illustration-style-i18n';
+import { UI_LANGUAGE, type Language } from '@/lib/i18n';
 import { normalizeImportUrl, type ArticleSource } from '@/lib/article-source';
 import { cn } from '@/lib/utils';
 
@@ -50,6 +52,7 @@ type WorkspaceSourceComposerLabels = {
 };
 
 export interface WorkspaceSourceComposerProps {
+  language?: Language;
   source: ArticleSource;
   onSourceChange: (source: ArticleSource) => void;
   value: string;
@@ -69,6 +72,7 @@ export interface WorkspaceSourceComposerProps {
 }
 
 export function WorkspaceSourceComposer({
+  language = UI_LANGUAGE,
   source,
   onSourceChange,
   value,
@@ -211,7 +215,20 @@ export function WorkspaceSourceComposer({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent align="start" sideOffset={6} collisionPadding={12} className="rounded-xl border-border/80 shadow-lg">
-                    {ILLUSTRATION_STYLES.map((style) => <SelectItem key={style.id} value={style.id} className="rounded-lg">{style.name}</SelectItem>)}
+                    {ILLUSTRATION_STYLES.map((style) => {
+                      const copy = getIllustrationStyleCopy(language, style.id);
+
+                      return (
+                        <SelectItem
+                          key={style.id}
+                          value={style.id}
+                          description={copy.description}
+                          className="rounded-lg py-2"
+                        >
+                          {copy.name}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
