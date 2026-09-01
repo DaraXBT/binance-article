@@ -10,6 +10,8 @@ const messages = {
     resumeUnavailable: 'That draft is no longer available in this tab.',
     storageError: 'This browser could not preserve the draft.',
     promptTooShort: 'Add at least 10 characters.',
+    openArticleNavigation: 'Open article navigation',
+    closeArticleNavigation: 'Close article navigation',
   },
   common: {
     cancel: 'Cancel',
@@ -61,6 +63,27 @@ const messages = {
     importOldWorkspace: 'Localized import workspace',
     signOut: 'Localized sign out',
     signingOut: 'Localized signing out…',
+    sourceLabel: 'Article source',
+    sourcePrompt: 'Topic',
+    sourceText: 'Paste text',
+    sourceUrl: 'Import URL',
+    textLabel: 'Article text',
+    textPlaceholder: 'Paste a full article or draft',
+    urlLabel: 'Webpage URL',
+    urlPlaceholder: 'https://example.com/article',
+    urlHint: 'Use an HTTPS article URL.',
+    urlInvalid: 'Enter a valid HTTPS URL.',
+    generateUrlAction: 'Import & generate',
+    untitledArticle: 'Untitled article',
+    importFromUrl: 'Import from URL',
+    promptMinimumLength: (count: number) => `A prompt of at least ${count} characters is required.`,
+    articleGenerationStartFailed: 'Failed to start article generation',
+    accountProvisionFailed: 'Failed to open your account library.',
+    checkingAccount: 'Checking your account',
+    accountConnectionUnavailable: 'Account connection unavailable',
+    draftUnavailable: 'Draft unavailable',
+    openArticleHistory: 'Open article history',
+    closeArticleHistory: 'Close article history',
   },
   newDeck: {
     styleOptions: {
@@ -136,6 +159,9 @@ const messages = {
     resumeChoiceImport: 'Import legacy articles',
     resumeContinue: 'Continue this draft',
     resumeContinueDescription: 'Your draft is ready to continue. Generation will start only when you choose Continue.',
+  },
+  auth: {
+    accountStatus: 'Account status',
   },
 };
 
@@ -405,7 +431,7 @@ describe('DashboardHome', () => {
     const html = renderToStaticMarkup(React.createElement(DashboardHome));
 
     expect(html).toContain(messages.workspace.bootstrapErrorTitle);
-    expect(html).toContain('Failed to fetch workspace');
+    expect(html).toContain(messages.workspace.bootstrapErrorDescription);
     expect(html).toContain(messages.common.retry);
     expect(html).not.toContain('data-testid="workspace-onboarding"');
     expect(html).not.toContain(messages.dashboard.promptHomeTitle);

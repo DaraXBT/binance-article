@@ -14,6 +14,7 @@ const authCopy = {
   authErrorGeneric: 'We could not finish sign-in.',
   returnToJoin: 'Return to join',
   returnToSignIn: 'Return to sign in',
+  accountStatus: 'Account status',
 };
 
 vi.mock('@/components/language-provider', () => ({

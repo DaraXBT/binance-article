@@ -100,7 +100,7 @@ export function EnrollmentCompletion({
         </span>
         <div className="min-w-0 flex-1">
           <h1 id="enrollment-completion-title" className="text-xl font-semibold leading-tight sm:text-2xl">
-            {state.status === 'complete' ? 'Welcome to xArticle' : 'Finishing enrollment'}
+            {state.status === 'complete' ? copy.enrollmentWelcome : copy.enrollmentFinishing}
           </h1>
           <p
             role={state.status === 'error' ? 'alert' : 'status'}
@@ -113,7 +113,7 @@ export function EnrollmentCompletion({
               ? copy.enrollmentComplete
               : state.status === 'error'
                 ? state.message
-                : 'Confirming your account and opening your article library…'}
+                : copy.enrollmentConfirming}
           </p>
         </div>
       </div>

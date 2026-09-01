@@ -38,6 +38,8 @@ const messages = {
     promptTooShort: 'Add at least 10 characters.',
     trustLine: 'Private assets · Binance login stays on your device',
     privateAssets: 'Private assets',
+    openArticleNavigation: 'Open article navigation',
+    closeArticleNavigation: 'Close article navigation',
     startersLabel: 'Try an idea',
     starters: [
       'Explain tokenized gold for crypto traders',

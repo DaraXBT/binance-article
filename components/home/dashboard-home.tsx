@@ -53,7 +53,12 @@ import {
   type IllustrationStyleId,
 } from '@/lib/config';
 import { cn } from '@/lib/utils';
-import { formatRelativeTime, type Language } from '@/lib/i18n';
+import {
+  formatRelativeTime,
+  translations,
+  type Language,
+  type Messages,
+} from '@/lib/i18n';
 import {
   useCreateWorkspace,
   useDecks,
@@ -97,6 +102,7 @@ type DeckListItem = {
 };
 
 type HomeFetch = typeof fetch;
+type DashboardCopy = Messages['dashboard'];
 
 interface SubmitPromptArticleOptions {
   title?: string;
@@ -110,6 +116,7 @@ interface SubmitPromptArticleOptions {
   onStage?: (stage: 'article_created' | 'generation_started', value: { articleId: string; jobId?: string }) => void;
   fetchImpl?: HomeFetch;
   source?: ArticleSource;
+  copy?: DashboardCopy;
 }
 
 // Match the anonymous composer's default so the experience is identical
@@ -117,6 +124,7 @@ interface SubmitPromptArticleOptions {
 const DEFAULT_HOME_SLIDE_COUNT = 5;
 const DEFAULT_HOME_ILLUSTRATION_STYLE = DEFAULT_ILLUSTRATION_STYLE;
 const sidebarSkeletonWidths = ['88%', '64%', '76%', '58%', '71%', '67%'] as const;
+const defaultDashboardCopy = translations.en.dashboard;
 
 function WorkspaceBootstrapScreen({
   title,
@@ -171,7 +179,9 @@ async function readHomeResponse<T>(response: Response, fallbackMessage: string):
     if (GenerateAccessError.isGenerateAccessResponse(response.status, data)) {
       throw new GenerateAccessError(data?.error);
     }
-    throw new Error(data?.error || fallbackMessage);
+    // Server responses may contain technical or untranslated provider detail.
+    // The UI always presents the current locale's safe recovery message.
+    throw new Error(fallbackMessage);
   }
 
   return data as T;
@@ -180,14 +190,16 @@ async function readHomeResponse<T>(response: Response, fallbackMessage: string):
 export async function requestPromptSuggestion({
   title,
   fetchImpl = fetch,
+  copy = defaultDashboardCopy,
 }: {
   title: string;
   fetchImpl?: HomeFetch;
+  copy?: DashboardCopy;
 }) {
   const trimmedTitle = title.trim();
 
   if (!trimmedTitle) {
-    throw new Error('A topic is required.');
+    throw new Error(copy.topicRequired);
   }
 
   const response = await fetchImpl('/api/articles/generate-prompt', {
@@ -198,10 +210,10 @@ export async function requestPromptSuggestion({
     }),
   });
 
-  const data = await readHomeResponse<{ prompt?: string }>(response, 'Failed to generate prompt');
+  const data = await readHomeResponse<{ prompt?: string }>(response, copy.promptGenerateFailed);
 
   if (!data.prompt?.trim()) {
-    throw new Error('Failed to generate prompt');
+    throw new Error(copy.promptGenerateFailed);
   }
 
   return data.prompt;
@@ -219,11 +231,11 @@ export function getAiSuggestGlowClassName({
     : 'ai-suggest-frame pointer-events-none absolute inset-0 border border-primary/20 opacity-0 transition-opacity duration-150';
 }
 
-function extractTitleFromContent(content: string): string {
+function extractTitleFromContent(content: string, fallbackTitle: string): string {
   const headingMatch = content.match(/^#\s+(.+)$/m);
   if (headingMatch) return headingMatch[1].trim().slice(0, 80);
   const firstLine = content.split('\n').find((line) => line.trim().length > 0);
-  return firstLine ? firstLine.trim().slice(0, 80) : 'Untitled';
+  return firstLine ? firstLine.trim().slice(0, 80) : fallbackTitle;
 }
 
 export async function submitPromptArticle({
@@ -236,17 +248,18 @@ export async function submitPromptArticle({
   onStage,
   fetchImpl = fetch,
   source = 'prompt',
+  copy = defaultDashboardCopy,
 }: SubmitPromptArticleOptions) {
   const content = source === 'url' ? normalizeImportUrl(prompt) : prompt.trim();
   const trimmedTitle = source === 'url'
-    ? 'Import from URL'
-    : title?.trim() || extractTitleFromContent(content ?? '');
+    ? copy.importFromUrl
+    : title?.trim() || extractTitleFromContent(content ?? '', copy.untitledArticle);
 
   if (!content) {
-    throw new Error(source === 'url' ? 'Enter a valid HTTPS URL.' : 'A prompt is required.');
+    throw new Error(source === 'url' ? copy.urlInvalid : copy.promptRequired);
   }
   if (source !== 'url' && content.length < MINIMUM_PROMPT_LENGTH) {
-    throw new Error(`A prompt of at least ${MINIMUM_PROMPT_LENGTH} characters is required.`);
+    throw new Error(copy.promptMinimumLength(MINIMUM_PROMPT_LENGTH));
   }
 
   let deckId = existingArticleId;
@@ -267,13 +280,13 @@ export async function submitPromptArticle({
 
     const createdArticle = await readHomeResponse<{ id?: string }>(
       createResponse,
-      'Failed to generate article'
+      copy.articleGenerateFailed,
     );
     deckId = createdArticle.id;
   }
 
   if (!deckId) {
-    throw new Error('Failed to generate article');
+    throw new Error(copy.articleGenerateFailed);
   }
 
   onStage?.('article_created', { articleId: deckId });
@@ -293,11 +306,11 @@ export async function submitPromptArticle({
 
   const generationJob = await readHomeResponse<{ jobId?: string }>(
     generateResponse,
-    'Failed to generate article'
+    copy.articleGenerateFailed,
   );
 
   if (!generationJob.jobId) {
-    throw new Error('Failed to start article generation');
+    throw new Error(copy.articleGenerationStartFailed);
   }
 
   onStage?.('generation_started', { articleId: deckId, jobId: generationJob.jobId });
@@ -386,10 +399,8 @@ function DeckSidebarRow({
           setRenameError(null);
           setIsRenaming(false);
         },
-        onError: (error) => {
-          setRenameError(
-            error instanceof Error ? error.message : messages.dashboard.renameArticleFailed
-          );
+        onError: () => {
+          setRenameError(messages.dashboard.renameArticleFailed);
           setDraftTitle(deck.title);
           setIsRenaming(false);
         },
@@ -543,8 +554,8 @@ function DeckSidebarList({
         <StudioSidebarBrand
           href="/workspace"
           description={messages.dashboard.workspaceDashboard}
-          openLabel="Open article history"
-          closeLabel="Close article history"
+          openLabel={messages.dashboard.openArticleHistory}
+          closeLabel={messages.dashboard.closeArticleHistory}
         />
 
         <Button
@@ -692,7 +703,7 @@ export function DashboardHome({
   const decks = (data ?? []) as DeckListItem[];
   const { generationLocked, unlockGeneration, markGenerationAccessLost } = useGenerationLock();
   const isWorkspaceBusy = isProvisioningWorkspace || Boolean(createWorkspace.isPending);
-  const accountLabel = actor?.name?.trim() || actor?.email?.trim() || 'Account';
+  const accountLabel = actor?.name?.trim() || actor?.email?.trim() || messages.auth.accountStatus;
 
   const handleConnectionsOpenChange = (open: boolean) => {
     const params = new URLSearchParams(window.location.search);
@@ -742,14 +753,14 @@ export function DashboardHome({
           if (resumeRequested && resumeIntent && result?.created) setWorkspaceCreatedForResume(true);
           void refetchWorkspace();
         },
-        onError: (error) => {
+        onError: () => {
           setIsProvisioningWorkspace(false);
-          setProvisioningError(error instanceof Error ? error.message : 'Failed to open your account library.');
+          setProvisioningError(messages.dashboard.accountProvisionFailed);
         },
       });
-    } catch (error) {
+    } catch {
       setIsProvisioningWorkspace(false);
-      setProvisioningError(error instanceof Error ? error.message : 'Failed to open your account library.');
+      setProvisioningError(messages.dashboard.accountProvisionFailed);
     }
   }, [
     createWorkspace,
@@ -763,6 +774,7 @@ export function DashboardHome({
     resumeIntent,
     refetchWorkspace,
     provisionAttempt,
+    messages.dashboard.accountProvisionFailed,
   ]);
 
   const applyResumeIntent = (intent: AnonymousGenerationIntent | null) => {
@@ -1044,7 +1056,7 @@ export function DashboardHome({
     setIsSuggesting(true);
     setComposerError(null);
     try {
-      const suggestedPrompt = await requestPromptSuggestion({ title });
+      const suggestedPrompt = await requestPromptSuggestion({ title, copy: messages.dashboard });
       setPrompt(suggestedPrompt);
     } catch (error) {
       if (error instanceof GenerateAccessError) {
@@ -1054,7 +1066,7 @@ export function DashboardHome({
         setShowAccessDialog(true);
         return;
       }
-      setComposerError(error instanceof Error ? error.message : messages.dashboard.promptGenerateFailed);
+      setComposerError(messages.dashboard.promptGenerateFailed);
     } finally {
       setIsSuggesting(false);
     }
@@ -1115,6 +1127,7 @@ export function DashboardHome({
           // already running server-side and we navigate to the article next,
           // so it must not surface as a generation failure.
         },
+        copy: messages.dashboard,
       });
       if (resumeIntentRef.current) {
         const storage = readSessionStorage();
@@ -1145,7 +1158,7 @@ export function DashboardHome({
       if (persistsResumeCheckpoint && resumeIntentRef.current && !checkpoint.jobId) {
         persistResumeStage('needs_retry', checkpoint.articleId ? { articleId: checkpoint.articleId } : {});
       }
-      setComposerError(error instanceof Error ? error.message : messages.dashboard.articleGenerateFailed);
+      setComposerError(messages.dashboard.articleGenerateFailed);
     } finally {
       setIsSubmitting(false);
     }
@@ -1314,7 +1327,7 @@ export function DashboardHome({
       <WorkspaceBootstrapScreen
         title={messages.workspace.bootstrapLoadingTitle}
         description={messages.workspace.bootstrapLoadingDescription}
-        status="Checking your account"
+        status={messages.dashboard.checkingAccount}
       >
         <Loader2 aria-hidden="true" className="size-5 animate-spin text-primary" />
       </WorkspaceBootstrapScreen>
@@ -1325,8 +1338,8 @@ export function DashboardHome({
     return (
       <WorkspaceBootstrapScreen
         title={messages.workspace.bootstrapErrorTitle}
-        description={workspaceError.message || messages.workspace.bootstrapErrorDescription}
-        status="Account connection unavailable"
+        description={messages.workspace.bootstrapErrorDescription}
+        status={messages.dashboard.accountConnectionUnavailable}
         tone="error"
       >
         <Button type="button" className="w-fit" onClick={() => void refetchWorkspace()}>
@@ -1341,7 +1354,7 @@ export function DashboardHome({
       <WorkspaceBootstrapScreen
         title={messages.workspace.bootstrapErrorTitle}
         description={provisioningError}
-        status="Account connection unavailable"
+        status={messages.dashboard.accountConnectionUnavailable}
         tone="error"
       >
         <Button
@@ -1369,7 +1382,7 @@ export function DashboardHome({
           description={resumeReady
             ? composerError ?? messages.publicHome.resumeUnavailable
             : messages.workspace.bootstrapLoadingDescription}
-          status={resumeReady ? 'Draft unavailable' : 'Checking your account'}
+          status={resumeReady ? messages.dashboard.draftUnavailable : messages.dashboard.checkingAccount}
           tone={resumeReady ? 'error' : 'default'}
         >
           {resumeReady ? (

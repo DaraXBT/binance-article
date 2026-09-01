@@ -12,6 +12,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar';
+import { useLanguage } from '@/components/language-provider';
 import { StudioShell } from '@/components/studio/studio-shell';
 import { cn } from '@/lib/utils';
 
@@ -57,6 +58,18 @@ export function ArticleStudioShell({
   className,
   mainClassName,
 }: ArticleStudioShellProps) {
+  const { messages } = useLanguage();
+  const isPublic = mode === 'public';
+  const sidebarLabel = isPublic
+    ? messages.publicHome.studioTitle
+    : messages.dashboard.workspaceDashboard;
+  const openSidebarLabel = isPublic
+    ? messages.publicHome.openArticleNavigation
+    : messages.dashboard.openArticleHistory;
+  const closeSidebarLabel = isPublic
+    ? messages.publicHome.closeArticleNavigation
+    : messages.dashboard.closeArticleHistory;
+
   return (
     <StudioShell
       as="div"
@@ -82,7 +95,7 @@ export function ArticleStudioShell({
           {onMobileSidebarClose ? <MobileSidebarCloseBridge onClose={onMobileSidebarClose} /> : null}
           <Sidebar
             data-article-studio-rail={mode === 'public' ? 'anonymous' : 'workspace'}
-            aria-label={mode === 'public' ? 'Article navigation' : 'Article history'}
+            aria-label={sidebarLabel}
             {...(onMobileSidebarCloseAutoFocus
               ? { onMobileCloseAutoFocus: onMobileSidebarCloseAutoFocus }
               : {})}
@@ -116,8 +129,8 @@ export function ArticleStudioShell({
               <div className="flex h-11 shrink-0 items-center md:hidden">
                 <SidebarTrigger
                   data-article-studio-sidebar-trigger
-                  openLabel={mode === 'public' ? 'Open article navigation' : 'Open article history'}
-                  closeLabel={mode === 'public' ? 'Close article navigation' : 'Close article history'}
+                  openLabel={openSidebarLabel}
+                  closeLabel={closeSidebarLabel}
                   className="size-11 rounded-lg border border-border/70 bg-background/95 shadow-none"
                 />
               </div>

@@ -123,7 +123,7 @@ export function AuthErrorPanel({
             id="auth-error-title"
             className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-destructive"
           >
-            {kind === 'account-disabled' ? 'Account status' : copy.authErrorTitle}
+            {kind === 'account-disabled' ? copy.accountStatus : copy.authErrorTitle}
           </h2>
           <p className="mt-1 text-sm leading-relaxed text-destructive">
             {description}

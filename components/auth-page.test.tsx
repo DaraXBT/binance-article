@@ -11,7 +11,10 @@ vi.mock('next/link', () => ({
 }));
 
 vi.mock('@/components/language-provider', () => ({
-  useLanguage: () => ({ messages: { common: { back: 'Back' } } }),
+  useLanguage: () => ({ messages: {
+    common: { back: 'Back' },
+    auth: { accountAccessLabel: 'xArticle account access' },
+  } }),
 }));
 
 vi.mock('@/components/theme-toggle', () => ({

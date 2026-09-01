@@ -26,6 +26,23 @@ vi.mock('@/components/ui/sidebar', () => ({
   ),
 }));
 
+vi.mock('@/components/language-provider', () => ({
+  useLanguage: () => ({
+    messages: {
+      publicHome: {
+        studioTitle: 'Article Studio',
+        openArticleNavigation: 'Open article navigation',
+        closeArticleNavigation: 'Close article navigation',
+      },
+      dashboard: {
+        workspaceDashboard: 'Article dashboard',
+        openArticleHistory: 'Open article history',
+        closeArticleHistory: 'Close article history',
+      },
+    },
+  }),
+}));
+
 import { ArticleStudioShell } from './article-studio-shell';
 
 describe('ArticleStudioShell', () => {

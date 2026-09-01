@@ -54,7 +54,7 @@ export function AuthPage({
       </header>
 
       <div className="relative mx-auto flex min-h-dvh w-full max-w-5xl flex-col justify-center px-5 py-20 sm:px-8">
-        <section className="mx-auto w-full max-w-sm" aria-label="xArticle account access">
+        <section className="mx-auto w-full max-w-sm" aria-label={messages.auth.accountAccessLabel}>
           <Logo className="mb-7" />
           {children}
         </section>

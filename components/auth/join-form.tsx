@@ -148,8 +148,9 @@ async function claimSharedCode(
   });
   const body = await readJson(response);
   if (!response.ok) {
-    const message = typeof body.error === 'string' ? body.error : 'The enrollment code could not be checked.';
-    throw new JoinApiError(message, errorCodeFromBody(body), response.status);
+    // Keep provider/server details out of the UI. Callers map the stable code
+    // and status to localized, user-safe guidance.
+    throw new JoinApiError('Enrollment claim request failed.', errorCodeFromBody(body), response.status);
   }
   return body;
 }
@@ -253,18 +254,16 @@ export function JoinForm({
         const codeValue = errorCodeFromBody(body);
         setState({
           status: 'invalid',
-          message: typeof body.error === 'string'
-            ? body.error
-            : mapJoinError(codeValue, response.status, copy, true),
+          message: mapJoinError(codeValue, response.status, copy, true),
         });
         return;
       }
       setState({ status: 'ready', source: 'legacy', email: body.email });
-    } catch (error: unknown) {
+    } catch {
       if (signal?.aborted) return;
       setState({
         status: 'error',
-        message: error instanceof Error ? error.message : copy.invitationExpired,
+        message: copy.invitationExpired,
         retry: 'code',
         source: 'legacy',
       });

@@ -13,6 +13,9 @@ const authCopy = {
   enrollmentCompleteFailed: 'Enrollment could not be completed.',
   continueEnrollment: 'Continue enrollment',
   returnToJoin: 'Return to join',
+  enrollmentWelcome: 'Welcome to xArticle',
+  enrollmentFinishing: 'Finishing enrollment',
+  enrollmentConfirming: 'Confirming your account and opening your article library…',
 };
 
 vi.mock('next/navigation', () => ({

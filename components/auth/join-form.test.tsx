@@ -117,6 +117,17 @@ describe('JoinForm', () => {
     expect(signInSocial).not.toHaveBeenCalled();
   });
 
+  it('does not render raw invitation service errors', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+      error: 'Provider diagnostics: missing upstream claim assertion',
+    }), { status: 502, headers: { 'content-type': 'application/json' } }));
+    render(<JoinForm token="rejected_token_value_123456789012345" />);
+
+    expect((await screen.findByRole('alert')).textContent).toMatch(/invalid or expired/i);
+    expect(screen.queryByText(/Provider diagnostics/i)).toBeNull();
+    expect(signInSocial).not.toHaveBeenCalled();
+  });
+
   it('can re-check an invitation after a transient validation failure', async () => {
     vi.mocked(fetch).mockRejectedValueOnce(new Error('Connection interrupted'));
     render(<JoinForm token="invite_token_value_12345678901234567890" />);

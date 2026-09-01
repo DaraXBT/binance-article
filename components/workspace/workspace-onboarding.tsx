@@ -15,7 +15,7 @@ export function WorkspaceOnboarding({ notice }: { notice?: string | null } = {})
     <SecureConsoleFrame
       variant="private"
       surface="checkpoint"
-      eyebrow="ACCOUNT SETUP"
+      eyebrow={messages.workspace.onboardingTitle}
       title={messages.workspace.onboardingTitle}
       header={(
         <ConsoleHeader
@@ -30,8 +30,8 @@ export function WorkspaceOnboarding({ notice }: { notice?: string | null } = {})
       panel={false}
       footer={(
         <>
-          <span className="font-mono uppercase tracking-[0.1em]">Account checkpoint</span>
-          <span className="hidden sm:inline">Opening your personal article library</span>
+          <span className="font-mono uppercase tracking-[0.1em]">{messages.auth.accountStatus}</span>
+          <span className="hidden sm:inline">{messages.workspace.bootstrapLoadingDescription}</span>
         </>
       )}
     >
@@ -43,7 +43,7 @@ export function WorkspaceOnboarding({ notice }: { notice?: string | null } = {})
 
       <ConsolePanel className="rounded-xl">
         <p className="text-sm leading-relaxed text-muted-foreground" role="status">
-          Your signed-in account owns this article library. No recovery key or manual setup is required.
+          {messages.workspace.onboardingDescription}
         </p>
       </ConsolePanel>
     </SecureConsoleFrame>

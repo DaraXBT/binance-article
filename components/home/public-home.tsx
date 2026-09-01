@@ -63,6 +63,8 @@ type AnonymousRailCopy = {
   startersLabel: string;
   starters: readonly string[];
   signIn: string;
+  openArticleNavigation: string;
+  closeArticleNavigation: string;
 };
 
 function AnonymousStudioRail({
@@ -102,8 +104,8 @@ function AnonymousStudioRail({
         <div className="border-b border-dotted border-sidebar-border/80 px-1 pb-3 group-data-[collapsible=icon]:border-b-0 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pb-0">
           <StudioSidebarBrand
             href="/"
-            openLabel="Open article navigation"
-            closeLabel="Close article navigation"
+            openLabel={copy.openArticleNavigation}
+            closeLabel={copy.closeArticleNavigation}
           />
           <Button
             type="button"
