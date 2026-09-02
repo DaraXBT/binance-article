@@ -22,6 +22,19 @@ operator-controlled.
    removes xArticle’s encrypted copy and returns generation to platform credits;
    it does not revoke the key at Google.
 
+The text check is a single bounded `generateContent` request to the configured
+text model, using a fixed harmless prompt and an eight-token output limit. It
+uses the API-key header only, times out after 10 seconds, limits the response to
+64 KiB, and discards the provider output. A metadata lookup alone is not treated
+as proof that the key can generate text.
+
+The request originates from xArticle's server-side Cloudflare Worker. Browser
+referrer and fixed-IP application restrictions are incompatible with that path.
+Use a dedicated server-side key that permits the Generative Language API; an
+API-level restriction to that API remains a good safeguard. A 403 is shown as
+an access restriction, a 404 as unavailable text-model access, and other
+provider 4xx rejections are shown without exposing Google's raw response.
+
 The product has no shared-workspace member role. Credential management belongs
 to the signed-in personal account; server authorization still requires the
 account's owner membership in its internal tenant namespace.

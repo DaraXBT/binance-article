@@ -4,12 +4,14 @@ const mocks = vi.hoisted(() => {
   class MockGeminiRestError extends Error {
     readonly statusCode: number;
     readonly code: string;
+    readonly providerStatus?: string;
 
-    constructor(input: { statusCode: number; code: string }) {
+    constructor(input: { statusCode: number; code: string; providerStatus?: string }) {
       super('Gemini provider request failed.');
       this.name = 'GeminiRestError';
       this.statusCode = input.statusCode;
       this.code = input.code;
+      this.providerStatus = input.providerStatus;
     }
   }
 
@@ -179,7 +181,12 @@ describe('/api/workspace/ai-credential', () => {
   it.each([
     ['a network failure', { statusCode: 502, code: 'GEMINI_NETWORK_ERROR' }, 503, 'GEMINI_CONNECTION_UNAVAILABLE'],
     ['a provider outage', { statusCode: 503, code: 'GEMINI_PROVIDER_ERROR' }, 503, 'GEMINI_CONNECTION_UNAVAILABLE'],
-    ['a key or text-model permission failure', { statusCode: 403, code: 'GEMINI_PROVIDER_ERROR' }, 400, 'GEMINI_CREDENTIAL_INVALID'],
+    ['an invalid key', { statusCode: 401, code: 'GEMINI_PROVIDER_ERROR', providerStatus: 'UNAUTHENTICATED' }, 400, 'GEMINI_CREDENTIAL_INVALID'],
+    ['a key access restriction', { statusCode: 403, code: 'GEMINI_PROVIDER_ERROR', providerStatus: 'PERMISSION_DENIED' }, 400, 'GEMINI_CREDENTIAL_ACCESS_DENIED'],
+    ['an unavailable text model', { statusCode: 404, code: 'GEMINI_PROVIDER_ERROR', providerStatus: 'NOT_FOUND' }, 400, 'GEMINI_TEXT_MODEL_UNAVAILABLE'],
+    ['a rejected provider request', { statusCode: 400, code: 'GEMINI_PROVIDER_ERROR', providerStatus: 'INVALID_ARGUMENT' }, 400, 'GEMINI_CONNECTION_REJECTED'],
+    ['a provider deadline', { statusCode: 408, code: 'GEMINI_PROVIDER_ERROR' }, 503, 'GEMINI_CONNECTION_UNAVAILABLE'],
+    ['a local text-model configuration error', { statusCode: 500, code: 'GEMINI_INVALID_MODEL_CONFIGURATION' }, 503, 'GEMINI_TEXT_MODEL_CONFIG_INVALID'],
     ['a provider rate limit', { statusCode: 429, code: 'GEMINI_PROVIDER_ERROR' }, 429, 'RATE_LIMITED'],
   ] as const)('classifies %s without saving the key', async (_label, providerError, status, code) => {
     mocks.validateGeminiApiKey.mockRejectedValue(new mocks.GeminiRestError(providerError));
@@ -233,6 +240,7 @@ describe('/api/workspace/ai-credential', () => {
     mocks.validateGeminiApiKey.mockRejectedValueOnce(new mocks.GeminiRestError({
       statusCode: 403,
       code: 'GEMINI_PROVIDER_ERROR',
+      providerStatus: 'PERMISSION_DENIED',
     }));
 
     const { POST } = await import('./route');
@@ -242,7 +250,7 @@ describe('/api/workspace/ai-credential', () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toMatchObject({ code: 'GEMINI_CREDENTIAL_INVALID' });
+    expect(body).toMatchObject({ code: 'GEMINI_CREDENTIAL_ACCESS_DENIED' });
     expect(mocks.decryptWorkspaceAiCredential).toHaveBeenCalledOnce();
     expect(mocks.recordValidationOwned).not.toHaveBeenCalled();
   });

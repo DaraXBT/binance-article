@@ -75,7 +75,8 @@ function providerTextModel(environment: Record<string, string | undefined>) {
 }
 
 function providerValidationError(error: unknown): AppError {
-  const status = error instanceof GeminiRestError ? error.statusCode : 502;
+  const geminiError = error instanceof GeminiRestError ? error : null;
+  const status = geminiError?.statusCode ?? 502;
   if (status === 429) {
     return new AppError({
       code: 'RATE_LIMITED',
@@ -85,19 +86,68 @@ function providerValidationError(error: unknown): AppError {
     });
   }
 
-  const unavailable = !(error instanceof GeminiRestError)
-    || error.code === 'GEMINI_TIMEOUT'
-    || error.code === 'GEMINI_NETWORK_ERROR'
-    || error.code === 'GEMINI_RESPONSE_TOO_LARGE'
-    || error.code === 'GEMINI_INVALID_RESPONSE'
+  // The configured model is operator-controlled. Never present a local model
+  // configuration error as though the customer pasted a bad key.
+  if (geminiError?.code === 'GEMINI_INVALID_MODEL_CONFIGURATION') {
+    return new AppError({
+      code: 'GEMINI_TEXT_MODEL_CONFIG_INVALID',
+      message: 'The configured Gemini text model needs attention.',
+      status: 503,
+      cause: error,
+    });
+  }
+
+  const unavailable = !geminiError
+    || geminiError.code === 'GEMINI_TIMEOUT'
+    || geminiError.code === 'GEMINI_NETWORK_ERROR'
+    || geminiError.code === 'GEMINI_RESPONSE_TOO_LARGE'
+    || geminiError.code === 'GEMINI_INVALID_RESPONSE'
+    || status === 408
     || status >= 500;
 
+  if (unavailable) {
+    return new AppError({
+      code: 'GEMINI_CONNECTION_UNAVAILABLE',
+      message: 'Gemini could not be reached. Please try again shortly.',
+      status: 503,
+      cause: error,
+    });
+  }
+
+  // Provider messages can echo sensitive information, so classification relies
+  // only on the HTTP code and allowlisted Google RPC status captured at the
+  // provider boundary.
+  if (status === 401 || geminiError.providerStatus === 'UNAUTHENTICATED') {
+    return new AppError({
+      code: 'GEMINI_CREDENTIAL_INVALID',
+      message: 'The Gemini key could not be authenticated.',
+      status: 400,
+      cause: error,
+    });
+  }
+
+  if (status === 403 || geminiError.providerStatus === 'PERMISSION_DENIED') {
+    return new AppError({
+      code: 'GEMINI_CREDENTIAL_ACCESS_DENIED',
+      message: 'The Gemini key is not permitted to generate text from this service.',
+      status: 400,
+      cause: error,
+    });
+  }
+
+  if (status === 404 || geminiError.providerStatus === 'NOT_FOUND') {
+    return new AppError({
+      code: 'GEMINI_TEXT_MODEL_UNAVAILABLE',
+      message: 'The configured Gemini text model is not available to this key.',
+      status: 400,
+      cause: error,
+    });
+  }
+
   return new AppError({
-    code: unavailable ? 'GEMINI_CONNECTION_UNAVAILABLE' : 'GEMINI_CREDENTIAL_INVALID',
-    message: unavailable
-      ? 'Gemini could not be reached. Please try again shortly.'
-      : 'The Gemini connection could not be validated. Check the key and enabled Gemini text model, then try again.',
-    status: unavailable ? 503 : 400,
+    code: 'GEMINI_CONNECTION_REJECTED',
+    message: 'Gemini rejected this connection. Check its API access and restrictions, then try again.',
+    status: 400,
     cause: error,
   });
 }

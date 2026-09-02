@@ -55,6 +55,10 @@ describe('account settings translations', () => {
   it.each([
     ['GEMINI_CREDENTIAL_INVALID', 'geminiKeyCouldNotVerify'],
     ['GEMINI_API_KEY_INVALID', 'geminiKeyCouldNotVerify'],
+    ['GEMINI_CREDENTIAL_ACCESS_DENIED', 'geminiKeyAccessDenied'],
+    ['GEMINI_TEXT_MODEL_UNAVAILABLE', 'geminiTextModelUnavailable'],
+    ['GEMINI_CONNECTION_REJECTED', 'geminiConnectionRejected'],
+    ['GEMINI_TEXT_MODEL_CONFIG_INVALID', 'geminiTextModelConfigInvalid'],
     ['GEMINI_CONNECTION_UNAVAILABLE', 'geminiServiceUnavailable'],
     ['WORKSPACE_GEMINI_CONNECTION_INVALID', 'savedGeminiKeyNeedsAttention'],
     ['AI_CREDENTIAL_STORAGE_UNAVAILABLE', 'geminiStorageUnavailable'],

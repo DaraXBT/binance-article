@@ -23,6 +23,7 @@ const SAFE_PROVIDER_STATUSES = new Set([
 
 type GeminiRestErrorCode =
   | 'GEMINI_INVALID_REQUEST'
+  | 'GEMINI_INVALID_MODEL_CONFIGURATION'
   | 'GEMINI_TIMEOUT'
   | 'GEMINI_NETWORK_ERROR'
   | 'GEMINI_RESPONSE_TOO_LARGE'
@@ -300,7 +301,7 @@ function normalizeApiKeyForValidation(value: unknown): string {
 function normalizeModelForValidation(value: unknown): string {
   if (typeof value !== 'string') {
     throw new GeminiRestError({
-      code: 'GEMINI_INVALID_REQUEST',
+      code: 'GEMINI_INVALID_MODEL_CONFIGURATION',
       message: 'The Gemini model configuration is invalid.',
       statusCode: 500,
     });
@@ -308,7 +309,7 @@ function normalizeModelForValidation(value: unknown): string {
   const model = value.trim();
   if (!model || model.length > 160 || /[\s\p{Cc}\p{Cf}]/u.test(model)) {
     throw new GeminiRestError({
-      code: 'GEMINI_INVALID_REQUEST',
+      code: 'GEMINI_INVALID_MODEL_CONFIGURATION',
       message: 'The Gemini model configuration is invalid.',
       statusCode: 500,
     });
@@ -316,20 +317,61 @@ function normalizeModelForValidation(value: unknown): string {
   return model;
 }
 
-async function validateGeminiModelAccess(input: {
+function parseValidationResponse(body: string): void {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    parsed = null;
+  }
+
+  // A successful generateContent response can legitimately contain only
+  // prompt feedback (for example if a provider safety setting blocks the
+  // harmless probe). Do not require a particular candidate or response string,
+  // but do require a documented generation-result shape so a malformed 200
+  // response cannot falsely validate a credential.
+  if (
+    !isRecord(parsed)
+    || (!Array.isArray(parsed.candidates) && !isRecord(parsed.promptFeedback))
+  ) {
+    throw new GeminiRestError({
+      code: 'GEMINI_INVALID_RESPONSE',
+      message: 'Gemini returned an invalid validation response.',
+      statusCode: 502,
+    });
+  }
+}
+
+async function validateGeminiTextGeneration(input: {
   apiKey: string;
   model: string;
   timeoutMs: number;
   maxResponseBytes: number;
 }): Promise<void> {
-  const endpoint = `${GEMINI_API_ORIGIN}/v1beta/models/${encodeURIComponent(input.model)}`;
+  const endpoint = `${GEMINI_API_ORIGIN}/v1beta/models/${encodeURIComponent(input.model)}:generateContent`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), input.timeoutMs);
 
   try {
     const response = await fetch(endpoint, {
-      method: 'GET',
-      headers: { 'x-goog-api-key': input.apiKey },
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-goog-api-key': input.apiKey,
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: 'Reply with OK.' }],
+          },
+        ],
+        generationConfig: {
+          candidateCount: 1,
+          maxOutputTokens: 8,
+          temperature: 0,
+        },
+      }),
       signal: controller.signal,
     });
     const body = await readBoundedBody(response, input.maxResponseBytes);
@@ -344,19 +386,7 @@ async function validateGeminiModelAccess(input: {
       });
     }
 
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(body);
-    } catch {
-      parsed = null;
-    }
-    if (!isRecord(parsed) || typeof parsed.name !== 'string') {
-      throw new GeminiRestError({
-        code: 'GEMINI_INVALID_RESPONSE',
-        message: 'Gemini returned an invalid validation response.',
-        statusCode: 502,
-      });
-    }
+    parseValidationResponse(body);
   } catch (error) {
     if (error instanceof GeminiRestError) throw error;
     if (controller.signal.aborted) {
@@ -397,7 +427,7 @@ export async function validateGeminiApiKey(
     DEFAULT_VALIDATION_MAX_RESPONSE_BYTES,
     'Gemini validation response limit',
   );
-  await validateGeminiModelAccess({
+  await validateGeminiTextGeneration({
     apiKey,
     model: textModel,
     timeoutMs,

@@ -267,11 +267,11 @@ describe('Gemini REST provider boundary', () => {
     });
   });
 
-  it('validates the required text model with a bounded GET request and a header-only key', async () => {
+  it('validates live text generation with a bounded header-only probe', async () => {
     const apiKey = 'private-api-key-with-enough-length';
-    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (url, request) => (
-      jsonResponse({ name: `models/${String(url).split('/').at(-1)}` }, { status: 200 })
-    ));
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({
+      promptFeedback: { blockReason: 'SAFETY' },
+    }, { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(validateGeminiApiKey({
@@ -283,12 +283,45 @@ describe('Gemini REST provider boundary', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     for (const [url, request] of fetchMock.mock.calls) {
-      expect(String(url)).toMatch(/\/v1beta\/models\/gemini-/);
+      expect(String(url)).toBe(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+      );
       expect(String(url)).not.toContain(apiKey);
-      expect(request?.method).toBe('GET');
+      expect(request?.method).toBe('POST');
       expect(new Headers(request?.headers).get('x-goog-api-key')).toBe(apiKey);
-      expect(request?.body).toBeUndefined();
+      expect(new Headers(request?.headers).get('content-type')).toBe('application/json');
+      expect(JSON.parse(String(request?.body))).toEqual({
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: 'Reply with OK.' }],
+          },
+        ],
+        generationConfig: {
+          candidateCount: 1,
+          maxOutputTokens: 8,
+          temperature: 0,
+        },
+      });
+      expect(String(request?.body)).not.toContain(apiKey);
     }
+  });
+
+  it.each([
+    ['an array', []],
+    ['an empty object', {}],
+    ['an error-shaped object', { error: { code: 403 } }],
+  ])('rejects %s returned with a successful validation status', async (_label, body) => {
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(body)));
+
+    await expect(validateGeminiApiKey({
+      apiKey: 'private-api-key-with-enough-length',
+      textModel: 'gemini-text',
+    })).rejects.toMatchObject({
+      code: 'GEMINI_INVALID_RESPONSE',
+      statusCode: 502,
+      message: 'Gemini returned an invalid validation response.',
+    });
   });
 
   it.each([
