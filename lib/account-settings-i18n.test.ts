@@ -69,4 +69,21 @@ describe('account settings translations', () => {
 
     expect(accountSettingsErrorMessage(error, copy, 'connectionRequestFailed')).toBe(copy.t(key));
   });
+
+  it.each([
+    ['AI_CREDENTIAL_SAVE_FAILED', 500, 'geminiServiceUnavailable'],
+    ['AI_CREDENTIAL_TEST_FAILED', 500, 'geminiServiceUnavailable'],
+    ['AI_CREDENTIAL_SOURCE_CHANGE_FAILED', 500, 'geminiServiceUnavailable'],
+    ['VALIDATION_ERROR', 400, 'geminiKeyCouldNotVerify'],
+    [null, 502, 'geminiServiceUnavailable'],
+    ['RATE_LIMITED', 429, 'errorRateLimit'],
+  ] as const)('keeps uncoded credential action failures actionable (%s)', (code, status, key) => {
+    const copy = getAccountSettingsCopy('en');
+    const error = new SettingsApiError('private upstream detail must stay hidden', {
+      status,
+      code,
+    });
+
+    expect(accountSettingsErrorMessage(error, copy, 'connectionRequestFailed')).toBe(copy.t(key));
+  });
 });

@@ -156,6 +156,26 @@ describe('/api/workspace/ai-credential', () => {
     expect(mocks.saveOwned).not.toHaveBeenCalled();
   });
 
+  it('does not send a new key to Gemini when encrypted credential storage is unavailable', async () => {
+    const apiKey = 'workspace-key-that-must-not-leak-123456789';
+    delete process.env.AI_CREDENTIAL_KEYRING;
+
+    const { PUT } = await import('./route');
+    const response = await PUT(new Request('https://example.test/api/workspace/ai-credential', {
+      method: 'PUT',
+      headers: { origin: 'https://example.test' },
+      body: JSON.stringify({ apiKey }),
+    }) as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toMatchObject({ code: 'AI_CREDENTIAL_STORAGE_UNAVAILABLE' });
+    expect(JSON.stringify(body)).not.toContain(apiKey);
+    expect(mocks.validateGeminiApiKey).not.toHaveBeenCalled();
+    expect(mocks.encryptWorkspaceAiCredential).not.toHaveBeenCalled();
+    expect(mocks.saveOwned).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['a network failure', { statusCode: 502, code: 'GEMINI_NETWORK_ERROR' }, 503, 'GEMINI_CONNECTION_UNAVAILABLE'],
     ['a provider outage', { statusCode: 503, code: 'GEMINI_PROVIDER_ERROR' }, 503, 'GEMINI_CONNECTION_UNAVAILABLE'],
@@ -187,6 +207,44 @@ describe('/api/workspace/ai-credential', () => {
     expect(body).toMatchObject({ code: 'WORKSPACE_GEMINI_CONNECTION_INVALID' });
     expect(JSON.stringify(body)).not.toContain('tampered');
     expect(mocks.validateGeminiApiKey).not.toHaveBeenCalled();
+  });
+
+  it('returns a safe storage error before decrypting a saved key when the keyring is invalid', async () => {
+    const keyringDetail = 'keyring-private-detail-that-must-not-leak';
+    mocks.findOwned.mockResolvedValue(record({ enabled: true }));
+    mocks.parseAiCredentialKeyring.mockRejectedValueOnce(new Error(keyringDetail));
+
+    const { POST } = await import('./route');
+    const response = await POST(new Request('https://example.test/api/workspace/ai-credential', {
+      method: 'POST', headers: { origin: 'https://example.test' },
+    }) as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body).toMatchObject({ code: 'AI_CREDENTIAL_STORAGE_UNAVAILABLE' });
+    expect(JSON.stringify(body)).not.toContain(keyringDetail);
+    expect(mocks.decryptWorkspaceAiCredential).not.toHaveBeenCalled();
+    expect(mocks.validateGeminiApiKey).not.toHaveBeenCalled();
+    expect(mocks.recordValidationOwned).not.toHaveBeenCalled();
+  });
+
+  it('does not update a saved key when its later Gemini validation fails', async () => {
+    mocks.findOwned.mockResolvedValue(record({ enabled: true }));
+    mocks.validateGeminiApiKey.mockRejectedValueOnce(new mocks.GeminiRestError({
+      statusCode: 403,
+      code: 'GEMINI_PROVIDER_ERROR',
+    }));
+
+    const { POST } = await import('./route');
+    const response = await POST(new Request('https://example.test/api/workspace/ai-credential', {
+      method: 'POST', headers: { origin: 'https://example.test' },
+    }) as never);
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toMatchObject({ code: 'GEMINI_CREDENTIAL_INVALID' });
+    expect(mocks.decryptWorkspaceAiCredential).toHaveBeenCalledOnce();
+    expect(mocks.recordValidationOwned).not.toHaveBeenCalled();
   });
 
   it('revalidates before activating the workspace source', async () => {

@@ -360,7 +360,22 @@ export function accountSettingsErrorMessage(
     }
   }
 
-  switch (settingsErrorKind(error)) {
+  const errorKind = settingsErrorKind(error);
+
+  // All credential mutations use this fallback key. A proxy, storage, or
+  // malformed-but-safe API response can lack one of the stable codes above;
+  // keep that path actionable too instead of showing the old opaque generic
+  // "connection request failed" message. Known authentication, permission,
+  // network, and rate-limit cases deliberately retain their more precise
+  // shared recovery copy below.
+  if (fallbackKey === 'connectionRequestFailed') {
+    if (errorKind === 'request') return copy.t('geminiKeyCouldNotVerify');
+    if (errorKind === 'server' || errorKind === 'unknown') {
+      return copy.t('geminiServiceUnavailable');
+    }
+  }
+
+  switch (errorKind) {
     case 'auth': return copy.t('errorAuth');
     case 'permission': return copy.t('errorPermission');
     case 'account-disabled': return copy.t('errorAccountDisabled');
