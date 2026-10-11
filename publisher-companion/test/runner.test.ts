@@ -2,6 +2,10 @@ import { describe, expect, it, mock } from 'bun:test';
 
 import { hashPublicationRecipe } from '../../server/domain/publication-recipe';
 import { runPublisherOnce } from '../src/runner';
+import { FilePublishResultOutbox } from '../src/result-outbox';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 
 const legacyBinanceRecipe = {
   version: 1 as const,
@@ -75,6 +79,86 @@ async function harness(target?: 'binance-square' | 'x') {
 }
 
 describe('publisher companion runner', () => {
+  it('replays a persisted success after an outage without another browser click', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'publisher-outbox-test-'));
+    try {
+      const h = await harness();
+      const filePath = path.join(directory, 'result.json');
+      h.api.reportResult.mockRejectedValue(new Error('network offline'));
+      expect(await runPublisherOnce({ ...h, outbox: new FilePublishResultOutbox(filePath),
+        now: () => new Date('2026-07-19T00:00:00.000Z'), sleep: async () => undefined,
+      })).toEqual({ outcome: 'result_pending', commandId: 'command_1' });
+      const restartedOutbox = new FilePublishResultOutbox(filePath);
+      expect((await restartedOutbox.load())?.result).toEqual({
+        outcome: 'succeeded', publishedUrl: 'https://www.binance.com/en/square/post/123',
+      });
+      h.api.reportResult.mockImplementation(async (_id, _revision, result) => {
+        h.order.push(`delivered:${(result as { outcome: string }).outcome}`);
+      });
+      expect(await runPublisherOnce({ ...h, outbox: restartedOutbox })).toEqual({
+        outcome: 'succeeded', commandId: 'command_1',
+      });
+      expect(h.order.filter((entry) => entry === 'click')).toHaveLength(1);
+      expect(h.order).toContain('delivered:succeeded');
+      expect(await restartedOutbox.load()).toBeNull();
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('cancels approval polling promptly on shutdown without clicking', async () => {
+    const h = await harness();
+    const controller = new AbortController();
+    const run = runPublisherOnce({ ...h, signal: controller.signal,
+      now: () => new Date('2026-07-19T00:00:00.000Z'),
+      sleep: async () => {
+        controller.abort();
+        await new Promise(() => {});
+      },
+    });
+    const result = await Promise.race([run, new Promise((resolve) => setTimeout(() => resolve('timeout'), 100))]);
+    expect(result).toEqual({ outcome: 'cancelled', commandId: 'command_1' });
+    expect(h.order).not.toContain('click');
+    expect(h.api.abortCommand).toHaveBeenCalledWith('command_1', 3, 'DEVICE_SHUTDOWN');
+  });
+
+  it('removes its shutdown listener after every approval poll', async () => {
+    const h = await harness();
+    const { signal } = new AbortController();
+    let listeners = 0;
+    const add = signal.addEventListener.bind(signal);
+    const remove = signal.removeEventListener.bind(signal);
+    signal.addEventListener = ((type: string, ...rest: [never, never]) => {
+      if (type === 'abort') listeners += 1;
+      return add(type, ...rest);
+    }) as typeof signal.addEventListener;
+    signal.removeEventListener = ((type: string, ...rest: [never, never]) => {
+      if (type === 'abort') listeners -= 1;
+      return remove(type, ...rest);
+    }) as typeof signal.removeEventListener;
+
+    expect(await runPublisherOnce({ ...h, signal,
+      now: () => new Date('2026-07-19T00:00:00.000Z'), sleep: async () => undefined,
+    })).toEqual({ outcome: 'succeeded', commandId: 'command_1' });
+    expect(listeners).toBe(0);
+  });
+
+  it('reports a replayed pre-begin record as cancelled after aborting it', async () => {
+    const h = await harness();
+    const pending = {
+      commandId: 'command_1', revision: 3,
+      result: { outcome: 'outcome_unknown' as const, failureReason: 'OUTCOME_UNVERIFIED' as const },
+    };
+    const outbox = { load: mock(async () => pending), save: mock(async () => undefined), clear: mock(async () => undefined) };
+    h.api.getCommandStatus.mockResolvedValueOnce({
+      id: 'command_1', state: 'approved', revision: 3, recipeHash: 'hash', expiresAt: legacyBinanceRecipe.expiresAt,
+    } as never);
+
+    expect(await runPublisherOnce({ ...h, outbox })).toEqual({ outcome: 'cancelled', commandId: 'command_1' });
+    expect(h.api.abortCommand).toHaveBeenCalledWith('command_1', 3, 'DEVICE_SHUTDOWN');
+    expect(h.api.claimCommand).not.toHaveBeenCalled();
+    expect(outbox.clear).toHaveBeenCalledTimes(1);
+  });
   it('runs claim → verify/assets → prepare → review → approval → begin → click → result', async () => {
     const h = await harness();
     await expect(runPublisherOnce({

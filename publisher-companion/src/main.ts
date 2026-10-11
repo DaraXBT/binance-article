@@ -12,6 +12,7 @@ import { formatCompanionDoctorReport, runCompanionDoctor } from './doctor';
 import { acquireCompanionLock } from './lock';
 import { runPublisherLoop } from './loop';
 import { runPublisherOnce } from './runner';
+import { FilePublishResultOutbox } from './result-outbox';
 import { BaoyuBinanceArticleAdapter } from './binance-article-adapter';
 import { BaoyuBinancePostAdapter } from './binance-post-adapter';
 import { BaoyuBinanceSkillAdapter } from './skill-adapter';
@@ -112,10 +113,13 @@ async function run(once: boolean): Promise<void> {
     getDeviceToken: () => credentials.read(),
   });
   const lock = await acquireCompanionLock(path.join(path.dirname(configPath), 'companion.lock'));
+  const controller = new AbortController();
   const runOnce = () => runPublisherOnce({
     api,
     adapters: createPublisherAdapters(),
     workspace: new LocalBundleWorkspace(),
+    signal: controller.signal,
+    outbox: new FilePublishResultOutbox(path.join(path.dirname(configPath), 'pending-result.json')),
   });
   try {
     if (once) {
@@ -123,7 +127,6 @@ async function run(once: boolean): Promise<void> {
       process.stdout.write(`Publisher outcome: ${result.outcome}.\n`);
       return;
     }
-    const controller = new AbortController();
     const stop = () => controller.abort();
     process.once('SIGINT', stop);
     process.once('SIGTERM', stop);

@@ -37,6 +37,18 @@ type RunnerApi = {
   abortCommand(commandId: string, revision: number, reasonCode: PublisherAbortReason): Promise<void>;
 };
 
+export type PendingPublishResult = {
+  commandId: string;
+  revision: number;
+  result: Parameters<RunnerApi['reportResult']>[2];
+};
+
+export interface PublishResultOutbox {
+  load(): Promise<PendingPublishResult | null>;
+  save(value: PendingPublishResult): Promise<void>;
+  clear(): Promise<void>;
+}
+
 type Materializer = (input: {
   recipe: unknown;
   expectedRevision: number;
@@ -76,8 +88,10 @@ async function waitForApproval(input: {
   sleep: (milliseconds: number) => Promise<void>;
   kind: PublisherKind;
   requireExplicitMetadata: boolean;
+  signal?: AbortSignal;
 }) {
   while (input.now().getTime() < Date.parse(input.command.expiresAt)) {
+    if (input.signal?.aborted) throw new Error('Publisher shutdown requested.');
     const status = await input.api.getCommandStatus(input.command.id);
     if (
       (input.requireExplicitMetadata && (!status.target || !status.kind))
@@ -97,7 +111,21 @@ async function waitForApproval(input: {
     if (!['awaiting_review', 'awaiting_approval'].includes(status.state)) {
       throw new Error('Publisher command entered an invalid approval state.');
     }
-    await input.sleep(2_000);
+    if (!input.signal) {
+      await input.sleep(2_000);
+    } else {
+      const signal = input.signal;
+      await new Promise<void>((resolve, reject) => {
+        const abort = () => reject(new Error('Publisher shutdown requested.'));
+        if (signal.aborted) {
+          abort();
+          return;
+        }
+        // The signal lives for the whole process; drop the listener after each poll.
+        signal.addEventListener('abort', abort, { once: true });
+        input.sleep(2_000).then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
+      });
+    }
   }
   return { ...input.command, state: 'expired' as const };
 }
@@ -119,7 +147,25 @@ export async function runPublisherOnce(input: {
   }) => Promise<Uint8Array>;
   now?: () => Date;
   sleep?: (milliseconds: number) => Promise<void>;
+  signal?: AbortSignal;
+  outbox?: PublishResultOutbox;
 }): Promise<{ outcome: string; commandId?: string }> {
+  const pending = await input.outbox?.load();
+  if (pending) {
+    const status = await input.api.getCommandStatus(pending.commandId);
+    let outcome: string = status.state;
+    if (status.state === 'publishing') {
+      await input.api.reportResult(pending.commandId, pending.revision, pending.result);
+      outcome = pending.result.outcome;
+    } else if (!['succeeded', 'failed', 'outcome_unknown', 'cancelled', 'expired'].includes(status.state)) {
+      // A crash before begin did not authorize a click. Cancel that abandoned composer.
+      await input.api.abortCommand(pending.commandId, pending.revision, 'DEVICE_SHUTDOWN');
+      outcome = 'cancelled';
+    }
+    await input.outbox!.clear();
+    return { outcome, commandId: pending.commandId };
+  }
+  if (input.signal?.aborted) return { outcome: 'idle' };
   const command = await input.api.claimCommand();
   if (!command) return { outcome: 'idle' };
   const now = input.now ?? (() => new Date());
@@ -181,16 +227,25 @@ export async function runPublisherOnce(input: {
       sleep,
       kind,
       requireExplicitMetadata: recipe.version === 3,
+      signal: input.signal,
     });
     if (status.state !== 'approved') {
       return { outcome: status.state, commandId: command.id };
     }
 
     stage = 'publish';
+    if (input.signal?.aborted) throw new Error('Publisher shutdown requested.');
     const skillResult = await adapter.publish(prepared.draftId, {
       beforeClick: async () => {
+        if (input.signal?.aborted) throw new Error('Publisher shutdown requested.');
+        await input.outbox?.save({
+          commandId: command.id, revision: command.revision,
+          result: { outcome: 'outcome_unknown', failureReason: 'OUTCOME_UNVERIFIED' },
+        });
+        if (input.signal?.aborted) throw new Error('Publisher shutdown requested.');
         await input.api.beginPublish(command.id, command.revision);
         began = true;
+        if (input.signal?.aborted) throw new Error('Publisher shutdown requested.');
       },
     });
     const result = classifySkillPublishResult({
@@ -198,7 +253,20 @@ export async function runPublisherOnce(input: {
       reason: skillResult.reason ?? 'No canonical URL was returned.',
       ...(skillResult.publishedUrl ? { publishedUrl: skillResult.publishedUrl } : {}),
     }, target, recipe.version === 3 ? kind : undefined);
-    await input.api.reportResult(command.id, command.revision, result);
+    await input.outbox?.save({ commandId: command.id, revision: command.revision, result });
+    let reported = false;
+    for (let attempt = 0; attempt < 3 && !reported; attempt += 1) {
+      try {
+        await input.api.reportResult(command.id, command.revision, result);
+        reported = true;
+      } catch {
+        if (attempt < 2) await sleep(1_000);
+      }
+    }
+    if (!reported) {
+      return { outcome: 'result_pending', commandId: command.id };
+    }
+    await input.outbox?.clear();
     return { outcome: result.outcome, commandId: command.id };
   } catch (error) {
     if (began) {
@@ -211,9 +279,10 @@ export async function runPublisherOnce(input: {
     const fallbackReason: PublisherAbortReason = stage === 'assets'
       ? 'ASSET_INTEGRITY_FAILED'
       : 'EDITOR_COMPOSITION_FAILED';
-    const reasonCode = abortReasonFor(error, fallbackReason);
+    const reasonCode = input.signal?.aborted ? 'DEVICE_SHUTDOWN' : abortReasonFor(error, fallbackReason);
     try {
       await input.api.abortCommand(command.id, command.revision, reasonCode);
+      await input.outbox?.clear();
       return { outcome: 'cancelled', commandId: command.id };
     } catch {
       const status = await input.api.getCommandStatus(command.id).catch(() => null);
