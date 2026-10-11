@@ -178,6 +178,10 @@ The companion accepts an HTTPS application origin only; plain
 `http://localhost:3000` cannot be paired. Use an HTTPS preview or deployment
 when testing the full web-to-companion path.
 
+Stop continuous `run` with Ctrl+C. Results are saved locally and re-delivered
+on the next run without another click; see
+[Stopping and result delivery](./publisher-companion/README.md#stopping-and-result-delivery).
+
 The companion refuses plaintext token storage, uses one process lock, verifies
 downloaded assets, and never retries a Binance or X publish click. The web app,
 database, R2, exports, and companion config never store Binance/X

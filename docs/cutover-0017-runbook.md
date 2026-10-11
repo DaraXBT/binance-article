@@ -139,7 +139,10 @@ user, controlled X and Binance accounts, and companion device in the private
 change ticket. After deployment, `CUTOVER_MAINTENANCE_ALLOW_IPS` contains only
 that one IP; the browser and companion must share that egress. Application auth
 still limits the user, workspace, accounts, and device. This is not a wildcard
-operator bypass and must not be widened during the window. If the fixed tester
+operator bypass and must not be widened during the window. The allowlist fails
+closed: one malformed entry empties the whole set, so a typo blocks the tester
+rather than opening a wider gate. Confirm `/api/health` returns `200` from the
+tester IP before smoke. If the fixed tester
 path cannot complete smoke, keep maintenance active and forward-fix. Do not put
 account credentials, session material, tokens, or the allowlist value in Git or
 command output.

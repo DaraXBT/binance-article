@@ -8,7 +8,11 @@ token is stored only in the operating-system keyring (macOS Keychain, Windows
 Credential Manager, or Linux Secret Service) and is sent only to the paired web
 origin in an HTTPS `Authorization` header. The server stores its hash, not the
 raw token. The config file contains only the API origin and device ID and is
-written with private permissions.
+written with private permissions. It lives at
+`$XDG_CONFIG_HOME/xarticle-publisher/config.json` (default
+`~/.config/xarticle-publisher/`, or `%APPDATA%\xarticle-publisher\` on
+Windows). The same directory holds `companion.lock` and, while a publish is in
+progress or its result awaits delivery, `pending-result.json`.
 
 Gemini API keys, credential keyrings, encrypted credential records, and source
 selection never enter publication recipes, downloaded assets, companion logs,
@@ -110,10 +114,27 @@ the appropriate Chrome editor, reports `awaiting_review`, and waits for the web
 user to approve the exact revision. It never performs the final click before
 that approval.
 
+### Stopping and result delivery
+
+Stop continuous `run` with Ctrl+C or `SIGTERM`. It stops waiting for approval
+promptly and cancels a prepared command as `DEVICE_SHUTDOWN`. If the server
+transition to publishing has already begun, the command instead ends as
+`outcome_unknown`; check the platform manually. `run --once` has no graceful
+shutdown: Ctrl+C ends the process, and the next run recovers as below.
+
+Just before the final click, and again before reporting the result, the
+companion saves a record to `pending-result.json` (private permissions); it
+retries result delivery a few times. If the API is still
+unreachable, the run ends as `result_pending` and the file stays. The next run
+re-delivers that saved result before claiming new work and never clicks again.
+A saved record whose command never began publishing is cancelled instead. Do
+not delete `pending-result.json` while it exists unless you have confirmed the
+outcome in the web app.
+
 A 401 stops polling immediately. Check the user's account and workspace
 membership first; suspension or removal must be resolved by the owner. If the
 device was revoked or its token is invalid, pair it again. Revoke lost or
-retired devices under **Settings → Connections**; revocation invalidates
+retired devices under **Account settings → Publishing**; revocation invalidates
 polling without deleting the audit row. An ambiguous post-click outcome is
 terminal and is never retried.
 

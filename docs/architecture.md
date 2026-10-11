@@ -1,7 +1,8 @@
 # xArticle current architecture
 
-Status: Cloudflare personal account app + local publishing companion · UI language:
-English · default visual style: `binance-master`
+Status: Cloudflare personal account app + local publishing companion · UI languages:
+English (default), Khmer, Indonesian, Lao, Myanmar, Thai, Filipino · default
+visual style: `binance-master`
 
 This is the current operating contract for the repository. Historical design
 notes and archived migration material remain in their dated folders; this file
@@ -12,19 +13,27 @@ describes what is active today.
 1. A new user joins with an app-global access code and Google sign-in; a
    returning user signs in normally. Enrollment creates a separate personal
    tenant for each account.
-2. The user enters source text, a topic prompt, or a URL. Eligible legacy data
-   can be imported once before a resumed draft writes to a pristine account.
+2. The user enters a topic prompt, source text, or an HTTPS URL in the single
+   composer on `/workspace`; old `/new?mode=…` links redirect there. Eligible
+   legacy data can be imported once before a resumed draft writes to a pristine
+   account; the option appears only while an unclaimed, unexpired legacy
+   library exists.
 3. The web app creates an article revision. The article Workflow Worker
    generates slide copy, captions, slide images, and the dedicated cover from
    the supplied content. After slides/captions persist, the job records a
    revision-scoped durable checkpoint in its log; a Workflow-engine
    re-execution resumes at the image phase instead of re-buying the LLM call,
-   and a superseded run cancels as `STALE_REVISION`. Provider failures remain
-   terminal — checkpoints never add paid retries.
+   and a superseded run cancels as `STALE_REVISION`. Image and cover retries
+   for a replaced revision also cancel as `STALE_REVISION` before any
+   credential is resolved, and a cover request returns the job already queued
+   or running for that revision instead of starting a second one. Provider
+   failures remain terminal — checkpoints never add paid retries.
 4. The user reviews and edits the article, images, captions, and cover in the
    article workspace.
-5. For Binance Square or X, the web app prepares an immutable, revision-bound
-   publication recipe and queues a publisher command.
+5. For Binance Square or X, the publishing dialog shows a rendered preview of
+   the draft. Media is opt-in: the cover and images start unselected. The web
+   app then prepares an immutable, revision-bound publication recipe and queues
+   a publisher command.
 6. The local companion claims the command, verifies every asset, and prepares
    the target editor in an isolated, companion-managed Chrome publishing
    profile. The user signs in manually in that profile on first use.
@@ -41,7 +50,8 @@ Account settings above the expanded profile row or beside the collapsed desktop
 rail, so settings access remains available without restoring the article list.
 The responsive shell contains **AI & generation**, **Publishing**, and an
 administrator-only **People & access** section; it does not expose placeholder
-account or billing pages.
+account or billing pages. The same account menu holds the **Switch language**
+control.
 
 The web app never receives Binance/X passwords, cookies, OAuth tokens, or a
 Chrome profile. It also never launches local Chrome or Bun code. X uses the
@@ -86,6 +96,15 @@ begins, uncertain evidence becomes terminal `outcome_unknown`; the system never
 retries that click automatically. Revision numbers and recipe hashes are
 rechecked at every transition.
 
+The companion writes each result to a private local outbox before reporting it
+and retries delivery. If reporting still fails, or the process stops, the next
+run re-delivers the saved result before claiming new work and never clicks
+again. A saved record whose command never began publishing is aborted with
+`DEVICE_SHUTDOWN`. In continuous mode, `SIGINT`/`SIGTERM` stops approval
+polling promptly and aborts a prepared command with `DEVICE_SHUTDOWN`; if the
+publishing transition has already begun, the command ends as `outcome_unknown`
+instead.
+
 Publisher devices are account-owned and can be `pending`, `active`, or
 `revoked`. The pairing API derives the internal tenant from the authenticated
 user and never trusts a browser-supplied workspace ID. Revocation disables the
@@ -112,8 +131,11 @@ image: Scene, Mechanism, Briefing, or Primer. The other Binance presets remain
 available for explicit selection. Binance covers use the 5:2 / 1000×400 output
 contract after local crop and focal-point validation.
 
-The UI is English-only so controls and operational messages stay consistent.
-The interface does not translate imported source content or control the output
+The UI is available in English (default), Khmer, Indonesian, Lao, Myanmar,
+Thai, and Filipino. The choice is made from **Switch language** in the account
+menu and stored in the `xarticle_language` cookie, which the server reads for
+the first render, plus browser storage; an unknown value falls back to English.
+The UI locale does not translate imported source content or control the output
 language of generated article copy. Illustration labels are constrained by the
 article prompt rather than the UI locale.
 

@@ -1,7 +1,9 @@
 # xArticle Getting Started
 
-The application interface is English-only. Source articles and generated image
-labels can remain in the language supplied by the user.
+The interface is available in English (default), Khmer, Indonesian, Lao,
+Myanmar, Thai, and Filipino; change it with **Switch language** in the account
+menu. The UI language does not translate source articles or change the language
+of generated content, which follows what the user supplied.
 
 ## Join and sign in
 
@@ -20,8 +22,9 @@ After enrollment, xArticle opens `/workspace` directly. Despite the route name,
 there is no workspace to create or select and no account key prefix to manage.
 The internal personal data scope is derived from the signed-in account.
 
-When the server confirms that a pristine account can still receive legacy data,
-the account menu shows **Import old data**. Enter the original `dwk_...` key to
+When the server confirms that a pristine account can still receive legacy data
+and an unclaimed, unexpired legacy library exists, the account menu shows
+**Import old data**. Enter the original `dwk_...` key to
 perform the one-time import. Unknown, expired, and already-used keys all return
 the same response. The import choice appears before a resumed public draft can
 write its first article.
@@ -29,20 +32,20 @@ write its first article.
 ## Open account settings
 
 Use the account control pinned at the bottom of the article rail, then select
-**Settings**. This opens the responsive **Connections** panel, where users
-manage their Gemini key and publisher devices; xArticle administrators also
-manage enrollment and account access. When the
+**Settings**. This opens responsive **Account settings**: users manage their
+Gemini key under **AI & generation** and publisher devices under
+**Publishing**; xArticle administrators also manage enrollment and account
+access under **People & access**. The same menu has **Switch language**. When the
 desktop rail is icon-only, the account menu opens beside its avatar; it remains
 inside the full profile row when the rail is expanded or on mobile.
 
 ## Create an article
 
-From the dashboard or `/new`:
+From the composer on `/workspace` (older `/new` links redirect there):
 
-1. Enter source text, a topic prompt, or a URL. On `/new`, switch between
-   **Paste text**, **Import URL**, and **Topic prompt** with the tabs on the
-   first step; imported URLs must be HTTPS without embedded credentials.
-2. Select slide count and illustration style.
+1. Choose **Topic**, **Paste text**, or **Import URL** and enter the source.
+   Imported URLs must be HTTPS without embedded credentials.
+2. Select slide count and illustration style in the same composer.
 3. If generation locking is enabled, enter the one-time generation grant from the owner.
 4. Start generation and wait for the background job.
 5. Review and edit slides, captions, images, and the dedicated cover in
@@ -63,7 +66,7 @@ Generation grants bind to the verified account session and its internal personal
 
 ## Use your own Gemini key
 
-Open **Settings → Connections** and use the **Gemini connection** card. Paste a
+Open **Account settings → AI & generation** and use the **Gemini connection** card. Paste a
 key from Google AI Studio, save it, and use **Test connection** if you want to
 verify it again. Saving does not switch generation automatically: choose
 **Your Gemini key** under **Generation source** to activate it. Choose
@@ -76,7 +79,7 @@ publisher companion and never receives the Gemini key.
 
 ## Publish to Binance Square
 
-1. Open **Settings → Connections**, install the local publisher companion by
+1. Open **Account settings → Publishing**, install the local publisher companion by
    following its [installation guide](./publisher-companion/README.md), and pair
    it using the one-time code shown by the web app.
 2. Start the companion. On first use, sign in to Binance manually in the
@@ -85,7 +88,9 @@ publisher companion and never receives the Gemini key.
 3. Open the Binance publishing dialog and choose **Post** or **Article**. A Post
    may contain text, one to four images, or both. An Article requires a title
    and body; its cover and zero to ten body images are independently optional.
-4. Review the exact text or title/body, optional media, device, and revision.
+4. Review the rendered preview of the exact text or title/body, the device,
+   and the revision. Media is opt-in: select the cover and any images you
+   want, since none are selected by default.
 5. Approve from the web app.
 6. Let the companion perform the single final click.
 
@@ -100,7 +105,8 @@ Before the final click begins, you can safely cancel the prepared publication fr
 2. Open the X publishing dialog and choose **Post** or **Article**. A Post may
    contain up to 280 characters, one to four images, or both. An Article
    requires a title and body; its cover and zero to ten body images are
-   independently optional. X Articles also require account entitlement.
+   independently optional and start unselected. X Articles also require
+   account entitlement.
 3. Inspect the live X Post composer or Article editor opened by the companion.
 4. Approve the exact revision in the web app.
 5. The companion revalidates the exact editor snapshot and performs one publish
@@ -118,7 +124,7 @@ Versioned companion ZIPs are only for installing the companion on another
 computer. The **Download fallback ZIP** actions are optional manual recovery
 paths when the companion is not available and must stay on the user's computer.
 
-Active and pending devices are listed under **Settings → Connections**. Revoke
+Active and pending devices are listed under **Account settings → Publishing**. Revoke
 a lost or replaced device there; a revoked companion must be paired again.
 
 ## Common issues
@@ -137,6 +143,11 @@ a lost or replaced device there; a revoked companion must be paired again.
   publishing account has X Articles entitlement. Regular X Posts remain usable.
 - **Outcome unknown:** inspect the social platform manually before creating a
   new reviewed command; never retry the old click automatically.
+- **Companion stopped or lost network mid-publish:** start it again. A saved
+  result is delivered on the next run without another click, and a command
+  that never began publishing is cancelled. If publishing had already begun
+  when it stopped, the command ends as `outcome_unknown`; check the platform
+  manually.
 
 For system boundaries and state transitions, see
 [docs/architecture.md](./docs/architecture.md).

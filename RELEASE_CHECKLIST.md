@@ -187,7 +187,9 @@ migration, 100% web deployment, and no-rollback boundary have completed.
    must show an errored instance with `NonRetryableError: Job payload not
    found.` and a successful `finalize failed article job` step — proving the
    worker boots, reaches the database, and fails closed.
-12. Confirm stale non-English browser preferences still render the English UI.
+12. Confirm **Switch language** in the account menu changes the UI, the choice
+   survives a reload and a new sign-in, and an unknown `xarticle_language`
+   cookie value renders English.
 13. While the temporary credential-mutation restriction remains active, use a
    pre-approved operator/tester source to save and test a disposable Gemini key.
    Confirm the default remains Platform credits, then explicitly switch to

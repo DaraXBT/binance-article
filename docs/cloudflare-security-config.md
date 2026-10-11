@@ -42,6 +42,15 @@ as a custom domain in `wrangler.jsonc`. Keep `BETTER_AUTH_URL` pinned to that
 exact origin and register only the corresponding Google OAuth callback,
 `https://binance.v27.tech/api/auth/callback/google`, for production.
 
+State-changing requests are checked against the browser's origin. Most
+mutations compare the `Origin` header's host with the request's `Host`
+header, so any proxy in front of the Worker must forward the browser-facing
+`Host` unchanged; otherwise same-origin requests fail with
+`CROSS_SITE_REQUEST_BLOCKED`. Public bearer-code and owner account-lifecycle
+endpoints use a stricter check: they require `Origin` or `Referer` to equal
+the configured canonical origin exactly, reject a `Sec-Fetch-Site` header
+other than `same-origin` when one is sent, and never trust `Host`.
+
 Cloudflare Workers is the authoritative production runtime. Git-triggered
 Vercel deployments are disabled in `vercel.json` because a Vercel deployment
 does not have the article Workflow or private R2 bindings. Keep the legacy

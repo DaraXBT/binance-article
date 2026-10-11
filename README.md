@@ -77,7 +77,8 @@ invite-only product policy still caps enrollment at ten active users.
 
 ## Article and visual generation flow
 
-The default article path accepts pasted text, a topic prompt, or an HTTPS URL.
+The default article path accepts pasted text, a topic prompt, or an HTTPS URL
+from one composer on `/workspace`, alongside slide count and illustration style.
 The background Workflow Worker then produces structured slides, captions, slide
 images, and a dedicated cover. `binance-master` is the default illustration
 style; each image selects one of its Scene, Mechanism, Briefing, or Primer
@@ -95,9 +96,12 @@ and only its hash and bounded metadata are stored.
 
 ## Account and internal tenancy model
 
-- The product interface is English-only. Imported source text and generated
-  article content may remain in their original language; stale UI-language
-  cookies or browser storage are normalized back to English.
+- The interface is available in English (default), Khmer, Indonesian, Lao,
+  Myanmar, Thai, and Filipino, chosen from **Switch language** in the account
+  menu. The choice persists in the `xarticle_language` cookie and browser
+  storage; unknown values fall back to English. Imported source text and
+  generated article content stay in their original language whatever the UI
+  locale.
 - xArticle administrators manage enrollment in **Account settings → People &
   access**.
   After the one-time bootstrap invitation on an empty database, administrators create one
@@ -133,9 +137,10 @@ and only its hash and bounded metadata are stored.
 
 ## Binance publishing flow
 
-1. A signed-in user chooses **Post** or **Article**, reviews the exact
-   text/title/body and optional media, and prepares an immutable,
-   revision-bound recipe in the web app.
+1. A signed-in user chooses **Post** or **Article**, reviews a rendered preview
+   of the exact text/title/body, opts in to any media (the cover and images
+   start unselected), and prepares an immutable, revision-bound recipe in the
+   web app.
 2. A paired local companion claims the command and verifies every private asset by MIME type, length, magic bytes, and SHA-256.
 3. The companion prepares the matching Binance Square Post composer or Article
    editor locally and reports `awaiting_review`.
@@ -150,8 +155,9 @@ manual local bundle workflow available through
 
 ## X publishing flow
 
-1. A signed-in user chooses **Post** or **Article**, reviews the exact
-   content and optional media, and selects **Prepare on X**. Articles require
+1. A signed-in user chooses **Post** or **Article**, reviews a rendered preview
+   of the exact content, opts in to any media (none is selected by default),
+   and selects **Prepare on X**. Articles require
    the publishing account to have X Articles entitlement.
 2. The paired companion claims the immutable command, verifies every downloaded
    byte, fills the companion-managed X Post composer or Article editor, and
@@ -187,7 +193,8 @@ available.
 The paired companion path is always review-gated: the web app prepares the
 recipe, the user approves the exact revision, and only then can the companion
 perform one final click. The app does not silently publish from a browser
-session.
+session. The companion saves each result locally before reporting it, so a
+network failure or restart re-delivers that result instead of clicking again.
 
 ## Local development
 
