@@ -24,6 +24,26 @@ function capturingClient(rows: unknown[] = [jobRow()]) {
 }
 
 describe('Neon job repository', () => {
+  it('reserves cover work under an article lock and returns the already active job', async () => {
+    const active = jobRow({ id: 'existing-cover', kind: 'generate_images', payload: { scope: 'cover' } });
+    const { client, queries } = capturingClient([active]);
+    const transaction = vi.fn(async (callback: (sql: typeof client) => Promise<unknown>[], _options?: unknown) => Promise.all(callback(client)));
+    Object.assign(client, { transaction });
+    const repository = createJobRepository({ $client: client } as never);
+    const job = await repository.create({
+      id: 'new-cover', deckId: 'deck_1', workspaceId: 'workspace_1', kind: 'generate_images',
+      status: 'queued', progress: 0, articleRevisionId: 'deck_1:rev:1',
+      payload: { scope: 'cover' }, logs: [], now: new Date(),
+    });
+
+    expect(job.id).toBe('existing-cover');
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(queries[0]?.text).toContain('FOR UPDATE');
+    expect(queries[1]?.text).toContain('NOT EXISTS (SELECT 1 FROM active)');
+    expect(queries[1]?.values).toContain('deck_1:rev:1');
+    expect(transaction.mock.calls[0]?.[1]).toEqual({ isolationLevel: 'ReadCommitted' });
+  });
+
   it('creates rows with explicit IDs and timestamps instead of Prisma client defaults', async () => {
     const { client, queries } = capturingClient();
     const repository = createJobRepository({ $client: client } as never);

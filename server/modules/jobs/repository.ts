@@ -169,6 +169,43 @@ function readIdempotentEnvelope(rows: unknown):
 export function createJobRepository(database: AppDatabase): JobRepository {
   return {
     async create(input) {
+      if (input.kind === 'generate_images' && input.payload && typeof input.payload === 'object'
+        && 'scope' in input.payload && input.payload.scope === 'cover') {
+        // The lock and reservation are separate statements: ReadCommitted must
+        // see the winner's committed job after waiting for the article lock.
+        const [, result] = await database.$client.transaction((transaction) => [
+          transaction`
+            SELECT "id" FROM "DeckProject"
+            WHERE "id" = ${input.deckId} AND "workspaceId" = ${input.workspaceId}
+            FOR UPDATE
+          `,
+          transaction`
+            WITH active AS MATERIALIZED (
+              SELECT * FROM "JobRun"
+              WHERE "deckId" = ${input.deckId} AND "workspaceId" = ${input.workspaceId}
+                AND "articleRevisionId" = ${input.articleRevisionId}
+                AND "status" IN ('queued', 'running')
+                AND ("kind" = 'generate' OR ("kind" = 'generate_images' AND "payload"->>'scope' = 'cover'))
+              ORDER BY "createdAt" DESC, "id" DESC LIMIT 1
+            ), inserted AS (
+              INSERT INTO "JobRun" (
+                "id", "deckId", "workspaceId", "kind", "status", "progress", "logs",
+                "articleRevisionId", "payload", "createdAt", "updatedAt"
+              )
+              SELECT ${input.id}, deck."id", deck."workspaceId", 'generate_images'::"JobKind",
+                'queued'::"JobStatus", 0, '[]'::jsonb, ${input.articleRevisionId},
+                ${json(input.payload)}::jsonb, ${input.now}, ${input.now}
+              FROM "DeckProject" AS deck
+              WHERE deck."id" = ${input.deckId} AND deck."workspaceId" = ${input.workspaceId}
+                AND deck."id" || ':rev:' || deck."generationRevision"::text = ${input.articleRevisionId}
+                AND NOT EXISTS (SELECT 1 FROM active)
+              RETURNING *
+            )
+            SELECT * FROM active UNION ALL SELECT * FROM inserted LIMIT 1
+          `,
+        ], { isolationLevel: 'ReadCommitted' });
+        return requiredJob(result);
+      }
       const rows = await database.$client`
         INSERT INTO "JobRun" (
           "id", "deckId", "workspaceId", "kind", "status", "progress", "logs",
