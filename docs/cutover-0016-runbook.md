@@ -391,7 +391,5 @@ capacity accounting, and audit controls.
 
 ## Known follow-up work
 
-- **`deckforge_*` cookie compat shims** (`lib/i18n.ts:15-17`,
-  `server/auth/generate-access.ts:9-12`) are due for removal after 2026-09-01.
 - **`BinancePublicationDraft` V1 contract migration** still needs its own window;
   unrelated to 0016.
