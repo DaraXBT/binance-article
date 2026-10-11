@@ -197,6 +197,22 @@ describe('article Workflow cancellation guard', () => {
     expect(jobs.appendLog).not.toHaveBeenCalled();
     expect(jobs.progress).not.toHaveBeenCalled();
   });
+
+  it.each(['slides', 'cover'] as const)('cancels stale %s retries before resolving credentials or modifying artifacts', async (scope) => {
+    const job = runningImageJob(scope);
+    jobs.get.mockResolvedValue(job);
+    jobs.markRunning.mockResolvedValue(job);
+    generation.listSlides.mockResolvedValue({ generationRevision: 2, slides: [] });
+    generation.resolveWorkspaceGeminiCredential.mockResolvedValue({ provider: 'gemini', source: 'platform', apiKey: 'test-key' });
+    generation.initializeCover.mockResolvedValue(false);
+
+    await handleArticleImageRetryJob(job.id, testEnvironment);
+
+    expect(jobs.fail).toHaveBeenCalledWith(job.id, 'STALE_REVISION', expect.any(String), 'cancelled');
+    expect(generation.resolveWorkspaceGeminiCredential).not.toHaveBeenCalled();
+    expect(generation.initializeCover).not.toHaveBeenCalled();
+    expect(generation.markSlideFailed).not.toHaveBeenCalled();
+  });
 });
 
 describe('article image generation progress', () => {
@@ -453,6 +469,7 @@ describe('article Workflow explicit credential plumbing', () => {
 
   it('marks a pending cover failed when an enabled workspace key cannot resolve', async () => {
     const job = runningImageJob('cover');
+    job.articleRevisionId = 'article_1:rev:3';
     jobs.get.mockResolvedValue(job);
     jobs.markRunning.mockResolvedValue(job);
     generation.resolveWorkspaceGeminiCredential.mockRejectedValue(

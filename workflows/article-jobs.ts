@@ -807,6 +807,11 @@ export async function handleArticleImageRetryJob(
   let resolvedImageModel: string | undefined;
 
   try {
+    const deck = await listSlidesForImageGeneration(job.deckId, job.workspaceId);
+    if (!deck || deck.generationRevision !== parseRevisionNumber(job.articleRevisionId)) {
+      await failJobRun(jobId, 'STALE_REVISION', 'A newer article generation replaced this image request.', 'cancelled');
+      return;
+    }
     const illustrationStyle = readIllustrationStyle(payload.illustrationStyle);
     credentialAttempted = true;
     const gemini = await resolveGeminiJobConfig(job.workspaceId, providerEnvironment);
