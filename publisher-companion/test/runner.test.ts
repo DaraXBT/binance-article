@@ -1,6 +1,7 @@
 import { describe, expect, it, mock } from 'bun:test';
 
 import { hashPublicationRecipe } from '../../server/domain/publication-recipe';
+import { PublisherApiError } from '../src/api-client';
 import { runPublisherOnce } from '../src/runner';
 import { FilePublishResultOutbox } from '../src/result-outbox';
 import fs from 'node:fs/promises';
@@ -149,7 +150,10 @@ describe('publisher companion runner', () => {
       commandId: 'command_1', revision: 3,
       result: { outcome: 'outcome_unknown' as const, failureReason: 'OUTCOME_UNVERIFIED' as const },
     };
-    const outbox = { load: mock(async () => pending), save: mock(async () => undefined), clear: mock(async () => undefined) };
+    const outbox = {
+      load: mock(async () => pending), save: mock(async () => undefined),
+      clear: mock(async () => undefined), quarantine: mock(async () => undefined),
+    };
     h.api.getCommandStatus.mockResolvedValueOnce({
       id: 'command_1', state: 'approved', revision: 3, recipeHash: 'hash', expiresAt: legacyBinanceRecipe.expiresAt,
     } as never);
@@ -158,6 +162,92 @@ describe('publisher companion runner', () => {
     expect(h.api.abortCommand).toHaveBeenCalledWith('command_1', 3, 'DEVICE_SHUTDOWN');
     expect(h.api.claimCommand).not.toHaveBeenCalled();
     expect(outbox.clear).toHaveBeenCalledTimes(1);
+  });
+  it('moves a permanently rejected replay aside and resumes claiming work', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'publisher-outbox-test-'));
+    try {
+      const h = await harness();
+      const filePath = path.join(directory, 'pending-result.json');
+      const warnings: string[] = [];
+      const outbox = new FilePublishResultOutbox(filePath, (message) => warnings.push(message),
+        () => new Date('2026-07-19T01:00:00.000Z'));
+      await outbox.save({
+        commandId: 'command_old', revision: 2,
+        result: { outcome: 'succeeded', publishedUrl: 'https://www.binance.com/en/square/post/9' },
+      });
+      h.api.getCommandStatus.mockResolvedValueOnce({
+        id: 'command_old', state: 'publishing', revision: 2, recipeHash: 'hash',
+        expiresAt: '2026-07-19T00:15:00.000Z',
+      } as never);
+      h.api.reportResult.mockRejectedValueOnce(new PublisherApiError({
+        code: 'PUBLISHER_RESULT_FAILED', message: 'Publisher command has expired.', status: 400,
+      }));
+
+      expect(await runPublisherOnce({ ...h, outbox })).toEqual({ outcome: 'result_rejected', commandId: 'command_old' });
+      expect(await outbox.load()).toBeNull();
+      const kept = (await fs.readdir(directory)).filter((name) => name.includes('.rejected-'));
+      expect(kept).toHaveLength(1);
+      expect(warnings[0]).toContain('Publisher command has expired.');
+      expect(h.api.claimCommand).not.toHaveBeenCalled();
+
+      expect(await runPublisherOnce({ ...h, outbox,
+        now: () => new Date('2026-07-19T00:00:00.000Z'), sleep: async () => undefined,
+      })).toEqual({ outcome: 'succeeded', commandId: 'command_1' });
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps a replay record through temporary server errors', async () => {
+    const h = await harness();
+    const pending = {
+      commandId: 'command_1', revision: 3,
+      result: { outcome: 'outcome_unknown' as const, failureReason: 'OUTCOME_UNVERIFIED' as const },
+    };
+    const outbox = {
+      load: mock(async () => pending), save: mock(async () => undefined),
+      clear: mock(async () => undefined), quarantine: mock(async () => undefined),
+    };
+    h.api.getCommandStatus.mockRejectedValueOnce(new PublisherApiError({
+      code: 'SERVICE_UNAVAILABLE', message: 'Try again later.', status: 503,
+    }));
+
+    await expect(runPublisherOnce({ ...h, outbox })).rejects.toThrow('Try again later.');
+    expect(outbox.quarantine).not.toHaveBeenCalled();
+    expect(outbox.clear).not.toHaveBeenCalled();
+  });
+
+  it('moves an unreadable outbox file aside instead of failing every run', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'publisher-outbox-test-'));
+    try {
+      const filePath = path.join(directory, 'pending-result.json');
+      await fs.writeFile(filePath, '');
+      const warnings: string[] = [];
+      const outbox = new FilePublishResultOutbox(filePath, (message) => warnings.push(message));
+
+      expect(await outbox.load()).toBeNull();
+      expect((await fs.readdir(directory)).some((name) => name.includes('.corrupt-'))).toBe(true);
+      expect(warnings[0]).toContain('unreadable');
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('reports a definite failure when shutdown lands between begin and the click', async () => {
+    const h = await harness();
+    const controller = new AbortController();
+    h.api.beginPublish.mockImplementation(async () => {
+      h.order.push('begin');
+      controller.abort();
+    });
+
+    expect(await runPublisherOnce({ ...h, signal: controller.signal,
+      now: () => new Date('2026-07-19T00:00:00.000Z'), sleep: async () => undefined,
+    })).toEqual({ outcome: 'failed', commandId: 'command_1' });
+    expect(h.order).not.toContain('click');
+    expect(h.api.reportResult).toHaveBeenCalledWith('command_1', 3, {
+      outcome: 'failed', failureReason: 'DEVICE_SHUTDOWN',
+    });
   });
   it('runs claim → verify/assets → prepare → review → approval → begin → click → result', async () => {
     const h = await harness();

@@ -102,8 +102,12 @@ run re-delivers the saved result before claiming new work and never clicks
 again. A saved record whose command never began publishing is aborted with
 `DEVICE_SHUTDOWN`. In continuous mode, `SIGINT`/`SIGTERM` stops approval
 polling promptly and aborts a prepared command with `DEVICE_SHUTDOWN`; if the
-publishing transition has already begun, the command ends as `outcome_unknown`
-instead.
+publishing transition has begun but the click has not, the command is reported
+`failed` with `DEVICE_SHUTDOWN`. A saved record the server permanently rejects
+(for example, after the command expired offline) or an unreadable record is
+moved aside with a warning instead of blocking new work. The server rejects
+results after `expiresAt` and does not expire `publishing` commands, so such a
+command stays `publishing` until handled manually.
 
 Publisher devices are account-owned and can be `pending`, `active`, or
 `revoked`. The pairing API derives the internal tenant from the authenticated

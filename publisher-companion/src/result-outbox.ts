@@ -2,17 +2,41 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { PendingPublishResult, PublishResultOutbox } from './runner';
 
+function isPendingPublishResult(value: unknown): value is PendingPublishResult {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  const result = record.result as Record<string, unknown> | undefined;
+  return typeof record.commandId === 'string' && record.commandId.length > 0
+    && typeof record.revision === 'number' && Number.isInteger(record.revision)
+    && !!result && typeof result === 'object' && typeof result.outcome === 'string';
+}
+
 /** Single active command, protected by the companion's process lock. */
 export class FilePublishResultOutbox implements PublishResultOutbox {
-  constructor(private readonly filePath: string) {}
+  constructor(
+    private readonly filePath: string,
+    private readonly warn: (message: string) => void = (message) => process.stderr.write(`${message}\n`),
+    private readonly now: () => Date = () => new Date(),
+  ) {}
 
   async load(): Promise<PendingPublishResult | null> {
+    let raw: string;
     try {
-      return JSON.parse(await fs.readFile(this.filePath, 'utf8')) as PendingPublishResult;
+      raw = await fs.readFile(this.filePath, 'utf8');
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
       throw error;
     }
+    let value: unknown;
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      value = null;
+    }
+    if (isPendingPublishResult(value)) return value;
+    // An unreadable record can't be replayed; failing on it every run would block all new work.
+    await this.#moveAside('corrupt', 'the saved publish result is unreadable');
+    return null;
   }
 
   async save(value: PendingPublishResult): Promise<void> {
@@ -31,5 +55,16 @@ export class FilePublishResultOutbox implements PublishResultOutbox {
 
   async clear(): Promise<void> {
     await fs.rm(this.filePath, { force: true });
+  }
+
+  async quarantine(reason: string): Promise<void> {
+    await this.#moveAside('rejected', `the server rejected the saved publish result (${reason})`);
+  }
+
+  async #moveAside(label: string, why: string): Promise<void> {
+    const stamp = this.now().toISOString().replace(/[:.]/g, '-');
+    const target = `${this.filePath}.${label}-${stamp}`;
+    await fs.rename(this.filePath, target);
+    this.warn(`Publisher: ${why}. Kept it at ${target}; check that command in the web app.`);
   }
 }

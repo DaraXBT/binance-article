@@ -12,6 +12,7 @@ import type {
   PublisherCommandMetadata,
   PublisherTarget,
 } from './api-client';
+import { PublisherApiError } from './api-client';
 import { downloadVerifiedAsset } from './asset-download';
 import { materializePublicationBundle } from './materialize';
 import {
@@ -47,6 +48,16 @@ export interface PublishResultOutbox {
   load(): Promise<PendingPublishResult | null>;
   save(value: PendingPublishResult): Promise<void>;
   clear(): Promise<void>;
+  /** Moves a record the server permanently rejected aside for manual review. */
+  quarantine(reason: string): Promise<void>;
+}
+
+/** Shutdown landed after begin but before the click, so nothing was published. */
+class ShutdownBeforeClickError extends Error {}
+
+function isPermanentRejection(error: unknown): error is PublisherApiError {
+  return error instanceof PublisherApiError && error.status >= 400 && error.status < 500
+    && ![401, 403, 408, 429].includes(error.status);
 }
 
 type Materializer = (input: {
@@ -152,15 +163,23 @@ export async function runPublisherOnce(input: {
 }): Promise<{ outcome: string; commandId?: string }> {
   const pending = await input.outbox?.load();
   if (pending) {
-    const status = await input.api.getCommandStatus(pending.commandId);
-    let outcome: string = status.state;
-    if (status.state === 'publishing') {
-      await input.api.reportResult(pending.commandId, pending.revision, pending.result);
-      outcome = pending.result.outcome;
-    } else if (!['succeeded', 'failed', 'outcome_unknown', 'cancelled', 'expired'].includes(status.state)) {
-      // A crash before begin did not authorize a click. Cancel that abandoned composer.
-      await input.api.abortCommand(pending.commandId, pending.revision, 'DEVICE_SHUTDOWN');
-      outcome = 'cancelled';
+    let outcome: string;
+    try {
+      const status = await input.api.getCommandStatus(pending.commandId);
+      outcome = status.state;
+      if (status.state === 'publishing') {
+        await input.api.reportResult(pending.commandId, pending.revision, pending.result);
+        outcome = pending.result.outcome;
+      } else if (!['succeeded', 'failed', 'outcome_unknown', 'cancelled', 'expired'].includes(status.state)) {
+        // A crash before begin did not authorize a click. Cancel that abandoned composer.
+        await input.api.abortCommand(pending.commandId, pending.revision, 'DEVICE_SHUTDOWN');
+        outcome = 'cancelled';
+      }
+    } catch (error) {
+      if (!isPermanentRejection(error)) throw error;
+      // e.g. the command expired while offline. Retrying forever would block every new command.
+      await input.outbox!.quarantine(error.message);
+      return { outcome: 'result_rejected', commandId: pending.commandId };
     }
     await input.outbox!.clear();
     return { outcome, commandId: pending.commandId };
@@ -245,7 +264,7 @@ export async function runPublisherOnce(input: {
         if (input.signal?.aborted) throw new Error('Publisher shutdown requested.');
         await input.api.beginPublish(command.id, command.revision);
         began = true;
-        if (input.signal?.aborted) throw new Error('Publisher shutdown requested.');
+        if (input.signal?.aborted) throw new ShutdownBeforeClickError('Publisher shutdown requested.');
       },
     });
     const result = classifySkillPublishResult({
@@ -270,11 +289,18 @@ export async function runPublisherOnce(input: {
     return { outcome: result.outcome, commandId: command.id };
   } catch (error) {
     if (began) {
-      await input.api.reportResult(command.id, command.revision, {
-        outcome: 'outcome_unknown',
-        failureReason: 'OUTCOME_UNVERIFIED',
-      }).catch(() => undefined);
-      return { outcome: 'outcome_unknown', commandId: command.id };
+      const result = error instanceof ShutdownBeforeClickError
+        ? { outcome: 'failed' as const, failureReason: 'DEVICE_SHUTDOWN' }
+        : { outcome: 'outcome_unknown' as const, failureReason: 'OUTCOME_UNVERIFIED' };
+      await input.outbox?.save({ commandId: command.id, revision: command.revision, result })
+        .catch(() => undefined);
+      try {
+        await input.api.reportResult(command.id, command.revision, result);
+        await input.outbox?.clear();
+      } catch {
+        // The saved record is re-delivered on the next run.
+      }
+      return { outcome: result.outcome, commandId: command.id };
     }
     const fallbackReason: PublisherAbortReason = stage === 'assets'
       ? 'ASSET_INTEGRITY_FAILED'

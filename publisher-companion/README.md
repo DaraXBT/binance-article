@@ -118,9 +118,9 @@ that approval.
 
 Stop continuous `run` with Ctrl+C or `SIGTERM`. It stops waiting for approval
 promptly and cancels a prepared command as `DEVICE_SHUTDOWN`. If the server
-transition to publishing has already begun, the command instead ends as
-`outcome_unknown`; check the platform manually. `run --once` has no graceful
-shutdown: Ctrl+C ends the process, and the next run recovers as below.
+transition to publishing had already begun but the click had not happened,
+the command is reported as `failed` with `DEVICE_SHUTDOWN`. `run --once` has no
+graceful shutdown: Ctrl+C ends the process, and the next run recovers as below.
 
 Just before the final click, and again before reporting the result, the
 companion saves a record to `pending-result.json` (private permissions); it
@@ -130,6 +130,13 @@ re-delivers that saved result before claiming new work and never clicks again.
 A saved record whose command never began publishing is cancelled instead. Do
 not delete `pending-result.json` while it exists unless you have confirmed the
 outcome in the web app.
+
+If the server permanently rejects a saved record (for example, the command
+expired while the computer was offline), or the file is unreadable, the
+companion renames it to `pending-result.json.rejected-<time>` or
+`.corrupt-<time>`, prints a warning, and continues with new work. Check that
+command in the web app; the renamed file keeps the result, including any
+published URL.
 
 A 401 stops polling immediately. Check the user's account and workspace
 membership first; suspension or removal must be resolved by the owner. If the

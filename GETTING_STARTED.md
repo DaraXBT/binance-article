@@ -145,9 +145,9 @@ a lost or replaced device there; a revoked companion must be paired again.
   new reviewed command; never retry the old click automatically.
 - **Companion stopped or lost network mid-publish:** start it again. A saved
   result is delivered on the next run without another click, and a command
-  that never began publishing is cancelled. If publishing had already begun
-  when it stopped, the command ends as `outcome_unknown`; check the platform
-  manually.
+  that never reached the click is cancelled or reported as failed. If the
+  companion warns that it moved a saved result aside (for example, the command
+  expired while offline), check that command and the platform manually.
 
 For system boundaries and state transitions, see
 [docs/architecture.md](./docs/architecture.md).
