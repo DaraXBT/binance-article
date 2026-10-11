@@ -12,7 +12,6 @@ import {
 
 import {
   LANGUAGE_COOKIE_NAME,
-  LEGACY_LANGUAGE_COOKIE_NAME,
   isLanguage,
   translations,
   UI_LANGUAGE,
@@ -43,14 +42,7 @@ function persistLanguage(language: Language) {
   }
 
   try {
-    window.localStorage.removeItem(LEGACY_LANGUAGE_COOKIE_NAME);
-  } catch {
-    // Storage can be disabled independently from cookies.
-  }
-
-  try {
     document.cookie = `${LANGUAGE_COOKIE_NAME}=${language}; path=/; max-age=${ONE_YEAR_IN_SECONDS}; samesite=lax`;
-    document.cookie = `${LEGACY_LANGUAGE_COOKIE_NAME}=; path=/; max-age=0; samesite=lax`;
   } catch {
     // Hardened cookie settings cannot change the in-memory selection.
   }

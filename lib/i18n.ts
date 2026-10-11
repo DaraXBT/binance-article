@@ -16,9 +16,6 @@ export type Language = 'km' | 'en' | 'id' | 'lo' | 'my' | 'th' | 'fil';
 export const UI_LANGUAGE: Language = 'en';
 
 export const LANGUAGE_COOKIE_NAME = 'xarticle_language';
-// Pre-rename cookie/storage key; cleaned up on every normalization write.
-// Remove the cleanup (and this constant) after 2026-09-01.
-export const LEGACY_LANGUAGE_COOKIE_NAME = 'deckforge_language';
 
 export const LANGUAGES: { code: Language; flag: string; name: string; nativeName: string }[] = [
   { code: 'km', flag: '🇰🇭', name: 'Khmer', nativeName: 'ខ្មែរ' },

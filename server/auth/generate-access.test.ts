@@ -141,7 +141,7 @@ describe('generation access security boundary', () => {
     });
   });
 
-  it('falls back to the legacy deckforge cookie during the rename window', async () => {
+  it('ignores the retired deckforge cookie', async () => {
     const envCodeHash = await sha256('rotation-secret');
     repositoryMock.findById.mockResolvedValue(grant({
       status: 'consumed', envCodeHash,
@@ -157,9 +157,10 @@ describe('generation access security boundary', () => {
     await expect(getRequestGenerateAccessState(request as never, {
       workspaceId: 'workspace_1', sessionId: 'session_1',
     })).resolves.toEqual({
-      enabled: true, hasAccess: true, invalidReason: null, grantId: 'grant_1',
+      enabled: true, hasAccess: false, invalidReason: 'missing', grantId: null,
     });
     expect(request.cookies.get).toHaveBeenCalledWith('xarticle_generate_access');
-    expect(request.cookies.get).toHaveBeenCalledWith('deckforge_generate_access');
+    expect(request.cookies.get).not.toHaveBeenCalledWith('deckforge_generate_access');
+    expect(repositoryMock.findById).not.toHaveBeenCalled();
   });
 });

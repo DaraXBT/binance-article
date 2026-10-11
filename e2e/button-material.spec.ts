@@ -15,13 +15,13 @@ for (const viewport of viewports) {
     test(`${theme} button materials render at ${viewport.name}`, async ({ context, page }) => {
       await page.setViewportSize(viewport);
       await context.addCookies([{
-        name: 'deckforge_language',
+        name: 'xarticle_language',
         value: 'en',
         url: E2E_BASE_URL,
       }]);
       await page.addInitScript(({ selectedTheme }) => {
         window.localStorage.setItem('theme', selectedTheme);
-        window.localStorage.setItem('deckforge_language', 'en');
+        window.localStorage.setItem('xarticle_language', 'en');
       }, { selectedTheme: theme });
 
       const consoleErrors: string[] = [];

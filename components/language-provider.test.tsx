@@ -42,15 +42,12 @@ describe('LanguageProvider', () => {
     cleanup();
     window.localStorage.clear();
     document.cookie = 'xarticle_language=; Max-Age=0; path=/';
-    document.cookie = 'deckforge_language=; Max-Age=0; path=/';
     document.documentElement.lang = 'en';
     document.title = '';
   });
 
   it('uses the server-provided locale instead of a stale browser preference', async () => {
     window.localStorage.setItem('xarticle_language', 'th');
-    window.localStorage.setItem('deckforge_language', 'th');
-    document.cookie = 'deckforge_language=th; path=/';
 
     render(
       <LanguageProvider initialLanguage="km">
@@ -64,8 +61,6 @@ describe('LanguageProvider', () => {
     await waitFor(() => {
       expect(document.documentElement.lang).toBe('km');
       expect(window.localStorage.getItem('xarticle_language')).toBe('km');
-      expect(window.localStorage.getItem('deckforge_language')).toBeNull();
-      expect(document.cookie).not.toContain('deckforge_language=');
     });
   });
 

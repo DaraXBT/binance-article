@@ -119,17 +119,12 @@ for (const viewport of viewports) {
   });
 }
 
-test('a saved locale initializes server-rendered public UI and clears legacy preference', async ({ context, page }) => {
+test('a saved locale initializes server-rendered public UI over stale browser storage', async ({ context, page }) => {
   await page.setViewportSize(viewports[0]);
   await context.addCookies([
     {
       name: 'xarticle_language',
       value: 'km',
-      url: E2E_BASE_URL,
-    },
-    {
-      name: 'deckforge_language',
-      value: 'en',
       url: E2E_BASE_URL,
     },
   ]);
@@ -138,7 +133,6 @@ test('a saved locale initializes server-rendered public UI and clears legacy pre
     // top-level document represents the browser preference under test.
     if (window.top !== window) return;
     window.localStorage.setItem('xarticle_language', 'en');
-    window.localStorage.setItem('deckforge_language', 'en');
   });
 
   await page.goto('/');
@@ -152,8 +146,6 @@ test('a saved locale initializes server-rendered public UI and clears legacy pre
   await expect(page.locator('[data-language-toggle]')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem('xarticle_language')))
     .toBe('km');
-  await expect.poll(() => page.evaluate(() => window.localStorage.getItem('deckforge_language')))
-    .toBeNull();
   await expectNoHorizontalOverflow(page);
 });
 
