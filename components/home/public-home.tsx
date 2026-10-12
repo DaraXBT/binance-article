@@ -51,6 +51,13 @@ function getDraftTitle(prompt: string, fallback: string) {
   return (firstLine || fallback).slice(0, 52);
 }
 
+// Leaving the logged-out shell for /login or /workspace is a deliberate
+// full-document navigation: the server re-evaluates auth on a fresh request
+// instead of a client-side route change carrying public-page state.
+function leavePublicShell(destination: string) {
+  window.location.assign(destination);
+}
+
 type AnonymousRailCopy = {
   studioTitle: string;
   newArticle: string;
@@ -315,7 +322,7 @@ export function PublicHome({
       setStorageFailed(false);
       const destination = `/workspace?resume=${submitted.intentId}`;
       if (onNavigate) onNavigate(destination);
-      else window.location.assign(destination);
+      else leavePublicShell(destination);
     } catch {
       // Everything in the try block is draft-persistence work, so any
       // failure here is presented as a storage problem.
@@ -335,7 +342,7 @@ export function PublicHome({
     }
     const destination = '/login?callbackURL=%2Fworkspace';
     if (onNavigate) onNavigate(destination);
-    else window.location.assign(destination);
+    else leavePublicShell(destination);
   };
 
   const handleSignIn = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -359,7 +366,7 @@ export function PublicHome({
       const callback = `/workspace?resume=${encodeURIComponent(next.intentId)}`;
       const destination = `/login?callbackURL=${encodeURIComponent(callback)}`;
       if (onNavigate) onNavigate(destination);
-      else window.location.assign(destination);
+      else leavePublicShell(destination);
     } catch {
       setStorageFailed(true);
       setError(copy.storageError);
