@@ -147,7 +147,8 @@ a lost or replaced device there; a revoked companion must be paired again.
   result is delivered on the next run without another click, and a command
   that never reached the click is cancelled or reported as failed. If the
   companion warns that it moved a saved result aside (for example, the command
-  expired while offline), check that command and the platform manually.
+  was changed or removed on the server), check that command and the platform
+  manually.
 
 For system boundaries and state transitions, see
 [docs/architecture.md](./docs/architecture.md).

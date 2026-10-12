@@ -131,8 +131,9 @@ A saved record whose command never began publishing is cancelled instead. Do
 not delete `pending-result.json` while it exists unless you have confirmed the
 outcome in the web app.
 
-If the server permanently rejects a saved record (for example, the command
-expired while the computer was offline), or the file is unreadable, the
+Results are accepted even after a command's expiry time, so a late
+re-delivery still lands. If the server permanently rejects a saved record (for
+example, the command was changed or removed), or the file is unreadable, the
 companion renames it to `pending-result.json.rejected-<time>` or
 `.corrupt-<time>`, prints a warning, and continues with new work. Check that
 command in the web app; the renamed file keeps the result, including any

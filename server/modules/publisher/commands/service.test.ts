@@ -127,6 +127,19 @@ describe('publisher command service', () => {
     }));
   });
 
+  it('accepts a late result for a publishing command after its expiry', async () => {
+    const repo = repository();
+    // The click was authorized before expiry; a delayed companion must still be able to report it.
+    await expect(reportPublishResult({
+      repository: repo, deviceId: 'device_1', commandId: 'command_1', revision: 3,
+      outcome: 'succeeded', publishedUrl: 'https://www.binance.com/en/square/post/123',
+      now: new Date('2026-07-19T03:00:00.000Z'),
+    })).resolves.toEqual({ state: 'succeeded' });
+    expect(repo.compareAndSwap).toHaveBeenCalledWith(expect.objectContaining({
+      from: 'publishing', to: 'succeeded',
+    }));
+  });
+
   it('rejects a non-Binance success URL before persistence', async () => {
     const repo = repository();
     await expect(reportPublishResult({

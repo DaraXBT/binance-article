@@ -180,14 +180,14 @@ describe('publisher companion runner', () => {
         expiresAt: '2026-07-19T00:15:00.000Z',
       } as never);
       h.api.reportResult.mockRejectedValueOnce(new PublisherApiError({
-        code: 'PUBLISHER_RESULT_FAILED', message: 'Publisher command has expired.', status: 400,
+        code: 'PUBLISHER_COMMAND_STALE', message: 'Publisher command state changed.', status: 409,
       }));
 
       expect(await runPublisherOnce({ ...h, outbox })).toEqual({ outcome: 'result_rejected', commandId: 'command_old' });
       expect(await outbox.load()).toBeNull();
       const kept = (await fs.readdir(directory)).filter((name) => name.includes('.rejected-'));
       expect(kept).toHaveLength(1);
-      expect(warnings[0]).toContain('Publisher command has expired.');
+      expect(warnings[0]).toContain('Publisher command state changed.');
       expect(h.api.claimCommand).not.toHaveBeenCalled();
 
       expect(await runPublisherOnce({ ...h, outbox,
