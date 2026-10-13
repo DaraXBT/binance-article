@@ -102,11 +102,13 @@ export async function POST(
       ? await findIdempotentJob({ idempotencyKey, ...idempotencyLookup })
       : null;
     let replayed = job !== null;
+    // Chosen here rather than in createJobRun so an adopted job is recognizable.
+    const requestedJobId = idempotencyKey ?? crypto.randomUUID();
 
     if (!job) {
       try {
         job = await createJobRun({
-          id: idempotencyKey,
+          id: requestedJobId,
           deckId,
           workspaceId,
           kind: 'generate_images',
@@ -125,18 +127,30 @@ export async function POST(
       }
     }
 
+    // The cover reservation returns the job already queued or running for this
+    // revision (another cover retry, or a full generation) instead of inserting
+    // a second one. The request that created an adopted job owns starting and
+    // failing it, so this one only starts it, with its own kind, if no run
+    // exists yet.
+    const ownsJob = job.id === requestedJobId;
+    const workflowKind = ownsJob
+      ? 'generate_images'
+      : job.kind === 'generate' || job.kind === 'generate_images' ? job.kind : null;
     const canResumeWorkflow = job.status === 'queued' || job.status === 'running';
-    if (!replayed || (!job.runId && canResumeWorkflow)) {
+    const shouldStart = (ownsJob && !replayed) || (!job.runId && canResumeWorkflow);
+    if (workflowKind && shouldStart) {
       try {
-        const run = await startWorkflow({ jobId: job.id, kind: 'generate_images' });
+        const run = await startWorkflow({ jobId: job.id, kind: workflowKind });
         await attachWorkflowRunId(job.id, run.runId);
       } catch (workflowError) {
-        await failJobRun(
-          job.id,
-          'WORKFLOW_START_FAILED',
-          'Failed to start the cover generation workflow.',
-        ).catch(() => null);
-        throw workflowError;
+        if (ownsJob) {
+          await failJobRun(
+            job.id,
+            'WORKFLOW_START_FAILED',
+            'Failed to start the cover generation workflow.',
+          ).catch(() => null);
+          throw workflowError;
+        }
       }
     }
 

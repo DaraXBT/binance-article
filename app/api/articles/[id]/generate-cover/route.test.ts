@@ -43,7 +43,9 @@ describe('POST /api/articles/[id]/generate-cover', () => {
       revision: 3,
       articleRevisionId: 'deck-1:rev:3',
     });
-    mocks.createJob.mockResolvedValue({ id: 'job-1', status: 'queued' });
+    mocks.createJob.mockImplementation(async (input: { id: string; kind: string }) => ({
+      id: input.id, kind: input.kind, status: 'queued', runId: null,
+    }));
     mocks.failJob.mockResolvedValue(null);
     mocks.findActiveCoverJob.mockResolvedValue(null);
     mocks.findIdempotentJob.mockResolvedValue(null);
@@ -67,8 +69,10 @@ describe('POST /api/articles/[id]/generate-cover', () => {
       { params: Promise.resolve({ id: 'deck-1' }) },
     );
     expect(response.status).toBe(202);
+    const createdId = mocks.createJob.mock.calls[0]?.[0].id;
+    expect(createdId).toEqual(expect.any(String));
     expect(await response.json()).toEqual({
-      jobId: 'job-1',
+      jobId: createdId,
       status: 'queued',
       articleRevisionId: 'deck-1:rev:3',
     });
@@ -82,10 +86,10 @@ describe('POST /api/articles/[id]/generate-cover', () => {
       },
     }));
     expect(mocks.startWorkflow).toHaveBeenCalledWith({
-      jobId: 'job-1',
+      jobId: createdId,
       kind: 'generate_images',
     });
-    expect(mocks.attachRun).toHaveBeenCalledWith('job-1', 'run-1');
+    expect(mocks.attachRun).toHaveBeenCalledWith(createdId, 'run-1');
   });
 
   it('replays an in-flight cover-producing job instead of paying for a second image', async () => {
@@ -131,7 +135,7 @@ describe('POST /api/articles/[id]/generate-cover', () => {
 
     expect(response.status).toBeGreaterThanOrEqual(400);
     expect(mocks.failJob).toHaveBeenCalledWith(
-      'job-1',
+      mocks.createJob.mock.calls[0]?.[0].id,
       'WORKFLOW_START_FAILED',
       expect.any(String),
     );
@@ -163,5 +167,57 @@ describe('POST /api/articles/[id]/generate-cover', () => {
     expect(await response.json()).toEqual(expect.objectContaining({ jobId: 'job-existing' }));
     expect(mocks.createJob).not.toHaveBeenCalled();
     expect(mocks.startWorkflow).not.toHaveBeenCalled();
+  });
+
+  async function postCover() {
+    const { POST } = await import('./route');
+    return POST(
+      new Request('http://localhost/api/articles/deck-1/generate-cover', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      }) as never,
+      { params: Promise.resolve({ id: 'deck-1' }) },
+    );
+  }
+
+  it('starts an adopted full-generation job with its own kind, not as an image job', async () => {
+    mocks.createJob.mockResolvedValue({
+      id: 'generate-job', kind: 'generate', status: 'queued', runId: null,
+      articleRevisionId: 'deck-1:rev:3',
+    });
+
+    const response = await postCover();
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual(expect.objectContaining({ jobId: 'generate-job' }));
+    expect(mocks.startWorkflow).toHaveBeenCalledWith({ jobId: 'generate-job', kind: 'generate' });
+  });
+
+  it('reports an adopted job that already has a run without starting another', async () => {
+    mocks.createJob.mockResolvedValue({
+      id: 'cover-other', kind: 'generate_images', status: 'running', runId: 'cover-other',
+      articleRevisionId: 'deck-1:rev:3',
+    });
+
+    const response = await postCover();
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual(expect.objectContaining({ jobId: 'cover-other', status: 'running' }));
+    expect(mocks.startWorkflow).not.toHaveBeenCalled();
+  });
+
+  it('never fails an adopted job when its workflow start errors', async () => {
+    mocks.createJob.mockResolvedValue({
+      id: 'cover-other', kind: 'generate_images', status: 'queued', runId: null,
+      articleRevisionId: 'deck-1:rev:3',
+    });
+    mocks.startWorkflow.mockRejectedValue(new Error('binding unavailable'));
+
+    const response = await postCover();
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual(expect.objectContaining({ jobId: 'cover-other' }));
+    expect(mocks.failJob).not.toHaveBeenCalled();
   });
 });

@@ -190,12 +190,30 @@ describe('article Workflow cancellation guard', () => {
   });
 
   it('does not retry article images after their JobRun was cancelled', async () => {
+    jobs.get.mockResolvedValue({ ...cancelledJob(), kind: 'generate_images' });
     await expect(handleArticleImageRetryJob('job_1', testEnvironment)).resolves.toBeUndefined();
 
     expect(jobs.markRunning).toHaveBeenCalledWith('job_1');
     expect(jobs.get).toHaveBeenCalledTimes(2);
     expect(jobs.appendLog).not.toHaveBeenCalled();
     expect(jobs.progress).not.toHaveBeenCalled();
+  });
+
+  it('refuses to run a full-generation job through the image handler', async () => {
+    jobs.get.mockResolvedValue(runningGenerationJob());
+
+    await expect(handleArticleImageRetryJob('job_1', testEnvironment))
+      .rejects.toThrow('Job kind does not match the image workflow.');
+    expect(jobs.markRunning).not.toHaveBeenCalled();
+    expect(generation.listSlides).not.toHaveBeenCalled();
+  });
+
+  it('refuses to run an image job through the generation handler', async () => {
+    jobs.get.mockResolvedValue(runningImageJob('cover'));
+
+    await expect(handleArticleGenerationJob('job_1', testEnvironment))
+      .rejects.toThrow('Job kind does not match the generation workflow.');
+    expect(jobs.markRunning).not.toHaveBeenCalled();
   });
 
   it.each(['slides', 'cover'] as const)('cancels stale %s retries before resolving credentials or modifying artifacts', async (scope) => {

@@ -596,6 +596,10 @@ export async function handleArticleGenerationJob(
   if (!existingJob || !isRecord(existingJob.payload)) {
     throw new NonRetryableArticleJobError('Job payload not found.');
   }
+  // Dispatch trusts the Workflow params; never run another kind of job here.
+  if (existingJob.kind !== 'generate') {
+    throw new NonRetryableArticleJobError('Job kind does not match the generation workflow.');
+  }
 
   const job = await markJobRunning(jobId) ?? await getJobRunById(jobId);
   if (!job || job.status !== 'running') return;
@@ -787,6 +791,10 @@ export async function handleArticleImageRetryJob(
 
   if (!existingJob || !isRecord(existingJob.payload)) {
     throw new NonRetryableArticleJobError('Job payload not found.');
+  }
+  // Dispatch trusts the Workflow params; never run another kind of job here.
+  if (existingJob.kind !== 'generate_images') {
+    throw new NonRetryableArticleJobError('Job kind does not match the image workflow.');
   }
 
   const job = await markJobRunning(jobId) ?? await getJobRunById(jobId);
