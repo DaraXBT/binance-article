@@ -52,18 +52,18 @@
   --button-primary-hover-to: #f8c82a;
   --button-primary-border: #c99400;
   --button-primary-foreground: #181a20;
-  --button-secondary-from: #ece8de;
-  --button-secondary-to: #d6d0bf;
-  --button-secondary-hover-from: #f4f1e9;
-  --button-secondary-hover-to: #ddd7c8;
-  --button-secondary-border: #b9b19f;
-  --button-secondary-foreground: #1c1917;
-  --button-outline-from: #fffefa;
-  --button-outline-to: #efede4;
-  --button-outline-hover-from: #ffffff;
-  --button-outline-hover-to: #e8e4d9;
-  --button-outline-border: #c8c1b1;
-  --button-outline-foreground: #292524;
+  --button-secondary-from: #6b665f;
+  --button-secondary-to: #4a4640;
+  --button-secondary-hover-from: #7a746c;
+  --button-secondary-hover-to: #55504a;
+  --button-secondary-border: #3a3631;
+  --button-secondary-foreground: #faf9f5;
+  --button-outline-from: #3d3935;
+  --button-outline-to: #26231f;
+  --button-outline-hover-from: #4b4641;
+  --button-outline-hover-to: #2f2c28;
+  --button-outline-border: #1c1917;
+  --button-outline-foreground: #faf9f5;
   --button-destructive-from: #ef4444;
   --button-destructive-to: #b91c1c;
   --button-destructive-hover-from: #f05252;
@@ -129,18 +129,18 @@
   --button-primary-hover-to: #f8c82a;
   --button-primary-border: #a87800;
   --button-primary-foreground: #141413;
-  --button-secondary-from: #4a4743;
-  --button-secondary-to: #373531;
-  --button-secondary-hover-from: #56524d;
-  --button-secondary-hover-to: #413e3a;
-  --button-secondary-border: rgb(240 227 222 / 0.4);
-  --button-secondary-foreground: #f0e3de;
-  --button-outline-from: #3f3c38;
-  --button-outline-to: #2d2b28;
-  --button-outline-hover-from: #4b4843;
-  --button-outline-hover-to: #373431;
-  --button-outline-border: rgb(240 227 222 / 0.42);
-  --button-outline-foreground: #f7eee9;
+  --button-secondary-from: #cfc6bf;
+  --button-secondary-to: #b5ada6;
+  --button-secondary-hover-from: #dbd3cc;
+  --button-secondary-hover-to: #c1b9b2;
+  --button-secondary-border: #e5ddd6;
+  --button-secondary-foreground: #1a1816;
+  --button-outline-from: #f3ede8;
+  --button-outline-to: #d9d0c9;
+  --button-outline-hover-from: #ffffff;
+  --button-outline-hover-to: #e6dfd9;
+  --button-outline-border: #f7f1ec;
+  --button-outline-foreground: #1a1816;
   --button-destructive-from: #f05252;
   --button-destructive-to: #c02626;
   --button-destructive-hover-from: #fb6a6a;
@@ -337,6 +337,25 @@
     --button-material-hover-to: var(--button-outline-hover-to);
     --button-material-border: var(--button-outline-border);
     --button-material-foreground: var(--button-outline-foreground);
+  }
+
+  /* Red-text outline button for destructive actions that should not shout. */
+  .button-material-danger-outline {
+    --button-material-from: #ffffff;
+    --button-material-to: #fdf0f0;
+    --button-material-hover-from: #fff6f6;
+    --button-material-hover-to: #fbe3e3;
+    --button-material-border: #e3a4a4;
+    --button-material-foreground: var(--destructive-text);
+  }
+
+  .dark .button-material-danger-outline {
+    --button-material-from: #43262a;
+    --button-material-to: #301a1d;
+    --button-material-hover-from: #522d32;
+    --button-material-hover-to: #3a2024;
+    --button-material-border: #8f4348;
+    --button-material-foreground: #fda4a4;
   }
 
   .button-material-destructive {

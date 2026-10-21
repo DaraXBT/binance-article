@@ -367,7 +367,7 @@ function PersonActions({
         </Button>
       ) : null}
       {person.status !== 'revoked' ? (
-        <Button type="button" size="sm" variant="outline" className="h-8 rounded-lg text-xs text-destructive-text hover:text-destructive-text" aria-label={`${copy.t('revoke')} ${person.name}`} disabled={busy} onClick={() => onAction('revoke')}>
+        <Button type="button" size="sm" variant="dangerOutline" className="h-8 rounded-lg text-xs" aria-label={`${copy.t('revoke')} ${person.name}`} disabled={busy} onClick={() => onAction('revoke')}>
           {copy.t('revoke')}
         </Button>
       ) : null}
@@ -674,8 +674,8 @@ export function AdminPeopleAccessCard({
             <Button
               type="button"
               size="sm"
-              variant="outline"
-              className="h-9 gap-1.5 rounded-lg text-destructive-text hover:text-destructive-text"
+              variant="dangerOutline"
+              className="h-9 gap-1.5 rounded-lg"
               disabled={codeAction !== null}
               onClick={() => {
                 setCodeActionError(null);

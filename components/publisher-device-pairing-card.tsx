@@ -652,8 +652,7 @@ export function PublisherDevicePairingCard({
                       <Button
                         type="button"
                         size="sm"
-                        variant="outline"
-                        className="text-destructive-text hover:text-destructive-text"
+                        variant="dangerOutline"
                         aria-label={`${copy.t('revoke')} ${device.name}`}
                         disabled={revokingDeviceId !== null}
                         onClick={(event) => {

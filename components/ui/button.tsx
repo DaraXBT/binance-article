@@ -13,6 +13,7 @@ const buttonVariants = cva(
         destructive:
           'button-material button-material-destructive focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40',
         outline: 'button-material button-material-outline',
+        dangerOutline: 'button-material button-material-danger-outline',
         secondary: 'button-material button-material-secondary',
         ghost:
           'button-flat hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
