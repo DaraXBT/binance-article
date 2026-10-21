@@ -84,23 +84,14 @@ export function SettingsGroup({
 
 export type StatusTone = 'success' | 'info' | 'warning' | 'neutral';
 
+const NEUTRAL_BADGE = 'border-border bg-muted/40 text-foreground';
+
 const STATUS_TONE_CLASSES: Record<StatusTone, { badge: string; dot: string }> = {
-  success: {
-    badge: 'border-emerald-600/25 bg-emerald-500/10 text-emerald-800 dark:border-emerald-400/25 dark:text-emerald-300',
-    dot: 'bg-emerald-500',
-  },
-  info: {
-    badge: 'border-sky-600/25 bg-sky-500/10 text-sky-800 dark:border-sky-400/25 dark:text-sky-300',
-    dot: 'bg-sky-500',
-  },
-  warning: {
-    badge: 'border-amber-600/30 bg-amber-500/10 text-amber-800 dark:border-amber-400/25 dark:text-amber-300',
-    dot: 'bg-amber-500',
-  },
-  neutral: {
-    badge: 'border-border bg-muted/60 text-muted-foreground',
-    dot: 'bg-muted-foreground/60',
-  },
+  // One neutral pill for every status; only the dot carries meaning.
+  success: { badge: NEUTRAL_BADGE, dot: 'bg-emerald-500' },
+  info: { badge: NEUTRAL_BADGE, dot: 'bg-sky-500' },
+  warning: { badge: NEUTRAL_BADGE, dot: 'bg-amber-500' },
+  neutral: { badge: 'border-border bg-transparent text-muted-foreground', dot: 'bg-muted-foreground/50' },
 };
 
 /** One status style for every section: a dot plus a short label. */

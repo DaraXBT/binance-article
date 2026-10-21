@@ -483,7 +483,7 @@ export function PublisherDevicePairingCard({
             {pairingValue ? (
               <div
                 data-one-time-code-panel
-                className="space-y-4 rounded-lg border border-primary/35 bg-primary/5 p-4"
+                className="space-y-4 rounded-lg border border-border bg-muted/30 p-4"
               >
                 <section className="space-y-2" aria-labelledby="publisher-pairing-code-title">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -642,7 +642,7 @@ export function PublisherDevicePairingCard({
                         ) : copy.t('neverSeen')}
                       </p>
                       {needsUpdate ? (
-                        <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                        <p className="text-xs font-medium text-foreground">
                           {copy.t('updateNeeded')}
                         </p>
                       ) : null}

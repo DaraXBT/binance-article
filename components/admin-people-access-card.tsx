@@ -229,7 +229,7 @@ function CapacitySummary({ overview, copy }: { overview: EnrollmentOverview; cop
         <div
           className={cn(
             'h-full rounded-full',
-            ratio >= 1 ? 'bg-destructive' : ratio >= 0.8 ? 'bg-amber-500' : 'bg-primary',
+            ratio >= 1 ? 'bg-destructive' : 'bg-foreground/70',
           )}
           style={{ width: `${Math.min(100, ratio * 100)}%` }}
         />
@@ -262,7 +262,7 @@ function OneTimeCodePanel({
 }) {
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   return (
-    <div data-one-time-code-panel className="mt-4 space-y-3 rounded-lg border border-primary/35 bg-primary/5 p-4 text-sm">
+    <div data-one-time-code-panel className="mt-4 space-y-3 rounded-lg border border-border bg-muted/30 p-4 text-sm">
       <div>
         <p
           tabIndex={-1}
@@ -300,7 +300,7 @@ function OneTimeCodePanel({
         </div>
       </div>
       {confirmDiscard ? (
-        <div role="alert" className="space-y-2 border-t border-primary/25 pt-3">
+        <div role="alert" className="space-y-2 border-t border-border pt-3">
           <p className="font-medium text-foreground">{copy.t('discardCodeQuestion')}</p>
           <p className="text-xs leading-relaxed text-muted-foreground">{copy.t('discardCodeDescription')}</p>
           <div className="flex flex-wrap gap-2">
@@ -319,7 +319,7 @@ function OneTimeCodePanel({
           </div>
         </div>
       ) : (
-        <div className="flex items-center justify-between gap-3 border-t border-primary/25 pt-2">
+        <div className="flex items-center justify-between gap-3 border-t border-border pt-2">
           <span className="text-xs text-muted-foreground">
             {value.version ? copy.t('version', { version: value.version }) : copy.t('prefix', { prefix: value.codePrefix })}
           </span>

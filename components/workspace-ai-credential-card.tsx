@@ -235,7 +235,7 @@ export function WorkspaceAiCredentialCard({
                 key={source}
                 className={cn(
                   'flex cursor-pointer gap-3 rounded-lg border p-3 text-left transition-colors has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/50',
-                  checked ? 'border-primary bg-primary/5' : 'border-border/70 hover:bg-muted/40',
+                  checked ? 'border-foreground/50 bg-muted/50' : 'border-border/70 hover:bg-muted/40',
                   (unavailable || busy) && 'cursor-not-allowed',
                   unavailable && 'opacity-60',
                 )}
@@ -247,7 +247,7 @@ export function WorkspaceAiCredentialCard({
                   checked={checked}
                   disabled={busy || unavailable}
                   onChange={() => void changeSource(source)}
-                  className="mt-0.5 size-4 shrink-0 accent-primary"
+                  className="mt-0.5 size-4 shrink-0 accent-foreground"
                 />
                 <span className="min-w-0">
                   <span className="block text-sm font-medium text-foreground">{label}</span>
