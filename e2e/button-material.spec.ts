@@ -67,13 +67,9 @@ for (const viewport of viewports) {
       expect(materialStyle.transitionDuration).toBe('0s');
       expect(materialStyle.transitionProperty).toBe('none');
       expect(materialStyle.translateY).toBe(0);
-      if (theme === 'dark') {
-        expect(materialStyle.backgroundImage).toContain('rgb(240, 185, 11)');
-        expect(materialStyle.color).toBe('rgb(20, 20, 19)');
-      } else {
-        expect(materialStyle.backgroundImage).toContain('rgb(41, 37, 36)');
-        expect(materialStyle.color).toBe('rgb(250, 250, 249)');
-      }
+      // Binance yellow is the primary button in both themes.
+      expect(materialStyle.backgroundImage).toContain('rgb(240, 185, 11)');
+      expect(materialStyle.color).toBe('rgb(20, 20, 19)');
 
       await primary.hover();
       await expect.poll(() => primary.evaluate((element) => ({
