@@ -1,4 +1,5 @@
 import { DashboardHome } from '@/components/home/dashboard-home';
+import { parseSettingsSection } from '@/lib/settings-sections';
 import { isArticleSource } from '@/lib/article-source';
 import { requireActivePageUser } from '@/server/auth/page-authorization';
 
@@ -16,12 +17,14 @@ export default async function WorkspacePage({
   const resumeIntentId = typeof params.resume === 'string' && UUID_PATTERN.test(params.resume)
     ? params.resume
     : null;
-  const settingsOpen = params.settings === 'connections';
+  const requestedSettings = parseSettingsSection(params.settings);
+  const settingsOpen = requestedSettings !== null;
+  const settingsSection = requestedSettings === 'default' ? null : requestedSettings;
   const requestedSource = typeof params.source === 'string' ? params.source : null;
   const initialSource = isArticleSource(requestedSource) ? requestedSource : 'prompt';
   const callbackParams = new URLSearchParams();
   if (resumeIntentId) callbackParams.set('resume', resumeIntentId);
-  if (settingsOpen) callbackParams.set('settings', 'connections');
+  if (settingsOpen) callbackParams.set('settings', settingsSection ?? 'connections');
   const callbackQuery = callbackParams.toString();
   const callback = callbackQuery ? `/workspace?${callbackQuery}` : '/workspace';
   const actor = await requireActivePageUser(callback);
@@ -30,6 +33,7 @@ export default async function WorkspacePage({
       resumeIntentId={resumeIntentId}
       resumeRequested={resumeRequested}
       settingsOpen={settingsOpen}
+      settingsSection={settingsSection}
       canManageAccess={actor.role === 'owner'}
       actor={{ name: actor.name, email: actor.email }}
       initialSource={initialSource}

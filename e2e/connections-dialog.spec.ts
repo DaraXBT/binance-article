@@ -23,10 +23,11 @@ for (const viewport of viewports) {
     await expect(page.locator('[data-connections-settings-content]')).toBeVisible();
 
     const settingsNavigation = page.getByRole('tablist', { name: 'Settings sections' });
+    const generalTab = settingsNavigation.getByRole('tab', { name: 'General' });
     const aiTab = settingsNavigation.getByRole('tab', { name: 'AI & generation' });
     const publishingTab = settingsNavigation.getByRole('tab', { name: 'Publishing' });
     await expect(settingsNavigation).toBeVisible();
-    await expect(aiTab).toHaveAttribute('aria-selected', 'true');
+    await expect(generalTab).toHaveAttribute('aria-selected', 'true');
     await expect(publishingTab).toBeVisible();
     await expect(page.getByText('Connections', { exact: true })).toHaveCount(0);
 
@@ -86,7 +87,8 @@ for (const viewport of viewports) {
 
     await publishingTab.click();
     await expect(publishingTab).toHaveAttribute('aria-selected', 'true');
-    await expect(page.getByText('Browser publisher', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'Publishing' })).toBeVisible();
+    await expect(page).toHaveURL(/settings=publishing/);
 
     await publishingTab.press('ArrowLeft');
     await expect(aiTab).toHaveAttribute('aria-selected', 'true');
@@ -108,4 +110,12 @@ test('legacy Connections URL opens Account settings', async ({ page }) => {
 
   await expect(page).toHaveURL(/\/workspace\?settings=connections$/);
   await expect(page.getByRole('dialog', { name: 'Account settings' })).toBeVisible();
+});
+
+test('a section deep link opens Account settings on that section', async ({ page }) => {
+  await page.goto('/workspace?settings=publishing');
+
+  const dialog = page.getByRole('dialog', { name: 'Account settings' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('tab', { name: 'Publishing' })).toHaveAttribute('aria-selected', 'true');
 });

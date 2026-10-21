@@ -10,6 +10,10 @@ vi.mock('@/components/language-provider', () => ({
 
 import { ConnectionsDialog } from './connections-dialog';
 
+vi.mock('@/components/settings/general-settings-section', () => ({
+  GeneralSettingsSection: () => <div data-testid="general-section">Appearance</div>,
+}));
+
 vi.mock('@/components/workspace-ai-credential-card', () => ({
   WorkspaceAiCredentialCard: ({ className }: { className?: string }) => (
     <div data-testid="gemini-card" className={className}>Your Gemini key</div>
@@ -92,25 +96,24 @@ describe('ConnectionsDialog', () => {
     const sectionTabs = within(dialog).getByRole('tablist', {
       name: 'Settings sections',
     });
-    const aiTab = within(sectionTabs).getByRole('tab', {
-      name: 'AI & generation',
-    });
+    const generalTab = within(sectionTabs).getByRole('tab', { name: 'General' });
 
-    expect(aiTab.getAttribute('aria-selected')).toBe('true');
+    expect(generalTab.getAttribute('aria-selected')).toBe('true');
+    expect(within(sectionTabs).getByRole('tab', { name: 'AI & generation' })).toBeTruthy();
     expect(within(sectionTabs).getByRole('tab', { name: 'Publishing' })).toBeTruthy();
     expect(within(sectionTabs).getByRole('tab', { name: 'People & access' })).toBeTruthy();
     expect(screen.queryAllByText('Connections', { exact: true })).toHaveLength(0);
-    expect(screen.getByTestId('gemini-card')).toBeTruthy();
+    expect(screen.getByTestId('general-section')).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 2, name: 'General' })).toBeTruthy();
+    expect(screen.queryByTestId('gemini-card')).toBeNull();
     expect(screen.queryByTestId('publisher-card')).toBeNull();
     expect(screen.queryByTestId('people-access-card')).toBeNull();
     expect(dialog.querySelectorAll('[data-frame-corner]')).toHaveLength(0);
     expect(dialog.className).toContain('rounded-xl');
     expect(dialog.className).toContain('border-border/80');
     expect(dialog.className).toContain('shadow-lg');
-    expect(dialog.className).toContain('!max-w-5xl');
+    expect(dialog.className).toContain('!max-w-4xl');
     expect(dialog.className).not.toContain('!inset-0');
-    expect(screen.getByTestId('gemini-card').className).toContain('rounded-xl');
-    expect(screen.getByTestId('gemini-card').className).not.toContain('rounded-none');
   });
 
   it('does not expose owner-only access controls to a non-owner', () => {
@@ -126,20 +129,23 @@ describe('ConnectionsDialog', () => {
   it('mounts sections lazily and preserves each section after it is visited', () => {
     renderSettings();
 
-    expect(screen.getByTestId('gemini-card')).toBeTruthy();
+    expect(screen.getByTestId('general-section')).toBeTruthy();
+    expect(screen.queryByTestId('gemini-card')).toBeNull();
     expect(screen.queryByTestId('publisher-card')).toBeNull();
     expect(screen.queryByTestId('people-access-card')).toBeNull();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'AI & generation' }));
+    expect(screen.getByTestId('gemini-card')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('tab', { name: 'Publishing' }));
     expect(screen.getByRole('tab', { name: 'Publishing' }).getAttribute('aria-selected')).toBe('true');
     expect(screen.getByTestId('publisher-card')).toBeTruthy();
-    expect(screen.getByTestId('publisher-card').className).toContain('rounded-xl');
+    expect(screen.getByRole('heading', { level: 2, name: 'Publishing' })).toBeTruthy();
     expect(screen.getByTestId('gemini-card')).toBeTruthy();
     expect(screen.queryByTestId('people-access-card')).toBeNull();
 
     fireEvent.click(screen.getByRole('tab', { name: 'People & access' }));
     expect(screen.getByTestId('people-access-card')).toBeTruthy();
-    expect(screen.getByTestId('people-access-card').className).toContain('rounded-xl');
     expect(screen.getByTestId('publisher-card')).toBeTruthy();
     expect(screen.getByTestId('gemini-card')).toBeTruthy();
 
@@ -153,6 +159,7 @@ describe('ConnectionsDialog', () => {
     renderSettings();
 
     const aiTab = screen.getByRole('tab', { name: 'AI & generation' });
+    fireEvent.click(aiTab);
     aiTab.focus();
     fireEvent.keyDown(aiTab, { key: 'ArrowRight' });
 
@@ -183,6 +190,7 @@ describe('ConnectionsDialog', () => {
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(screen.queryByRole('alertdialog')).toBeNull();
     const warning = screen.getByRole('alert');
+    expect(warning.textContent).toContain("You haven't copied your pairing code.");
     expect(within(warning).getByRole('button', { name: 'Review code' })).toBeTruthy();
     expect(within(warning).getByRole('button', { name: 'Discard and close' })).toBeTruthy();
 
@@ -225,5 +233,50 @@ describe('ConnectionsDialog', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryByTestId('gemini-card')).toBeNull();
     expect(screen.queryByTestId('publisher-card')).toBeNull();
+  });
+
+  it('opens the section requested by a deep link and reports section changes', () => {
+    const onSectionChange = vi.fn();
+    render(
+      <ConnectionsDialog
+        open
+        onOpenChange={vi.fn()}
+        canManageAi
+        canManageAccess
+        initialSection="publishing"
+        onSectionChange={onSectionChange}
+      />,
+    );
+
+    expect(screen.getByRole('tab', { name: 'Publishing' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByTestId('publisher-card')).toBeTruthy();
+    expect(screen.queryByTestId('general-section')).toBeNull();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'People & access' }));
+    expect(onSectionChange).toHaveBeenCalledWith('access');
+  });
+
+  it('ignores an admin-only deep link for a non-owner', () => {
+    render(
+      <ConnectionsDialog
+        open
+        onOpenChange={vi.fn()}
+        canManageAi={false}
+        canManageAccess={false}
+        initialSection="access"
+      />,
+    );
+
+    expect(screen.getByRole('tab', { name: 'General' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.queryByTestId('people-access-card')).toBeNull();
+  });
+
+  it('names the enrollment code in the close warning', () => {
+    renderSettings();
+    fireEvent.click(screen.getByRole('tab', { name: 'People & access' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create enrollment code' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Close account settings' })[0]);
+
+    expect(screen.getByRole('alert').textContent).toContain("You haven't copied the enrollment code.");
   });
 });

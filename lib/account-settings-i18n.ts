@@ -15,7 +15,7 @@ const en = {
   publishing: 'Publishing',
   peopleAccess: 'People & access',
   chooseGemini: 'Choose how article generation connects to Gemini.',
-  publishersDescription: 'Pair and manage the computers that publish through your signed-in browser sessions.',
+  publishersDescription: 'Computers that publish your articles to Binance Square and X.',
   oneTimeValueWarningTitle: 'Copy your one-time value before closing.',
   oneTimeValueWarningDescription: 'It will not be shown again after Account settings closes.',
   reviewCode: 'Review code',
@@ -102,7 +102,7 @@ const en = {
   companionCommandsDescription: 'Run the pair command, paste the code into its hidden prompt, then start the companion. The code is kept out of shell history.',
   copiedCommands: 'Copied commands',
   copyCommands: 'Copy commands',
-  companionSecurity: 'The companion stores its device token in your operating-system keyring. Your Binance and X sessions remain in your local Chrome profile.',
+  companionSecurity: 'The first time it publishes, the app opens its own Chrome window — sign in to Binance Square or X there. Your sessions stay on that computer, and its pairing token is kept in the system keychain.',
   clipboardUnavailable: 'Clipboard access is unavailable. Select and copy the value manually.',
   newPairingCodeQuestion: 'Create a new pairing code?',
   currentCodeCopied: 'Your current code was copied. It remains available until a replacement is created successfully.',
@@ -182,6 +182,34 @@ const en = {
   errorRateLimit: 'Too many requests. Wait a moment, then try again.',
   errorNetwork: 'Could not reach the service. Check your connection and try again.',
   errorGeneric: 'Something went wrong. Please try again.',
+  general: 'General',
+  generalDescription: 'Appearance and language for this device.',
+  appearance: 'Appearance',
+  appearanceDescription: 'Choose how xArticle looks on this device.',
+  languageLabel: 'Language',
+  languageDescription: 'Used for menus and messages. Your articles keep their own language.',
+  addComputer: 'Add a computer',
+  setupInstallTitle: 'Install the app',
+  setupInstallDescription: 'On the computer you publish from, extract the xArticle Publisher package and run this once. It installs the app and checks the setup.',
+  setupPairTitle: 'Name the computer and create a pairing code',
+  setupStartTitle: 'Pair and start the app',
+  setupStartDescription: 'Run these commands on that computer, paste the code when asked, and keep the app running.',
+  pairingCodeCreated: 'Pairing code created. Copy it now — it won\'t be shown again.',
+  updateNeeded: 'Update needed — pair this computer again',
+  unsavedPairingCode: 'You haven\'t copied your pairing code.',
+  unsavedEnrollmentCode: 'You haven\'t copied the enrollment code.',
+  unsavedCodeDescription: 'It can\'t be shown again after you close Account settings.',
+  seatsUsed: '{used} of {limit} seats used',
+  seatsBreakdown: '{active} active · {invited} invited · {reserved} signing up',
+  discardCodeQuestion: 'Discard this code without copying it?',
+  discardCodeDescription: 'It can\'t be shown again. You would need to create a new code to share access.',
+  keepCode: 'Keep code',
+  discardCode: 'Discard code',
+  suspendPersonQuestion: 'Suspend {name}?',
+  revokePersonQuestion: 'Revoke {name}?',
+  restorePersonQuestion: 'Restore {name}?',
+  enrollmentCodeCreated: 'New enrollment code created. Copy it now.',
+  peopleAccessSectionDescription: 'Invite people with a shared code and manage who can sign in.',
 } as const;
 
 type WidenSettingsText<T> = T extends string ? string : T;
@@ -202,9 +230,39 @@ type GeminiConnectionRecoveryKey =
   | 'saveGeminiKeyFirst'
   | 'geminiConnectionChanged';
 
-type AccountSettingsLocaleBase = Omit<AccountSettingsText, GeminiConnectionRecoveryKey>;
+type SettingsRedesignKey =
+  | 'general'
+  | 'generalDescription'
+  | 'appearance'
+  | 'appearanceDescription'
+  | 'languageLabel'
+  | 'languageDescription'
+  | 'addComputer'
+  | 'setupInstallTitle'
+  | 'setupInstallDescription'
+  | 'setupPairTitle'
+  | 'setupStartTitle'
+  | 'setupStartDescription'
+  | 'pairingCodeCreated'
+  | 'updateNeeded'
+  | 'unsavedPairingCode'
+  | 'unsavedEnrollmentCode'
+  | 'unsavedCodeDescription'
+  | 'seatsUsed'
+  | 'seatsBreakdown'
+  | 'discardCodeQuestion'
+  | 'discardCodeDescription'
+  | 'keepCode'
+  | 'discardCode'
+  | 'suspendPersonQuestion'
+  | 'revokePersonQuestion'
+  | 'restorePersonQuestion'
+  | 'enrollmentCodeCreated'
+  | 'peopleAccessSectionDescription';
 
-const km: AccountSettingsText = {
+type AccountSettingsLocaleBase = Omit<AccountSettingsText, GeminiConnectionRecoveryKey | SettingsRedesignKey>;
+
+const km: Omit<AccountSettingsText, SettingsRedesignKey> = {
   settingsNavigation: 'ការរុករកការកំណត់', settingsSections: 'ផ្នែកការកំណត់', account: 'គណនី', accountSettings: 'ការកំណត់គណនី', personalConnectionsAndAccess: 'ការតភ្ជាប់ និងការចូលប្រើផ្ទាល់ខ្លួន', manageAccount: 'គ្រប់គ្រងការបង្កើតដោយ AI កុំព្យូទ័របោះពុម្ព និងការចូលប្រើគណនីនៅកន្លែងតែមួយ។', closeAccountSettings: 'បិទការកំណត់គណនី', aiGeneration: 'AI និងការបង្កើត', publishing: 'ការបោះពុម្ព', peopleAccess: 'មនុស្ស និងការចូលប្រើ', chooseGemini: 'ជ្រើសរើសរបៀបដែលការបង្កើតអត្ថបទភ្ជាប់ទៅ Gemini។', publishersDescription: 'ភ្ជាប់ និងគ្រប់គ្រងកុំព្យូទ័រដែលបោះពុម្ពតាមរយៈសម័យកម្មវិធីរុករកដែលអ្នកបានចូលគណនី។', oneTimeValueWarningTitle: 'សូមចម្លងតម្លៃប្រើបានម្តងរបស់អ្នកមុនបិទ។', oneTimeValueWarningDescription: 'វានឹងមិនបង្ហាញម្តងទៀតទេ បន្ទាប់ពីការកំណត់គណនីត្រូវបានបិទ។', reviewCode: 'ពិនិត្យកូដ', discardAndClose: 'បោះបង់ និងបិទ',
   geminiConnection: 'ការតភ្ជាប់ Gemini', loadingAccountConnection: 'កំពុងផ្ទុកការតភ្ជាប់គណនីរបស់អ្នក…', noPersonalKey: 'មិនមានសោ Gemini ផ្ទាល់ខ្លួនសម្រាប់គណនីនេះទេ។', checkingConnection: 'កំពុងពិនិត្យស្ថានភាពការតភ្ជាប់ដែលបានរក្សាទុក…', loadingGeminiConnection: 'កំពុងផ្ទុកការតភ្ជាប់ Gemini…', addKeyDescription: 'បន្ថែមសោ Gemini ផ្ទាល់ខ្លួនទៅគណនីរបស់អ្នកសម្រាប់បង្កើតអត្ថបទ។', connectionCouldNotLoad: 'មិនអាចផ្ទុកការតភ្ជាប់ Gemini បានទេ។', retry: 'សាកល្បងម្តងទៀត', savedKeyUnavailable: 'សោ Gemini ដែលបានរក្សាទុករបស់អ្នកមិនអាចប្រើបានទៀតទេ។ ឥណទានវេទិកានៅតែសកម្ម។', keyValidatedReplaced: 'សោ Gemini បានផ្ទៀងផ្ទាត់ និងជំនួសរួច។ សោ Gemini របស់អ្នកនៅតែសកម្ម។', keyValidatedSaved: 'សោ Gemini បានផ្ទៀងផ្ទាត់ និងរក្សាទុករួច។ ឥណទានវេទិកានៅតែសកម្មរហូតដល់អ្នកប្ដូរប្រភព។', keyNowActive: 'សោ Gemini របស់អ្នកឥឡូវសកម្មហើយ។', creditsNowActive: 'ឥណទានវេទិកាឥឡូវសកម្មហើយ។', connectionWorking: 'ការតភ្ជាប់ Gemini កំពុងដំណើរការ។', keyDeleted: 'សោដែលបានរក្សាទុករបស់អ្នកត្រូវបានលុប។ វាមិនដកហូតសោនៅ Google ទេ។', keyCouldNotDelete: 'មិនអាចលុបសោ Gemini បានទេ។', configured: 'បានកំណត់រចនាសម្ព័ន្ធ', geminiKeyDescription: 'បន្ថែមសោ API Gemini របស់អ្នកទៅគណនី។ សោត្រូវបានអ៊ិនគ្រីបមុនរក្សាទុក ហើយមិនបង្ហាញម្តងទៀតទេ។', replaceGeminiKey: 'ជំនួសសោ Gemini របស់អ្នក', yourGeminiKey: 'សោ Gemini របស់អ្នក', pasteGeminiKey: 'បិទភ្ជាប់សោ API Gemini', save: 'រក្សាទុក', replace: 'ជំនួស', onlyGeminiKeys: 'គាំទ្រតែសោ Gemini ប៉ុណ្ណោះ។ អ្នកអាចដកហូតសិទ្ធិដាច់ដោយឡែកនៅ Google AI Studio។', generationSource: 'ប្រភពបង្កើត', platformCredits: 'ឥណទានវេទិកា', platformCreditsDescription: 'ប្រើគម្រោង Gemini ដែលគ្រប់គ្រងដោយប្រតិបត្តិករ។', yourGeminiKeyDescription: 'ប្រើសោដែលអ៊ិនគ្រីប និងរក្សាទុកក្នុងគណនីរបស់អ្នក។', active: 'សកម្ម', storedKey: 'សោដែលបានរក្សាទុក', validated: 'បានផ្ទៀងផ្ទាត់', updated: 'បានធ្វើបច្ចុប្បន្នភាព', notYet: 'មិនទាន់', testConnection: 'សាកល្បងការតភ្ជាប់', deleteKey: 'លុបសោ', connectionRequestFailed: 'សំណើការតភ្ជាប់ Gemini បានបរាជ័យ។', geminiKeyCouldNotVerify: 'មិនអាចផ្ទៀងផ្ទាត់សោ Gemini នេះបានទេ។ សូមពិនិត្យថាវាអាចប្រើការបង្កើតអត្ថបទ Gemini រួចបិទភ្ជាប់ម្តងទៀត។', geminiKeyAccessDenied: 'សោ Gemini នេះមានសុពលភាព ប៉ុន្តែ Google មិនអនុញ្ញាតឱ្យវាបង្កើតអត្ថបទពីសេវានេះទេ។ សូមប្រើសោសម្រាប់ម៉ាស៊ីនមេដែលអនុញ្ញាត Generative Language API; សោដែលកម្រិតតាម browser ឬ IP មិនអាចប្រើជាមួយសេវា Cloudflare នេះទេ។ រួចសាកល្បងម្តងទៀត។', geminiTextModelUnavailable: 'សោ Gemini នេះមិនអាចចូលប្រើម៉ូដែលអត្ថបទដែលបានកំណត់ទេ។ ប្រើសោដែលមានសិទ្ធិបង្កើតអត្ថបទ Gemini ឬប្ដូរទៅឥណទានវេទិកា។', geminiConnectionRejected: 'Gemini បានបដិសេធការតភ្ជាប់នេះ។ សូមពិនិត្យសិទ្ធិ Gemini API និងការកម្រិតរបស់សោ រួចសាកល្បងម្តងទៀត។', geminiTextModelConfigInvalid: 'ម៉ូដែលអត្ថបទ Gemini ដែលបានកំណត់ត្រូវការការធ្វើបច្ចុប្បន្នភាពសេវា។ សូមសាកល្បងម្ដងទៀត បន្ទាប់ពីសេវាត្រូវបានធ្វើបច្ចុប្បន្នភាព។', geminiServiceUnavailable: 'Gemini មិនអាចប្រើបានជាបណ្តោះអាសន្ន។ សូមសាកល្បងម្តងទៀតឆាប់ៗនេះ។', savedGeminiKeyNeedsAttention: 'សោ Gemini ដែលបានរក្សាទុករបស់អ្នកត្រូវការការយកចិត្តទុកដាក់។ ជំនួសវា ឬប្រើឥណទានវេទិកា។', geminiStorageUnavailable: 'កន្លែងផ្ទុកសោ Gemini សុវត្ថិភាពមិនអាចប្រើបានជាបណ្តោះអាសន្ន។ សូមសាកល្បងម្តងទៀតឆាប់ៗនេះ។', saveGeminiKeyFirst: 'សូមរក្សាទុកសោ Gemini មុនពេលសាកល្បង។', geminiConnectionChanged: 'ការតភ្ជាប់ Gemini របស់អ្នកបានផ្លាស់ប្តូរ។ សូមផ្ទុកទំព័រឡើងវិញ រួចសាកល្បងម្តងទៀត។', deleteKeyQuestion: 'លុបសោ Gemini របស់អ្នក?', deleteKeyDescription: 'វានឹងលុបសោដែលអ៊ិនគ្រីបចេញពីគណនីរបស់អ្នក។ វាមិនដកហូតសោនៅ Google AI Studio ទេ។', keepKey: 'រក្សាសោ',
   defaultComputerName: 'កុំព្យូទ័រសម្រាប់បោះពុម្ពរបស់ខ្ញុំ', browserPublisher: 'កម្មវិធីបោះពុម្ពតាមកម្មវិធីរុករក', browserPublisherDescription: 'ភ្ជាប់គណនីនេះជាមួយកម្មវិធីជំនួយលើកុំព្យូទ័រដែល Chrome បានចូលគណនី Binance Square ឬ X រួចហើយ។', computerName: 'ឈ្មោះកុំព្យូទ័រ', computerPlaceholder: 'MacBook របស់ខ្ញុំ', creatingCode: 'កំពុងបង្កើតកូដ…', createNewCode: 'បង្កើតកូដថ្មី', createPairingCode: 'បង្កើតកូដភ្ជាប់', codeExpires: 'កូដផុតកំណត់បន្ទាប់ពី ១០ នាទី និងបង្ហាញតែក្នុងសម័យកម្មវិធីរុករកនេះ។', publishingComputers: 'កុំព្យូទ័របោះពុម្ព', publishingComputersDescription: 'ដកហូតកុំព្យូទ័រ ដើម្បីបិទ token ឬកូដភ្ជាប់ដែលមិនទាន់ប្រើភ្លាមៗ។', refresh: 'ធ្វើឱ្យស្រស់', loadingPublishingComputers: 'កំពុងផ្ទុកកុំព្យូទ័របោះពុម្ព…', computersCouldNotLoad: 'មិនអាចផ្ទុកកុំព្យូទ័របោះពុម្ពបានទេ។ ពិនិត្យការតភ្ជាប់ រួចសាកល្បងម្តងទៀត។', noPublishingComputers: 'មិនទាន់មានកុំព្យូទ័របោះពុម្ពទេ។', publisherDevice: 'ឧបករណ៍បោះពុម្ព {name}', deviceActive: 'សកម្ម', devicePending: 'កំពុងរង់ចាំ', deviceRevoked: 'បានដកហូត', protocol: 'ពិធីការ v{version}', lastSeen: 'បានឃើញចុងក្រោយ {date}', neverSeen: 'មិនធ្លាប់ឃើញ', revoking: 'កំពុងដកហូត…', revoke: 'ដកហូត', pairingCouldNotCreate: 'មិនអាចបង្កើតកូដភ្ជាប់បានទេ។ បញ្ជាក់ការតភ្ជាប់គណនី រួចសាកល្បងម្តងទៀត។', oneTimePairingCode: 'កូដភ្ជាប់ប្រើបានម្តង', validUntil: 'មានសុពលភាពរហូតដល់ {time}។', copiedCode: 'បានចម្លងកូដ', copyCode: 'ចម្លងកូដ', companionCommands: 'ពាក្យបញ្ជាកម្មវិធីជំនួយ', companionCommandsDescription: 'រត់ពាក្យបញ្ជាភ្ជាប់ បិទភ្ជាប់កូដក្នុងប្រអប់លាក់ រួចចាប់ផ្ដើមកម្មវិធីជំនួយ។ កូដមិនត្រូវបានរក្សាទុកក្នុងប្រវត្តិ shell ទេ។', copiedCommands: 'បានចម្លងពាក្យបញ្ជា', copyCommands: 'ចម្លងពាក្យបញ្ជា', companionSecurity: 'កម្មវិធីជំនួយរក្សាទុក token ឧបករណ៍ក្នុង keyring របស់ប្រព័ន្ធប្រតិបត្តិការ។ សម័យ Binance និង X របស់អ្នកនៅតែស្ថិតក្នុង profile Chrome មូលដ្ឋាន។', clipboardUnavailable: 'មិនអាចចូលប្រើ clipboard បានទេ។ ជ្រើស និងចម្លងតម្លៃដោយដៃ។', newPairingCodeQuestion: 'បង្កើតកូដភ្ជាប់ថ្មី?', currentCodeCopied: 'កូដបច្ចុប្បន្នរបស់អ្នកត្រូវបានចម្លងរួច។ វានៅតែមានរហូតដល់កូដជំនួសត្រូវបានបង្កើតដោយជោគជ័យ។', currentCodeNotCopied: 'កូដប្រើបានម្តងបច្ចុប្បន្នមិនទាន់ត្រូវបានចម្លងទេ។ ការបង្កើតកូដថ្មីនឹងជំនួសវាក្នុងការកំណត់គណនី។', reviewCurrentCode: 'ពិនិត្យកូដបច្ចុប្បន្ន', creating: 'កំពុងបង្កើត…', tryAgain: 'សាកល្បងម្តងទៀត', replaceCode: 'ជំនួសកូដ', replacementCouldNotCreate: 'មិនអាចបង្កើតកូដជំនួសបានទេ។ កូដបច្ចុប្បន្នរបស់អ្នកនៅតែមាន។ សូមសាកល្បងម្តងទៀត។', revokeComputerQuestion: 'ដកហូតកុំព្យូទ័របោះពុម្ព?', computerNoLongerReceives: '{name} នឹងមិនអាចទទួលសំណើបោះពុម្ពទៀតទេ។', thisComputer: 'កុំព្យូទ័រនេះ', deviceCouldNotRevoke: 'មិនអាចដកហូត {name} បានទេ។ ពិនិត្យការតភ្ជាប់ រួចសាកល្បងម្តងទៀត។', deviceRevokedNotice: '{name} ត្រូវបានដកហូត។',
@@ -309,14 +367,210 @@ const geminiConnectionRecovery: Record<Exclude<Language, 'en' | 'km'>, Pick<Acco
   },
 };
 
+// Settings redesign (2026-10): new copy plus corrected Publishing descriptions.
+const settingsRedesign: Record<Exclude<Language, 'en'>, Pick<AccountSettingsText, SettingsRedesignKey | 'publishersDescription' | 'companionSecurity'>> = {
+  km: {
+    general: 'ទូទៅ',
+    generalDescription: 'រូបរាង និងភាសាសម្រាប់ឧបករណ៍នេះ។',
+    appearance: 'រូបរាង',
+    appearanceDescription: 'ជ្រើសរើសរបៀបដែល xArticle បង្ហាញនៅលើឧបករណ៍នេះ។',
+    languageLabel: 'ភាសា',
+    languageDescription: 'ប្រើសម្រាប់ម៉ឺនុយ និងសារ។ អត្ថបទរបស់អ្នករក្សាភាសាដើមរបស់វា។',
+    addComputer: 'បន្ថែមកុំព្យូទ័រ',
+    setupInstallTitle: 'ដំឡើងកម្មវិធី',
+    setupInstallDescription: 'នៅលើកុំព្យូទ័រដែលអ្នកប្រើបោះពុម្ព សូមពន្លាកញ្ចប់ xArticle Publisher ហើយដំណើរការពាក្យបញ្ជានេះម្តង។ វាដំឡើងកម្មវិធី និងពិនិត្យការរៀបចំ។',
+    setupPairTitle: 'ដាក់ឈ្មោះកុំព្យូទ័រ ហើយបង្កើតលេខកូដផ្គូផ្គង',
+    setupStartTitle: 'ផ្គូផ្គង ហើយចាប់ផ្តើមកម្មវិធី',
+    setupStartDescription: 'ដំណើរការពាក្យបញ្ជាទាំងនេះនៅលើកុំព្យូទ័រនោះ បិទភ្ជាប់លេខកូដនៅពេលត្រូវបានសួរ ហើយទុកឱ្យកម្មវិធីដំណើរការ។',
+    pairingCodeCreated: 'បានបង្កើតលេខកូដផ្គូផ្គង។ ចម្លងវាឥឡូវនេះ — វានឹងមិនបង្ហាញម្តងទៀតទេ។',
+    updateNeeded: 'ត្រូវការអាប់ដេត — សូមផ្គូផ្គងកុំព្យូទ័រនេះម្តងទៀត',
+    unsavedPairingCode: 'អ្នកមិនទាន់បានចម្លងលេខកូដផ្គូផ្គងរបស់អ្នកទេ។',
+    unsavedEnrollmentCode: 'អ្នកមិនទាន់បានចម្លងលេខកូដចុះឈ្មោះទេ។',
+    unsavedCodeDescription: 'វាមិនអាចបង្ហាញម្តងទៀតបានទេ បន្ទាប់ពីអ្នកបិទការកំណត់គណនី។',
+    seatsUsed: 'បានប្រើ {used} ក្នុងចំណោម {limit} កន្លែង',
+    seatsBreakdown: 'សកម្ម {active} · បានអញ្ជើញ {invited} · កំពុងចុះឈ្មោះ {reserved}',
+    discardCodeQuestion: 'បោះបង់លេខកូដនេះដោយមិនចម្លងឬ?',
+    discardCodeDescription: 'វាមិនអាចបង្ហាញម្តងទៀតបានទេ។ អ្នកនឹងត្រូវបង្កើតលេខកូដថ្មី ដើម្បីចែករំលែកការចូលប្រើ។',
+    keepCode: 'រក្សាលេខកូដ',
+    discardCode: 'បោះបង់លេខកូដ',
+    suspendPersonQuestion: 'ផ្អាក {name}?',
+    revokePersonQuestion: 'ដកសិទ្ធិ {name}?',
+    restorePersonQuestion: 'ស្តារ {name}?',
+    enrollmentCodeCreated: 'បានបង្កើតលេខកូដចុះឈ្មោះថ្មី។ ចម្លងវាឥឡូវនេះ។',
+    peopleAccessSectionDescription: 'អញ្ជើញមនុស្សដោយលេខកូដរួម ហើយគ្រប់គ្រងអ្នកដែលអាចចូលបាន។',
+    publishersDescription: 'កុំព្យូទ័រដែលបោះពុម្ពអត្ថបទរបស់អ្នកទៅ Binance Square និង X។',
+    companionSecurity: 'នៅពេលបោះពុម្ពលើកដំបូង កម្មវិធីបើកផ្ទាំង Chrome ផ្ទាល់ខ្លួនរបស់វា — សូមចូល Binance Square ឬ X នៅទីនោះ។ វគ្គរបស់អ្នកនៅលើកុំព្យូទ័រនោះ ហើយសញ្ញាសម្ងាត់ផ្គូផ្គងត្រូវបានរក្សាទុកក្នុងឃ្លាំងសោរបស់ប្រព័ន្ធ។',
+  },
+  id: {
+    general: 'Umum',
+    generalDescription: 'Tampilan dan bahasa untuk perangkat ini.',
+    appearance: 'Tampilan',
+    appearanceDescription: 'Pilih tampilan xArticle di perangkat ini.',
+    languageLabel: 'Bahasa',
+    languageDescription: 'Digunakan untuk menu dan pesan. Artikel Anda tetap dalam bahasanya sendiri.',
+    addComputer: 'Tambahkan komputer',
+    setupInstallTitle: 'Pasang aplikasi',
+    setupInstallDescription: 'Di komputer tempat Anda menerbitkan, ekstrak paket xArticle Publisher lalu jalankan perintah ini sekali. Perintah ini memasang aplikasi dan memeriksa penyiapan.',
+    setupPairTitle: 'Beri nama komputer dan buat kode pemasangan',
+    setupStartTitle: 'Pasangkan dan jalankan aplikasi',
+    setupStartDescription: 'Jalankan perintah ini di komputer tersebut, tempelkan kode saat diminta, lalu biarkan aplikasi tetap berjalan.',
+    pairingCodeCreated: 'Kode pemasangan dibuat. Salin sekarang — kode tidak akan ditampilkan lagi.',
+    updateNeeded: 'Perlu pembaruan — pasangkan ulang komputer ini',
+    unsavedPairingCode: 'Anda belum menyalin kode pemasangan.',
+    unsavedEnrollmentCode: 'Anda belum menyalin kode pendaftaran.',
+    unsavedCodeDescription: 'Kode tidak dapat ditampilkan lagi setelah Anda menutup Pengaturan akun.',
+    seatsUsed: '{used} dari {limit} kursi terpakai',
+    seatsBreakdown: '{active} aktif · {invited} diundang · {reserved} sedang mendaftar',
+    discardCodeQuestion: 'Buang kode ini tanpa menyalinnya?',
+    discardCodeDescription: 'Kode tidak dapat ditampilkan lagi. Anda perlu membuat kode baru untuk membagikan akses.',
+    keepCode: 'Simpan kode',
+    discardCode: 'Buang kode',
+    suspendPersonQuestion: 'Tangguhkan {name}?',
+    revokePersonQuestion: 'Cabut {name}?',
+    restorePersonQuestion: 'Pulihkan {name}?',
+    enrollmentCodeCreated: 'Kode pendaftaran baru dibuat. Salin sekarang.',
+    peopleAccessSectionDescription: 'Undang orang dengan kode bersama dan kelola siapa yang dapat masuk.',
+    publishersDescription: 'Komputer yang menerbitkan artikel Anda ke Binance Square dan X.',
+    companionSecurity: 'Saat pertama kali menerbitkan, aplikasi membuka jendela Chrome miliknya sendiri — masuk ke Binance Square atau X di sana. Sesi Anda tetap di komputer itu, dan token pemasangannya disimpan di keychain sistem.',
+  },
+  lo: {
+    general: 'ທົ່ວໄປ',
+    generalDescription: 'ຮູບລັກສະນະ ແລະ ພາສາສຳລັບອຸປະກອນນີ້.',
+    appearance: 'ຮູບລັກສະນະ',
+    appearanceDescription: 'ເລືອກວິທີທີ່ xArticle ສະແດງຢູ່ອຸປະກອນນີ້.',
+    languageLabel: 'ພາສາ',
+    languageDescription: 'ໃຊ້ສຳລັບເມນູ ແລະ ຂໍ້ຄວາມ. ບົດຄວາມຂອງທ່ານຍັງຄົງເປັນພາສາເດີມ.',
+    addComputer: 'ເພີ່ມຄອມພິວເຕີ',
+    setupInstallTitle: 'ຕິດຕັ້ງແອັບ',
+    setupInstallDescription: 'ຢູ່ຄອມພິວເຕີທີ່ທ່ານໃຊ້ເຜີຍແຜ່, ແຕກແພັກເກດ xArticle Publisher ແລ້ວແລ່ນຄຳສັ່ງນີ້ເທື່ອດຽວ. ມັນຈະຕິດຕັ້ງແອັບ ແລະ ກວດສອບການຕັ້ງຄ່າ.',
+    setupPairTitle: 'ຕັ້ງຊື່ຄອມພິວເຕີ ແລະ ສ້າງລະຫັດຈັບຄູ່',
+    setupStartTitle: 'ຈັບຄູ່ ແລະ ເລີ່ມແອັບ',
+    setupStartDescription: 'ແລ່ນຄຳສັ່ງເຫຼົ່ານີ້ຢູ່ຄອມພິວເຕີນັ້ນ, ວາງລະຫັດເມື່ອຖືກຖາມ, ແລະ ປ່ອຍໃຫ້ແອັບເຮັດວຽກຕໍ່ໄປ.',
+    pairingCodeCreated: 'ສ້າງລະຫັດຈັບຄູ່ແລ້ວ. ສຳເນົາດຽວນີ້ — ມັນຈະບໍ່ສະແດງອີກ.',
+    updateNeeded: 'ຕ້ອງອັບເດດ — ຈັບຄູ່ຄອມພິວເຕີນີ້ອີກຄັ້ງ',
+    unsavedPairingCode: 'ທ່ານຍັງບໍ່ໄດ້ສຳເນົາລະຫັດຈັບຄູ່.',
+    unsavedEnrollmentCode: 'ທ່ານຍັງບໍ່ໄດ້ສຳເນົາລະຫັດລົງທະບຽນ.',
+    unsavedCodeDescription: 'ມັນຈະສະແດງອີກບໍ່ໄດ້ ຫຼັງຈາກທ່ານປິດການຕັ້ງຄ່າບັນຊີ.',
+    seatsUsed: 'ໃຊ້ແລ້ວ {used} ຈາກ {limit} ບ່ອນ',
+    seatsBreakdown: 'ໃຊ້ງານ {active} · ເຊີນແລ້ວ {invited} · ກຳລັງລົງທະບຽນ {reserved}',
+    discardCodeQuestion: 'ຍົກເລີກລະຫັດນີ້ໂດຍບໍ່ສຳເນົາບໍ?',
+    discardCodeDescription: 'ມັນຈະສະແດງອີກບໍ່ໄດ້. ທ່ານຈະຕ້ອງສ້າງລະຫັດໃໝ່ເພື່ອແບ່ງປັນການເຂົ້າເຖິງ.',
+    keepCode: 'ເກັບລະຫັດໄວ້',
+    discardCode: 'ຍົກເລີກລະຫັດ',
+    suspendPersonQuestion: 'ລະງັບ {name} ບໍ?',
+    revokePersonQuestion: 'ຖອນສິດ {name} ບໍ?',
+    restorePersonQuestion: 'ກູ້ຄືນ {name} ບໍ?',
+    enrollmentCodeCreated: 'ສ້າງລະຫັດລົງທະບຽນໃໝ່ແລ້ວ. ສຳເນົາດຽວນີ້.',
+    peopleAccessSectionDescription: 'ເຊີນຄົນດ້ວຍລະຫັດຮ່ວມ ແລະ ຈັດການວ່າໃຜເຂົ້າສູ່ລະບົບໄດ້.',
+    publishersDescription: 'ຄອມພິວເຕີທີ່ເຜີຍແຜ່ບົດຄວາມຂອງທ່ານໄປ Binance Square ແລະ X.',
+    companionSecurity: 'ໃນການເຜີຍແຜ່ຄັ້ງທຳອິດ, ແອັບຈະເປີດໜ້າຕ່າງ Chrome ຂອງມັນເອງ — ເຂົ້າສູ່ລະບົບ Binance Square ຫຼື X ຢູ່ບ່ອນນັ້ນ. ເຊດຊັນຂອງທ່ານຢູ່ໃນຄອມພິວເຕີນັ້ນ, ແລະ ໂທເຄັນຈັບຄູ່ຖືກເກັບໄວ້ໃນ keychain ຂອງລະບົບ.',
+  },
+  my: {
+    general: 'အထွေထွေ',
+    generalDescription: 'ဤစက်အတွက် အသွင်အပြင်နှင့် ဘာသာစကား။',
+    appearance: 'အသွင်အပြင်',
+    appearanceDescription: 'ဤစက်ပေါ်တွင် xArticle ပုံပေါ်ပုံကို ရွေးပါ။',
+    languageLabel: 'ဘာသာစကား',
+    languageDescription: 'မီနူးနှင့် စာတိုများအတွက် အသုံးပြုသည်။ သင့်ဆောင်းပါးများသည် ၎င်းတို့၏ ဘာသာစကားအတိုင်း ရှိနေမည်။',
+    addComputer: 'ကွန်ပျူတာ ထည့်ရန်',
+    setupInstallTitle: 'အက်ပ်ကို ထည့်သွင်းပါ',
+    setupInstallDescription: 'သင်ထုတ်ဝေသည့် ကွန်ပျူတာပေါ်တွင် xArticle Publisher package ကို ဖြည်ပြီး ဤ command ကို တစ်ကြိမ် run ပါ။ ၎င်းသည် အက်ပ်ကို ထည့်သွင်းပြီး setup ကို စစ်ဆေးပေးသည်။',
+    setupPairTitle: 'ကွန်ပျူတာကို အမည်ပေးပြီး တွဲချိတ်ကုဒ် ဖန်တီးပါ',
+    setupStartTitle: 'တွဲချိတ်ပြီး အက်ပ်ကို စတင်ပါ',
+    setupStartDescription: 'ထိုကွန်ပျူတာပေါ်တွင် ဤ command များကို run ပါ၊ မေးသည့်အခါ ကုဒ်ကို ကူးထည့်ပါ၊ အက်ပ်ကို ဆက်လက် run ထားပါ။',
+    pairingCodeCreated: 'တွဲချိတ်ကုဒ် ဖန်တီးပြီးပါပြီ။ ယခုပင် ကူးယူပါ — ထပ်မံပြသမည် မဟုတ်ပါ။',
+    updateNeeded: 'အပ်ဒိတ်လိုအပ်သည် — ဤကွန်ပျူတာကို ထပ်မံတွဲချိတ်ပါ',
+    unsavedPairingCode: 'သင့်တွဲချိတ်ကုဒ်ကို မကူးယူရသေးပါ။',
+    unsavedEnrollmentCode: 'စာရင်းသွင်းကုဒ်ကို မကူးယူရသေးပါ။',
+    unsavedCodeDescription: 'အကောင့်ဆက်တင်များကို ပိတ်ပြီးနောက် ၎င်းကို ထပ်မံပြသ၍ မရပါ။',
+    seatsUsed: 'နေရာ {limit} ခုအနက် {used} ခု အသုံးပြုထားသည်',
+    seatsBreakdown: 'အသုံးပြုနေသူ {active} · ဖိတ်ထားသူ {invited} · စာရင်းသွင်းနေသူ {reserved}',
+    discardCodeQuestion: 'ဤကုဒ်ကို မကူးယူဘဲ စွန့်ပစ်မလား။',
+    discardCodeDescription: '၎င်းကို ထပ်မံပြသ၍ မရပါ။ ဝင်ရောက်ခွင့် မျှဝေရန် ကုဒ်အသစ် ဖန်တီးရပါမည်။',
+    keepCode: 'ကုဒ်ကို ထားရှိမည်',
+    discardCode: 'ကုဒ်ကို စွန့်ပစ်မည်',
+    suspendPersonQuestion: '{name} ကို ဆိုင်းငံ့မလား။',
+    revokePersonQuestion: '{name} ကို ရုပ်သိမ်းမလား။',
+    restorePersonQuestion: '{name} ကို ပြန်လည်ဖွင့်မလား။',
+    enrollmentCodeCreated: 'စာရင်းသွင်းကုဒ်အသစ် ဖန်တီးပြီးပါပြီ။ ယခုပင် ကူးယူပါ။',
+    peopleAccessSectionDescription: 'မျှဝေကုဒ်ဖြင့် လူများကို ဖိတ်ပြီး ဝင်ရောက်နိုင်သူများကို စီမံပါ။',
+    publishersDescription: 'သင့်ဆောင်းပါးများကို Binance Square နှင့် X သို့ ထုတ်ဝေပေးသည့် ကွန်ပျူတာများ။',
+    companionSecurity: 'ပထမဆုံးထုတ်ဝေသည့်အခါ အက်ပ်သည် ၎င်း၏ကိုယ်ပိုင် Chrome window ကို ဖွင့်ပါမည် — ထိုနေရာတွင် Binance Square သို့မဟုတ် X သို့ ဝင်ပါ။ သင့် session များသည် ထိုကွန်ပျူတာပေါ်တွင်သာ ရှိပြီး တွဲချိတ် token ကို စနစ်၏ keychain တွင် သိမ်းထားသည်။',
+  },
+  th: {
+    general: 'ทั่วไป',
+    generalDescription: 'ลักษณะที่ปรากฏและภาษาสำหรับอุปกรณ์นี้',
+    appearance: 'ลักษณะที่ปรากฏ',
+    appearanceDescription: 'เลือกลักษณะการแสดงผลของ xArticle บนอุปกรณ์นี้',
+    languageLabel: 'ภาษา',
+    languageDescription: 'ใช้สำหรับเมนูและข้อความ บทความของคุณยังคงเป็นภาษาเดิม',
+    addComputer: 'เพิ่มคอมพิวเตอร์',
+    setupInstallTitle: 'ติดตั้งแอป',
+    setupInstallDescription: 'บนคอมพิวเตอร์ที่คุณใช้เผยแพร่ ให้แตกไฟล์แพ็กเกจ xArticle Publisher แล้วเรียกใช้คำสั่งนี้หนึ่งครั้ง คำสั่งนี้จะติดตั้งแอปและตรวจสอบการตั้งค่า',
+    setupPairTitle: 'ตั้งชื่อคอมพิวเตอร์และสร้างรหัสจับคู่',
+    setupStartTitle: 'จับคู่และเริ่มแอป',
+    setupStartDescription: 'เรียกใช้คำสั่งเหล่านี้บนคอมพิวเตอร์เครื่องนั้น วางรหัสเมื่อระบบถาม และเปิดแอปทิ้งไว้',
+    pairingCodeCreated: 'สร้างรหัสจับคู่แล้ว คัดลอกตอนนี้ — รหัสจะไม่แสดงอีก',
+    updateNeeded: 'ต้องอัปเดต — จับคู่คอมพิวเตอร์เครื่องนี้อีกครั้ง',
+    unsavedPairingCode: 'คุณยังไม่ได้คัดลอกรหัสจับคู่',
+    unsavedEnrollmentCode: 'คุณยังไม่ได้คัดลอกรหัสลงทะเบียน',
+    unsavedCodeDescription: 'รหัสจะแสดงอีกไม่ได้หลังจากปิดการตั้งค่าบัญชี',
+    seatsUsed: 'ใช้แล้ว {used} จาก {limit} ที่นั่ง',
+    seatsBreakdown: 'ใช้งาน {active} · เชิญแล้ว {invited} · กำลังลงทะเบียน {reserved}',
+    discardCodeQuestion: 'ทิ้งรหัสนี้โดยไม่คัดลอกหรือไม่',
+    discardCodeDescription: 'รหัสจะแสดงอีกไม่ได้ คุณจะต้องสร้างรหัสใหม่เพื่อแชร์สิทธิ์เข้าถึง',
+    keepCode: 'เก็บรหัสไว้',
+    discardCode: 'ทิ้งรหัส',
+    suspendPersonQuestion: 'ระงับ {name} หรือไม่',
+    revokePersonQuestion: 'เพิกถอน {name} หรือไม่',
+    restorePersonQuestion: 'คืนสิทธิ์ {name} หรือไม่',
+    enrollmentCodeCreated: 'สร้างรหัสลงทะเบียนใหม่แล้ว คัดลอกตอนนี้',
+    peopleAccessSectionDescription: 'เชิญผู้คนด้วยรหัสที่ใช้ร่วมกัน และจัดการว่าใครลงชื่อเข้าใช้ได้',
+    publishersDescription: 'คอมพิวเตอร์ที่เผยแพร่บทความของคุณไปยัง Binance Square และ X',
+    companionSecurity: 'เมื่อเผยแพร่ครั้งแรก แอปจะเปิดหน้าต่าง Chrome ของตัวเอง — ลงชื่อเข้าใช้ Binance Square หรือ X ที่นั่น เซสชันของคุณอยู่บนคอมพิวเตอร์เครื่องนั้น และโทเค็นการจับคู่จะเก็บไว้ในพวงกุญแจของระบบ',
+  },
+  fil: {
+    general: 'Pangkalahatan',
+    generalDescription: 'Itsura at wika para sa device na ito.',
+    appearance: 'Itsura',
+    appearanceDescription: 'Piliin kung paano lalabas ang xArticle sa device na ito.',
+    languageLabel: 'Wika',
+    languageDescription: 'Ginagamit para sa mga menu at mensahe. Mananatili sa sariling wika ang iyong mga artikulo.',
+    addComputer: 'Magdagdag ng kompyuter',
+    setupInstallTitle: 'I-install ang app',
+    setupInstallDescription: 'Sa kompyuter na pinagpa-publish-an mo, i-extract ang xArticle Publisher package at patakbuhin ito nang isang beses. Ini-install nito ang app at sinusuri ang setup.',
+    setupPairTitle: 'Pangalanan ang kompyuter at gumawa ng pairing code',
+    setupStartTitle: 'Ipares at simulan ang app',
+    setupStartDescription: 'Patakbuhin ang mga command na ito sa kompyuter na iyon, i-paste ang code kapag hiningi, at hayaang tumatakbo ang app.',
+    pairingCodeCreated: 'Nagawa ang pairing code. Kopyahin ito ngayon — hindi na ito ipapakita muli.',
+    updateNeeded: 'Kailangang i-update — ipares muli ang kompyuter na ito',
+    unsavedPairingCode: 'Hindi mo pa nakokopya ang iyong pairing code.',
+    unsavedEnrollmentCode: 'Hindi mo pa nakokopya ang enrollment code.',
+    unsavedCodeDescription: 'Hindi na ito maipapakita pagkatapos mong isara ang Mga setting ng akawnt.',
+    seatsUsed: '{used} sa {limit} na upuan ang nagamit',
+    seatsBreakdown: '{active} aktibo · {invited} inimbitahan · {reserved} nagpapatala',
+    discardCodeQuestion: 'Itapon ang code na ito nang hindi kinokopya?',
+    discardCodeDescription: 'Hindi na ito maipapakita muli. Kailangan mong gumawa ng bagong code para magbahagi ng access.',
+    keepCode: 'Panatilihin ang code',
+    discardCode: 'Itapon ang code',
+    suspendPersonQuestion: 'I-suspend si {name}?',
+    revokePersonQuestion: 'Bawiin si {name}?',
+    restorePersonQuestion: 'Ibalik si {name}?',
+    enrollmentCodeCreated: 'Nagawa ang bagong enrollment code. Kopyahin ito ngayon.',
+    peopleAccessSectionDescription: 'Mag-imbita ng mga tao gamit ang shared code at pamahalaan kung sino ang makakapag-sign in.',
+    publishersDescription: 'Mga kompyuter na nagpa-publish ng iyong mga artikulo sa Binance Square at X.',
+    companionSecurity: 'Sa unang pag-publish, binubuksan ng app ang sarili nitong Chrome window — mag-sign in doon sa Binance Square o X. Nananatili ang iyong mga session sa kompyuter na iyon, at nakatago ang pairing token nito sa keychain ng system.',
+  },
+};
+
 const translations: Record<Language, AccountSettingsText> = {
   en,
-  km,
-  id: { ...id, ...geminiConnectionRecovery.id },
-  lo: { ...lo, ...geminiConnectionRecovery.lo },
-  my: { ...my, ...geminiConnectionRecovery.my },
-  th: { ...th, ...geminiConnectionRecovery.th },
-  fil: { ...fil, ...geminiConnectionRecovery.fil },
+  km: { ...km, ...settingsRedesign.km },
+  id: { ...id, ...geminiConnectionRecovery.id, ...settingsRedesign.id },
+  lo: { ...lo, ...geminiConnectionRecovery.lo, ...settingsRedesign.lo },
+  my: { ...my, ...geminiConnectionRecovery.my, ...settingsRedesign.my },
+  th: { ...th, ...geminiConnectionRecovery.th, ...settingsRedesign.th },
+  fil: { ...fil, ...geminiConnectionRecovery.fil, ...settingsRedesign.fil },
 };
 
 const localeByLanguage: Record<Language, string> = {

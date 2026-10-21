@@ -110,7 +110,7 @@ describe('PublisherDevicePairingCard', () => {
       signal: expect.any(AbortSignal),
     }));
     expect(fetchMock.mock.calls.some(([url]) => url === '/api/workspace')).toBe(false);
-    expect(screen.getByText(/pair this account with the companion/i)).toBeTruthy();
+    expect(screen.getByText(/opens its own Chrome window/i)).toBeTruthy();
   });
 
   it('keeps the last device list visible while a manual refresh is pending', async () => {
@@ -149,7 +149,8 @@ describe('PublisherDevicePairingCard', () => {
         lastSeenAt: null,
       }],
     }));
-    await screen.findByText('Protocol v2');
+    // The refreshed record reports protocol v2, so the update warning clears.
+    await waitFor(() => expect(screen.queryByText(/Update needed/)).toBeNull());
   });
 
   it('does not let a stale device refresh remove a newly created pairing', async () => {
@@ -277,7 +278,7 @@ describe('PublisherDevicePairingCard', () => {
     expect(JSON.parse(String(request?.body))).toEqual({ name: 'Studio Mac' });
     expect(screen.getByText(/bun run src\/main\.ts pair --api/).textContent)
       .toContain(window.location.origin);
-    expect(screen.getByText(/paste the code into its hidden prompt/i)).toBeTruthy();
+    expect(screen.getByText(/paste the code when asked/i)).toBeTruthy();
     expect(container.textContent).not.toMatch(/workspace/i);
   });
 
@@ -634,7 +635,7 @@ describe('PublisherDevicePairingCard', () => {
       name: 'Publishing device Studio Mac',
     });
     expect(within(activeDevice).getByText('Active')).toBeTruthy();
-    expect(within(activeDevice).getByText('Protocol v1')).toBeTruthy();
+    expect(within(activeDevice).getByText('Update needed — pair this computer again')).toBeTruthy();
     expect(activeDevice.querySelector('time')?.getAttribute('dateTime'))
       .toBe('2026-07-22T03:00:00.000Z');
 
@@ -642,14 +643,14 @@ describe('PublisherDevicePairingCard', () => {
       name: 'Publishing device Travel Mac',
     });
     expect(within(pendingDevice).getByText('Pending')).toBeTruthy();
-    expect(within(pendingDevice).getByText('Protocol v2')).toBeTruthy();
+    expect(within(pendingDevice).queryByText(/Protocol|Update needed/)).toBeNull();
     expect(within(pendingDevice).getByText('Never seen')).toBeTruthy();
     expect(within(pendingDevice).getByRole('button', { name: 'Revoke Travel Mac' })).toBeTruthy();
 
     const revokedDevice = screen.getByRole('listitem', {
       name: 'Publishing device Old Mac',
     });
-    expect(within(revokedDevice).getByText('Revoked').className).toContain('rounded-full');
+    expect(within(revokedDevice).getByText('Revoked').closest('[data-status-tone]')?.className).toContain('rounded-full');
     expect(within(revokedDevice).queryByRole('button', { name: 'Revoke Old Mac' })).toBeNull();
 
     fireEvent.click(within(activeDevice).getByRole('button', { name: 'Revoke Studio Mac' }));

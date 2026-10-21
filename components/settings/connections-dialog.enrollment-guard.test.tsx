@@ -80,7 +80,7 @@ describe('ConnectionsDialog enrollment request guard', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Close account settings' })[0]);
     expect(onOpenChange).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert').textContent).toContain('Copy your one-time value');
+    expect(screen.getByRole('alert').textContent).toContain("You haven't copied the enrollment code.");
 
     rerender(<ConnectionsDialog {...openProps} open={false} />);
     expect(screen.getByRole('dialog', { name: 'Account settings' })).toBeTruthy();

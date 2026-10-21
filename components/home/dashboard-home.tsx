@@ -48,6 +48,7 @@ import { WorkspaceOnboarding } from '@/components/workspace/workspace-onboarding
 import { WorkspaceSidebarFooter } from '@/components/workspace/workspace-sidebar-footer';
 import { RecoverWorkspaceDialog } from '@/components/workspace/recover-workspace-dialog';
 import { ConnectionsDialog } from '@/components/settings/connections-dialog';
+import type { SettingsSectionId } from '@/lib/settings-sections';
 import {
   DEFAULT_ILLUSTRATION_STYLE,
   type IllustrationStyleId,
@@ -643,6 +644,7 @@ interface DashboardHomeProps {
   resumeIntentId?: string | null;
   resumeRequested?: boolean;
   settingsOpen?: boolean;
+  settingsSection?: SettingsSectionId | null;
   canManageAccess?: boolean;
   actor?: { name: string; email: string };
   initialSource?: ArticleSource;
@@ -652,6 +654,7 @@ export function DashboardHome({
   resumeIntentId = null,
   resumeRequested = Boolean(resumeIntentId),
   settingsOpen = false,
+  settingsSection = null,
   canManageAccess = false,
   actor,
   initialSource = 'prompt',
@@ -711,6 +714,15 @@ export function DashboardHome({
     else params.delete('settings');
     const queryString = params.toString();
     router.replace(queryString ? `/workspace?${queryString}` : '/workspace', { scroll: false });
+  };
+
+  // Keep the URL on the visible section so reloads and shared links land
+  // there; replaceState updates Next's router without a server round trip.
+  const handleSettingsSectionChange = (section: SettingsSectionId) => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has('settings')) return;
+    params.set('settings', section);
+    window.history.replaceState(null, '', `/workspace?${params.toString()}`);
   };
 
   const handleOpenConnections = () => {
@@ -1517,6 +1529,8 @@ export function DashboardHome({
       <ConnectionsDialog
         open={settingsOpen}
         onOpenChange={handleConnectionsOpenChange}
+        initialSection={settingsSection}
+        onSectionChange={handleSettingsSectionChange}
         canManageAi={workspace.workspaceRole === 'owner'}
         canManageAccess={canManageAccess}
       />

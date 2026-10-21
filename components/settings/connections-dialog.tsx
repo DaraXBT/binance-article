@@ -11,22 +11,27 @@ import {
   type ReactNode,
 } from 'react';
 import {
-  Bot,
-  KeyRound,
   MonitorUp,
-  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+  TriangleAlert,
+  Users,
   X,
 } from 'lucide-react';
 
 import { AdminPeopleAccessCard } from '@/components/admin-people-access-card';
 import { useLanguage } from '@/components/language-provider';
 import { PublisherDevicePairingCard } from '@/components/publisher-device-pairing-card';
+import { GeneralSettingsSection } from '@/components/settings/general-settings-section';
+import {
+  revealOneTimeValue,
+  SettingsSectionHeader,
+} from '@/components/settings/settings-primitives';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
@@ -37,13 +42,18 @@ import {
 } from '@/components/ui/tabs';
 import { WorkspaceAiCredentialCard } from '@/components/workspace-ai-credential-card';
 import { getAccountSettingsCopy } from '@/lib/account-settings-i18n';
+import type { SettingsSectionId } from '@/lib/settings-sections';
 import { cn } from '@/lib/utils';
 
-type SettingsSectionId = 'ai' | 'publishing' | 'access';
+export type { SettingsSectionId };
+
+const DEFAULT_SECTION: SettingsSectionId = 'general';
 
 interface SettingsSection {
   id: SettingsSectionId;
   label: string;
+  description: string;
+  Icon: typeof Sparkles;
 }
 
 export interface ConnectionsDialogProps {
@@ -51,6 +61,10 @@ export interface ConnectionsDialogProps {
   onOpenChange: (open: boolean) => void;
   canManageAi: boolean;
   canManageAccess: boolean;
+  /** Section to show when the dialog opens (from a deep link). */
+  initialSection?: SettingsSectionId | null;
+  /** Called when the user switches sections, so the URL can follow. */
+  onSectionChange?: (section: SettingsSectionId) => void;
 }
 
 function SettingsPanel({
@@ -65,10 +79,8 @@ function SettingsPanel({
   return (
     <section
       aria-labelledby={labelledBy}
-      className={cn(
-        'w-full max-w-none rounded-none border-0 bg-transparent p-0 shadow-none',
-        !active && 'hidden',
-      )}
+      data-settings-panel
+      className={cn('w-full max-w-3xl', !active && 'hidden')}
     >
       {children}
     </section>
@@ -80,24 +92,30 @@ export function ConnectionsDialog({
   onOpenChange,
   canManageAi,
   canManageAccess,
+  initialSection = null,
+  onSectionChange,
 }: ConnectionsDialogProps) {
   const { language } = useLanguage();
   const copy = useMemo(() => getAccountSettingsCopy(language), [language]);
   const sections = useMemo(
     (): SettingsSection[] => {
       const base: SettingsSection[] = [
-        { id: 'ai', label: copy.t('aiGeneration') },
-        { id: 'publishing', label: copy.t('publishing') },
+        { id: 'general', label: copy.t('general'), description: copy.t('generalDescription'), Icon: SlidersHorizontal },
+        { id: 'ai', label: copy.t('aiGeneration'), description: copy.t('chooseGemini'), Icon: Sparkles },
+        { id: 'publishing', label: copy.t('publishing'), description: copy.t('publishersDescription'), Icon: MonitorUp },
       ];
       return canManageAccess
-        ? [...base, { id: 'access', label: copy.t('peopleAccess') }]
+        ? [...base, { id: 'access', label: copy.t('peopleAccess'), description: copy.t('peopleAccessSectionDescription'), Icon: Users }]
         : base;
     },
     [canManageAccess, copy],
   );
-  const [activeSection, setActiveSection] = useState<SettingsSectionId>('ai');
+  const resolveSection = useCallback((candidate: SettingsSectionId | null | undefined) => (
+    candidate && (candidate !== 'access' || canManageAccess) ? candidate : DEFAULT_SECTION
+  ), [canManageAccess]);
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>(() => resolveSection(initialSection));
   const [visitedSections, setVisitedSections] = useState<Set<SettingsSectionId>>(
-    () => new Set(['ai']),
+    () => new Set([resolveSection(initialSection)]),
   );
   const [hasUncopiedEnrollmentAccess, setHasUncopiedEnrollmentAccess] = useState(false);
   const [hasUncopiedPairing, setHasUncopiedPairing] = useState(false);
@@ -105,6 +123,9 @@ export function ConnectionsDialog({
   const [settingsSessionEpoch, setSettingsSessionEpoch] = useState(0);
   const settingsSessionEpochRef = useRef(0);
   const previousOpenRef = useRef(open);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const tabListRef = useRef<HTMLDivElement | null>(null);
+  const [tabOverflow, setTabOverflow] = useState({ start: false, end: false });
   const hasSensitiveValue = hasUncopiedEnrollmentAccess || hasUncopiedPairing;
   const sensitiveSection: SettingsSectionId = hasUncopiedPairing ? 'publishing' : 'access';
   // If URL state closes underneath an uncopied value (for example Browser
@@ -131,7 +152,13 @@ export function ConnectionsDialog({
     const wasOpen = previousOpenRef.current;
     previousOpenRef.current = open;
     if (wasOpen && !open && !hasSensitiveValue) invalidateSettingsSession();
-  }, [hasSensitiveValue, invalidateSettingsSession, open]);
+    // A fresh open honors the requested section (deep link or menu default).
+    if (!wasOpen && open && !hasSensitiveValue) {
+      const next = resolveSection(initialSection);
+      setActiveSection(next);
+      setVisitedSections(new Set([next]));
+    }
+  }, [hasSensitiveValue, initialSection, invalidateSettingsSession, open, resolveSection]);
 
   useEffect(() => {
     if (!open && hasSensitiveValue) setCloseWarningOpen(true);
@@ -141,14 +168,14 @@ export function ConnectionsDialog({
     if (hasSensitiveValue) return;
     setCloseWarningOpen(false);
     if (!open) {
-      setActiveSection('ai');
-      setVisitedSections(new Set(['ai']));
+      setActiveSection(DEFAULT_SECTION);
+      setVisitedSections(new Set([DEFAULT_SECTION]));
     }
   }, [hasSensitiveValue, open]);
 
   useEffect(() => {
     if (!canManageAccess && activeSection === 'access') {
-      setActiveSection('ai');
+      setActiveSection(DEFAULT_SECTION);
     }
   }, [activeSection, canManageAccess]);
 
@@ -162,9 +189,42 @@ export function ConnectionsDialog({
     return () => window.removeEventListener('beforeunload', protectOneTimeValue);
   }, [hasSensitiveValue]);
 
+  // On narrow screens the section list scrolls sideways; show which edges
+  // hide more sections and keep the active one in view.
+  const updateTabOverflow = useCallback(() => {
+    const list = tabListRef.current;
+    if (!list) return;
+    const start = list.scrollLeft > 1;
+    const end = list.scrollLeft + list.clientWidth < list.scrollWidth - 1;
+    setTabOverflow((current) => (
+      current.start === start && current.end === end ? current : { start, end }
+    ));
+  }, []);
+
+  useEffect(() => {
+    if (!effectiveOpen) return;
+    const frame = window.requestAnimationFrame(() => {
+      const list = tabListRef.current;
+      const active = list?.querySelector<HTMLElement>('[data-state="active"]');
+      if (list && active && list.scrollWidth > list.clientWidth) {
+        const left = active.offsetLeft - 8;
+        const right = active.offsetLeft + active.offsetWidth + 8 - list.clientWidth;
+        if (left < list.scrollLeft) list.scrollLeft = left;
+        else if (right > list.scrollLeft) list.scrollLeft = right;
+      }
+      updateTabOverflow();
+    });
+    window.addEventListener('resize', updateTabOverflow);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('resize', updateTabOverflow);
+    };
+  }, [activeSection, effectiveOpen, sections, updateTabOverflow]);
+
   const selectSection = (next: string) => {
     const section = sections.find((candidate) => candidate.id === next);
     if (!section) return;
+    if (section.id !== activeSection) onSectionChange?.(section.id);
     setActiveSection(section.id);
     setVisitedSections((current) => {
       if (current.has(section.id)) return current;
@@ -209,6 +269,13 @@ export function ConnectionsDialog({
   const reviewSensitiveValue = () => {
     selectSection(sensitiveSection);
     if (!open) onOpenChange(true);
+    // Wait for the section to become visible, then bring the code into view.
+    window.requestAnimationFrame(() => {
+      const panel = contentRef.current?.querySelector(
+        `[data-settings-section-id="${sensitiveSection}"]`,
+      );
+      revealOneTimeValue(panel);
+    });
   };
 
   const discardAndClose = () => {
@@ -217,6 +284,29 @@ export function ConnectionsDialog({
     setHasUncopiedPairing(false);
     setCloseWarningOpen(false);
     onOpenChange(false);
+  };
+
+  const sectionById = (id: SettingsSectionId) => sections.find((section) => section.id === id);
+  const renderPanel = (id: SettingsSectionId, body: ReactNode) => {
+    const section = sectionById(id);
+    if (!section || !visitedSections.has(id)) return null;
+    return (
+      <TabsContent
+        value={id}
+        forceMount
+        data-settings-section-id={id}
+        className="m-0 data-[state=inactive]:hidden"
+      >
+        <SettingsPanel labelledBy={`settings-${id}-title`} active={activeSection === id}>
+          <SettingsSectionHeader
+            id={`settings-${id}-title`}
+            title={section.label}
+            description={section.description}
+          />
+          {body}
+        </SettingsPanel>
+      </TabsContent>
+    );
   };
 
   return (
@@ -237,99 +327,90 @@ export function ConnectionsDialog({
           event.preventDefault();
           accountTrigger.focus();
         }}
-        className="!h-[min(44rem,calc(100dvh-2rem))] !w-[calc(100%-2rem)] !max-w-5xl grid-cols-1 grid-rows-[minmax(0,1fr)] gap-0 overflow-hidden rounded-xl border-border/80 bg-card p-0 shadow-lg"
+        className="!h-[min(46rem,calc(100dvh-1.5rem))] !w-[calc(100%-1.5rem)] !max-w-4xl grid-cols-1 grid-rows-[minmax(0,1fr)] gap-0 overflow-hidden rounded-xl border-border/80 bg-card p-0 shadow-lg sm:!h-[min(46rem,calc(100dvh-2rem))] sm:!w-[calc(100%-2rem)]"
       >
         <Tabs
           value={activeSection}
           onValueChange={selectSection}
-          className="grid h-full min-h-0 grid-cols-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-0 md:grid-cols-[14rem_minmax(0,1fr)] md:grid-rows-[auto_minmax(0,1fr)]"
+          className="grid h-full min-h-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-0 md:grid-cols-[14rem_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)]"
         >
           <aside
             data-connections-settings-rail
             aria-label={copy.t('settingsNavigation')}
-            className="sticky top-0 z-20 row-start-2 min-w-0 border-b border-border/70 bg-card/95 px-2 py-2 backdrop-blur md:col-start-1 md:row-span-2 md:row-start-1 md:flex md:min-h-0 md:flex-col md:border-b-0 md:border-r md:bg-muted/30 md:p-3"
+            className="min-w-0 border-b border-border/70 md:flex md:min-h-0 md:flex-col md:border-b-0 md:border-r md:bg-muted/30"
           >
-            <div className="hidden px-2 pb-5 pt-2 md:block">
-              <div className="flex size-9 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary">
-                <Bot aria-hidden="true" className="size-4" />
-              </div>
-              <p className="mt-4 font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-primary">
+            <div className="flex h-14 items-center pl-4 pr-14 md:h-auto md:px-5 md:pb-4 md:pt-5">
+              <DialogTitle className="truncate text-base font-semibold leading-6">
                 {copy.t('accountSettings')}
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                {copy.t('personalConnectionsAndAccess')}
-              </p>
+              </DialogTitle>
+              <DialogDescription className="sr-only">
+                {copy.t('manageAccount')}
+              </DialogDescription>
             </div>
 
-            <TabsList
-              aria-label={copy.t('settingsSections')}
-              className="h-auto min-h-11 w-full justify-start gap-1 overflow-x-auto bg-transparent p-0 md:flex-none md:flex-col md:items-stretch md:justify-start md:overflow-visible"
-            >
-              {sections.map((section) => {
-                const Icon = section.id === 'ai'
-                  ? KeyRound
-                  : section.id === 'publishing'
-                    ? MonitorUp
-                    : ShieldCheck;
-                return (
+            <div className="relative">
+              <TabsList
+                ref={tabListRef}
+                onScroll={updateTabOverflow}
+                aria-label={copy.t('settingsSections')}
+                className="h-auto w-full justify-start gap-1 overflow-x-auto bg-transparent px-2 pb-2 [scrollbar-width:none] md:flex-col md:items-stretch md:overflow-visible md:px-3 md:pb-3 [&::-webkit-scrollbar]:hidden"
+              >
+                {sections.map(({ id, label, Icon }) => (
                   <TabsTrigger
-                    key={section.id}
-                    value={section.id}
-                    onClick={() => selectSection(section.id)}
-                    onFocus={() => selectSection(section.id)}
-                    onKeyDown={(event) => handleTabKeyDown(event, section.id)}
-                    className="min-h-11 min-w-11 flex-none justify-start rounded-lg px-3 text-xs data-[state=active]:border-primary/25 data-[state=active]:bg-primary/10 data-[state=active]:text-foreground data-[state=active]:shadow-none md:h-11 md:w-full md:flex-none md:text-sm"
+                    key={id}
+                    value={id}
+                    data-settings-nav-item={id}
+                    onClick={() => selectSection(id)}
+                    onFocus={() => selectSection(id)}
+                    onKeyDown={(event) => handleTabKeyDown(event, id)}
+                    className="h-11 min-w-11 flex-none justify-start gap-2.5 rounded-lg border-0 px-3 text-sm font-medium text-muted-foreground shadow-none hover:bg-muted/60 hover:text-foreground data-[state=active]:bg-accent data-[state=active]:text-foreground data-[state=active]:shadow-none md:w-full"
                   >
-                    <Icon aria-hidden="true" className="size-4 shrink-0 text-primary" />
-                    <span>{section.label}</span>
+                    <Icon aria-hidden="true" className="size-4 shrink-0" />
+                    <span className="truncate">{label}</span>
                   </TabsTrigger>
-                );
-              })}
-            </TabsList>
+                ))}
+              </TabsList>
+              {tabOverflow.start ? (
+                <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-card to-transparent md:hidden" />
+              ) : null}
+              {tabOverflow.end ? (
+                <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-card to-transparent md:hidden" />
+              ) : null}
+            </div>
           </aside>
 
-          <DialogHeader className="relative row-start-1 min-w-0 gap-1.5 border-b border-border/70 px-4 py-4 pr-14 text-left sm:px-6 sm:py-5 sm:pr-16 md:col-start-2 md:row-start-1">
-            <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-primary md:hidden">
-              {copy.t('account')}
-            </p>
-            <DialogTitle className="text-2xl leading-tight tracking-normal sm:text-3xl">
-              {copy.t('accountSettings')}
-            </DialogTitle>
-            <DialogDescription className="max-w-2xl text-xs leading-relaxed sm:text-sm">
-              {copy.t('manageAccount')}
-            </DialogDescription>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="absolute right-2 top-2 z-30 size-11 rounded-lg sm:right-3 sm:top-3"
-              aria-label={copy.t('closeAccountSettings')}
-              onClick={requestClose}
-            >
-              <X aria-hidden="true" className="size-4" />
-            </Button>
-          </DialogHeader>
-
           <div
+            ref={contentRef}
             data-connections-settings-content
-            className="row-start-3 grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] md:col-start-2 md:row-start-2"
+            className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)]"
           >
             {closeWarningOpen ? (
               <div
                 role="alert"
-                className="m-3 flex flex-col gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm sm:mx-5 sm:mt-5 sm:flex-row sm:items-center sm:justify-between"
+                className="mx-3 mt-3 flex flex-col gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm sm:flex-row sm:items-center sm:justify-between md:mx-8 md:mr-16 md:mt-5"
               >
-                <div>
-                  <p className="font-medium text-foreground">{copy.t('oneTimeValueWarningTitle')}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    {copy.t('oneTimeValueWarningDescription')}
-                  </p>
+                <div className="flex min-w-0 gap-2.5">
+                  <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground">
+                      {copy.t(sensitiveSection === 'publishing' ? 'unsavedPairingCode' : 'unsavedEnrollmentCode')}
+                    </p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                      {copy.t('unsavedCodeDescription')}
+                    </p>
+                  </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
                   <Button type="button" size="sm" variant="outline" onClick={reviewSensitiveValue}>
                     {copy.t('reviewCode')}
                   </Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={discardAndClose}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
+                    onClick={discardAndClose}
+                  >
                     {copy.t('discardAndClose')}
                   </Button>
                 </div>
@@ -338,57 +419,32 @@ export function ConnectionsDialog({
 
             <div
               data-connections-dialog-scroll
-              className="min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-5 lg:p-6"
+              className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-8 pt-5 md:px-8 md:pt-6"
             >
-              {visitedSections.has('ai') ? (
-                <TabsContent value="ai" forceMount className="m-0 data-[state=inactive]:hidden">
-                  <SettingsPanel labelledBy="settings-ai-title" active={activeSection === 'ai'}>
-                    <div className="mb-4 border-b border-dotted border-border/70 pb-3">
-                      <h2 id="settings-ai-title" className="text-base font-semibold">{copy.t('aiGeneration')}</h2>
-                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                        {copy.t('chooseGemini')}
-                      </p>
-                    </div>
-                    <WorkspaceAiCredentialCard
-                      canManageAi={canManageAi}
-                      className="max-w-none rounded-xl border-border/70 bg-card/70"
-                    />
-                  </SettingsPanel>
-                </TabsContent>
-              ) : null}
-
-              {visitedSections.has('publishing') ? (
-                <TabsContent value="publishing" forceMount className="m-0 data-[state=inactive]:hidden">
-                  <SettingsPanel labelledBy="settings-publishing-title" active={activeSection === 'publishing'}>
-                    <div className="mb-4 border-b border-dotted border-border/70 pb-3">
-                      <h2 id="settings-publishing-title" className="text-base font-semibold">{copy.t('publishing')}</h2>
-                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                        {copy.t('publishersDescription')}
-                      </p>
-                    </div>
-                    <PublisherDevicePairingCard
-                      className="max-w-none rounded-xl border-border/70 bg-card/70"
-                      onUncopiedPairingChange={handleUncopiedPairingChange}
-                    />
-                  </SettingsPanel>
-                </TabsContent>
-              ) : null}
-
-              {canManageAccess && visitedSections.has('access') ? (
-                <TabsContent value="access" forceMount className="m-0 data-[state=inactive]:hidden">
-                  <SettingsPanel labelledBy="settings-access-title" active={activeSection === 'access'}>
-                    <h2 id="settings-access-title" className="sr-only">{copy.t('peopleAccess')}</h2>
-                    <AdminPeopleAccessCard
-                      className="rounded-xl border-border/70 bg-card/70 p-4 sm:p-5"
-                      showFrameCorners={false}
-                      onUncopiedAccessChange={handleUncopiedEnrollmentAccessChange}
-                    />
-                  </SettingsPanel>
-                </TabsContent>
-              ) : null}
+              {renderPanel('general', <GeneralSettingsSection copy={copy} />)}
+              {renderPanel('ai', (
+                <WorkspaceAiCredentialCard canManageAi={canManageAi} />
+              ))}
+              {renderPanel('publishing', (
+                <PublisherDevicePairingCard onUncopiedPairingChange={handleUncopiedPairingChange} />
+              ))}
+              {canManageAccess ? renderPanel('access', (
+                <AdminPeopleAccessCard onUncopiedAccessChange={handleUncopiedEnrollmentAccessChange} />
+              )) : null}
             </div>
           </div>
         </Tabs>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="absolute right-1.5 top-1.5 z-30 size-11 rounded-lg text-muted-foreground hover:text-foreground md:right-3 md:top-3 md:size-9"
+          aria-label={copy.t('closeAccountSettings')}
+          onClick={requestClose}
+        >
+          <X aria-hidden="true" className="size-4" />
+        </Button>
       </DialogContent>
     </Dialog>
   );

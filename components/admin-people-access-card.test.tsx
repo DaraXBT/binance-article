@@ -81,9 +81,8 @@ describe('AdminPeopleAccessCard', () => {
 
     render(<AdminPeopleAccessCard />);
 
-    const invited = await screen.findByText('Invited');
-    expect(invited.parentElement?.textContent).toContain('2');
-    expect(screen.getByText('6/10')).toBeTruthy();
+    expect(await screen.findByText('3 active · 2 invited · 1 signing up')).toBeTruthy();
+    expect(screen.getByText('6 of 10 seats used')).toBeTruthy();
     const summary = document.querySelector('[data-capacity-summary]');
     expect(summary).toBeTruthy();
     expect(summary!.className).not.toContain('grid');
@@ -91,7 +90,7 @@ describe('AdminPeopleAccessCard', () => {
     expect(summary!.className).not.toContain('bg-');
     expect(summary!.className).not.toContain('rounded');
     const personRow = await screen.findByText('Owner');
-    expect(personRow.closest('li')?.className).toContain('rounded-lg');
+    expect(personRow.closest('ul')?.className).toContain('rounded-lg');
   });
 
   it('keeps enrollment controls usable when only the people request fails', async () => {
@@ -129,7 +128,7 @@ describe('AdminPeopleAccessCard', () => {
       'Enrollment access could not be loaded.',
     );
     expect(within(enrollmentSection!).getByRole('button', { name: /retry/i })).toBeTruthy();
-    expect(within(peopleSection!).getByRole('button', { name: 'Suspend' })).toBeTruthy();
+    expect(within(peopleSection!).getByRole('button', { name: /^Suspend / })).toBeTruthy();
   });
 
   it('creates a one-time shared code and fragment link, then marks it copied', async () => {
@@ -532,8 +531,8 @@ describe('AdminPeopleAccessCard', () => {
       }));
     render(<AdminPeopleAccessCard />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Suspend' }));
-    const confirmation = screen.getByRole('alertdialog', { name: 'Suspend this account?' });
+    fireEvent.click(await screen.findByRole('button', { name: /^Suspend / }));
+    const confirmation = screen.getByRole('alertdialog', { name: 'Suspend New User?' });
     fireEvent.click(within(confirmation).getByRole('button', { name: 'Suspend' }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenNthCalledWith(
@@ -544,7 +543,7 @@ describe('AdminPeopleAccessCard', () => {
         body: JSON.stringify({ action: 'suspend' }),
       }),
     ));
-    await screen.findByRole('button', { name: 'Restore' });
+    await screen.findByRole('button', { name: /^Restore / });
   });
 
   it('keeps a failed account mutation open and shows its error inside the confirmation', async () => {
@@ -557,12 +556,12 @@ describe('AdminPeopleAccessCard', () => {
       }, 503));
     render(<AdminPeopleAccessCard />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Suspend' }));
-    const confirmation = screen.getByRole('alertdialog', { name: 'Suspend this account?' });
+    fireEvent.click(await screen.findByRole('button', { name: /^Suspend / }));
+    const confirmation = screen.getByRole('alertdialog', { name: 'Suspend New User?' });
     fireEvent.click(within(confirmation).getByRole('button', { name: 'Suspend' }));
 
     const openConfirmation = await screen.findByRole('alertdialog', {
-      name: 'Suspend this account?',
+      name: 'Suspend New User?',
     });
     await waitFor(() => expect(within(openConfirmation).getByRole('alert').textContent).toContain(
       'The account status could not be changed.',
@@ -603,14 +602,11 @@ describe('AdminPeopleAccessCard', () => {
     expect(secondOwnerRow).not.toBeNull();
     expect(revokedUserRow).not.toBeNull();
     expect(within(currentOwnerRow!).queryByRole('button')).toBeNull();
-    expect(within(secondOwnerRow!).getByRole('button', { name: 'Suspend' })).toBeTruthy();
-    expect(within(secondOwnerRow!).getByRole('button', { name: 'Revoke' })).toBeTruthy();
-    expect(within(revokedUserRow!).getByRole('button', { name: 'Restore' })).toBeTruthy();
+    expect(within(secondOwnerRow!).getByRole('button', { name: /^Suspend / })).toBeTruthy();
+    expect(within(secondOwnerRow!).getByRole('button', { name: /^Revoke / })).toBeTruthy();
+    expect(within(revokedUserRow!).getByRole('button', { name: /^Restore / })).toBeTruthy();
     expect(within(currentOwnerRow!).getByText('Administrator')).toBeTruthy();
     expect(within(secondOwnerRow!).getByText('Administrator')).toBeTruthy();
-    expect(document.body.textContent).toContain(
-      'Each person receives a separate personal account and private article library.',
-    );
     expect(document.body.textContent).not.toMatch(/workspace owner|workspace member/i);
   });
 
@@ -620,7 +616,7 @@ describe('AdminPeopleAccessCard', () => {
       .mockResolvedValueOnce(jsonResponse({ code: 'OWNER_REQUIRED' }, 403));
     const { container } = render(<AdminPeopleAccessCard />);
 
-    await waitFor(() => expect(container.querySelector('[data-console-panel]')).toBeNull());
+    await waitFor(() => expect(container.querySelector('[data-people-access-card]')).toBeNull());
   });
 
   it('does not silently hide an account-disabled response as an owner permission failure', async () => {
@@ -636,7 +632,7 @@ describe('AdminPeopleAccessCard', () => {
     const { container } = render(<AdminPeopleAccessCard />);
 
     const alerts = await screen.findAllByRole('alert');
-    expect(container.querySelector('[data-console-panel]')).not.toBeNull();
+    expect(container.querySelector('[data-people-access-card]')).not.toBeNull();
     expect(alerts.some((alert) => /account is disabled/i.test(alert.textContent ?? ''))).toBe(true);
   });
 });

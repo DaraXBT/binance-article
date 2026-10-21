@@ -107,7 +107,7 @@ describe('ConnectionsDialog pairing request guard', () => {
 
     expect(document.querySelector<HTMLElement>('[data-connections-dialog]')?.dataset.state)
       .toBe('closed');
-    expect(screen.queryByText('Copy your one-time value before closing.')).toBeNull();
+    expect(screen.queryByText("You haven't copied your pairing code.")).toBeNull();
 
     fireEvent.click(screen.getByTestId('open-settings'));
     fireEvent.click(screen.getByRole('tab', { name: 'Publishing' }));
@@ -115,6 +115,6 @@ describe('ConnectionsDialog pairing request guard', () => {
     expect(pairingRequestState.callbacks).toHaveLength(2);
 
     fireEvent.click(screen.getByRole('button', { name: 'Close account settings' }));
-    expect(screen.getByText('Copy your one-time value before closing.')).toBeTruthy();
+    expect(screen.getByText("You haven't copied your pairing code.")).toBeTruthy();
   });
 });

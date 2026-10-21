@@ -2,6 +2,7 @@
 
 import {
   type FormEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -13,22 +14,17 @@ import {
   Copy,
   KeyRound,
   Loader2,
-  MonitorUp,
   RefreshCw,
   ShieldOff,
-  TerminalSquare,
 } from 'lucide-react';
 
 import { useLanguage } from '@/components/language-provider';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+  revealOneTimeValue,
+  SettingsGroup,
+  StatusBadge,
+} from '@/components/settings/settings-primitives';
+import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -139,6 +135,38 @@ function readDevicesResponse(value: unknown): PublisherDevice[] {
   return value.devices.map(readPublisherDevice);
 }
 
+function SetupStep({
+  number,
+  title,
+  description,
+  children,
+}: {
+  number: number;
+  title: string;
+  description?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <li className="flex gap-3">
+      <span
+        aria-hidden="true"
+        className="flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-muted/50 text-xs font-semibold text-foreground"
+      >
+        {number}
+      </span>
+      <div className="min-w-0 flex-1 space-y-3">
+        <div>
+          <p className="text-sm font-medium leading-6 text-foreground">{title}</p>
+          {description ? (
+            <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">{description}</p>
+          ) : null}
+        </div>
+        {children}
+      </div>
+    </li>
+  );
+}
+
 export function PublisherDevicePairingCard({
   className,
   onUncopiedPairingChange,
@@ -170,7 +198,8 @@ export function PublisherDevicePairingCard({
   const revokeTriggerRef = useRef<HTMLButtonElement | null>(null);
   const revokeRowRef = useRef<HTMLLIElement | null>(null);
   const revokeSucceededRef = useRef(false);
-  const devicesHeadingRef = useRef<HTMLHeadingElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [pairingAnnouncement, setPairingAnnouncement] = useState('');
 
   const loadDevices = useCallback(async (signal?: AbortSignal) => {
     const requestGeneration = devicesRequestGenerationRef.current + 1;
@@ -222,8 +251,6 @@ export function PublisherDevicePairingCard({
 
   const companionCommands = useMemo(() => [
     'cd publisher-companion',
-    'bun install --frozen-lockfile',
-    'bun run doctor',
     `bun run src/main.ts pair --api ${appOrigin}`,
     'bun run src/main.ts run',
   ].join('\n'), [appOrigin]);
@@ -283,7 +310,7 @@ export function PublisherDevicePairingCard({
             id: created.deviceId,
             name: deviceName.trim(),
             status: 'pending',
-            protocolVersion: 1,
+            protocolVersion: 2,
             lastSeenAt: null,
           },
           ...('devices' in current && current.devices
@@ -293,6 +320,9 @@ export function PublisherDevicePairingCard({
       }));
       setReplacementError(null);
       setReplaceConfirmationOpen(false);
+      setPairingAnnouncement(copy.t('pairingCodeCreated'));
+      // Bring the new one-time code into view and focus it.
+      window.requestAnimationFrame(() => revealOneTimeValue(rootRef.current));
     } catch {
       if (!mountedRef.current) return;
       if (replacingExistingPairing) {
@@ -392,269 +422,261 @@ export function PublisherDevicePairingCard({
   const displayedDevices = 'devices' in devices ? devices.devices : null;
 
   return (
-    <Card
+    <div
+      ref={rootRef}
       data-publisher-device-pairing
-      className={cn('w-full max-w-2xl border-border/70 shadow-none', className)}
+      className={cn('w-full space-y-6', className)}
     >
-      <CardHeader>
-        <div className="flex items-start gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-muted/40">
-            <MonitorUp aria-hidden="true" className="size-4 text-primary" />
-          </span>
-          <div className="space-y-1.5">
-            <CardTitle>{copy.t('browserPublisher')}</CardTitle>
-            <CardDescription className="max-w-xl leading-relaxed">
-              {copy.t('browserPublisherDescription')}
-            </CardDescription>
-          </div>
-        </div>
-      </CardHeader>
+      <SettingsGroup title={copy.t('addComputer')} titleId="publisher-add-title">
+        <ol className="space-y-6">
+          <SetupStep number={1} title={copy.t('setupInstallTitle')} description={copy.t('setupInstallDescription')}>
+            <code className="inline-block rounded-md border border-border/80 bg-muted/40 px-2.5 py-1 font-mono text-xs text-foreground">
+              node install.mjs
+            </code>
+          </SetupStep>
 
-      <CardContent className="space-y-5">
-        <form className="space-y-3" onSubmit={createPairing}>
-            <label className="block space-y-1.5" htmlFor="publisher-device-name">
-              <span className="text-sm font-medium">{copy.t('computerName')}</span>
-              <Input
-                id="publisher-device-name"
-                name="deviceName"
-                value={deviceName}
-                maxLength={80}
-                autoComplete="off"
-                onChange={(event) => setDeviceName(event.currentTarget.value)}
-                placeholder={copy.t('computerPlaceholder')}
-                disabled={pairingRequestPending}
-              />
-            </label>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                type="submit"
-                disabled={pairingRequestPending || deviceName.trim().length === 0}
-              >
-                {pairingRequestPending ? (
-                  <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-                ) : (
-                  <KeyRound aria-hidden="true" className="size-4" />
-                )}
-                {pairingRequestPending
-                  ? copy.t('creatingCode')
-                  : pairingValue
-                    ? copy.t('createNewCode')
-                    : copy.t('createPairingCode')}
-              </Button>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                {copy.t('codeExpires')}
-              </p>
-            </div>
-        </form>
-
-        <section
-            className="space-y-3 border-t border-dotted border-border/80 pt-5"
-            aria-labelledby="publisher-devices-title"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h4
-                  ref={devicesHeadingRef}
-                  id="publisher-devices-title"
-                  tabIndex={-1}
-                  className="text-sm font-semibold outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          <SetupStep number={2} title={copy.t('setupPairTitle')}>
+            <form className="space-y-3" onSubmit={createPairing}>
+              <label className="block max-w-md space-y-1.5" htmlFor="publisher-device-name">
+                <span className="text-sm font-medium">{copy.t('computerName')}</span>
+                <Input
+                  id="publisher-device-name"
+                  name="deviceName"
+                  value={deviceName}
+                  maxLength={80}
+                  autoComplete="off"
+                  onChange={(event) => setDeviceName(event.currentTarget.value)}
+                  placeholder={copy.t('computerPlaceholder')}
+                  disabled={pairingRequestPending}
+                />
+              </label>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <Button
+                  type="submit"
+                  variant={pairingValue ? 'outline' : 'default'}
+                  disabled={pairingRequestPending || deviceName.trim().length === 0}
                 >
-                  {copy.t('publishingComputers')}
-                </h4>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  {copy.t('publishingComputersDescription')}
+                  {pairingRequestPending ? (
+                    <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+                  ) : (
+                    <KeyRound aria-hidden="true" className="size-4" />
+                  )}
+                  {pairingRequestPending
+                    ? copy.t('creatingCode')
+                    : pairingValue
+                      ? copy.t('createNewCode')
+                      : copy.t('createPairingCode')}
+                </Button>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {copy.t('codeExpires')}
                 </p>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={devices.status === 'loading' || revokingDeviceId !== null}
-                onClick={() => void loadDevices()}
+              {pairing.status === 'error' ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {copy.t('pairingCouldNotCreate')}
+                </p>
+              ) : null}
+            </form>
+          </SetupStep>
+
+          <SetupStep number={3} title={copy.t('setupStartTitle')} description={copy.t('setupStartDescription')}>
+            {pairingValue ? (
+              <div
+                data-one-time-code-panel
+                className="space-y-4 rounded-lg border border-primary/35 bg-primary/5 p-4"
               >
-                {devices.status === 'loading' ? (
-                  <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-                ) : (
-                  <RefreshCw aria-hidden="true" className="size-4" />
-                )}
-                {copy.t('refresh')}
-              </Button>
-            </div>
-
-            {devices.status === 'loading' ? (
-              <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
-                <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-                {copy.t('loadingPublishingComputers')}
-              </p>
-            ) : null}
-
-            {devices.status === 'error' ? (
-              <p className="text-sm text-destructive" role="alert">
-                {copy.t('computersCouldNotLoad')}
-              </p>
-            ) : null}
-
-            {deviceNotice ? (
-              <p className="sr-only" role="status">{deviceNotice}</p>
-            ) : null}
-
-            {devices.status === 'ready' && devices.devices.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{copy.t('noPublishingComputers')}</p>
-            ) : null}
-
-            {displayedDevices && displayedDevices.length > 0 ? (
-              <ul className="space-y-2">
-                {displayedDevices.map((device) => {
-                  const isRevoking = revokingDeviceId === device.id;
-                  return (
-                    <li
-                      key={device.id}
-                      aria-label={copy.t('publisherDevice', { name: device.name })}
-                      tabIndex={-1}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/75 bg-muted/20 p-3 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                <section className="space-y-2" aria-labelledby="publisher-pairing-code-title">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <h4
+                        id="publisher-pairing-code-title"
+                        tabIndex={-1}
+                        data-one-time-code-focus
+                        className="text-sm font-semibold outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                      >
+                        {copy.t('oneTimePairingCode')}
+                      </h4>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {copy.t('validUntil', {
+                          time: formatAccountSettingsDate(language, pairingValue.expiresAt, '', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          }),
+                        })}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={copyState === 'code' ? 'outline' : 'default'}
+                      disabled={pairingRequestPending}
+                      onClick={() => void copyText('code', pairingValue.pairingCode)}
                     >
-                      <div className="min-w-0 space-y-1.5">
-                        <p className="truncate text-sm font-medium">{device.name}</p>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                          <Badge
-                            variant={device.status === 'active'
-                              ? 'secondary'
-                              : device.status === 'revoked'
-                                ? 'outline'
-                                : 'default'}
-                            className="rounded-full"
-                          >
-                            {device.status === 'active'
-                              ? copy.t('deviceActive')
-                              : device.status === 'pending'
-                                ? copy.t('devicePending')
-                                : copy.t('deviceRevoked')}
-                          </Badge>
-                          <span>{copy.t('protocol', { version: device.protocolVersion })}</span>
-                          <span aria-hidden="true">·</span>
-                          {device.lastSeenAt ? (
-                            <span>
-                              {copy.t('lastSeen', { date: '' })}{' '}
-                              <time dateTime={device.lastSeenAt}>
-                                {formatAccountSettingsDate(language, device.lastSeenAt, copy.t('neverSeen'))}
-                              </time>
-                            </span>
-                          ) : (
-                            <span>{copy.t('neverSeen')}</span>
-                          )}
-                        </div>
-                      </div>
-                      {device.status !== 'revoked' ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          aria-label={`${copy.t('revoke')} ${device.name}`}
-                          disabled={revokingDeviceId !== null}
-                          onClick={(event) => {
-                            revokeTriggerRef.current = event.currentTarget;
-                            revokeRowRef.current = event.currentTarget.closest('li');
-                            revokeSucceededRef.current = false;
-                            setDeviceError(null);
-                            setDeviceToRevoke(device);
-                          }}
-                        >
-                          {isRevoking ? (
-                            <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-                          ) : (
-                            <ShieldOff aria-hidden="true" className="size-4" />
-                          )}
-                          {isRevoking ? copy.t('revoking') : copy.t('revoke')}
-                        </Button>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
+                      {copyState === 'code' ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+                      {copyState === 'code' ? copy.t('copiedCode') : copy.t('copyCode')}
+                    </Button>
+                  </div>
+                  <code
+                    data-pairing-code
+                    className="block select-all break-all rounded-md border border-border/70 bg-card px-3 py-2.5 font-mono text-sm leading-relaxed text-foreground"
+                  >
+                    {pairingValue.pairingCode}
+                  </code>
+                </section>
+
+                <section className="space-y-2" aria-labelledby="publisher-companion-commands-title">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h4 id="publisher-companion-commands-title" className="text-sm font-semibold">
+                      {copy.t('companionCommands')}
+                    </h4>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void copyText('commands', companionCommands)}
+                    >
+                      {copyState === 'commands' ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+                      {copyState === 'commands' ? copy.t('copiedCommands') : copy.t('copyCommands')}
+                    </Button>
+                  </div>
+                  <pre className="overflow-x-auto rounded-md border border-border/70 bg-card p-3 font-mono text-xs leading-6 text-foreground">
+                    <code>{companionCommands}</code>
+                  </pre>
+                </section>
+                {copyState === 'error' ? (
+                  <p className="text-xs text-destructive" role="alert">
+                    {copy.t('clipboardUnavailable')}
+                  </p>
+                ) : null}
+              </div>
             ) : null}
-
-        </section>
-
-        {pairing.status === 'error' ? (
-          <p className="text-sm text-destructive" role="alert">
-            {copy.t('pairingCouldNotCreate')}
-          </p>
-        ) : null}
-
-        {pairingValue ? (
-          <div className="space-y-5 border-t border-dotted border-border/80 pt-5">
-            <section className="space-y-2" aria-labelledby="publisher-pairing-code-title">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h4 id="publisher-pairing-code-title" className="text-sm font-semibold">
-                    {copy.t('oneTimePairingCode')}
-                  </h4>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {copy.t('validUntil', {
-                      time: formatAccountSettingsDate(language, pairingValue.expiresAt, '', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      }),
-                    })}
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={pairingRequestPending}
-                  onClick={() => void copyText('code', pairingValue.pairingCode)}
-                >
-                  {copyState === 'code' ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-                  {copyState === 'code' ? copy.t('copiedCode') : copy.t('copyCode')}
-                </Button>
-              </div>
-              <code
-                data-pairing-code
-                className="block select-all break-all rounded-lg border border-primary/35 bg-primary/5 px-3 py-3 font-mono text-sm leading-relaxed text-foreground"
-              >
-                {pairingValue.pairingCode}
-              </code>
-            </section>
-
-            <section className="space-y-2" aria-labelledby="publisher-companion-commands-title">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h4 id="publisher-companion-commands-title" className="flex items-center gap-2 text-sm font-semibold">
-                    <TerminalSquare aria-hidden="true" className="size-4 text-primary" />
-                    {copy.t('companionCommands')}
-                  </h4>
-                  <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">
-                    {copy.t('companionCommandsDescription')}
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => void copyText('commands', companionCommands)}
-                >
-                  {copyState === 'commands' ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-                  {copyState === 'commands' ? copy.t('copiedCommands') : copy.t('copyCommands')}
-                </Button>
-              </div>
-              <pre className="overflow-x-auto rounded-lg border border-border/80 bg-muted/35 p-3 font-mono text-xs leading-6 text-foreground">
-                <code>{companionCommands}</code>
-              </pre>
-            </section>
-
             <p className="text-xs leading-relaxed text-muted-foreground">
               {copy.t('companionSecurity')}
             </p>
-          </div>
+          </SetupStep>
+        </ol>
+        {pairingAnnouncement && pairingValue ? (
+          <p className="sr-only" role="status">{pairingAnnouncement}</p>
         ) : null}
+      </SettingsGroup>
 
-        {copyState === 'error' ? (
-          <p className="text-xs text-destructive" role="alert">
-            {copy.t('clipboardUnavailable')}
-          </p>
-        ) : null}
-      </CardContent>
+      <SettingsGroup
+        title={copy.t('publishingComputers')}
+        titleId="publisher-devices-title"
+        description={copy.t('publishingComputersDescription')}
+        actions={(
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={devices.status === 'loading' || revokingDeviceId !== null}
+            onClick={() => void loadDevices()}
+          >
+            {devices.status === 'loading' ? (
+              <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+            ) : (
+              <RefreshCw aria-hidden="true" className="size-4" />
+            )}
+            {copy.t('refresh')}
+          </Button>
+        )}
+      >
+        <div className="space-y-3">
+          {devices.status === 'loading' ? (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+              <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+              {copy.t('loadingPublishingComputers')}
+            </p>
+          ) : null}
+
+          {devices.status === 'error' ? (
+            <p className="text-sm text-destructive" role="alert">
+              {copy.t('computersCouldNotLoad')}
+            </p>
+          ) : null}
+
+          {deviceNotice ? (
+            <p className="sr-only" role="status">{deviceNotice}</p>
+          ) : null}
+
+          {devices.status === 'ready' && devices.devices.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{copy.t('noPublishingComputers')}</p>
+          ) : null}
+
+          {displayedDevices && displayedDevices.length > 0 ? (
+            <ul className="divide-y divide-border/70 rounded-lg border border-border/70">
+              {displayedDevices.map((device) => {
+                const isRevoking = revokingDeviceId === device.id;
+                const needsUpdate = device.status === 'active' && device.protocolVersion < 2;
+                return (
+                  <li
+                    key={device.id}
+                    aria-label={copy.t('publisherDevice', { name: device.name })}
+                    tabIndex={-1}
+                    className={cn(
+                      'flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 py-3 outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/50 sm:px-4',
+                      device.status === 'revoked' && 'text-muted-foreground',
+                    )}
+                  >
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <p className="truncate text-sm font-medium">{device.name}</p>
+                        <StatusBadge
+                          tone={device.status === 'active' ? 'success' : device.status === 'pending' ? 'info' : 'neutral'}
+                        >
+                          {device.status === 'active'
+                            ? copy.t('deviceActive')
+                            : device.status === 'pending'
+                              ? copy.t('devicePending')
+                              : copy.t('deviceRevoked')}
+                        </StatusBadge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {device.lastSeenAt ? (
+                          <>
+                            {copy.t('lastSeen', { date: '' })}{' '}
+                            <time dateTime={device.lastSeenAt}>
+                              {formatAccountSettingsDate(language, device.lastSeenAt, copy.t('neverSeen'))}
+                            </time>
+                          </>
+                        ) : copy.t('neverSeen')}
+                      </p>
+                      {needsUpdate ? (
+                        <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                          {copy.t('updateNeeded')}
+                        </p>
+                      ) : null}
+                    </div>
+                    {device.status !== 'revoked' ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        aria-label={`${copy.t('revoke')} ${device.name}`}
+                        disabled={revokingDeviceId !== null}
+                        onClick={(event) => {
+                          revokeTriggerRef.current = event.currentTarget;
+                          revokeRowRef.current = event.currentTarget.closest('li');
+                          revokeSucceededRef.current = false;
+                          setDeviceError(null);
+                          setDeviceToRevoke(device);
+                        }}
+                      >
+                        {isRevoking ? (
+                          <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+                        ) : (
+                          <ShieldOff aria-hidden="true" className="size-4" />
+                        )}
+                        {isRevoking ? copy.t('revoking') : copy.t('revoke')}
+                      </Button>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+        </div>
+      </SettingsGroup>
 
       <AlertDialog
         open={replaceConfirmationOpen}
@@ -716,7 +738,7 @@ export function PublisherDevicePairingCard({
               : revokeTriggerRef.current;
             const focusTarget = preferredTarget?.isConnected
               ? preferredTarget
-              : devicesHeadingRef.current;
+              : document.getElementById('publisher-devices-title');
             revokeSucceededRef.current = false;
             focusTarget?.focus();
           }}
@@ -758,6 +780,6 @@ export function PublisherDevicePairingCard({
         </AlertDialogContent>
       </AlertDialog>
 
-    </Card>
+    </div>
   );
 }

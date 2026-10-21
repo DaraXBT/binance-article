@@ -13,7 +13,6 @@ import {
   UserRoundX,
 } from 'lucide-react';
 
-import { ConsolePanel, FrameCornerHandles } from '@/components/console/secure-console-frame';
 import { useLanguage } from '@/components/language-provider';
 import {
   AlertDialog,
@@ -24,7 +23,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
+import {
+  revealOneTimeValue,
+  SettingsGroup,
+  StatusBadge,
+  type StatusTone,
+} from '@/components/settings/settings-primitives';
 import { Button } from '@/components/ui/button';
 import {
   accountSettingsErrorMessage,
@@ -203,64 +207,78 @@ function parseOneTimeCode(payload: Record<string, unknown>): OneTimeCode {
   };
 }
 
-const STATUS_STYLES: Record<UserStatus, string> = {
-  pending: 'border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  active: 'border-emerald-500/35 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  suspended: 'border-orange-500/35 bg-orange-500/10 text-orange-700 dark:text-orange-300',
-  revoked: 'border-border bg-muted text-muted-foreground',
+const PERSON_STATUS_TONE: Record<UserStatus, StatusTone> = {
+  pending: 'info',
+  active: 'success',
+  suspended: 'warning',
+  revoked: 'neutral',
 };
 
 function CapacitySummary({ overview, copy }: { overview: EnrollmentOverview; copy: AccountSettingsCopy }) {
   const used = overview.capacity.activeUsers +
     overview.capacity.legacyInvitations +
     overview.capacity.reservedClaims;
+  const limit = Math.max(overview.capacity.limit, 1);
+  const ratio = used / limit;
   return (
-    <dl data-capacity-summary className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1.5 text-sm">
-      <div className="flex items-baseline gap-1.5">
-        <dt className="font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">{copy.t('capacityActive')}</dt>
-        <dd className="font-semibold">{overview.capacity.activeUsers}</dd>
+    <div data-capacity-summary className="mt-4 max-w-md space-y-2">
+      <p className="text-sm font-medium text-foreground">
+        {copy.t('seatsUsed', { used, limit: overview.capacity.limit })}
+      </p>
+      <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn(
+            'h-full rounded-full',
+            ratio >= 1 ? 'bg-destructive' : ratio >= 0.8 ? 'bg-amber-500' : 'bg-primary',
+          )}
+          style={{ width: `${Math.min(100, ratio * 100)}%` }}
+        />
       </div>
-      <div className="flex items-baseline gap-1.5">
-        <dt className="font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">{copy.t('capacityInvited')}</dt>
-        <dd className="font-semibold">{overview.capacity.legacyInvitations}</dd>
-      </div>
-      <div className="flex items-baseline gap-1.5">
-        <dt className="font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">{copy.t('capacityReserved')}</dt>
-        <dd className="font-semibold">{overview.capacity.reservedClaims}</dd>
-      </div>
-      <div className="flex items-baseline gap-1.5">
-        <dt className="font-mono text-[0.58rem] uppercase tracking-[0.12em] text-muted-foreground">{copy.t('capacity')}</dt>
-        <dd className="font-semibold">{used}/{overview.capacity.limit}</dd>
-      </div>
-    </dl>
+      <p className="text-xs text-muted-foreground">
+        {copy.t('seatsBreakdown', {
+          active: overview.capacity.activeUsers,
+          invited: overview.capacity.legacyInvitations,
+          reserved: overview.capacity.reservedClaims,
+        })}
+      </p>
+    </div>
   );
 }
 
 function OneTimeCodePanel({
   value,
   copiedValue,
+  copied,
   onCopy,
   onDismiss,
   copy,
 }: {
   value: OneTimeCode;
   copiedValue: 'code' | 'link' | null;
+  copied: boolean;
   onCopy: (kind: 'code' | 'link') => void;
   onDismiss: () => void;
   copy: AccountSettingsCopy;
 }) {
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   return (
-    <div className="mt-3 space-y-3 rounded-lg border border-dotted border-primary/35 bg-primary/5 p-3 text-sm">
+    <div data-one-time-code-panel className="mt-4 space-y-3 rounded-lg border border-primary/35 bg-primary/5 p-4 text-sm">
       <div>
-        <p className="font-medium">{copy.t('copyEnrollment')}</p>
+        <p
+          tabIndex={-1}
+          data-one-time-code-focus
+          className="font-medium text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        >
+          {copy.t('copyEnrollment')}
+        </p>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
           {copy.t('copyEnrollmentDescription')}
         </p>
       </div>
       <div className="space-y-1.5">
-        <p className="font-mono text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{copy.t('code')}</p>
+        <p className="text-xs font-medium text-muted-foreground">{copy.t('code')}</p>
         <div className="flex min-w-0 items-center gap-2">
-          <code className="min-w-0 flex-1 break-all rounded-md bg-background/65 px-2 py-1.5 font-mono text-xs">
+          <code className="min-w-0 flex-1 break-all rounded-md border border-border/70 bg-card px-2.5 py-1.5 font-mono text-xs">
             {value.code}
           </code>
           <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 rounded-lg text-xs" onClick={() => onCopy('code')}>
@@ -270,9 +288,9 @@ function OneTimeCodePanel({
         </div>
       </div>
       <div className="space-y-1.5">
-        <p className="font-mono text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{copy.t('joinLink')}</p>
+        <p className="text-xs font-medium text-muted-foreground">{copy.t('joinLink')}</p>
         <div className="flex min-w-0 items-center gap-2">
-          <code className="min-w-0 flex-1 truncate rounded-md bg-background/65 px-2 py-1.5 font-mono text-xs">
+          <code className="min-w-0 flex-1 truncate rounded-md border border-border/70 bg-card px-2.5 py-1.5 font-mono text-xs">
             {value.joinUrl}
           </code>
           <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 rounded-lg text-xs" onClick={() => onCopy('link')}>
@@ -281,14 +299,45 @@ function OneTimeCodePanel({
           </Button>
         </div>
       </div>
-      <div className="flex items-center justify-between gap-3 border-t border-dotted border-primary/25 pt-2">
-        <span className="font-mono text-[0.62rem] uppercase tracking-[0.1em] text-muted-foreground">
-          {value.version ? copy.t('version', { version: value.version }) : copy.t('prefix', { prefix: value.codePrefix })}
-        </span>
-        <Button type="button" size="sm" variant="ghost" className="h-8 rounded-lg text-xs" onClick={onDismiss}>
-          {copy.t('dismiss')}
-        </Button>
-      </div>
+      {confirmDiscard ? (
+        <div role="alert" className="space-y-2 border-t border-primary/25 pt-3">
+          <p className="font-medium text-foreground">{copy.t('discardCodeQuestion')}</p>
+          <p className="text-xs leading-relaxed text-muted-foreground">{copy.t('discardCodeDescription')}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="outline" className="h-8 rounded-lg text-xs" onClick={() => setConfirmDiscard(false)}>
+              {copy.t('keepCode')}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-8 rounded-lg text-xs text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
+              onClick={onDismiss}
+            >
+              {copy.t('discardCode')}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-3 border-t border-primary/25 pt-2">
+          <span className="text-xs text-muted-foreground">
+            {value.version ? copy.t('version', { version: value.version }) : copy.t('prefix', { prefix: value.codePrefix })}
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-8 rounded-lg text-xs"
+            onClick={() => {
+              // An uncopied code can never be shown again; confirm first.
+              if (copied) onDismiss();
+              else setConfirmDiscard(true);
+            }}
+          >
+            {copy.t('dismiss')}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -308,17 +357,17 @@ function PersonActions({
   return (
     <div className="flex shrink-0 gap-1.5">
       {person.status === 'active' ? (
-        <Button type="button" size="sm" variant="outline" className="h-8 rounded-lg text-xs" disabled={busy} onClick={() => onAction('suspend')}>
+        <Button type="button" size="sm" variant="outline" className="h-8 rounded-lg text-xs" aria-label={`${copy.t('suspend')} ${person.name}`} disabled={busy} onClick={() => onAction('suspend')}>
           {copy.t('suspend')}
         </Button>
       ) : null}
       {person.status === 'suspended' || person.status === 'revoked' ? (
-        <Button type="button" size="sm" variant="outline" className="h-8 rounded-lg text-xs" disabled={busy} onClick={() => onAction('restore')}>
+        <Button type="button" size="sm" variant="outline" className="h-8 rounded-lg text-xs" aria-label={`${copy.t('restore')} ${person.name}`} disabled={busy} onClick={() => onAction('restore')}>
           {copy.t('restore')}
         </Button>
       ) : null}
       {person.status !== 'revoked' ? (
-        <Button type="button" size="sm" variant="ghost" className="h-8 rounded-lg text-xs text-destructive hover:text-destructive" disabled={busy} onClick={() => onAction('revoke')}>
+        <Button type="button" size="sm" variant="ghost" className="h-8 rounded-lg text-xs text-destructive-text hover:bg-destructive/10 hover:text-destructive-text" aria-label={`${copy.t('revoke')} ${person.name}`} disabled={busy} onClick={() => onAction('revoke')}>
           {copy.t('revoke')}
         </Button>
       ) : null}
@@ -329,10 +378,10 @@ function PersonActions({
 export function AdminPeopleAccessCard({
   className,
   onUncopiedAccessChange,
-  showFrameCorners = true,
 }: {
   className?: string;
   onUncopiedAccessChange?: (hasUncopiedAccess: boolean) => void;
+  /** @deprecated Ignored; Account settings no longer draws frame corners. */
   showFrameCorners?: boolean;
 }) {
   const { language } = useLanguage();
@@ -348,6 +397,9 @@ export function AdminPeopleAccessCard({
   const [personActionError, setPersonActionError] = useState<string | null>(null);
   const [oneTimeCode, setOneTimeCode] = useState<OneTimeCode | null>(null);
   const [copiedValue, setCopiedValue] = useState<'code' | 'link' | null>(null);
+  const [oneTimeCodeCopied, setOneTimeCodeCopied] = useState(false);
+  const [codeAnnouncement, setCodeAnnouncement] = useState('');
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const [codeAction, setCodeAction] = useState<'create' | 'rotate' | 'disable' | null>(null);
   const [rotationConfirmOpen, setRotationConfirmOpen] = useState(false);
   const [disableConfirmOpen, setDisableConfirmOpen] = useState(false);
@@ -370,6 +422,7 @@ export function AdminPeopleAccessCard({
     oneTimeCodeGenerationRef.current += 1;
     oneTimeCodeRef.current = nextCode;
     setOneTimeCode(nextCode);
+    setOneTimeCodeCopied(false);
   }, []);
 
   const handleOwnerAccessError = useCallback((error: unknown): boolean => {
@@ -472,6 +525,9 @@ export function AdminPeopleAccessCard({
       responseValidated = true;
       codeRequestPendingRef.current = false;
       if (action === 'rotate') setRotationConfirmOpen(false);
+      setCodeAnnouncement(copy.t('enrollmentCodeCreated'));
+      // Move focus to the new code so it is noticed before it can be lost.
+      window.requestAnimationFrame(() => revealOneTimeValue(rootRef.current));
       // Reveal the replacement immediately. Refreshing surrounding metadata
       // must never keep the only copy trapped behind the rotation modal.
       await refresh();
@@ -532,6 +588,7 @@ export function AdminPeopleAccessCard({
       await navigator.clipboard.writeText(kind === 'code' ? codeToCopy.code : codeToCopy.joinUrl);
       if (!copyStillTargetsCurrentCode()) return;
       setCopiedValue(kind);
+      setOneTimeCodeCopied(true);
       setUncopiedAccess(false);
       window.setTimeout(() => {
         if (!copyStillTargetsCurrentCode()) return;
@@ -587,77 +644,58 @@ export function AdminPeopleAccessCard({
   const activeCode = overview?.code?.status === 'active' ? overview.code : null;
 
   return (
-    <ConsolePanel corners={false} className={className ?? 'rounded-xl bg-card/70 p-3 sm:p-5'}>
-      {showFrameCorners ? <FrameCornerHandles /> : null}
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-dotted border-border/70 pb-2">
-        <div>
-          <h3 className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.14em]">
-            {copy.t('peopleAccess')}
-          </h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {copy.t('peopleAccessDescription')}
-          </p>
-        </div>
-        <ShieldCheck aria-hidden="true" className="size-4 text-primary" />
-      </div>
-
-      <section aria-labelledby="enrollment-code-title" className="mt-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h4 id="enrollment-code-title" className="text-sm font-semibold">{copy.t('enrollmentCode')}</h4>
-            {activeCode ? (
-              <p className="mt-1 font-mono text-[0.68rem] uppercase tracking-[0.1em] text-muted-foreground">
-                {copy.t('activeCodeMetadata', {
-                  version: activeCode.version,
-                  prefix: activeCode.codePrefix,
-                  date: formatAccountSettingsDate(language, activeCode.createdAt, copy.t('notYet')),
-                })}
-              </p>
-            ) : overview ? (
-              <p className="mt-1 text-xs text-muted-foreground">{copy.t('noActiveCode')}</p>
-            ) : (
-              <p className="mt-1 text-xs text-muted-foreground">{copy.t('manageSharedCode')}</p>
-            )}
-          </div>
-          {overview && activeCode ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-9 gap-1.5 rounded-lg"
-                disabled={codeAction !== null}
-                onClick={() => {
-                  setCodeActionError(null);
-                  setRotationConfirmOpen(true);
-                }}
-              >
-                <RotateCw aria-hidden="true" className="size-3.5" />
-                {copy.t('rotateCode')}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="destructive"
-                className="h-9 gap-1.5 rounded-lg"
-                disabled={codeAction !== null}
-                onClick={() => {
-                  setCodeActionError(null);
-                  setDisableConfirmOpen(true);
-                }}
-              >
-                <ShieldOff aria-hidden="true" className="size-3.5" />
-                {copy.t('disableCode')}
-              </Button>
-            </div>
-          ) : overview ? (
-            <Button type="button" size="sm" className="h-9 gap-1.5 rounded-lg" disabled={codeAction !== null} onClick={() => void mutateCode('create')}>
-              {codeAction === 'create' ? <Loader2 aria-hidden="true" className="size-3.5 animate-spin" /> : <ShieldCheck aria-hidden="true" className="size-3.5" />}
-              {copy.t('createCode')}
+    <div ref={rootRef} data-people-access-card className={cn('w-full space-y-6', className)}>
+      <SettingsGroup
+        title={copy.t('enrollmentCode')}
+        titleId="enrollment-code-title"
+        description={activeCode
+          ? copy.t('activeCodeMetadata', {
+              version: activeCode.version,
+              prefix: activeCode.codePrefix,
+              date: formatAccountSettingsDate(language, activeCode.createdAt, copy.t('notYet')),
+            })
+          : overview ? copy.t('noActiveCode') : copy.t('manageSharedCode')}
+        actions={overview && activeCode ? (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-9 gap-1.5 rounded-lg"
+              disabled={codeAction !== null}
+              onClick={() => {
+                setCodeActionError(null);
+                setRotationConfirmOpen(true);
+              }}
+            >
+              <RotateCw aria-hidden="true" className="size-3.5" />
+              {copy.t('rotateCode')}
             </Button>
-          ) : null}
-        </div>
-
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-9 gap-1.5 rounded-lg text-destructive-text hover:text-destructive-text"
+              disabled={codeAction !== null}
+              onClick={() => {
+                setCodeActionError(null);
+                setDisableConfirmOpen(true);
+              }}
+            >
+              <ShieldOff aria-hidden="true" className="size-3.5" />
+              {copy.t('disableCode')}
+            </Button>
+          </>
+        ) : overview ? (
+          <Button type="button" size="sm" className="h-9 gap-1.5 rounded-lg" disabled={codeAction !== null} onClick={() => void mutateCode('create')}>
+            {codeAction === 'create' ? <Loader2 aria-hidden="true" className="size-3.5 animate-spin" /> : <ShieldCheck aria-hidden="true" className="size-3.5" />}
+            {copy.t('createCode')}
+          </Button>
+        ) : null}
+      >
+        {activeCode ? (
+          <StatusBadge tone="success">{copy.t('statusActive')}</StatusBadge>
+        ) : null}
         {overviewLoading ? (
           <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground" role="status">
             <Loader2 aria-hidden="true" className="size-4 animate-spin" />
@@ -665,7 +703,7 @@ export function AdminPeopleAccessCard({
           </p>
         ) : null}
         {overviewError ? (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dotted border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
             <p role="alert">{overviewError}</p>
             <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 rounded-lg text-xs" disabled={overviewLoading} onClick={() => void refreshOverview()}>
               <RefreshCcw aria-hidden="true" className="size-3.5" />
@@ -676,8 +714,10 @@ export function AdminPeopleAccessCard({
         {overview ? <CapacitySummary overview={overview} copy={copy} /> : null}
         {oneTimeCode ? (
           <OneTimeCodePanel
+            key={oneTimeCode.code}
             value={oneTimeCode}
             copiedValue={copiedValue}
+            copied={oneTimeCodeCopied}
             copy={copy}
             onCopy={(kind) => void copySecret(kind)}
             onDismiss={() => {
@@ -687,32 +727,34 @@ export function AdminPeopleAccessCard({
             }}
           />
         ) : null}
+        {oneTimeCode && codeAnnouncement ? (
+          <p className="sr-only" role="status">{codeAnnouncement}</p>
+        ) : null}
         {codeActionError && !rotationConfirmOpen && !disableConfirmOpen ? (
-          <p role="alert" className="mt-3 rounded-lg border border-dotted border-destructive/40 bg-destructive/5 p-2.5 text-sm text-destructive">
+          <p role="alert" className="mt-3 rounded-lg border border-destructive/40 bg-destructive/5 p-2.5 text-sm text-destructive">
             {codeActionError}
           </p>
         ) : null}
-      </section>
+      </SettingsGroup>
 
-      <section aria-labelledby="people-list-title" className="mt-5 border-t border-dotted border-border/70 pt-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h4 id="people-list-title" className="text-sm font-semibold">{copy.t('people')}</h4>
-            <p className="mt-1 text-xs text-muted-foreground">{copy.t('peopleDescription')}</p>
-          </div>
-          <Button type="button" size="icon-sm" variant="ghost" className="rounded-lg" aria-label={copy.t('refreshPeople')} disabled={peopleLoading} onClick={() => void refreshPeople()}>
-            <RefreshCcw aria-hidden="true" className={cn('size-3.5', peopleLoading && 'animate-spin')} />
+      <SettingsGroup
+        title={copy.t('people')}
+        titleId="people-list-title"
+        description={copy.t('peopleDescription')}
+        actions={(
+          <Button type="button" size="icon-sm" variant="ghost" className="size-9 rounded-lg" aria-label={copy.t('refreshPeople')} disabled={peopleLoading} onClick={() => void refreshPeople()}>
+            <RefreshCcw aria-hidden="true" className={cn('size-4', peopleLoading && 'animate-spin')} />
           </Button>
-        </div>
-
+        )}
+      >
         {peopleLoading ? (
-          <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground" role="status">
+          <p className="mb-3 flex items-center gap-2 text-sm text-muted-foreground" role="status">
             <Loader2 aria-hidden="true" className="size-4 animate-spin" />
             {people ? copy.t('refreshingPeople') : copy.t('loadingPeople')}
           </p>
         ) : null}
         {peopleError ? (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dotted border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
             <p role="alert">{peopleError}</p>
             <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 rounded-lg text-xs" disabled={peopleLoading} onClick={() => void refreshPeople()}>
               <RefreshCcw aria-hidden="true" className="size-3.5" />
@@ -721,17 +763,19 @@ export function AdminPeopleAccessCard({
           </div>
         ) : null}
         {people && people.length > 0 ? (
-          <ul className="mt-3 space-y-2">
+          <ul className="divide-y divide-border/70 rounded-lg border border-border/70">
             {people.map((person) => (
-              <li key={person.id} className="flex min-w-0 flex-wrap items-center gap-3 rounded-lg border border-dotted border-border/75 bg-background/25 px-3 py-2.5">
-                <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+              <li key={person.id} className="flex min-w-0 flex-wrap items-center gap-3 px-3 py-3 sm:px-4">
+                <span aria-hidden="true" className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
                   {(person.name || person.email).slice(0, 1).toUpperCase()}
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                     <span className="truncate text-sm font-medium">{person.name}</span>
-                    {person.role === 'owner' ? <Badge variant="outline" className="rounded-full text-[0.6rem]">{copy.t('administrator')}</Badge> : null}
-                    <Badge variant="outline" className={cn('rounded-full text-[0.6rem] capitalize', STATUS_STYLES[person.status])}>
+                    {person.role === 'owner' ? (
+                      <StatusBadge tone="neutral">{copy.t('administrator')}</StatusBadge>
+                    ) : null}
+                    <StatusBadge tone={PERSON_STATUS_TONE[person.status]}>
                       {person.status === 'active'
                         ? copy.t('statusActive')
                         : person.status === 'pending'
@@ -739,14 +783,13 @@ export function AdminPeopleAccessCard({
                           : person.status === 'suspended'
                             ? copy.t('statusSuspended')
                             : copy.t('statusRevoked')}
-                    </Badge>
+                    </StatusBadge>
                   </div>
                   <p className="truncate text-xs text-muted-foreground">{person.email}</p>
-                  <p className="mt-0.5 truncate font-mono text-[0.58rem] uppercase tracking-[0.08em] text-muted-foreground/75">
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground/80">
                     {copy.t('joined', {
                       date: formatAccountSettingsDate(language, person.createdAt, copy.t('notYet')),
                     })}
-                    {person.enrollmentSource ? ` · ${person.enrollmentSource.replace(/_/g, ' ')}` : ''}
                   </p>
                 </div>
                 <PersonActions
@@ -762,9 +805,9 @@ export function AdminPeopleAccessCard({
             ))}
           </ul>
         ) : people && !peopleLoading ? (
-          <p className="mt-3 text-sm text-muted-foreground">{copy.t('noPeople')}</p>
+          <p className="text-sm text-muted-foreground">{copy.t('noPeople')}</p>
         ) : null}
-      </section>
+      </SettingsGroup>
 
       <AlertDialog
         open={rotationConfirmOpen}
@@ -774,7 +817,14 @@ export function AdminPeopleAccessCard({
           if (!open) setCodeActionError(null);
         }}
       >
-        <AlertDialogContent className="console-dialog border-dotted p-4 sm:max-w-md sm:p-5">
+        <AlertDialogContent
+          className="console-dialog border-dotted p-4 sm:max-w-md sm:p-5"
+          onCloseAutoFocus={(event) => {
+            if (!oneTimeCodeRef.current) return;
+            event.preventDefault();
+            revealOneTimeValue(rootRef.current);
+          }}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>{copy.t('rotateQuestion')}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -838,11 +888,14 @@ export function AdminPeopleAccessCard({
         <AlertDialogContent className="console-dialog border-dotted p-4 sm:max-w-md sm:p-5">
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {personAction?.action === 'restore'
-                ? copy.t('restoreQuestion')
-                : personAction?.action === 'suspend'
-                  ? copy.t('suspendQuestion')
-                  : copy.t('revokeQuestion')}
+              {copy.t(
+                personAction?.action === 'restore'
+                  ? 'restorePersonQuestion'
+                  : personAction?.action === 'suspend'
+                    ? 'suspendPersonQuestion'
+                    : 'revokePersonQuestion',
+                { name: personAction?.person.name ?? '' },
+              )}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {personAction?.action === 'restore'
@@ -857,14 +910,19 @@ export function AdminPeopleAccessCard({
           ) : null}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={personActionBusy}>{copy.t('cancel')}</AlertDialogCancel>
-            <Button type="button" disabled={personActionBusy} onClick={() => void mutatePerson()}>
+            <Button
+              type="button"
+              variant={personAction?.action === 'restore' ? 'default' : 'destructive'}
+              disabled={personActionBusy}
+              onClick={() => void mutatePerson()}
+            >
               {personActionBusy ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : personAction?.action === 'restore' ? <UserRoundCheck aria-hidden="true" className="size-4" /> : <UserRoundX aria-hidden="true" className="size-4" />}
               {personAction?.action === 'restore' ? copy.t('restore') : personAction?.action === 'suspend' ? copy.t('suspend') : copy.t('revoke')}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </ConsolePanel>
+    </div>
   );
 }
 
