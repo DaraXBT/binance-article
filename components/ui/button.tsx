@@ -9,7 +9,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'button-material button-material-primary',
+        default: 'button-material button-material-primary disabled:grayscale',
         destructive:
           'button-material button-material-destructive focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40',
         outline: 'button-material button-material-outline',

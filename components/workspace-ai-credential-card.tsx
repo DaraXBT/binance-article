@@ -247,7 +247,7 @@ export function WorkspaceAiCredentialCard({
                   checked={checked}
                   disabled={busy || unavailable}
                   onChange={() => void changeSource(source)}
-                  className="mt-0.5 size-4 shrink-0 accent-foreground"
+                  className="mt-0.5 size-4 shrink-0 appearance-none rounded-full border-2 border-muted-foreground/70 bg-transparent checked:border-foreground checked:bg-foreground checked:shadow-[inset_0_0_0_2.5px_var(--card)] focus-visible:outline-none disabled:opacity-60"
                 />
                 <span className="min-w-0">
                   <span className="block text-sm font-medium text-foreground">{label}</span>

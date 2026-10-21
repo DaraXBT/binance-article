@@ -147,22 +147,23 @@ function SetupStep({
   children?: ReactNode;
 }) {
   return (
-    <li className="flex gap-3">
-      <span
-        aria-hidden="true"
-        className="flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-muted/50 text-xs font-semibold text-foreground"
-      >
-        {number}
-      </span>
-      <div className="min-w-0 flex-1 space-y-3">
-        <div>
+    <li>
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden="true"
+          className="flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-muted/50 text-xs font-semibold text-foreground"
+        >
+          {number}
+        </span>
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-medium leading-6 text-foreground">{title}</p>
           {description ? (
             <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">{description}</p>
           ) : null}
         </div>
-        {children}
       </div>
+      {/* Full width on phones; aligned under the title from sm up. */}
+      {children ? <div className="mt-3 min-w-0 space-y-3 sm:pl-9">{children}</div> : null}
     </li>
   );
 }
