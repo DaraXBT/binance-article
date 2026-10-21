@@ -94,7 +94,7 @@ export function RecoverWorkspaceDialog({
 
           {message && (
             <p
-              className={`border border-dotted px-2.5 py-2 text-sm ${isError ? 'border-destructive/45 bg-destructive/5 text-destructive' : 'border-emerald-600/35 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300'}`}
+              className={`border border-dotted px-2.5 py-2 text-sm ${isError ? 'border-destructive/45 bg-destructive/5 text-destructive' : 'border-primary/45 bg-primary/10 text-foreground'}`}
               role={isError ? 'alert' : 'status'}
               aria-live="polite"
             >

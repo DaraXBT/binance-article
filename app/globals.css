@@ -4,9 +4,9 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --signal: #315ef6;
-  --signal-strong: #2448c7;
-  --signal-soft: #e9efff;
+  --signal: #c99400;
+  --signal-strong: #9a6700;
+  --signal-soft: #fdf3d1;
   --access-signal: #9a6700;
   --background: #f5f4ed;
   --foreground: #141413;
@@ -14,8 +14,8 @@
   --card-foreground: #141413;
   --popover: #faf9f5;
   --popover-foreground: #141413;
-  --primary: #315ef6;
-  --primary-foreground: #ffffff;
+  --primary: #f0b90b;
+  --primary-foreground: #181a20;
   --secondary: #141413;
   --secondary-foreground: #faf9f5;
   --muted: #e8e4d9;
@@ -27,9 +27,9 @@
   --destructive-text: #b91c1c;
   --border: #d6d0bf;
   --input: #bbb3a3;
-  --ring: #315ef6;
-  --chart-1: #315ef6;
-  --chart-2: #12805c;
+  --ring: #b8860b;
+  --chart-1: #f0b90b;
+  --chart-2: #a8a29e;
   --chart-3: #9a6700;
   --chart-4: #7c3aed;
   --chart-5: #dc2626;
@@ -46,12 +46,12 @@
     0 2px 4px rgb(20 20 19 / 0.16),
     0 4px 8px rgb(20 20 19 / 0.1);
   --button-material-shadow-pressed: 0 1px 2px rgb(20 20 19 / 0.12);
-  --button-primary-from: #44403c;
-  --button-primary-to: #292524;
-  --button-primary-hover-from: #57534e;
-  --button-primary-hover-to: #292524;
-  --button-primary-border: #1c1917;
-  --button-primary-foreground: #fafaf9;
+  --button-primary-from: #f8d33a;
+  --button-primary-to: #f0b90b;
+  --button-primary-hover-from: #ffe169;
+  --button-primary-hover-to: #f8c82a;
+  --button-primary-border: #c99400;
+  --button-primary-foreground: #181a20;
   --button-secondary-from: #ece8de;
   --button-secondary-to: #d6d0bf;
   --button-secondary-hover-from: #f4f1e9;
@@ -72,12 +72,12 @@
   --button-destructive-foreground: #ffffff;
   --sidebar: #faf9f5;
   --sidebar-foreground: #141413;
-  --sidebar-primary: #315ef6;
-  --sidebar-primary-foreground: #ffffff;
+  --sidebar-primary: #f0b90b;
+  --sidebar-primary-foreground: #181a20;
   --sidebar-accent: #ede9de;
   --sidebar-accent-foreground: #141413;
   --sidebar-border: #d6d0bf;
-  --sidebar-ring: #315ef6;
+  --sidebar-ring: #b8860b;
   --studio-rail-width: 16rem;
   --studio-header-height: 3.5rem;
   --studio-panel-radius: 0.75rem;
@@ -85,9 +85,9 @@
 
 .dark {
   color-scheme: dark;
-  --signal: #c8fc34;
-  --signal-strong: #d9ff72;
-  --signal-soft: #26320d;
+  --signal: #f0b90b;
+  --signal-strong: #fcd535;
+  --signal-soft: #33290a;
   --access-signal: #f2b84b;
   --background: #151414;
   --foreground: #f0e3de;
@@ -95,8 +95,8 @@
   --card-foreground: #f0e3de;
   --popover: #191817;
   --popover-foreground: #f0e3de;
-  --primary: #c8fc34;
-  --primary-foreground: #141413;
+  --primary: #f0b90b;
+  --primary-foreground: #181a20;
   --secondary: #fffbf5;
   --secondary-foreground: #151414;
   --muted: #1a1a1a;
@@ -108,9 +108,9 @@
   --destructive-text: #f87171;
   --border: rgb(240 227 222 / 0.14);
   --input: rgb(240 227 222 / 0.22);
-  --ring: #c8fc34;
-  --chart-1: #c8fc34;
-  --chart-2: #4ade80;
+  --ring: #f0b90b;
+  --chart-1: #f0b90b;
+  --chart-2: #a8a29e;
   --chart-3: #f2b84b;
   --chart-4: #a78bfa;
   --chart-5: #ef4444;
@@ -149,12 +149,12 @@
   --button-destructive-foreground: #ffffff;
   --sidebar: #191817;
   --sidebar-foreground: #f0e3de;
-  --sidebar-primary: #c8fc34;
+  --sidebar-primary: #f0b90b;
   --sidebar-primary-foreground: #141413;
   --sidebar-accent: #2a2927;
   --sidebar-accent-foreground: #f0e3de;
   --sidebar-border: rgb(240 227 222 / 0.14);
-  --sidebar-ring: #c8fc34;
+  --sidebar-ring: #f0b90b;
   --studio-rail-width: 16rem;
   --studio-header-height: 3.5rem;
   --studio-panel-radius: 0.75rem;
@@ -543,4 +543,11 @@
   .button-material:not(:disabled):active {
     transform: none;
   }
+}
+
+/* Binance yellow is too light for text on light surfaces; brand-colored text
+   uses a deep gold there (4.9:1 on the card surface). Unlayered so it wins
+   over the utility layer. */
+:root:not(.dark) .text-primary {
+  color: #8a6500;
 }

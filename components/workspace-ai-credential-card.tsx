@@ -283,8 +283,8 @@ export function WorkspaceAiCredentialCard({
                 <Button
                   type="button"
                   size="sm"
-                  variant="ghost"
-                  className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
+                  variant="outline"
+                  className="text-destructive-text hover:text-destructive-text"
                   onClick={requestDeleteConnection}
                   disabled={busy || !status?.configured}
                 >

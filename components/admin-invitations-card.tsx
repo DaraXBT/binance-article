@@ -55,7 +55,7 @@ async function readJson(response: Response) {
 
 const STATUS_STYLES: Record<InvitationRow['status'], string> = {
   pending: 'text-primary',
-  accepted: 'text-emerald-600 dark:text-emerald-400',
+  accepted: 'text-primary',
   revoked: 'text-muted-foreground line-through',
   expired: 'text-muted-foreground',
 };

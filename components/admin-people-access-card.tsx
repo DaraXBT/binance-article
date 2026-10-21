@@ -367,7 +367,7 @@ function PersonActions({
         </Button>
       ) : null}
       {person.status !== 'revoked' ? (
-        <Button type="button" size="sm" variant="ghost" className="h-8 rounded-lg text-xs text-destructive-text hover:bg-destructive/10 hover:text-destructive-text" aria-label={`${copy.t('revoke')} ${person.name}`} disabled={busy} onClick={() => onAction('revoke')}>
+        <Button type="button" size="sm" variant="outline" className="h-8 rounded-lg text-xs text-destructive-text hover:text-destructive-text" aria-label={`${copy.t('revoke')} ${person.name}`} disabled={busy} onClick={() => onAction('revoke')}>
           {copy.t('revoke')}
         </Button>
       ) : null}

@@ -55,7 +55,7 @@ export function WizardStepper({
                   className={cn(
                     'absolute inset-y-0 left-0 border-t transition-[width] duration-200',
                     isComplete
-                      ? 'border-emerald-600 dark:border-emerald-300'
+                      ? 'border-primary'
                       : isActive
                         ? 'border-primary'
                         : 'border-transparent'
@@ -84,7 +84,7 @@ export function WizardStepper({
                     'group relative mb-3 flex size-10 items-center justify-center border text-sm font-semibold transition-colors duration-150 disabled:cursor-not-allowed',
                     // Completed
                     isComplete &&
-                      'border-emerald-600 bg-emerald-600 text-white hover:brightness-110 dark:border-emerald-300 dark:bg-emerald-300 dark:text-background',
+                      'border-primary bg-primary text-primary-foreground hover:brightness-110',
                     // Current
                     isCurrent &&
                       'border-primary bg-primary text-primary-foreground',
@@ -109,7 +109,7 @@ export function WizardStepper({
                   <p
                     className={cn(
                       'text-xs font-semibold tracking-normal transition-colors duration-150 sm:text-sm',
-                      isComplete && 'text-emerald-600 dark:text-emerald-400',
+                      isComplete && 'text-primary',
                       isCurrent && 'text-foreground',
                       isFuture && 'text-muted-foreground/60'
                     )}
@@ -120,7 +120,7 @@ export function WizardStepper({
                     <p
                       className={cn(
                         'mt-1 hidden text-[11px] leading-4 transition-colors duration-150 sm:block sm:text-xs',
-                        isComplete && 'text-emerald-500/70 dark:text-emerald-400/60',
+                        isComplete && 'text-muted-foreground',
                         isCurrent && 'text-primary/80',
                         isFuture && 'text-muted-foreground/40'
                       )}

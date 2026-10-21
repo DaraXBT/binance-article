@@ -88,9 +88,9 @@ const NEUTRAL_BADGE = 'border-border bg-muted/40 text-foreground';
 
 const STATUS_TONE_CLASSES: Record<StatusTone, { badge: string; dot: string }> = {
   // One neutral pill for every status; only the dot carries meaning.
-  success: { badge: NEUTRAL_BADGE, dot: 'bg-emerald-500' },
-  info: { badge: NEUTRAL_BADGE, dot: 'bg-sky-500' },
-  warning: { badge: NEUTRAL_BADGE, dot: 'bg-amber-500' },
+  success: { badge: NEUTRAL_BADGE, dot: 'bg-primary' },
+  info: { badge: NEUTRAL_BADGE, dot: 'border border-muted-foreground' },
+  warning: { badge: NEUTRAL_BADGE, dot: 'bg-destructive' },
   neutral: { badge: 'border-border bg-transparent text-muted-foreground', dot: 'bg-muted-foreground/50' },
 };
 

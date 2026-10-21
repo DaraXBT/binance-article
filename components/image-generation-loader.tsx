@@ -17,12 +17,12 @@ export interface ImageGenerationLoaderProps {
 
 const GRID_COLORS = {
   light: {
-    dot: 'rgba(49, 94, 246, 0.12)',
-    active: 'rgba(49, 94, 246, 0.72)',
+    dot: 'rgba(201, 148, 0, 0.16)',
+    active: 'rgba(201, 148, 0, 0.78)',
   },
   dark: {
-    dot: 'rgba(200, 252, 52, 0.10)',
-    active: 'rgba(200, 252, 52, 0.72)',
+    dot: 'rgba(240, 185, 11, 0.10)',
+    active: 'rgba(240, 185, 11, 0.72)',
   },
 } as const;
 

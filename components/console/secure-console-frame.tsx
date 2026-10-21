@@ -25,7 +25,7 @@ const statusToneClasses: Record<ConsoleStatusTone, string> = {
   neutral: 'text-muted-foreground',
   action: 'text-primary',
   warning: 'text-[var(--access-signal)]',
-  success: 'text-emerald-600 dark:text-emerald-300',
+  success: 'text-primary',
   danger: 'text-destructive',
 };
 

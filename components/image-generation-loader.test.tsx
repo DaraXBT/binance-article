@@ -61,12 +61,12 @@ describe('ImageGenerationLoader', () => {
     expect(status.classList.contains('min-h-48')).toBe(true);
     expect(screen.getByText('Generating images')).toBeTruthy();
     expect(screen.getByText('2 of 5 complete')).toBeTruthy();
-    expect(grid.getAttribute('data-dot-color')).toBe('rgba(49, 94, 246, 0.12)');
-    expect(grid.getAttribute('data-active-dot-color')).toBe('rgba(49, 94, 246, 0.72)');
+    expect(grid.getAttribute('data-dot-color')).toBe('rgba(201, 148, 0, 0.16)');
+    expect(grid.getAttribute('data-active-dot-color')).toBe('rgba(201, 148, 0, 0.78)');
     expect(grid.getAttribute('data-motion')).toBe('auto-pointer');
   });
 
-  it('uses the dark lime palette and compact dimensions', () => {
+  it('uses the dark Binance yellow palette and compact dimensions', () => {
     themeMock.resolvedTheme = 'dark';
 
     render(
@@ -85,8 +85,8 @@ describe('ImageGenerationLoader', () => {
     expect(status.classList.contains('min-h-48')).toBe(false);
     expect(status.classList.contains('aspect-video')).toBe(true);
     expect(status.classList.contains('custom-loader')).toBe(true);
-    expect(grid.getAttribute('data-dot-color')).toBe('rgba(200, 252, 52, 0.10)');
-    expect(grid.getAttribute('data-active-dot-color')).toBe('rgba(200, 252, 52, 0.72)');
+    expect(grid.getAttribute('data-dot-color')).toBe('rgba(240, 185, 11, 0.10)');
+    expect(grid.getAttribute('data-active-dot-color')).toBe('rgba(240, 185, 11, 0.72)');
   });
 
   it('waits for next-themes to resolve before painting a palette', () => {
@@ -102,7 +102,7 @@ describe('ImageGenerationLoader', () => {
     rerender(<ImageGenerationLoader label="Generating cover" />);
 
     expect(screen.getByTestId('dot-grid').getAttribute('data-active-dot-color'))
-      .toBe('rgba(200, 252, 52, 0.72)');
+      .toBe('rgba(240, 185, 11, 0.72)');
   });
 
   it('dims an optional backdrop and hides it from the status announcement', () => {

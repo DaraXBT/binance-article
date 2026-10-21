@@ -82,8 +82,8 @@ describe('Button material contract', () => {
       expect(darkTokens).toContain(`${token}:`);
     }
 
-    expect(rootTokens).toMatch(/--button-primary-from:\s*#44403c/i);
-    expect(rootTokens).toMatch(/--button-primary-to:\s*#292524/i);
+    expect(rootTokens).toMatch(/--button-primary-from:\s*#f8d33a/i);
+    expect(rootTokens).toMatch(/--button-primary-to:\s*#f0b90b/i);
     expect(darkTokens).toMatch(/--button-primary-from:\s*#f8d33a/i);
     expect(darkTokens).toMatch(/--button-primary-to:\s*#f0b90b/i);
     expect(darkTokens).toMatch(/--button-primary-foreground:\s*#141413/i);
